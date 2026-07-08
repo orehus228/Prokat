@@ -2,15 +2,18 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Прокатошная">
+<meta name="theme-color" content="#1a1a1a">
 <title>Прокатошная</title>
 <style>
-/* ===== ОБЩИЕ СТИЛИ (мягкий дизайн) ===== */
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Segoe UI',Roboto,sans-serif;background:#1a1a1a;padding:15px;color:#d0d0d0;min-height:100vh}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:'Segoe UI',Roboto,system-ui,-apple-system,sans-serif;background:#1a1a1a;padding:12px;color:#d0d0d0;min-height:100vh;touch-action:manipulation}
 .app{max-width:1400px;margin:0 auto}
-.card{background:#252525;padding:15px;border-radius:14px;box-shadow:0 4px 16px rgba(0,0,0,0.5);margin-bottom:15px;border:1px solid #333}
-.btn{background:#333;color:#d0d0d0;border:1px solid #444;padding:12px;border-radius:10px;font-weight:bold;cursor:pointer;width:100%;display:block;text-align:center;font-size:16px;margin-bottom:10px;transition:all .2s}
+.card{background:#252525;padding:14px;border-radius:14px;box-shadow:0 4px 16px rgba(0,0,0,0.5);margin-bottom:14px;border:1px solid #333}
+.btn{background:#333;color:#d0d0d0;border:1px solid #444;padding:14px 12px;border-radius:10px;font-weight:bold;cursor:pointer;width:100%;display:block;text-align:center;font-size:16px;margin-bottom:10px;transition:all .2s;touch-action:manipulation;min-height:48px}
 .btn:hover{opacity:.85;transform:translateY(-1px);background:#3a3a3a}
 .btn:active{transform:scale(.98)}
 .btn-green{background:#2d6a3d;border-color:#3a8a4a;color:#e8f0e8}
@@ -20,40 +23,39 @@ body{font-family:'Segoe UI',Roboto,sans-serif;background:#1a1a1a;padding:15px;co
 .btn-red:hover{background:#7a3a3a}
 .btn-orange{background:#6a4a2a;border-color:#8a6a3a;color:#f0e8e0}
 .btn-orange:hover{background:#7a5a3a}
-.btn-sm{padding:6px 12px;font-size:14px;width:auto;display:inline-block;margin:0}
+.btn-sm{padding:8px 14px;font-size:14px;width:auto;display:inline-block;margin:0;min-height:40px}
 .btn-purple{background:#4a3a5a;border-color:#6a4a7a;color:#e8e0f0}
 .btn-purple:hover{background:#5a4a6a}
-.input-field,.input-textarea{width:100%;padding:10px;border:1px solid #3a3a3a;border-radius:8px;margin-bottom:10px;font-size:16px;background:#1e1e1e;color:#d0d0d0;font-family:inherit}
+.input-field,.input-textarea{width:100%;padding:12px;border:1px solid #3a3a3a;border-radius:8px;margin-bottom:10px;font-size:16px;background:#1e1e1e;color:#d0d0d0;font-family:inherit;-webkit-appearance:none}
 .input-field::placeholder,.input-textarea::placeholder{color:#777}
 .input-field:focus,.input-textarea:focus{outline:none;border-color:#5a8aaa}
 .input-textarea{min-height:60px;resize:vertical}
-.stats{margin-top:10px;padding:10px;background:#1e1e1e;border-radius:8px;font-size:14px;color:#888;border:1px solid #333}
-.category-tabs{display:flex;gap:4px;margin-bottom:20px;flex-wrap:wrap;border-bottom:2px solid #333;padding-bottom:6px}
-.category-tab{padding:8px 18px;border-radius:10px 10px 0 0;background:#2a2a2a;cursor:pointer;font-weight:500;transition:all .2s;color:#aaa}
+.category-tabs{display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap;border-bottom:2px solid #333;padding-bottom:6px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.category-tab{padding:10px 16px;border-radius:10px 10px 0 0;background:#2a2a2a;cursor:pointer;font-weight:500;transition:all .2s;color:#aaa;white-space:nowrap;touch-action:manipulation;min-height:44px;display:flex;align-items:center}
 .category-tab.active{background:#3a3a3a;color:#e8e8e8}
 .category-tab:hover:not(.active){background:#333}
 .category-content{display:none;animation:fadeIn .25s}
 .category-content.active{display:block}
 @keyframes fadeIn{from{opacity:.4}to{opacity:1}}
 .category-container{margin-bottom:15px;border:1px solid #333;border-radius:10px;overflow:hidden}
-.category-header{display:flex;align-items:center;justify-content:space-between;padding:10px 15px;cursor:pointer;user-select:none;background:#2a2a2a;border-left:5px solid #5a8aaa}
+.category-header{display:flex;align-items:center;justify-content:space-between;padding:12px 15px;cursor:pointer;user-select:none;background:#2a2a2a;border-left:5px solid #5a8aaa;min-height:48px}
 .category-header:hover{opacity:.85}
-.category-header .cat-title{font-size:18px;font-weight:bold;color:#d0d0d0}
+.category-header .cat-title{font-size:17px;font-weight:bold;color:#d0d0d0}
 .category-header .cat-toggle{font-size:20px;transition:transform .3s;margin-left:10px}
 .category-header .cat-toggle.collapsed{transform:rotate(-90deg)}
-.category-body{padding:10px 15px;background:#252525}
+.category-body{padding:10px 12px;background:#252525}
 .category-body.collapsed{display:none}
-.row{display:flex;flex-direction:column;padding:6px 0;border-bottom:1px solid #2a2a2a;transition:background .15s}
+.row{display:flex;flex-direction:column;padding:8px 0;border-bottom:1px solid #2a2a2a;transition:background .15s}
 .row-even{background:#1e1e1e}
 .row-odd{background:#252525}
 .row.hidden{display:none}
 .row .main-line{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px}
-.row .name-area{display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex:1 1 180px}
-.row .name{font-size:14px;color:#ccc}
+.row .name-area{display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex:1 1 160px}
+.row .name{font-size:14px;color:#ccc;word-break:break-word}
 .row .controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.controls input[type="number"]{width:50px;padding:4px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:6px;color:#d0d0d0;text-align:center;font-size:14px}
+.controls input[type="number"]{width:50px;padding:8px 4px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:6px;color:#d0d0d0;text-align:center;font-size:16px;min-height:40px}
 .controls input[type="number"]:focus{outline:none;border-color:#5a8aaa}
-.btn-c{width:28px;height:28px;border-radius:50%;border:1px solid #5a8aaa;background:#1a1a1a;color:#5a8aaa;font-size:16px;font-weight:bold;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s;flex-shrink:0}
+.btn-c{width:40px;height:40px;border-radius:50%;border:1px solid #5a8aaa;background:#1a1a1a;color:#5a8aaa;font-size:20px;font-weight:bold;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s;flex-shrink:0;touch-action:manipulation}
 .btn-c:hover{background:#5a8aaa;color:#fff}
 .case-input{border-color:#3a8a4a!important;background:#1a2a1a!important}
 .selected-item{background:#1a2a2a!important;border-left:3px solid #3a8a4a;padding-left:5px}
@@ -67,36 +69,36 @@ body{font-family:'Segoe UI',Roboto,sans-serif;background:#1a1a1a;padding:15px;co
 .props-compact.visible{display:flex}
 .props-compact span{white-space:nowrap}
 .props-compact .na{color:#555}
-.case-toggle{display:inline-flex;align-items:center;gap:4px;font-size:13px;color:#888;cursor:pointer;user-select:none}
-.case-toggle input[type="checkbox"]{width:16px;height:16px;accent-color:#5a8aaa;cursor:pointer}
-.desc-toggle{cursor:pointer;margin-left:6px;font-size:14px;opacity:.7;transition:.2s;background:0;border:0;color:#5a8aaa}
+.case-toggle{display:inline-flex;align-items:center;gap:4px;font-size:13px;color:#888;cursor:pointer;user-select:none;touch-action:manipulation}
+.case-toggle input[type="checkbox"]{width:18px;height:18px;accent-color:#5a8aaa;cursor:pointer}
+.desc-toggle{cursor:pointer;margin-left:6px;font-size:16px;opacity:.7;transition:.2s;background:0;border:0;color:#5a8aaa;padding:4px}
 .desc-toggle:hover{opacity:1;color:#7aaaca}
 .desc-block{display:none;padding:4px 10px;background:rgba(180,160,60,0.08);border-radius:6px;font-size:13px;color:#c8b870;margin:2px 0 2px 20px;border-left:2px solid #d4a040;font-style:italic}
 .desc-block.open{display:block}
-.link-btn{background:0;border:0;color:#5a8aaa;cursor:pointer;font-size:16px;padding:0 4px;transition:.2s}
+.link-btn{background:0;border:0;color:#5a8aaa;cursor:pointer;font-size:18px;padding:4px;transition:.2s;touch-action:manipulation}
 .link-btn:hover{color:#7aaaca}
 .link-btn.active{color:#d4a040}
-.category-totals{margin-top:12px;padding:8px 12px;background:#1e1e1e;border-radius:8px;font-size:13px;color:#aaa;border:1px solid #333;display:flex;flex-wrap:wrap;gap:15px}
+.category-totals{margin-top:12px;padding:8px 12px;background:#1e1e1e;border-radius:8px;font-size:13px;color:#aaa;border:1px solid #333;display:flex;flex-wrap:wrap;gap:12px}
 .category-totals strong{color:#d4a040}
-.global-totals{margin-top:20px;padding:12px 16px;background:#2a2a2a;border-radius:10px;border:1px solid #3a3a3a;display:flex;flex-wrap:wrap;gap:20px;font-size:15px;color:#d0d0d0;position:relative}
+.global-totals{margin-top:20px;padding:12px 14px;background:#2a2a2a;border-radius:10px;border:1px solid #3a3a3a;display:flex;flex-wrap:wrap;gap:16px;font-size:15px;color:#d0d0d0;position:relative}
 .global-totals strong{color:#d4a040}
-.global-totals .detail-btn{background:0;border:1px solid #5a8aaa;color:#5a8aaa;padding:2px 10px;border-radius:6px;cursor:pointer;font-size:13px;margin-left:auto}
+.global-totals .detail-btn{background:0;border:1px solid #5a8aaa;color:#5a8aaa;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:13px;margin-left:auto;touch-action:manipulation;min-height:40px}
 .global-totals .detail-btn:hover{background:#2a2a2a}
-.global-details{display:none;width:100%;margin-top:10px;padding:10px;background:#1e1e1e;border-radius:8px;font-size:13px;color:#aaa;border:1px solid #333;flex-wrap:wrap;gap:15px}
+.global-details{display:none;width:100%;margin-top:10px;padding:10px;background:#1e1e1e;border-radius:8px;font-size:13px;color:#aaa;border:1px solid #333;flex-wrap:wrap;gap:12px}
 .global-details.open{display:flex}
-.global-details .cat-detail{flex:1 1 200px;padding:4px 8px;border-left:2px solid #5a8aaa}
+.global-details .cat-detail{flex:1 1 160px;padding:4px 8px;border-left:2px solid #5a8aaa}
 .global-details .cat-detail strong{color:#d4a040}
 .search-box{margin-bottom:15px;display:flex;gap:8px;align-items:center}
-.search-box input{flex:1;padding:8px 12px;border:1px solid #3a3a3a;border-radius:8px;background:#1a1a1a;color:#d0d0d0;font-size:14px}
+.search-box input{flex:1;padding:10px 12px;border:1px solid #3a3a3a;border-radius:8px;background:#1a1a1a;color:#d0d0d0;font-size:16px;min-height:44px;-webkit-appearance:none}
 .search-box input:focus{outline:none;border-color:#5a8aaa}
-.search-box .clear-btn{background:0;border:0;color:#888;cursor:pointer;font-size:18px;padding:0 8px}
+.search-box .clear-btn{background:0;border:0;color:#888;cursor:pointer;font-size:22px;padding:8px;touch-action:manipulation}
 .search-box .clear-btn:hover{color:#ddd}
 .preset-bar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:15px;padding:10px;background:#1e1e1e;border-radius:10px;border:1px solid #333;align-items:center}
-.preset-bar select{padding:4px 8px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:6px;color:#d0d0d0;flex:1;min-width:120px}
-.preset-bar button{padding:4px 12px;background:#2a2a2a;border:1px solid #3a3a3a;border-radius:6px;color:#ccc;cursor:pointer;font-size:13px}
+.preset-bar select{padding:8px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:6px;color:#d0d0d0;flex:1;min-width:120px;min-height:40px;font-size:14px}
+.preset-bar button{padding:6px 12px;background:#2a2a2a;border:1px solid #3a3a3a;border-radius:6px;color:#ccc;cursor:pointer;font-size:13px;min-height:40px;touch-action:manipulation}
 .preset-bar button:hover{background:#333}
-.preset-bar .overlay-toggle{display:flex;align-items:center;gap:4px;font-size:13px;color:#aaa;cursor:pointer}
-.preset-bar .overlay-toggle input{width:16px;height:16px;accent-color:#5a8aaa;cursor:pointer}
+.preset-bar .overlay-toggle{display:flex;align-items:center;gap:4px;font-size:13px;color:#aaa;cursor:pointer;touch-action:manipulation}
+.preset-bar .overlay-toggle input{width:18px;height:18px;accent-color:#5a8aaa;cursor:pointer}
 .sub-cat-t,.sub-sub-cat-t{font-weight:bold;margin:8px 0 4px 0;padding-left:10px;border-left:2px solid #5a8aaa}
 .sub-cat-t{font-size:15px;color:#8a8a8a}
 .sub-sub-cat-t{font-size:14px;color:#6a6a6a;padding-left:25px;border-left-color:#4a7a8a}
@@ -104,110 +106,181 @@ body{font-family:'Segoe UI',Roboto,sans-serif;background:#1a1a1a;padding:15px;co
 .cat-progress-text{font-size:13px;color:#888}
 .toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#2a2a2a;color:#d0d0d0;padding:12px 24px;border-radius:10px;font-size:14px;opacity:0;transition:opacity .3s;pointer-events:none;border:1px solid #3a3a3a;z-index:2000}
 .toast.show{opacity:1}
-.header{display:flex;align-items:center;gap:15px;margin-bottom:15px;padding:10px 15px;background:#1e1e1e;border-radius:14px;border:1px solid #333}
-.header h1{margin:0;font-size:24px;color:#d0d0d0}
-.header .logo{width:48px;height:48px;border-radius:12px;background:#2a2a2a;display:flex;align-items:center;justify-content:center;font-size:24px;color:#777}
-.modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;z-index:1000}
+.header{display:flex;align-items:center;gap:12px;margin-bottom:15px;padding:10px 14px;background:#1e1e1e;border-radius:14px;border:1px solid #333}
+.header h1{margin:0;font-size:22px;color:#d0d0d0}
+.header .logo{width:44px;height:44px;border-radius:12px;background:#2a2a2a;display:flex;align-items:center;justify-content:center;font-size:22px;color:#777;flex-shrink:0}
+.modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;z-index:1000;padding:10px}
 .modal-overlay.open{display:flex}
-.modal{background:#252525;padding:24px;border-radius:14px;border:1px solid #3a3a3a;max-width:95vw;max-height:85vh;overflow:hidden;display:flex;flex-direction:column}
-.modal h3{color:#d0d0d0;margin-bottom:12px;flex-shrink:0}
-.modal .filter-row{display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap;flex-shrink:0}
-.modal .filter-row input{flex:1;padding:6px 10px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:6px;color:#d0d0d0}
-.modal .preset-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;flex-shrink:0;align-items:center}
-.modal .preset-row select{padding:4px 8px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:6px;color:#d0d0d0;flex:1;min-width:120px}
-.modal .preset-row button{padding:4px 12px;background:#2a2a2a;border:1px solid #3a3a3a;border-radius:6px;color:#ccc;cursor:pointer;font-size:13px}
+.modal{background:#252525;padding:16px;border-radius:14px;border:1px solid #3a3a3a;width:100%;max-width:95vw;max-height:90vh;overflow:hidden;display:flex;flex-direction:column}
+.modal h3{color:#d0d0d0;margin-bottom:12px;flex-shrink:0;font-size:18px}
+.modal .filter-row{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;flex-shrink:0}
+.modal .filter-row input{flex:1;padding:8px 10px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:6px;color:#d0d0d0;min-height:40px;font-size:14px}
+.modal .preset-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;flex-shrink:0;align-items:center}
+.modal .preset-row select{padding:6px 8px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:6px;color:#d0d0d0;flex:1;min-width:100px;min-height:40px;font-size:13px}
+.modal .preset-row button{padding:6px 10px;background:#2a2a2a;border:1px solid #3a3a3a;border-radius:6px;color:#ccc;cursor:pointer;font-size:12px;min-height:36px;touch-action:manipulation}
 .modal .preset-row button:hover{background:#333}
-.modal .preset-row .overlay-toggle{display:flex;align-items:center;gap:4px;font-size:13px;color:#aaa;cursor:pointer}
+.modal .preset-row .overlay-toggle{display:flex;align-items:center;gap:4px;font-size:12px;color:#aaa;cursor:pointer}
 .modal .preset-row .overlay-toggle input{width:16px;height:16px;accent-color:#5a8aaa;cursor:pointer}
-.modal .table-wrap{flex:1;overflow:auto;border:1px solid #333;border-radius:8px}
-.modal .table-wrap table{width:100%;border-collapse:collapse;font-size:13px}
-.modal .table-wrap th,.modal .table-wrap td{border:1px solid #333;padding:4px 6px;text-align:center;min-width:60px}
+.modal .table-wrap{flex:1;overflow:auto;border:1px solid #333;border-radius:8px;-webkit-overflow-scrolling:touch}
+.modal .table-wrap table{width:100%;border-collapse:collapse;font-size:12px;min-width:600px}
+.modal .table-wrap th,.modal .table-wrap td{border:1px solid #333;padding:4px 6px;text-align:center;min-width:50px;word-break:break-word}
 .modal .table-wrap th{background:#2a2a2a;color:#aaa;font-weight:500;position:sticky;top:0;z-index:2}
 .modal .table-wrap .source-label{text-align:left;font-weight:500;color:#ccc;white-space:nowrap}
 .modal .table-wrap .empty-cell{color:#555;cursor:pointer;font-size:18px}
 .modal .table-wrap .empty-cell:hover{color:#aaa;background:#2a2a2a}
 .modal .table-wrap .cell-value{font-weight:bold;color:#d4a040;cursor:pointer}
 .modal .table-wrap .cell-value:hover{color:#e0b060}
-.modal .table-wrap .matrix-category td{background:#2a2a2a;padding:6px 12px;text-align:left;font-weight:bold;color:#ccc;cursor:pointer}
+.modal .table-wrap .matrix-category td{background:#2a2a2a;padding:6px 10px;text-align:left;font-weight:bold;color:#ccc;cursor:pointer}
 .modal .table-wrap .matrix-category-items{display:none}
 .modal .table-wrap .matrix-category-items.open{display:table-row-group}
 .modal .table-wrap .toggle{display:inline-block;transition:transform .2s;margin-right:6px}
 .modal .table-wrap .toggle.collapsed{transform:rotate(-90deg)}
 .modal .buttons{display:flex;justify-content:flex-end;gap:8px;margin-top:10px;flex-shrink:0}
-.modal .buttons button{padding:6px 18px;border:0;border-radius:8px;cursor:pointer;font-size:14px}
+.modal .buttons button{padding:8px 16px;border:0;border-radius:8px;cursor:pointer;font-size:14px;min-height:40px;touch-action:manipulation}
 .modal .buttons .cancel{background:#2a2a2a;color:#aaa}
 .modal .buttons .danger{background:#5a2a2a;color:#f0d0d0}
 .modal .buttons .danger:hover{background:#6a3a3a}
 .progress-container{margin-top:20px;padding:15px;background:#1e1e1e;border-radius:10px;border:1px solid #333}
-.progress-bar-bg{width:100%;background:#2a2a2a;height:10px;border-radius:6px;margin-top:8px;overflow:hidden}
-.progress-bar-fill{width:0;background:#d4a040;height:10px;border-radius:6px;transition:width .4s ease}
+.progress-container strong{font-size:15px}
+.progress-bar-bg{width:100%;background:#2a2a2a;height:12px;border-radius:6px;margin-top:8px;overflow:hidden}
+.progress-bar-fill{width:0;background:#d4a040;height:12px;border-radius:6px;transition:width .4s ease}
 .progress-bar-fill.complete{background:#d4a040}
-.check-missing-btn{background:#2a2a2a;color:#d0d0d0;border:1px solid #5a8aaa;padding:10px 20px;border-radius:10px;cursor:pointer;font-size:16px;transition:.2s;width:100%;margin-top:15px}
+.check-missing-btn{background:#2a2a2a;color:#d0d0d0;border:1px solid #5a8aaa;padding:12px 20px;border-radius:10px;cursor:pointer;font-size:16px;transition:.2s;width:100%;margin-top:15px;min-height:48px}
 .check-missing-btn:hover{background:#333;border-color:#7aaaca}
-.matrix-btn{background:#2a2a2a;color:#d0d0d0;border:1px solid #5a8aaa;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:14px;display:inline-block;margin-bottom:10px}
+.matrix-btn{background:#2a2a2a;color:#d0d0d0;border:1px solid #5a8aaa;padding:10px 16px;border-radius:8px;cursor:pointer;font-size:14px;display:inline-block;margin-bottom:10px;min-height:44px}
 .matrix-btn:hover{background:#333;border-color:#7aaaca}
-.item-info{font-size:12px;color:#aaa;padding:2px 0 2px 10px;margin-left:10px;display:flex;flex-wrap:wrap;gap:12px;border-left:1px solid #3a3a3a}
+.item-info{font-size:12px;color:#aaa;padding:2px 0 2px 10px;margin-left:10px;display:flex;flex-wrap:wrap;gap:10px;border-left:1px solid #3a3a3a}
 .item-info .label{color:#777}
 .item-info .value{color:#d4a040}
-.subgroup{background:#252525;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.3);margin-bottom:16px;border:1px solid #333;overflow:hidden}
-.subgroup-header{display:flex;align-items:center;background:#2a2a2a;padding:8px 16px;border-bottom:1px solid #333;gap:8px;flex-wrap:wrap}
-.subgroup-header .name{font-weight:600;font-size:16px;flex:1;color:#d0d0d0;cursor:pointer}
-.subgroup-header .name:hover{color:#7aaaca}
-.subgroup-header .controls{display:flex;gap:4px}
-.subgroup-header .controls button{background:0;border:1px solid #3a3a3a;border-radius:6px;padding:2px 8px;cursor:pointer;font-size:14px;color:#aaa;transition:.2s}
-.subgroup-header .controls button:hover{background:#333;color:#e0e0e0}
-.subgroup-header .controls button.danger{color:#c66}
-.subgroup-header .controls button.danger:hover{background:#3a1a1a;border-color:#c66}
-.items-list{padding:8px 12px}
-.item-row{display:flex;flex-direction:column;padding:6px 0;border-bottom:1px solid #2a2a2a}
-.item-row:nth-child(even){background:#1e1e1e}
-.item-row:nth-child(odd){background:#252525}
-.item-row:last-child{border-bottom:none}
-.item-row .main-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.item-row .name{flex:1 1 200px;font-size:14px;word-break:break-word;color:#ccc;cursor:pointer}
-.item-row .name:hover{color:#7aaaca}
-.item-row .qty{width:70px;padding:4px 6px;border:1px solid #3a3a3a;border-radius:6px;font-size:14px;text-align:center;background:#1a1a1a;color:#d0d0d0}
-.item-row .qty:focus{outline:2px solid #5a8aaa}
-.item-row .spec{flex:2 1 250px;padding:4px 6px;border:1px solid #3a3a3a;border-radius:6px;font-size:13px;min-width:120px;background:#1a1a1a;color:#ccc}
-.item-row .spec:focus{outline:2px solid #5a8aaa}
-.item-row .actions{display:flex;gap:4px}
-.item-row .actions button{background:0;border:0;cursor:pointer;font-size:16px;padding:0 4px;color:#888;transition:.2s}
-.item-row .actions button:hover{color:#c66}
-.item-row .actions button.move{color:#5a8aaa}
-.item-row .actions button.move:hover{color:#7aaaca}
-.item-row .actions button.props{color:#d4a040}
-.item-row .actions button.props:hover{color:#e0b060}
-.item-row .props-info{font-size:12px;color:#888;padding:2px 0 2px 10px;border-left:2px solid #5a8aaa;margin-left:10px;display:flex;flex-wrap:wrap;gap:12px}
-.item-row .props-info span{white-space:nowrap}
-.item-row .props-info .na{color:#555}
-.add-item{margin:6px 0 10px 12px;padding:4px 12px;background:#2a2a2a;border:1px solid #3a3a3a;border-radius:6px;cursor:pointer;font-size:13px;transition:.2s;color:#ccc}
-.add-item:hover{background:#333}
-.add-subgroup{margin:6px 0 16px 0;padding:6px 18px;background:#2a2a2a;color:#d0d0d0;border:1px solid #3a3a3a;border-radius:8px;cursor:pointer;font-size:14px;transition:.2s}
-.add-subgroup:hover{background:#333}
 .empty-message{color:#666;padding:8px 12px;font-style:italic}
-.editor-add{display:flex;gap:8px;margin:8px 0;flex-wrap:wrap;align-items:center}
-.editor-add input{flex:1;min-width:120px;padding:6px 10px;border:1px solid #3a3a3a;border-radius:6px;background:#1a1a1a;color:#d0d0d0}
-.editor-add input:focus{outline:none;border-color:#5a8aaa}
-.editor-add button{padding:6px 14px}
-.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
-.toolbar button{padding:6px 16px;background:#2a2a2a;color:#d0d0d0;border:1px solid #3a3a3a;border-radius:8px;cursor:pointer;font-size:14px;transition:.2s;flex:1}
-.toolbar button:hover{background:#333}
-.toolbar .btn-purple{background:#4a3a5a;border-color:#6a4a7a;color:#e8e0f0}
-.toolbar .btn-purple:hover{background:#5a4a6a}
-@media(max-width:600px){.row .main-line{flex-direction:column;align-items:stretch}.controls{justify-content:flex-end}.props-compact,.dynamic-info,.item-info{flex-direction:column;gap:4px}.global-totals{flex-direction:column;gap:10px}.global-details{flex-direction:column}.modal{width:98vw;height:95vh;padding:12px}}
+.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#2a2a2a;color:#d0d0d0;padding:12px 24px;border-radius:10px;font-size:14px;opacity:0;transition:opacity .3s;pointer-events:none;border:1px solid #3a3a3a;z-index:2000}
+.toast.show{opacity:1}
+@media(max-width:600px){
+body{padding:8px}
+.card{padding:12px}
+.btn{padding:12px;font-size:15px;min-height:44px}
+.btn-sm{padding:6px 12px;font-size:13px;min-height:36px}
+.category-tab{padding:8px 12px;font-size:14px}
+.category-header{padding:10px 12px}
+.category-header .cat-title{font-size:16px}
+.row{padding:6px 0}
+.row .main-line{flex-direction:column;align-items:stretch}
+.row .name-area{flex:1 1 auto}
+.row .controls{justify-content:flex-end;flex-wrap:wrap}
+.controls input[type="number"]{width:45px;padding:6px;font-size:15px;min-height:36px}
+.btn-c{width:36px;height:36px;font-size:18px}
+.case-toggle{font-size:12px}
+.desc-toggle{font-size:14px}
+.link-btn{font-size:16px}
+.global-totals{flex-direction:column;gap:12px}
+.global-totals .detail-btn{margin-left:0;align-self:flex-start}
+.global-details .cat-detail{flex:1 1 100%}
+.preset-bar select{font-size:13px;min-height:36px}
+.preset-bar button{font-size:12px;padding:4px 10px;min-height:32px}
+.search-box input{font-size:15px;min-height:40px}
+.modal{padding:12px;max-width:100%;height:100vh;max-height:100vh;border-radius:0}
+.modal .preset-row select{font-size:12px}
+.modal .preset-row button{font-size:11px;padding:4px 8px;min-height:30px}
+.modal .table-wrap table{font-size:11px;min-width:480px}
+.modal .table-wrap th,.modal .table-wrap td{padding:3px 4px}
+}
+@media(max-width:400px){
+body{padding:5px}
+.card{padding:10px}
+.btn{font-size:14px;padding:10px;min-height:40px}
+.category-tab{padding:6px 10px;font-size:13px}
+.row .controls{gap:4px}
+.controls input[type="number"]{width:40px;font-size:14px;min-height:32px}
+.btn-c{width:32px;height:32px;font-size:16px}
+.preset-bar select{font-size:12px;min-height:32px}
+.preset-bar button{font-size:11px;padding:4px 8px;min-height:28px}
+.modal .table-wrap table{font-size:10px;min-width:360px}
+.modal .preset-row button{font-size:10px;padding:2px 6px;min-height:24px}
+}
+@media (hover: none){
+.btn:hover,.btn-c:hover,.category-tab:hover,.category-header:hover,.matrix-btn:hover,.preset-bar button:hover,.modal .preset-row button:hover,.check-missing-btn:hover,.add-item:hover,.search-box .clear-btn:hover{background:none;transform:none}
+}
 </style>
 </head>
 <body>
 <div class="app">
 <div class="header"><div class="logo">📦</div><h1>Прокатошная</h1></div>
-<div class="card" id="mMenu" style="display:block;"><h2 style="color:#aaa;">Выберите действие:</h2><button class="btn" onclick="sc('mPage')">📝 Создать список</button><button class="btn btn-sec" onclick="sc('sPage')">📂 Открыть список</button><button class="btn btn-orange" onclick="sc('ePage')">🛠️ Редактор склада</button></div>
-<div id="mPage" class="card" style="display:none;"><button class="btn btn-sec" onclick="sc('menu')">◀ В меню</button><h3 style="color:#aaa;">📝 Создание списка</h3><input type="text" id="pName" class="input-field" placeholder="Название мероприятия"><input type="date" id="pDate" class="input-field"><textarea id="pComment" class="input-textarea" placeholder="Комментарий"></textarea><div style="margin-bottom:15px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;"><button class="btn btn-purple" id="togglePropsBtn">📐 Показать свойства</button><span style="font-size:13px;color:#888;" id="propsStatus">(свойства скрыты)</span><button class="matrix-btn" onclick="openMatrixModal()">📊 Матрица привязок</button><span style="font-size:13px;color:#888;" id="linkCount">(0 активных)</span></div><div class="preset-bar"><select id="orderPresetSelect"><option value="">— Выберите пресет —</option></select><button onclick="saveOrderPreset()">💾 Сохранить</button><button onclick="loadOrderPreset()">📂 Загрузить</button><button onclick="exportOrderPresets()">📤 Экспорт</button><button onclick="document.getElementById('orderPresetFileInput').click()">📥 Импорт</button><input type="file" id="orderPresetFileInput" style="display:none" accept=".json" onchange="importOrderPresets(event)"><button onclick="deleteOrderPreset()" style="color:#c66;">🗑️ Удалить</button><label class="overlay-toggle"><input type="checkbox" id="orderOverlayToggle"> Наложение</label></div><div class="category-tabs" id="categoryTabs"></div><div class="search-box"><input type="text" id="searchInput" placeholder="🔍 Глобальный поиск по всем позициям..." oninput="applySearch()"><button class="clear-btn" onclick="clearSearch()">✕</button></div><div id="categoryContents"></div><div id="globalTotals" class="global-totals"><span><strong>Всего:</strong> <span id="totalQty">0</span> шт</span><span><strong>Вес:</strong> <span id="totalWeight">0</span> кг</span><span><strong>Объём:</strong> <span id="totalVolume">0</span> м³</span><button class="detail-btn" id="detailToggle">📊 Подробно</button><div class="global-details" id="globalDetails"></div></div><div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:15px;"><button class="btn btn-green" style="flex:1;min-width:120px;" onclick="saveJ()">💾 Сохранить JSON</button><button class="btn btn-orange" style="flex:1;min-width:120px;" onclick="savePdf()">📄 Сохранить PDF</button><button class="btn btn-red" style="flex:1;min-width:120px;" onclick="clearOrder()">🗑️ Очистить</button></div></div>
-<div id="sPage" style="display:none;"><div class="card"><button class="btn btn-sec" onclick="sc('menu')">◀ В меню</button><h3 style="color:#aaa;">📂 Открыть список</h3><label class="btn btn-sec" for="fSel">📎 Выберите JSON-файл</label><input type="file" id="fSel" style="display:none" accept=".json"><div style="margin-top:10px;font-size:14px;color:#888;"><span id="loadStatus">Файл не выбран</span></div></div><div class="card" id="sRes" style="display:none;"><h2 id="rName" style="color:#d0d0d0;">Мероприятие</h2><div id="rDate" style="color:#777;margin-bottom:10px;">📅 Дата:</div><div id="rComment" style="color:#888;margin-bottom:10px;font-style:italic;padding:8px;background:#1a1a1a;border-radius:8px;border-left:3px solid #c44;"></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;"><button class="btn btn-red" style="width:auto;padding:8px 16px;font-size:14px;" onclick="resetCheckboxes()">🔄 Сброс отметок</button></div><div id="sCats"></div><div id="globalTotalsOpen" class="global-totals"><span><strong>Общий вес:</strong> <span id="totalWeightOpen">0</span> кг</span><span><strong>Общий объём:</strong> <span id="totalVolumeOpen">0</span> м³</span></div><div class="progress-container"><strong>Собрано:</strong><span id="progressCount">0/0</span><span id="progressPercent" style="margin-left:10px;color:#888;font-size:14px;">0%</span><div class="progress-bar-bg"><div id="progressBar" class="progress-bar-fill" style="width:0%;"></div></div><button class="check-missing-btn" onclick="checkMissingItems()">🔍 Проверить пропущенное</button></div></div></div>
-<div id="ePage" class="card" style="display:none;"><button class="btn btn-sec" onclick="sc('menu')">◀ В меню</button><h3 style="color:#aaa;">🛠️ Редактор склада</h3><div class="toolbar"><button id="exportBtn">📤 Экспорт JSON</button><button id="importBtn">📥 Импорт JSON</button><button id="resetBtn">🔄 Сброс</button><button id="saveHtmlBtn" class="btn-purple">💾 Сохранить в HTML</button></div><input type="file" id="importFile" style="display:none" accept=".json"><div class="category-tabs" id="editorTabs"></div><div id="editorContents"></div><div class="editor-add" style="margin-top:15px;"><input type="text" id="newCategoryName" placeholder="Новая категория"><button class="btn btn-green" style="width:auto;" onclick="addCategory()">➕ Добавить категорию</button></div></div>
-
-<!-- Модалки -->
-<div class="modal-overlay" id="modalOverlay"><div class="modal"><h3 id="modalTitle">Новая позиция</h3><label for="modalInput">Название:</label><input type="text" id="modalInput" placeholder="Введите название..."><div class="buttons"><button class="cancel" id="modalCancel">Отмена</button><button class="confirm" id="modalConfirm">Добавить</button></div></div></div>
-<div class="modal-overlay" id="propsModal"><div class="modal"><h3 id="propsTitle">Свойства позиции</h3><label for="propWeight">Вес 1 шт (кг):</label><input type="number" id="propWeight" step="0.1" min="0" placeholder="0.0"><label for="propDimensions">Габариты 1 шт (Д×Ш×В, см):</label><input type="text" id="propDimensions" placeholder="50x40x30"><label for="propVolume">Объём 1 шт (м³) – опционально:</label><input type="number" id="propVolume" step="0.001" min="0" placeholder="0.000"><label for="propCaseQty">Кол-во в кофре (шт):</label><input type="number" id="propCaseQty" step="1" min="0" placeholder="0"><label for="propCaseDim">Габариты кофра (Д×Ш×В, см):</label><input type="text" id="propCaseDim" placeholder="120x80x60"><label for="propCaseWeight">Вес пустого кофра (кг):</label><input type="number" id="propCaseWeight" step="0.1" min="0" placeholder="0.0"><div class="buttons"><button class="cancel" id="propsCancel">Отмена</button><button class="confirm" id="propsConfirm">Сохранить</button></div></div></div>
+<div class="card" id="mMenu" style="display:block;">
+<h2 style="color:#aaa;">Выберите действие:</h2>
+<button class="btn" onclick="sc('mPage')">📝 Создать список</button>
+<button class="btn btn-sec" onclick="sc('sPage')">📂 Открыть список</button>
+<button class="btn btn-orange" onclick="loadLibrary()">📥 Загрузить библиотеку</button>
+</div>
+<!-- Режим создания списка -->
+<div id="mPage" class="card" style="display:none;">
+<button class="btn btn-sec" onclick="sc('menu')">◀ В меню</button>
+<h3 style="color:#aaa;">📝 Создание списка</h3>
+<input type="text" id="pName" class="input-field" placeholder="Название мероприятия">
+<input type="date" id="pDate" class="input-field">
+<textarea id="pComment" class="input-textarea" placeholder="Комментарий"></textarea>
+<div style="margin-bottom:15px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+<button class="btn btn-purple" id="togglePropsBtn">📐 Показать свойства</button>
+<span style="font-size:13px;color:#888;" id="propsStatus">(свойства скрыты)</span>
+<button class="matrix-btn" onclick="openMatrixModal()">📊 Матрица привязок</button>
+<span style="font-size:13px;color:#888;" id="linkCount">(0 активных)</span>
+</div>
+<div class="preset-bar">
+<select id="orderPresetSelect"><option value="">— Выберите пресет —</option></select>
+<button onclick="saveOrderPreset()">💾 Сохранить</button>
+<button onclick="loadOrderPreset()">📂 Загрузить</button>
+<button onclick="exportOrderPresets()">📤 Экспорт</button>
+<button onclick="document.getElementById('orderPresetFileInput').click()">📥 Импорт</button>
+<input type="file" id="orderPresetFileInput" style="display:none" accept=".json" onchange="importOrderPresets(event)">
+<button onclick="deleteOrderPreset()" style="color:#c66;">🗑️ Удалить</button>
+<label class="overlay-toggle"><input type="checkbox" id="orderOverlayToggle"> Наложение</label>
+</div>
+<div class="category-tabs" id="categoryTabs"></div>
+<div class="search-box"><input type="text" id="searchInput" placeholder="🔍 Глобальный поиск..." oninput="applySearch()"><button class="clear-btn" onclick="clearSearch()">✕</button></div>
+<div id="categoryContents"></div>
+<div id="globalTotals" class="global-totals">
+<span><strong>Всего:</strong> <span id="totalQty">0</span> шт</span>
+<span><strong>Вес:</strong> <span id="totalWeight">0</span> кг</span>
+<span><strong>Объём:</strong> <span id="totalVolume">0</span> м³</span>
+<button class="detail-btn" id="detailToggle">📊 Подробно</button>
+<div class="global-details" id="globalDetails"></div>
+</div>
+<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:15px;">
+<button class="btn btn-green" style="flex:1;min-width:120px;" onclick="saveJ()">💾 Сохранить JSON</button>
+<button class="btn btn-orange" style="flex:1;min-width:120px;" onclick="savePdf()">📄 Сохранить PDF</button>
+<button class="btn btn-red" style="flex:1;min-width:120px;" onclick="clearOrder()">🗑️ Очистить</button>
+</div>
+</div>
+<!-- Режим открытия списка -->
+<div id="sPage" style="display:none;">
+<div class="card">
+<button class="btn btn-sec" onclick="sc('menu')">◀ В меню</button>
+<h3 style="color:#aaa;">📂 Открыть список</h3>
+<label class="btn btn-sec" for="fSel">📎 Выберите JSON-файл</label>
+<input type="file" id="fSel" style="display:none" accept=".json">
+<div style="margin-top:10px;font-size:14px;color:#888;"><span id="loadStatus">Файл не выбран</span></div>
+</div>
+<div class="card" id="sRes" style="display:none;">
+<h2 id="rName" style="color:#d0d0d0;">Мероприятие</h2>
+<div id="rDate" style="color:#777;margin-bottom:10px;">📅 Дата:</div>
+<div id="rComment" style="color:#888;margin-bottom:10px;font-style:italic;padding:8px;background:#1a1a1a;border-radius:8px;border-left:3px solid #c44;"></div>
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+<button class="btn btn-red" style="width:auto;padding:8px 16px;font-size:14px;" onclick="resetCheckboxes()">🔄 Сброс отметок</button>
+</div>
+<div id="sCats"></div>
+<div id="globalTotalsOpen" class="global-totals">
+<span><strong>Общий вес:</strong> <span id="totalWeightOpen">0</span> кг</span>
+<span><strong>Общий объём:</strong> <span id="totalVolumeOpen">0</span> м³</span>
+</div>
+<div class="progress-container">
+<strong>Собрано:</strong>
+<span id="progressCount">0/0</span>
+<span id="progressPercent" style="margin-left:10px;color:#888;font-size:14px;">0%</span>
+<div class="progress-bar-bg"><div id="progressBar" class="progress-bar-fill" style="width:0%;"></div></div>
+<button class="check-missing-btn" onclick="checkMissingItems()">🔍 Проверить пропущенное</button>
+</div>
+</div>
+</div>
+<!-- Модальные окна -->
 <div class="modal-overlay" id="linkModal"><div class="modal"><h3>🔗 Привязки для <span id="linkSourceLabel"></span></h3><div id="linkList"></div><div style="margin-top:15px;border-top:1px solid #333;padding-top:15px;"><label>Добавить цель:</label><div style="display:flex;gap:8px;flex-wrap:wrap;"><select id="linkAddTarget" style="flex:2;min-width:150px;"></select><input type="number" id="linkAddMultiplier" value="1" step="0.1" style="flex:1;min-width:80px;"><button class="confirm" id="linkAddBtn">➕</button></div></div><div class="buttons"><button class="cancel" id="linkModalClose">Закрыть</button></div></div></div>
 <div class="modal-overlay" id="matrixModal"><div class="modal" style="max-width:95vw;max-height:85vh;overflow:hidden;"><h3>📊 Матрица привязок</h3><div class="filter-row"><input type="text" id="matrixSearchSource" placeholder="🔍 Фильтр источников" oninput="renderMatrix()"><input type="text" id="matrixSearchTarget" placeholder="🔍 Фильтр целей" oninput="renderMatrix()"></div><div class="preset-row"><select id="presetSelect"><option value="">— Выберите пресет —</option></select><button onclick="savePreset()">💾 Сохранить</button><button onclick="loadPreset()">📂 Загрузить</button><button onclick="exportPresets()">📤 Экспорт</button><button onclick="document.getElementById('presetFileInput').click()">📥 Импорт</button><input type="file" id="presetFileInput" style="display:none" accept=".json" onchange="importPresets(event)"><button onclick="deletePreset()" style="color:#c66;">🗑️ Удалить</button><label class="overlay-toggle"><input type="checkbox" id="overlayToggle" checked> Наложение</label></div><div class="table-wrap" id="matrixContainer"></div><div class="buttons"><button class="danger" id="matrixClearAll">Удалить все привязки</button><button class="cancel" id="matrixClose">Закрыть</button></div></div></div>
 <div class="toast" id="toast"></div>
@@ -215,63 +288,12 @@ body{font-family:'Segoe UI',Roboto,sans-serif;background:#1a1a1a;padding:15px;co
 
 <script>
 // ============================================================
-// ОБЩАЯ БАЗА ДАННЫХ
+// ОБЩАЯ БАЗА ДАННЫХ (загружается из файла)
 // ============================================================
-let inventory = {
-    "sound": {
-        "Акустические системы": [
-            "Топ пассивный d&b Q1",
-            "Сабвуфер пассивный d&b Q-Sub"
-        ],
-        "Пульты": {
-            "Цифровые": [
-                "Behringer x32 Rack",
-                "Midas MR18"
-            ]
-        }
-    },
-    "light": {
-        "Приборы": [
-            "LED Wash 19x40",
-            "Beam 295W"
-        ]
-    },
-    "extra": [
-        "Кейс с бобышками",
-        "Стяжной ремень"
-    ],
-    "video": {
-        "Телевизоры": [
-            "Телевизор 55\"",
-            "Телевизор 65\"",
-            "Телевизор 75\""
-        ]
-    }
-};
-let stock = {
-    "sound|Акустические системы|Топ пассивный d&b Q1": 8,
-    "sound|Акустические системы|Сабвуфер пассивный d&b Q-Sub": 6,
-    "sound|Пульты|Цифровые|Behringer x32 Rack": 1,
-    "sound|Пульты|Цифровые|Midas MR18": 1,
-    "light|Приборы|LED Wash 19x40": 4,
-    "light|Приборы|Beam 295W": 9999,
-    "extra|Кейс с бобышками": 2,
-    "extra|Стяжной ремень": 9999,
-    "video|Телевизоры|Телевизор 55\"": 0,
-    "video|Телевизоры|Телевизор 65\"": 0,
-    "video|Телевизоры|Телевизор 75\"": 0
-};
-let specs = {
-    "sound|Акустические системы|Топ пассивный d&b Q1": "Speakon NL4, Набор для крепления d&b",
-    "sound|Акустические системы|Сабвуфер пассивный d&b Q-Sub": "Speakon NL2",
-    "sound|Пульты|Цифровые|Behringer x32 Rack": "Питание IEC C13, Стереопара",
-    "extra|Кейс с бобышками": "Бобышки, пальцы, шплинты, молоток"
-};
-let itemProps = {
-    "sound|Акустические системы|Топ пассивный d&b Q1": { weight: 25, dimensions: "60x40x30", case_qty: 2, case_dimensions: "120x80x60", case_weight: 15 },
-    "sound|Акустические системы|Сабвуфер пассивный d&b Q-Sub": { weight: 30, dimensions: "70x50x40", case_qty: 1, case_dimensions: "80x60x50", case_weight: 10 },
-    "light|Приборы|LED Wash 19x40": { weight: 8, dimensions: "50x30x20" }
-};
+let inventory = {};
+let stock = {};
+let specs = {};
+let itemProps = {};
 const CAT_NAMES = {
     "sound": "🔊 Звук",
     "light": "💡 Свет",
@@ -281,6 +303,7 @@ const CAT_NAMES = {
     "extra": "📦 Другое"
 };
 let categoryOrder = [];
+
 function loadCategoryOrder() {
     try { const s = localStorage.getItem('categoryOrder'); if (s) categoryOrder = JSON.parse(s); } catch(e) {}
     if (!categoryOrder || categoryOrder.length === 0) categoryOrder = Object.keys(inventory);
@@ -292,23 +315,56 @@ function loadCategoryOrder() {
 function saveCategoryOrder() { localStorage.setItem('categoryOrder', JSON.stringify(categoryOrder)); }
 
 // ============================================================
-// ОБЩИЕ ФУНКЦИИ ЗАГРУЗКИ/СОХРАНЕНИЯ
+// ЗАГРУЗКА БИБЛИОТЕКИ ИЗ ФАЙЛА
 // ============================================================
-function loadAppData() {
-    try { const s = localStorage.getItem('inventoryData'); if (s) inventory = JSON.parse(s); } catch(e) {}
-    try { const s = localStorage.getItem('stockData'); if (s) stock = JSON.parse(s); } catch(e) {}
-    try { const s = localStorage.getItem('specsData'); if (s) specs = JSON.parse(s); } catch(e) {}
-    try { const s = localStorage.getItem('itemPropsData'); if (s) itemProps = JSON.parse(s); } catch(e) {}
-    loadCategoryOrder();
+function loadLibrary() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(ev) {
+            try {
+                const data = JSON.parse(ev.target.result);
+                if (data.inventory) inventory = data.inventory;
+                if (data.stock) stock = data.stock;
+                if (data.specs) specs = data.specs;
+                if (data.itemProps) itemProps = data.itemProps;
+                if (data.catNames) Object.assign(CAT_NAMES, data.catNames);
+                if (data._categoryOrder) categoryOrder = data._categoryOrder;
+                else loadCategoryOrder();
+                saveLibraryToLocal();
+                showToast('✅ Библиотека загружена');
+                // Если мы в режиме создания, перерисовываем
+                if (document.getElementById('mPage').style.display === 'block') {
+                    renderOrderAll();
+                }
+            } catch(err) {
+                showToast('❌ Ошибка: ' + err.message);
+            }
+        };
+        reader.readAsText(file);
+    };
+    input.click();
 }
-function saveAppData() {
+
+function saveLibraryToLocal() {
     localStorage.setItem('inventoryData', JSON.stringify(inventory));
     localStorage.setItem('stockData', JSON.stringify(stock));
     localStorage.setItem('specsData', JSON.stringify(specs));
     localStorage.setItem('itemPropsData', JSON.stringify(itemProps));
     saveCategoryOrder();
 }
-loadAppData();
+
+function loadLibraryFromLocal() {
+    try { const s = localStorage.getItem('inventoryData'); if (s) inventory = JSON.parse(s); } catch(e) {}
+    try { const s = localStorage.getItem('stockData'); if (s) stock = JSON.parse(s); } catch(e) {}
+    try { const s = localStorage.getItem('specsData'); if (s) specs = JSON.parse(s); } catch(e) {}
+    try { const s = localStorage.getItem('itemPropsData'); if (s) itemProps = JSON.parse(s); } catch(e) {}
+    loadCategoryOrder();
+}
 
 // ============================================================
 // ОБЩИЕ ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
@@ -354,7 +410,7 @@ function getAllItemPaths() {
             obj.forEach(item => res.push(path.length ? path.join('|') + '|' + item : item));
         } else if (typeof obj === 'object' && obj !== null) {
             for (let key in obj) {
-                if (key.startsWith('_')) continue; // пропускаем служебные ключи
+                if (key.startsWith('_')) continue;
                 traverse(obj[key], [...path, key]);
             }
         }
@@ -370,785 +426,15 @@ function sc(page) {
     document.getElementById('mMenu').style.display = (page === 'menu') ? 'block' : 'none';
     document.getElementById('mPage').style.display = (page === 'mPage') ? 'block' : 'none';
     document.getElementById('sPage').style.display = (page === 'sPage') ? 'block' : 'none';
-    document.getElementById('ePage').style.display = (page === 'ePage') ? 'block' : 'none';
     if (page === 'mPage') {
-        if (typeof renderOrderAll === 'function') renderOrderAll();
-        else showToast('Режим создания не инициализирован');
+        renderOrderAll();
     }
     if (page === 'sPage') {
         document.getElementById('sRes').style.display = 'none';
         document.getElementById('loadStatus').textContent = 'Файл не выбран';
         document.getElementById('fSel').value = '';
     }
-    if (page === 'ePage') {
-        if (typeof renderEditorAll === 'function') renderEditorAll();
-        else showToast('Редактор не инициализирован');
-    }
 }
-
-// ============================================================
-// РЕЖИМ РЕДАКТОРА (с возможностью перемещения позиций)
-// ============================================================
-let editorData = null;
-let editorCurrentCategory = 'sound';
-
-function loadEditorData() {
-    const saved = localStorage.getItem('inventoryEditorData');
-    if (saved) {
-        try {
-            editorData = JSON.parse(saved);
-            if (editorData._categoryOrder) categoryOrder = editorData._categoryOrder;
-            else categoryOrder = Object.keys(editorData.inventory);
-            editorData._categoryOrder = categoryOrder;
-            for (let cat in editorData.inventory) {
-                const catData = editorData.inventory[cat];
-                if (typeof catData === 'object' && !Array.isArray(catData)) {
-                    if (!catData._subOrder) catData._subOrder = Object.keys(catData).filter(k => k !== '_subOrder');
-                }
-            }
-            if (!editorData.itemProps) editorData.itemProps = {};
-            return;
-        } catch(e) {}
-    }
-    const DEFAULT_DATA = {
-        inventory: JSON.parse(JSON.stringify(inventory)),
-        specs: JSON.parse(JSON.stringify(specs)),
-        stock: JSON.parse(JSON.stringify(stock)),
-        itemProps: JSON.parse(JSON.stringify(itemProps)),
-        catNames: JSON.parse(JSON.stringify(CAT_NAMES))
-    };
-    editorData = DEFAULT_DATA;
-    categoryOrder = Object.keys(editorData.inventory);
-    editorData._categoryOrder = categoryOrder;
-    for (let cat in editorData.inventory) {
-        const catData = editorData.inventory[cat];
-        if (typeof catData === 'object' && !Array.isArray(catData)) {
-            catData._subOrder = Object.keys(catData);
-        }
-    }
-    if (!editorData.itemProps) editorData.itemProps = {};
-    saveEditorData();
-}
-function saveEditorData() {
-    editorData._categoryOrder = categoryOrder;
-    localStorage.setItem('inventoryEditorData', JSON.stringify(editorData));
-    inventory = editorData.inventory;
-    stock = editorData.stock;
-    specs = editorData.specs;
-    itemProps = editorData.itemProps;
-    saveAppData();
-}
-function getStockKey(catKey, subKey, itemName) {
-    if (subKey) return catKey + '|' + subKey + '|' + itemName;
-    return catKey + '|' + itemName;
-}
-function getStock(catKey, subKey, itemName) {
-    const key = getStockKey(catKey, subKey, itemName);
-    return editorData.stock[key] !== undefined ? editorData.stock[key] : 0;
-}
-function setStock(catKey, subKey, itemName, val) {
-    const key = getStockKey(catKey, subKey, itemName);
-    editorData.stock[key] = Number(val);
-    saveEditorData();
-}
-function getSpec(catKey, subKey, itemName) {
-    const key = getStockKey(catKey, subKey, itemName);
-    return editorData.specs[key] || '';
-}
-function setSpec(catKey, subKey, itemName, val) {
-    const key = getStockKey(catKey, subKey, itemName);
-    if (val && val.trim()) editorData.specs[key] = val;
-    else delete editorData.specs[key];
-    saveEditorData();
-}
-function getItemPropsEditor(catKey, subKey, itemName) {
-    const key = getStockKey(catKey, subKey, itemName);
-    return editorData.itemProps[key] || {};
-}
-function setItemPropsEditor(catKey, subKey, itemName, props) {
-    const key = getStockKey(catKey, subKey, itemName);
-    if (props && Object.keys(props).length > 0) editorData.itemProps[key] = props;
-    else delete editorData.itemProps[key];
-    saveEditorData();
-}
-
-function renderEditorTabs() {
-    const container = document.getElementById('editorTabs');
-    container.innerHTML = '';
-    categoryOrder.forEach(key => {
-        if (!editorData.inventory[key]) return;
-        const tab = document.createElement('div');
-        tab.className = 'category-tab' + (key === editorCurrentCategory ? ' active' : '');
-        const label = editorData.catNames[key] || key;
-        const nameSpan = document.createElement('span');
-        nameSpan.textContent = label;
-        tab.appendChild(nameSpan);
-        const actions = document.createElement('div');
-        actions.className = 'tab-actions';
-        const upBtn = document.createElement('button');
-        upBtn.textContent = '▲';
-        upBtn.title = 'Вверх';
-        upBtn.addEventListener('click', (e) => { e.stopPropagation(); moveCategoryEditor(key, -1); });
-        actions.appendChild(upBtn);
-        const downBtn = document.createElement('button');
-        downBtn.textContent = '▼';
-        downBtn.title = 'Вниз';
-        downBtn.addEventListener('click', (e) => { e.stopPropagation(); moveCategoryEditor(key, 1); });
-        actions.appendChild(downBtn);
-        const renameBtn = document.createElement('button');
-        renameBtn.textContent = '✏️';
-        renameBtn.title = 'Переименовать';
-        renameBtn.addEventListener('click', (e) => { e.stopPropagation(); renameCategoryEditor(key); });
-        actions.appendChild(renameBtn);
-        const delBtn = document.createElement('button');
-        delBtn.textContent = '✕';
-        delBtn.className = 'danger';
-        delBtn.title = 'Удалить';
-        delBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteCategoryEditor(key); });
-        actions.appendChild(delBtn);
-        tab.appendChild(actions);
-        tab.dataset.cat = key;
-        tab.addEventListener('click', (e) => {
-            if (!e.target.closest('button')) {
-                editorCurrentCategory = key;
-                renderEditorTabs();
-                renderEditorCategory(key);
-            }
-        });
-        container.appendChild(tab);
-    });
-}
-function renderEditorCategory(catKey) {
-    const container = document.getElementById('editorContents');
-    container.innerHTML = '';
-    const catData = editorData.inventory[catKey];
-    if (!catData) return;
-    if (Array.isArray(catData)) {
-        const wrapper = document.createElement('div');
-        wrapper.className = 'category-content active';
-        const listDiv = document.createElement('div');
-        listDiv.className = 'subgroup';
-        listDiv.style.border = 'none';
-        listDiv.style.boxShadow = 'none';
-        const header = document.createElement('div');
-        header.className = 'subgroup-header';
-        header.innerHTML = `<span class="name">${editorData.catNames[catKey] || catKey}</span>`;
-        const addBtn = document.createElement('button');
-        addBtn.className = 'add-item';
-        addBtn.textContent = '+ Добавить позицию';
-        addBtn.style.margin = '10px 0 0 12px';
-        addBtn.addEventListener('click', () => {
-            showModalEditor('Введите название новой позиции', (val) => {
-                if (val && val.trim()) {
-                    catData.push(val.trim());
-                    saveEditorData();
-                    renderEditorCategory(catKey);
-                    showToast('Позиция добавлена');
-                }
-            });
-        });
-        listDiv.appendChild(header);
-        const itemsDiv = document.createElement('div');
-        itemsDiv.className = 'items-list';
-        if (catData.length === 0) itemsDiv.innerHTML = '<div class="empty-message">Нет позиций</div>';
-        else {
-            catData.forEach((item, idx) => {
-                const row = createItemRowEditor(catKey, null, item, idx);
-                itemsDiv.appendChild(row);
-            });
-        }
-        listDiv.appendChild(itemsDiv);
-        listDiv.appendChild(addBtn);
-        wrapper.appendChild(listDiv);
-        container.appendChild(wrapper);
-        return;
-    }
-    const wrapper = document.createElement('div');
-    wrapper.className = 'category-content active';
-    const subOrder = catData._subOrder || [];
-    if (subOrder.length === 0 && Object.keys(catData).length > 0) {
-        const keys = Object.keys(catData).filter(k => k !== '_subOrder');
-        catData._subOrder = keys;
-        saveEditorData();
-    }
-    const currentSubOrder = catData._subOrder || [];
-    currentSubOrder.forEach(subKey => {
-        const subItems = catData[subKey];
-        if (!Array.isArray(subItems)) return;
-        const subgroup = document.createElement('div');
-        subgroup.className = 'subgroup';
-        const header = document.createElement('div');
-        header.className = 'subgroup-header';
-        const nameSpan = document.createElement('span');
-        nameSpan.className = 'name';
-        nameSpan.textContent = subKey;
-        nameSpan.title = 'Двойной клик для переименования';
-        nameSpan.addEventListener('dblclick', (e) => { e.stopPropagation(); renameSubgroupEditor(catKey, subKey); });
-        header.appendChild(nameSpan);
-        const controls = document.createElement('div');
-        controls.className = 'controls';
-        const renameSubBtn = document.createElement('button');
-        renameSubBtn.textContent = '✏️';
-        renameSubBtn.title = 'Переименовать подгруппу';
-        renameSubBtn.addEventListener('click', (e) => { e.stopPropagation(); renameSubgroupEditor(catKey, subKey); });
-        controls.appendChild(renameSubBtn);
-        const upBtn = document.createElement('button');
-        upBtn.textContent = '▲';
-        upBtn.title = 'Вверх';
-        upBtn.addEventListener('click', (e) => { e.stopPropagation(); moveSubgroupEditor(catKey, subKey, -1); });
-        controls.appendChild(upBtn);
-        const downBtn = document.createElement('button');
-        downBtn.textContent = '▼';
-        downBtn.title = 'Вниз';
-        downBtn.addEventListener('click', (e) => { e.stopPropagation(); moveSubgroupEditor(catKey, subKey, 1); });
-        controls.appendChild(downBtn);
-        const delBtn = document.createElement('button');
-        delBtn.textContent = '✕';
-        delBtn.className = 'danger';
-        delBtn.title = 'Удалить подгруппу';
-        delBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (confirm(`Удалить подгруппу "${subKey}"?`)) {
-                delete catData[subKey];
-                const idx = catData._subOrder.indexOf(subKey);
-                if (idx !== -1) catData._subOrder.splice(idx, 1);
-                const prefix = catKey + '|' + subKey + '|';
-                for (let k in editorData.stock) if (k.startsWith(prefix)) delete editorData.stock[k];
-                for (let k in editorData.specs) if (k.startsWith(prefix)) delete editorData.specs[k];
-                for (let k in editorData.itemProps) if (k.startsWith(prefix)) delete editorData.itemProps[k];
-                saveEditorData();
-                renderEditorCategory(catKey);
-                showToast('Подгруппа удалена');
-            }
-        });
-        controls.appendChild(delBtn);
-        header.appendChild(controls);
-        subgroup.appendChild(header);
-        const itemsDiv = document.createElement('div');
-        itemsDiv.className = 'items-list';
-        if (subItems.length === 0) itemsDiv.innerHTML = '<div class="empty-message">Нет позиций</div>';
-        else {
-            subItems.forEach((item, idx) => {
-                const row = createItemRowEditor(catKey, subKey, item, idx);
-                itemsDiv.appendChild(row);
-            });
-        }
-        subgroup.appendChild(itemsDiv);
-        const addBtn = document.createElement('button');
-        addBtn.className = 'add-item';
-        addBtn.textContent = '+ Добавить позицию';
-        addBtn.addEventListener('click', () => {
-            showModalEditor('Введите название новой позиции', (val) => {
-                if (val && val.trim()) {
-                    subItems.push(val.trim());
-                    saveEditorData();
-                    renderEditorCategory(catKey);
-                    showToast('Позиция добавлена');
-                }
-            });
-        });
-        subgroup.appendChild(addBtn);
-        wrapper.appendChild(subgroup);
-    });
-    const addSubBtn = document.createElement('button');
-    addSubBtn.className = 'add-subgroup';
-    addSubBtn.textContent = '+ Добавить подгруппу';
-    addSubBtn.addEventListener('click', () => {
-        showModalEditor('Введите название новой подгруппы', (val) => {
-            if (val && val.trim()) {
-                const newKey = val.trim();
-                if (catData[newKey]) { alert('Подгруппа с таким именем уже существует'); return; }
-                catData[newKey] = [];
-                if (!catData._subOrder) catData._subOrder = [];
-                catData._subOrder.push(newKey);
-                saveEditorData();
-                renderEditorCategory(catKey);
-                showToast('Подгруппа добавлена');
-            }
-        });
-    });
-    wrapper.appendChild(addSubBtn);
-    container.appendChild(wrapper);
-}
-function createItemRowEditor(catKey, subKey, itemName, index) {
-    const row = document.createElement('div');
-    row.className = 'item-row';
-    const mainLine = document.createElement('div');
-    mainLine.className = 'main-line';
-    const nameDiv = document.createElement('span');
-    nameDiv.className = 'name';
-    nameDiv.textContent = itemName;
-    nameDiv.title = 'Двойной клик для переименования';
-    nameDiv.addEventListener('dblclick', () => { renameElementEditor(catKey, subKey, itemName); });
-    mainLine.appendChild(nameDiv);
-    const qtyInput = document.createElement('input');
-    qtyInput.type = 'number';
-    qtyInput.className = 'qty';
-    qtyInput.value = getStock(catKey, subKey, itemName);
-    qtyInput.addEventListener('change', () => {
-        let val = parseInt(qtyInput.value, 10);
-        if (isNaN(val) || val < 0) val = 0;
-        qtyInput.value = val;
-        setStock(catKey, subKey, itemName, val);
-    });
-    mainLine.appendChild(qtyInput);
-    const specInput = document.createElement('input');
-    specInput.type = 'text';
-    specInput.className = 'spec';
-    specInput.placeholder = 'Комментарий...';
-    specInput.value = getSpec(catKey, subKey, itemName);
-    specInput.addEventListener('change', () => { setSpec(catKey, subKey, itemName, specInput.value); });
-    mainLine.appendChild(specInput);
-    const actions = document.createElement('div');
-    actions.className = 'actions';
-    // Кнопки перемещения вверх/вниз внутри подгруппы
-    const upMoveBtn = document.createElement('button');
-    upMoveBtn.textContent = '⬆';
-    upMoveBtn.title = 'Переместить вверх';
-    upMoveBtn.className = 'move';
-    upMoveBtn.addEventListener('click', () => { moveItemWithinGroup(catKey, subKey, itemName, -1); });
-    actions.appendChild(upMoveBtn);
-    const downMoveBtn = document.createElement('button');
-    downMoveBtn.textContent = '⬇';
-    downMoveBtn.title = 'Переместить вниз';
-    downMoveBtn.className = 'move';
-    downMoveBtn.addEventListener('click', () => { moveItemWithinGroup(catKey, subKey, itemName, 1); });
-    actions.appendChild(downMoveBtn);
-    const propsBtn = document.createElement('button');
-    propsBtn.className = 'props';
-    propsBtn.textContent = '📦';
-    propsBtn.title = 'Свойства (вес, габариты, кофр)';
-    propsBtn.addEventListener('click', () => { openPropsModalEditor(catKey, subKey, itemName); });
-    actions.appendChild(propsBtn);
-    const moveBtn = document.createElement('button');
-    moveBtn.className = 'move';
-    moveBtn.textContent = '↗';
-    moveBtn.title = 'Переместить в другую категорию/подгруппу';
-    moveBtn.addEventListener('click', () => { moveItemEditor(catKey, subKey, itemName); });
-    actions.appendChild(moveBtn);
-    const renameBtn = document.createElement('button');
-    renameBtn.textContent = '✏️';
-    renameBtn.title = 'Переименовать';
-    renameBtn.addEventListener('click', () => { renameElementEditor(catKey, subKey, itemName); });
-    actions.appendChild(renameBtn);
-    const delBtn = document.createElement('button');
-    delBtn.textContent = '✕';
-    delBtn.title = 'Удалить';
-    delBtn.addEventListener('click', () => {
-        if (confirm(`Удалить позицию "${itemName}"?`)) {
-            let targetArray = subKey ? editorData.inventory[catKey][subKey] : editorData.inventory[catKey];
-            const idx = targetArray.indexOf(itemName);
-            if (idx !== -1) {
-                targetArray.splice(idx, 1);
-                const key = getStockKey(catKey, subKey, itemName);
-                delete editorData.stock[key];
-                delete editorData.specs[key];
-                delete editorData.itemProps[key];
-                saveEditorData();
-                renderEditorCategory(catKey);
-                showToast('Позиция удалена');
-            }
-        }
-    });
-    actions.appendChild(delBtn);
-    mainLine.appendChild(actions);
-    row.appendChild(mainLine);
-    const props = getItemPropsEditor(catKey, subKey, itemName);
-    const infoDiv = document.createElement('div');
-    infoDiv.className = 'props-info';
-    const weight = props.weight !== undefined && props.weight !== '' ? props.weight : null;
-    const weightSpan = document.createElement('span');
-    weightSpan.innerHTML = `⚖️ Вес 1 шт: ${weight !== null ? weight + ' кг' : '<span class="na">n/a</span>'}`;
-    infoDiv.appendChild(weightSpan);
-    const dims = props.dimensions || '';
-    const dimsSpan = document.createElement('span');
-    dimsSpan.innerHTML = `📐 Габариты 1 шт: ${dims ? dims + ' см' : '<span class="na">n/a</span>'}`;
-    infoDiv.appendChild(dimsSpan);
-    const volume = props.volume !== undefined && props.volume !== '' ? props.volume : null;
-    if (volume !== null) {
-        const volumeSpan = document.createElement('span');
-        volumeSpan.innerHTML = `📦 Объём 1 шт: ${volume} м³`;
-        infoDiv.appendChild(volumeSpan);
-    }
-    const caseQty = props.case_qty !== undefined && props.case_qty !== '' ? props.case_qty : null;
-    const caseDim = props.case_dimensions || '';
-    const caseWeight = props.case_weight !== undefined && props.case_weight !== '' ? props.case_weight : null;
-    const hasCase = caseQty !== null && caseQty > 0;
-    if (hasCase) {
-        let fullCaseWeight = null;
-        if (caseWeight !== null && weight !== null) fullCaseWeight = caseWeight + (weight * caseQty);
-        const caseWeightSpan = document.createElement('span');
-        caseWeightSpan.innerHTML = `📦 Вес кофра (полного): ${fullCaseWeight !== null ? fullCaseWeight + ' кг' : '<span class="na">n/a</span>'}`;
-        infoDiv.appendChild(caseWeightSpan);
-        const caseDimSpan = document.createElement('span');
-        caseDimSpan.innerHTML = `📦 Габариты кофра: ${caseDim ? caseDim + ' см' : '<span class="na">n/a</span>'}`;
-        infoDiv.appendChild(caseDimSpan);
-        let caseVolume = null;
-        if (caseDim) {
-            const dimsArr = caseDim.split('x').map(s => parseFloat(s.trim()));
-            if (dimsArr.length === 3 && dimsArr.every(d => !isNaN(d) && d > 0)) caseVolume = (dimsArr[0]*dimsArr[1]*dimsArr[2]) / 1000000;
-        }
-        const caseVolumeSpan = document.createElement('span');
-        caseVolumeSpan.innerHTML = `📦 Объём кофра: ${caseVolume !== null ? caseVolume.toFixed(3) + ' м³' : '<span class="na">n/a</span>'}`;
-        infoDiv.appendChild(caseVolumeSpan);
-        const caseQtySpan = document.createElement('span');
-        caseQtySpan.innerHTML = `📦 Кол-во в кофре: ${caseQty} шт`;
-        infoDiv.appendChild(caseQtySpan);
-    } else {
-        const noCaseSpan = document.createElement('span');
-        noCaseSpan.innerHTML = `📦 Кофр: <span class="na">не задан</span>`;
-        infoDiv.appendChild(noCaseSpan);
-    }
-    row.appendChild(infoDiv);
-    return row;
-}
-// Функция перемещения позиции внутри подгруппы
-function moveItemWithinGroup(catKey, subKey, itemName, direction) {
-    let targetArray = subKey ? editorData.inventory[catKey][subKey] : editorData.inventory[catKey];
-    if (!Array.isArray(targetArray)) { showToast('Ошибка: не массив'); return; }
-    const idx = targetArray.indexOf(itemName);
-    if (idx === -1) { showToast('Позиция не найдена'); return; }
-    const newIdx = idx + direction;
-    if (newIdx < 0 || newIdx >= targetArray.length) { showToast('Край списка'); return; }
-    [targetArray[idx], targetArray[newIdx]] = [targetArray[newIdx], targetArray[idx]];
-    saveEditorData();
-    renderEditorCategory(catKey);
-    showToast('Позиция перемещена');
-}
-function showModalEditor(title, callback) {
-    const overlay = document.getElementById('modalOverlay');
-    document.getElementById('modalTitle').textContent = title;
-    document.getElementById('modalInput').value = '';
-    overlay.classList.add('open');
-    document.getElementById('modalInput').focus();
-    window._modalResolve = callback;
-}
-document.getElementById('modalCancel').addEventListener('click', () => {
-    document.getElementById('modalOverlay').classList.remove('open');
-    window._modalResolve = null;
-});
-document.getElementById('modalConfirm').addEventListener('click', () => {
-    const val = document.getElementById('modalInput').value;
-    if (window._modalResolve) window._modalResolve(val);
-    document.getElementById('modalOverlay').classList.remove('open');
-    window._modalResolve = null;
-});
-document.getElementById('modalInput').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') document.getElementById('modalConfirm').click();
-    if (e.key === 'Escape') document.getElementById('modalCancel').click();
-});
-function openPropsModalEditor(catKey, subKey, itemName) {
-    const key = getStockKey(catKey, subKey, itemName);
-    window._currentPropsPath = { catKey, subKey, itemName };
-    const props = getItemPropsEditor(catKey, subKey, itemName);
-    document.getElementById('propsTitle').textContent = 'Свойства: ' + itemName;
-    document.getElementById('propWeight').value = props.weight || '';
-    document.getElementById('propDimensions').value = props.dimensions || '';
-    document.getElementById('propVolume').value = props.volume || '';
-    document.getElementById('propCaseQty').value = props.case_qty || '';
-    document.getElementById('propCaseDim').value = props.case_dimensions || '';
-    document.getElementById('propCaseWeight').value = props.case_weight || '';
-    document.getElementById('propsModal').classList.add('open');
-}
-document.getElementById('propsCancel').addEventListener('click', () => {
-    document.getElementById('propsModal').classList.remove('open');
-    window._currentPropsPath = null;
-});
-document.getElementById('propsConfirm').addEventListener('click', () => {
-    if (!window._currentPropsPath) return;
-    const { catKey, subKey, itemName } = window._currentPropsPath;
-    const weight = parseFloat(document.getElementById('propWeight').value);
-    const dimensions = document.getElementById('propDimensions').value.trim();
-    const volume = parseFloat(document.getElementById('propVolume').value);
-    const case_qty = parseInt(document.getElementById('propCaseQty').value);
-    const case_dimensions = document.getElementById('propCaseDim').value.trim();
-    const case_weight = parseFloat(document.getElementById('propCaseWeight').value);
-    const props = {};
-    if (!isNaN(weight) && weight > 0) props.weight = weight;
-    if (dimensions) props.dimensions = dimensions;
-    if (!isNaN(volume) && volume > 0) props.volume = volume;
-    if (!isNaN(case_qty) && case_qty > 0) props.case_qty = case_qty;
-    if (case_dimensions) props.case_dimensions = case_dimensions;
-    if (!isNaN(case_weight) && case_weight > 0) props.case_weight = case_weight;
-    setItemPropsEditor(catKey, subKey, itemName, props);
-    document.getElementById('propsModal').classList.remove('open');
-    window._currentPropsPath = null;
-    renderEditorCategory(catKey);
-    showToast('Свойства сохранены');
-});
-function moveItemEditor(sourceCat, sourceSub, itemName) {
-    let options = [];
-    categoryOrder.forEach(cat => {
-        const catData = editorData.inventory[cat];
-        if (Array.isArray(catData)) options.push(cat + ' (корневой список)');
-        else if (typeof catData === 'object') {
-            const order = catData._subOrder || [];
-            order.forEach(sub => options.push(cat + '|' + sub));
-        }
-    });
-    const currentPath = sourceSub ? sourceCat + '|' + sourceSub : sourceCat + ' (корневой список)';
-    options = options.filter(opt => opt !== currentPath);
-    if (options.length === 0) { showToast('Нет доступных мест'); return; }
-    const targetPath = prompt('Введите полный путь (через |):\nДоступно:\n' + options.join('\n'), options[0]);
-    if (!targetPath) return;
-    let targetCat, targetSub;
-    if (targetPath.includes('|')) { const parts = targetPath.split('|'); targetCat = parts[0]; targetSub = parts[1]; }
-    else { targetCat = targetPath.replace(' (корневой список)', ''); targetSub = null; }
-    if (!editorData.inventory[targetCat]) { showToast('Категория не существует'); return; }
-    if (targetSub && !editorData.inventory[targetCat][targetSub]) { showToast('Подгруппа не существует'); return; }
-    if (!targetSub && typeof editorData.inventory[targetCat] === 'object' && !Array.isArray(editorData.inventory[targetCat])) { showToast('Нужно указать подгруппу'); return; }
-    if (targetSub && Array.isArray(editorData.inventory[targetCat])) { showToast('Эта категория без подгрупп, используйте формат "категория (корневой список)"'); return; }
-    let sourceArray = sourceSub ? editorData.inventory[sourceCat][sourceSub] : editorData.inventory[sourceCat];
-    if (!Array.isArray(sourceArray)) { showToast('Ошибка'); return; }
-    const idx = sourceArray.indexOf(itemName);
-    if (idx === -1) { showToast('Позиция не найдена'); return; }
-    sourceArray.splice(idx, 1);
-    let targetArray = targetSub ? editorData.inventory[targetCat][targetSub] : editorData.inventory[targetCat];
-    if (!Array.isArray(targetArray)) { sourceArray.splice(idx, 0, itemName); showToast('Ошибка'); return; }
-    if (targetArray.includes(itemName)) { sourceArray.splice(idx, 0, itemName); showToast('Цель уже содержит этот элемент'); return; }
-    targetArray.push(itemName);
-    const oldKey = getStockKey(sourceCat, sourceSub, itemName);
-    const newKey = getStockKey(targetCat, targetSub, itemName);
-    if (editorData.stock[oldKey] !== undefined) { editorData.stock[newKey] = editorData.stock[oldKey]; delete editorData.stock[oldKey]; }
-    if (editorData.specs[oldKey] !== undefined) { editorData.specs[newKey] = editorData.specs[oldKey]; delete editorData.specs[oldKey]; }
-    if (editorData.itemProps[oldKey] !== undefined) { editorData.itemProps[newKey] = editorData.itemProps[oldKey]; delete editorData.itemProps[oldKey]; }
-    saveEditorData();
-    renderEditorAll();
-    showToast(`"${itemName}" перемещён`);
-}
-function renameElementEditor(catKey, subKey, oldName) {
-    const newName = prompt('Новое название:', oldName);
-    if (!newName || newName === oldName) return;
-    let targetArray = subKey ? editorData.inventory[catKey][subKey] : editorData.inventory[catKey];
-    const idx = targetArray.indexOf(oldName);
-    if (idx === -1) return;
-    if (targetArray.includes(newName)) { showToast('Такое имя уже существует'); return; }
-    targetArray[idx] = newName;
-    const oldKey = getStockKey(catKey, subKey, oldName);
-    const newKey = getStockKey(catKey, subKey, newName);
-    if (editorData.stock[oldKey] !== undefined) { editorData.stock[newKey] = editorData.stock[oldKey]; delete editorData.stock[oldKey]; }
-    if (editorData.specs[oldKey] !== undefined) { editorData.specs[newKey] = editorData.specs[oldKey]; delete editorData.specs[oldKey]; }
-    if (editorData.itemProps[oldKey] !== undefined) { editorData.itemProps[newKey] = editorData.itemProps[oldKey]; delete editorData.itemProps[oldKey]; }
-    saveEditorData();
-    renderEditorCategory(catKey);
-    showToast('Переименовано');
-}
-function moveSubgroupEditor(catKey, subKey, dir) {
-    const catData = editorData.inventory[catKey];
-    if (!catData || typeof catData !== 'object' || Array.isArray(catData)) return;
-    const order = catData._subOrder;
-    if (!order) return;
-    const idx = order.indexOf(subKey);
-    if (idx === -1) return;
-    const newIdx = idx + dir;
-    if (newIdx < 0 || newIdx >= order.length) return;
-    [order[idx], order[newIdx]] = [order[newIdx], order[idx]];
-    saveEditorData();
-    renderEditorCategory(catKey);
-}
-function renameSubgroupEditor(catKey, oldKey) {
-    const newKey = prompt('Новое название подгруппы:', oldKey);
-    if (!newKey || newKey === oldKey) return;
-    const catData = editorData.inventory[catKey];
-    if (!catData || typeof catData !== 'object') return;
-    if (catData[newKey]) { showToast('Подгруппа с таким именем уже существует'); return; }
-    catData[newKey] = catData[oldKey];
-    delete catData[oldKey];
-    const order = catData._subOrder;
-    if (order) {
-        const idx = order.indexOf(oldKey);
-        if (idx !== -1) order[idx] = newKey;
-    }
-    const oldPrefix = catKey + '|' + oldKey + '|';
-    const newPrefix = catKey + '|' + newKey + '|';
-    const newStock = {};
-    for (let k in editorData.stock) {
-        if (k.startsWith(oldPrefix)) newStock[k.replace(oldPrefix, newPrefix)] = editorData.stock[k];
-        else newStock[k] = editorData.stock[k];
-    }
-    editorData.stock = newStock;
-    const newSpecs = {};
-    for (let k in editorData.specs) {
-        if (k.startsWith(oldPrefix)) newSpecs[k.replace(oldPrefix, newPrefix)] = editorData.specs[k];
-        else newSpecs[k] = editorData.specs[k];
-    }
-    editorData.specs = newSpecs;
-    const newProps = {};
-    for (let k in editorData.itemProps) {
-        if (k.startsWith(oldPrefix)) newProps[k.replace(oldPrefix, newPrefix)] = editorData.itemProps[k];
-        else newProps[k] = editorData.itemProps[k];
-    }
-    editorData.itemProps = newProps;
-    saveEditorData();
-    renderEditorCategory(catKey);
-    showToast('Подгруппа переименована');
-}
-function addCategory() {
-    const input = document.getElementById('newCategoryName');
-    const name = input.value.trim();
-    if (!name) { showToast('Введите название'); return; }
-    if (editorData.inventory[name]) { showToast('Уже существует'); return; }
-    editorData.inventory[name] = {};
-    categoryOrder.push(name);
-    editorData.inventory[name]._subOrder = [];
-    saveEditorData();
-    renderEditorAll();
-    input.value = '';
-    showToast('Категория добавлена');
-}
-function deleteCategoryEditor(catKey) {
-    if (!confirm(`Удалить категорию "${catKey}"?`)) return;
-    delete editorData.inventory[catKey];
-    const idx = categoryOrder.indexOf(catKey);
-    if (idx !== -1) categoryOrder.splice(idx, 1);
-    for (let k in editorData.stock) if (k.startsWith(catKey + '|')) delete editorData.stock[k];
-    for (let k in editorData.specs) if (k.startsWith(catKey + '|')) delete editorData.specs[k];
-    for (let k in editorData.itemProps) if (k.startsWith(catKey + '|')) delete editorData.itemProps[k];
-    if (editorCurrentCategory === catKey) {
-        editorCurrentCategory = categoryOrder.length > 0 ? categoryOrder[0] : null;
-    }
-    saveEditorData();
-    renderEditorAll();
-    showToast('Категория удалена');
-}
-function renameCategoryEditor(catKey) {
-    const newName = prompt('Новое название:', catKey);
-    if (!newName || newName === catKey) return;
-    if (editorData.inventory[newName]) { showToast('Уже существует'); return; }
-    editorData.inventory[newName] = editorData.inventory[catKey];
-    delete editorData.inventory[catKey];
-    const idx = categoryOrder.indexOf(catKey);
-    if (idx !== -1) categoryOrder[idx] = newName;
-    const oldPrefix = catKey + '|';
-    const newPrefix = newName + '|';
-    const newStock = {};
-    for (let k in editorData.stock) {
-        if (k.startsWith(oldPrefix)) newStock[k.replace(oldPrefix, newPrefix)] = editorData.stock[k];
-        else newStock[k] = editorData.stock[k];
-    }
-    editorData.stock = newStock;
-    const newSpecs = {};
-    for (let k in editorData.specs) {
-        if (k.startsWith(oldPrefix)) newSpecs[k.replace(oldPrefix, newPrefix)] = editorData.specs[k];
-        else newSpecs[k] = editorData.specs[k];
-    }
-    editorData.specs = newSpecs;
-    const newProps = {};
-    for (let k in editorData.itemProps) {
-        if (k.startsWith(oldPrefix)) newProps[k.replace(oldPrefix, newPrefix)] = editorData.itemProps[k];
-        else newProps[k] = editorData.itemProps[k];
-    }
-    editorData.itemProps = newProps;
-    if (editorCurrentCategory === catKey) editorCurrentCategory = newName;
-    saveEditorData();
-    renderEditorAll();
-    showToast('Категория переименована');
-}
-function moveCategoryEditor(catKey, dir) {
-    const idx = categoryOrder.indexOf(catKey);
-    if (idx === -1) return;
-    const newIdx = idx + dir;
-    if (newIdx < 0 || newIdx >= categoryOrder.length) return;
-    [categoryOrder[idx], categoryOrder[newIdx]] = [categoryOrder[newIdx], categoryOrder[idx]];
-    saveEditorData();
-    renderEditorAll();
-    showToast('Категория перемещена');
-}
-function renderEditorAll() {
-    renderEditorTabs();
-    renderEditorCategory(editorCurrentCategory);
-}
-
-// Экспорт/импорт/сброс для редактора
-document.getElementById('exportBtn').addEventListener('click', () => {
-    const blob = new Blob([JSON.stringify(editorData, null, 2)], {type:'application/json'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'inventory_editor_data.json';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showToast('JSON экспортирован');
-});
-document.getElementById('importBtn').addEventListener('click', () => {
-    document.getElementById('importFile').click();
-});
-document.getElementById('importFile').addEventListener('change', function(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = function(ev) {
-        try {
-            const imported = JSON.parse(ev.target.result);
-            if (typeof imported === 'object' && imported !== null) {
-                if (imported.inventory) editorData.inventory = imported.inventory;
-                if (imported.specs) editorData.specs = imported.specs;
-                if (imported.stock) editorData.stock = imported.stock;
-                if (imported.itemProps) editorData.itemProps = imported.itemProps;
-                else editorData.itemProps = {};
-                if (imported.catNames) editorData.catNames = imported.catNames;
-                if (imported._categoryOrder) categoryOrder = imported._categoryOrder;
-                else categoryOrder = Object.keys(editorData.inventory);
-                for (let cat in editorData.inventory) {
-                    const catData = editorData.inventory[cat];
-                    if (typeof catData === 'object' && !Array.isArray(catData)) {
-                        if (!catData._subOrder) catData._subOrder = Object.keys(catData).filter(k => k !== '_subOrder');
-                    }
-                }
-                editorData._categoryOrder = categoryOrder;
-                saveEditorData();
-                renderEditorAll();
-                showToast('База импортирована');
-            } else {
-                showToast('Неверный формат JSON');
-            }
-        } catch(err) {
-            showToast('Ошибка чтения файла: ' + err.message);
-        }
-    };
-    reader.readAsText(file);
-    this.value = '';
-});
-document.getElementById('resetBtn').addEventListener('click', () => {
-    if (confirm('Сбросить все изменения?')) {
-        loadEditorData();
-        renderEditorAll();
-        showToast('Сброшено');
-    }
-});
-document.getElementById('saveHtmlBtn').addEventListener('click', function() {
-    const htmlContent = document.documentElement.outerHTML;
-    const startMarker = 'let inventory = {';
-    const endMarker = 'let stock = {';
-    let startIdx = htmlContent.indexOf(startMarker);
-    if (startIdx === -1) { showToast('Не удалось найти данные'); return; }
-    let depth = 0, endIdx = startIdx + startMarker.length;
-    for (let i = endIdx; i < htmlContent.length; i++) {
-        const ch = htmlContent[i];
-        if (ch === '{') depth++;
-        else if (ch === '}') {
-            depth--;
-            if (depth === 0) { endIdx = i + 1; break; }
-        }
-    }
-    if (endIdx === startIdx + startMarker.length) { showToast('Не удалось найти конец данных'); return; }
-    const before = htmlContent.substring(0, startIdx);
-    const after = htmlContent.substring(endIdx);
-    const newDataBlock = `let inventory = ${JSON.stringify(inventory, null, 4)};\nlet stock = ${JSON.stringify(stock, null, 4)};\nlet specs = ${JSON.stringify(specs, null, 4)};\nlet itemProps = ${JSON.stringify(itemProps, null, 4)};\nconst CAT_NAMES = ${JSON.stringify(CAT_NAMES, null, 4)};`;
-    const newHtml = before + newDataBlock + after;
-    const blob = new Blob([newHtml], {type:'text/html;charset=utf-8'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'prokatoshnaya.html';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showToast('HTML файл сохранён с актуальными данными!');
-});
 
 // ============================================================
 // РЕЖИМ СОЗДАНИЯ СПИСКА
@@ -1425,7 +711,6 @@ function buildCategoryHTML(data, path, level) {
             const caseModeOn = caseModes[fullPath] || false;
             const dynHtml = `<div class="dynamic-info"></div>`;
             const staticHtml = `<div class="props-compact ${showProps ? 'visible' : ''}"></div>`;
-            // Экранируем название для безопасного использования в атрибутах
             const escapedName = esc(item);
             const searchText = item + ' ' + (desc || '') + ' ' + (CAT_NAMES[path[0]] || '');
             html += `<div class="row ${evenOdd}" data-path="${esc(fullPath)}" data-search="${searchText.toLowerCase()}">
@@ -1460,7 +745,7 @@ function buildCategoryHTML(data, path, level) {
         });
         return html;
     } else if (typeof data === 'object' && data !== null) {
-        const keys = Object.keys(data).filter(k => !k.startsWith('_')); // пропускаем служебные
+        const keys = Object.keys(data).filter(k => !k.startsWith('_'));
         keys.forEach(key => {
             const isSubSub = level >= 2;
             if (isSubSub) html += `<div class="sub-sub-cat-t">${key}</div>`;
@@ -2033,7 +1318,7 @@ function checkMissingItems() {
 }
 
 // ============================================================
-// МАТРИЦА ПРИВЯЗОК (общая для режима создания)
+// МАТРИЦА ПРИВЯЗОК
 // ============================================================
 function openMatrixModal() {
     document.getElementById('matrixModal').classList.add('open');
@@ -2343,8 +1628,7 @@ function deleteOrderPreset() {
 // ============================================================
 // ИНИЦИАЛИЗАЦИЯ
 // ============================================================
-loadEditorData();
-renderEditorAll();
+loadLibraryFromLocal();
 loadOrderData();
 renderOrderAll();
 sc('menu');
