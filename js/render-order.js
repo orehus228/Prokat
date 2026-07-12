@@ -1,4 +1,4 @@
-// render-order.js — Отрисовка страницы создания заказа (исправленный с защитой)
+// render-order.js — Отрисовка страницы создания заказа (с защитой от циклов)
 import {
     editorData,
     getStock,
@@ -43,7 +43,8 @@ import {
     getSelectedOption,
     updateOrderPaths,
     isExcludedFromLoading,
-    setExcludeFromLoading
+    setExcludeFromLoading,
+    orderExclude
 } from './order.js';
 
 // ============================================================
@@ -87,12 +88,9 @@ function setValue(path, val) {
 function renderOrderTabs() {
     const container = document.getElementById('categoryTabs');
     container.innerHTML = '';
-    // Безопасно получаем список категорий
     let orderKeys = editorData._categoryOrder || Object.keys(editorData.inventory);
-    // Фильтруем только существующие категории
     orderKeys = orderKeys.filter(key => editorData.inventory && editorData.inventory[key] !== undefined);
     if (orderKeys.length === 0) {
-        // Если нет категорий, показываем сообщение
         container.innerHTML = '<div class="empty-message">Нет категорий</div>';
         return;
     }
@@ -113,7 +111,6 @@ function renderOrderTabs() {
         });
         container.appendChild(tab);
     });
-    // Если текущая категория невалидна, устанавливаем первую
     if (!orderKeys.includes(currentCategory)) {
         currentCategory = orderKeys[0];
     }
@@ -136,7 +133,6 @@ function renderOrderCategory(catKey) {
             container.appendChild(wrapper);
             return;
         }
-        // Защита от бесконечной рекурсии: передаём глубину и ограничиваем
         wrapper.innerHTML = buildCategoryHTML(catData, [catKey], 0, 10);
     }
     container.appendChild(wrapper);
@@ -165,6 +161,7 @@ function buildAllCategoriesHTML() {
         .filter(key => editorData.inventory && editorData.inventory[key] !== undefined);
     const searchQueryLower = searchQuery.toLowerCase();
     let hasMatches = false;
+    const visited = new Set();
     orderKeys.forEach(cat => {
         const catData = editorData.inventory[cat];
         if (!catData) return;
@@ -172,7 +169,7 @@ function buildAllCategoriesHTML() {
         if (searchQuery && !catHasMatch) return;
         hasMatches = true;
         html += `<div class="sub-cat-t">${CAT_NAMES[cat]||cat}</div>`;
-        html += buildCategoryHTML(catData, [cat], 0, 10);
+        html += buildCategoryHTML(catData, [cat], 0, 10, visited);
     });
     if (searchQuery && !hasMatches) {
         return '<div class="empty-message">Ничего не найдено</div>';
@@ -198,11 +195,20 @@ function hasMatchesInCategory(data, path, query) {
     return false;
 }
 
-function buildCategoryHTML(data, path, level, maxDepth) {
+function buildCategoryHTML(data, path, level, maxDepth, visited = new Set()) {
     if (level > maxDepth) {
         console.warn('Превышена максимальная глубина рекурсии', path);
         return '<div class="empty-message">Слишком глубокий уровень</div>';
     }
+    // Защита от циклических ссылок
+    if (typeof data === 'object' && data !== null) {
+        if (visited.has(data)) {
+            console.warn('Обнаружена циклическая ссылка', path);
+            return '<div class="empty-message">Обнаружена циклическая ссылка</div>';
+        }
+        visited.add(data);
+    }
+
     let html = '';
     const searchQueryLower = searchQuery.toLowerCase();
     if (Array.isArray(data)) {
@@ -283,7 +289,7 @@ function buildCategoryHTML(data, path, level, maxDepth) {
             const isSubSub = level >= 2;
             if (isSubSub) html += `<div class="sub-sub-cat-t">${key}</div>`;
             else html += `<div class="sub-cat-t">${key}</div>`;
-            html += buildCategoryHTML(data[key], childPath, level + 1, maxDepth);
+            html += buildCategoryHTML(data[key], childPath, level + 1, maxDepth, visited);
         });
         return html;
     }
