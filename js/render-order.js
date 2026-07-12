@@ -1,4 +1,4 @@
-// render-order.js — Отрисовка страницы создания заказа (полная версия с правильными импортами)
+// render-order.js — Отрисовка страницы создания заказа (исправленная версия)
 import {
     editorData,
     getStock,
@@ -270,7 +270,7 @@ function buildCategoryHTML(data, path, level) {
 }
 
 // ============================================================
-// ПОСТРОЕНИЕ СТРОКИ С ОТОБРАЖЕНИЕМ ВЕСА/ОБЪЁМА
+// ПОСТРОЕНИЕ СТРОКИ С ОТОБРАЖЕНИЕМ ВЕСА/ОБЪЁМА (ИСПРАВЛЕННОЕ)
 // ============================================================
 function buildItemRow(fullPath, level) {
     const val = getValue(fullPath);
@@ -284,13 +284,13 @@ function buildItemRow(fullPath, level) {
     const isInfoOpen = infoBlocksOpen[fullPath] || false;
     const totalQty = getTotalQty(fullPath);
     
-    // Вычисляем вес и объём
+    // Вычисляем вес и объём (исправлена проверка)
     let weightDisplay = '0 кг', volumeDisplay = '0 м³';
-    if (props.weight) {
+    if (props.weight !== undefined && props.weight !== null && props.weight > 0) {
         const w = calcItemWeightWithMode(fullPath, totalQty);
         weightDisplay = w.toFixed(1) + ' кг';
     }
-    if (props.dimensions) {
+    if (props.dimensions && props.dimensions.trim() !== '') {
         const v = calcItemVolumeWithMode(fullPath, totalQty);
         volumeDisplay = v.toFixed(3) + ' м³';
     }
@@ -332,22 +332,73 @@ function buildItemRow(fullPath, level) {
     return html;
 }
 
+// ============================================================
+// ПОСТРОЕНИЕ БЛОКА «ИНФО» (С КОФРАМИ) (ИСПРАВЛЕННОЕ)
+// ============================================================
 function buildInfoHtml(path, props, mode) {
     let html = `<div style="display:flex;flex-wrap:wrap;gap:12px;">`;
-    html += `<span><strong>Вес 1 шт:</strong> ${props.weight ? props.weight + ' кг' : 'н/д'}</span>`;
-    html += `<span><strong>Габариты:</strong> ${props.dimensions || 'н/д'}</span>`;
-    if (props.volume) html += `<span><strong>Объём 1 шт:</strong> ${props.volume} м³</span>`;
+    
+    // Вес 1 шт
+    const weightPerUnit = (props.weight !== undefined && props.weight !== null) ? props.weight + ' кг' : 'н/д';
+    html += `<span><strong>Вес 1 шт:</strong> ${weightPerUnit}</span>`;
+    
+    // Габариты 1 шт
+    const dims = props.dimensions || 'н/д';
+    html += `<span><strong>Габариты:</strong> ${dims}</span>`;
+    
+    // Объём 1 шт
+    if (props.volume) {
+        html += `<span><strong>Объём 1 шт:</strong> ${props.volume} м³</span>`;
+    }
+    
+    // Если режим кофров включён, показываем детали по кофру
+    if (mode.enabled) {
+        const opt = getSelectedOption(path);
+        const alt = mode.alt;
+        if (alt) {
+            html += `<span><strong>Альтернативный кофр:</strong> вместимость ${alt.qty} шт, габ: ${alt.dims || 'н/д'}, вес пустого: ${alt.weight || 0} кг</span>`;
+        } else if (opt) {
+            html += `<span><strong>Выбранный кофр:</strong> вместимость ${opt.qty} шт, габ: ${opt.dims || 'н/д'}, вес пустого: ${opt.weight || 0} кг</span>`;
+            // Объём кофра (если есть габариты)
+            if (opt.dims) {
+                const dimsArr = opt.dims.split('x').map(s => parseFloat(s.trim()));
+                if (dimsArr.length === 3 && dimsArr.every(d => !isNaN(d) && d > 0)) {
+                    const caseVolume = (dimsArr[0] * dimsArr[1] * dimsArr[2]) / 1000000;
+                    html += `<span><strong>Объём кофра:</strong> ${caseVolume.toFixed(3)} м³</span>`;
+                }
+            }
+        }
+        // Вес с кофром (для текущего количества)
+        const totalQty = getTotalQty(path);
+        if (props.weight && totalQty > 0) {
+            const weightWithCase = calcItemWeightWithMode(path, totalQty);
+            html += `<span><strong>Вес с кофрами (всего):</strong> ${weightWithCase.toFixed(1)} кг</span>`;
+        }
+    }
+    
+    // Варианты кофров (из individualCases)
     if (props.individualCases && props.individualCases.length > 0) {
         html += `<span><strong>Варианты кофров:</strong> ${props.individualCases.map(c => c.qty+' шт').join(', ')}</span>`;
     }
-    if (props.allowCommon) html += `<span><strong>Разрешены общие кофры</strong></span>`;
-    if (mode.enabled) {
-        html += `<span><strong>Режим кофров включён</strong> ${mode.alt ? '(альтернативный)' : ''}</span>`;
+    
+    // Разрешены общие кофры
+    if (props.allowCommon) {
+        html += `<span><strong>Разрешены общие кофры</strong></span>`;
     }
+    
+    // Привязка к общим кофрам
     const packing = getOrderPacking(path);
     if (packing.length > 0) {
         html += `<span><strong>Привязка к общим кофрам:</strong> ${packing.length} кофров</span>`;
+        // Покажем названия кофров
+        const commonCases = getCommonCases();
+        const caseNames = packing.map(p => {
+            const found = commonCases.find(c => c.id === p.caseId);
+            return found ? found.name : 'удалённый кофр';
+        }).join(', ');
+        html += `<span>(${caseNames})</span>`;
     }
+    
     html += `</div>`;
     return html;
 }
@@ -623,11 +674,11 @@ function updateRowOrder(path) {
     if (weightVolDisplay) {
         const props = getItemProps(path);
         let weightDisplay = '0 кг', volumeDisplay = '0 м³';
-        if (props.weight) {
+        if (props.weight !== undefined && props.weight !== null && props.weight > 0) {
             const w = calcItemWeightWithMode(path, totalQty);
             weightDisplay = w.toFixed(1) + ' кг';
         }
-        if (props.dimensions) {
+        if (props.dimensions && props.dimensions.trim() !== '') {
             const v = calcItemVolumeWithMode(path, totalQty);
             volumeDisplay = v.toFixed(3) + ' м³';
         }
