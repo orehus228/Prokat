@@ -1,4 +1,3 @@
-// render.js — Полная отрисовка редактора склада
 import {
     editorData,
     editorCurrentCategory,
@@ -14,28 +13,14 @@ import {
     cleanupInventory,
     convertOldItemProps
 } from './data.js';
-
-import {
-    esc,
-    showToast,
-    showModalEditor,
-    openPropsModalEditor,
-    openCasesManagerModal
-} from './ui.js';
-
+import { esc, showToast, showModalEditor, openPropsModalEditor, openCasesManagerModal } from './ui.js';
 import { CAT_NAMES } from './config.js';
 
-// ============================================================
-// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-// ============================================================
 function getStockKey(catKey, subKey, itemName) {
     if (subKey) return catKey + '|' + subKey + '|' + itemName;
     return catKey + '|' + itemName;
 }
 
-// ============================================================
-// ОТРИСОВКА ВКЛАДОК КАТЕГОРИЙ
-// ============================================================
 export function renderEditorTabs() {
     const container = document.getElementById('editorTabs');
     container.innerHTML = '';
@@ -84,17 +69,12 @@ export function renderEditorTabs() {
     });
 }
 
-// ============================================================
-// ОТРИСОВКА СОДЕРЖИМОГО КАТЕГОРИИ
-// ============================================================
 export function renderEditorCategory(catKey) {
     const container = document.getElementById('editorContents');
     container.innerHTML = '';
     const catData = editorData.inventory[catKey];
     if (!catData) return;
-
     if (Array.isArray(catData)) {
-        // Категория без подгрупп (плоский список)
         const wrapper = document.createElement('div');
         wrapper.className = 'category-content active';
         const listDiv = document.createElement('div');
@@ -134,8 +114,6 @@ export function renderEditorCategory(catKey) {
         container.appendChild(wrapper);
         return;
     }
-
-    // Категория с подгруппами
     const wrapper = document.createElement('div');
     wrapper.className = 'category-content active';
     const keys = Object.keys(catData).filter(k => !k.startsWith('_'));
@@ -151,7 +129,6 @@ export function renderEditorCategory(catKey) {
         catData._subOrder = orderKeys;
         saveEditorData();
     }
-
     orderKeys.forEach(subKey => {
         const subItems = catData[subKey];
         if (!Array.isArray(subItems)) return;
@@ -230,7 +207,6 @@ export function renderEditorCategory(catKey) {
         subgroup.appendChild(addBtn);
         wrapper.appendChild(subgroup);
     });
-
     const addSubBtn = document.createElement('button');
     addSubBtn.className = 'add-subgroup';
     addSubBtn.textContent = '+ Добавить подгруппу';
@@ -252,9 +228,6 @@ export function renderEditorCategory(catKey) {
     container.appendChild(wrapper);
 }
 
-// ============================================================
-// СОЗДАНИЕ СТРОКИ ПОЗИЦИИ
-// ============================================================
 function createItemRowEditor(catKey, subKey, itemName, index) {
     const row = document.createElement('div');
     row.className = 'item-row';
@@ -266,7 +239,6 @@ function createItemRowEditor(catKey, subKey, itemName, index) {
     nameDiv.title = 'Двойной клик для переименования';
     nameDiv.addEventListener('dblclick', () => { renameElementEditor(catKey, subKey, itemName); });
     mainLine.appendChild(nameDiv);
-
     const qtyInput = document.createElement('input');
     qtyInput.type = 'number';
     qtyInput.className = 'qty';
@@ -278,7 +250,6 @@ function createItemRowEditor(catKey, subKey, itemName, index) {
         setStock(catKey, subKey, itemName, val);
     });
     mainLine.appendChild(qtyInput);
-
     const specInput = document.createElement('input');
     specInput.type = 'text';
     specInput.className = 'spec';
@@ -286,7 +257,6 @@ function createItemRowEditor(catKey, subKey, itemName, index) {
     specInput.value = getSpec(catKey, subKey, itemName);
     specInput.addEventListener('change', () => { setSpec(catKey, subKey, itemName, specInput.value); });
     mainLine.appendChild(specInput);
-
     const actions = document.createElement('div');
     actions.className = 'actions';
     const upMoveBtn = document.createElement('button');
@@ -295,14 +265,12 @@ function createItemRowEditor(catKey, subKey, itemName, index) {
     upMoveBtn.className = 'move';
     upMoveBtn.addEventListener('click', () => { moveItemWithinGroup(catKey, subKey, itemName, -1); });
     actions.appendChild(upMoveBtn);
-
     const downMoveBtn = document.createElement('button');
     downMoveBtn.textContent = '⬇';
     downMoveBtn.title = 'Переместить вниз';
     downMoveBtn.className = 'move';
     downMoveBtn.addEventListener('click', () => { moveItemWithinGroup(catKey, subKey, itemName, 1); });
     actions.appendChild(downMoveBtn);
-
     const propsBtn = document.createElement('button');
     propsBtn.className = 'props';
     propsBtn.textContent = '📦';
@@ -313,20 +281,17 @@ function createItemRowEditor(catKey, subKey, itemName, index) {
         });
     });
     actions.appendChild(propsBtn);
-
     const moveBtn = document.createElement('button');
     moveBtn.className = 'move';
     moveBtn.textContent = '↗';
     moveBtn.title = 'Переместить в другую категорию/подгруппу';
     moveBtn.addEventListener('click', () => { moveItemEditor(catKey, subKey, itemName); });
     actions.appendChild(moveBtn);
-
     const renameBtn = document.createElement('button');
     renameBtn.textContent = '✏️';
     renameBtn.title = 'Переименовать';
     renameBtn.addEventListener('click', () => { renameElementEditor(catKey, subKey, itemName); });
     actions.appendChild(renameBtn);
-
     const delBtn = document.createElement('button');
     delBtn.textContent = '✕';
     delBtn.title = 'Удалить';
@@ -347,33 +312,25 @@ function createItemRowEditor(catKey, subKey, itemName, index) {
         }
     });
     actions.appendChild(delBtn);
-
     mainLine.appendChild(actions);
     row.appendChild(mainLine);
-
-    // Блок информации о свойствах
     const props = getItemProps(catKey, subKey, itemName);
     const infoDiv = document.createElement('div');
     infoDiv.className = 'props-info';
-
     const weight = props.weight !== undefined && props.weight !== '' ? props.weight : null;
     const weightSpan = document.createElement('span');
     weightSpan.innerHTML = `⚖️ Вес 1 шт: ${weight !== null ? weight + ' кг' : '<span class="na">n/a</span>'}`;
     infoDiv.appendChild(weightSpan);
-
     const dims = props.dimensions || '';
     const dimsSpan = document.createElement('span');
     dimsSpan.innerHTML = `📐 Габариты 1 шт: ${dims ? dims + ' см' : '<span class="na">n/a</span>'}`;
     infoDiv.appendChild(dimsSpan);
-
     const volume = props.volume !== undefined && props.volume !== '' ? props.volume : null;
     if (volume !== null) {
         const volumeSpan = document.createElement('span');
         volumeSpan.innerHTML = `📦 Объём 1 шт: ${volume} м³`;
         infoDiv.appendChild(volumeSpan);
     }
-
-    // Индивидуальные кофры
     const individualCases = props.individualCases || [];
     if (individualCases.length > 0) {
         const caseLabel = document.createElement('span');
@@ -391,8 +348,6 @@ function createItemRowEditor(catKey, subKey, itemName, index) {
         noCaseSpan.innerHTML = `🧩 Индивидуальные кофры: <span class="na">не выбраны</span>`;
         infoDiv.appendChild(noCaseSpan);
     }
-
-    // Общие кофры (привязка)
     const commonCases = props.commonCases || [];
     if (commonCases.length > 0) {
         const commonLabel = document.createElement('span');
@@ -411,20 +366,14 @@ function createItemRowEditor(catKey, subKey, itemName, index) {
         noCommonSpan.innerHTML = `📦 Общие кофры: <span class="na">не привязаны</span>`;
         infoDiv.appendChild(noCommonSpan);
     }
-
-    // Разрешено использование общих кофров
     const allowCommon = props.allowCommon || false;
     const allowSpan = document.createElement('span');
     allowSpan.innerHTML = `📦 Разрешено использование общих кофров: ${allowCommon ? '✅ да' : '❌ нет'}`;
     infoDiv.appendChild(allowSpan);
-
     row.appendChild(infoDiv);
     return row;
 }
 
-// ============================================================
-// ФУНКЦИИ РЕДАКТИРОВАНИЯ (перемещение, переименование и т.д.)
-// ============================================================
 function moveItemWithinGroup(catKey, subKey, itemName, direction) {
     let targetArray = subKey ? editorData.inventory[catKey][subKey] : editorData.inventory[catKey];
     if (!Array.isArray(targetArray)) { showToast('Ошибка: не массив'); return; }
@@ -627,19 +576,12 @@ function moveCategoryEditor(catKey, dir) {
     showToast('Категория перемещена');
 }
 
-// ============================================================
-// ОБНОВЛЕНИЕ ВСЕГО ИНТЕРФЕЙСА
-// ============================================================
 export function renderEditorAll() {
     renderEditorTabs();
     renderEditorCategory(editorCurrentCategory);
 }
 
-// ============================================================
-// ИНИЦИАЛИЗАЦИЯ ОБРАБОТЧИКОВ (кнопки панели инструментов)
-// ============================================================
 export function initRenderHandlers() {
-    // Экспорт JSON
     document.getElementById('exportBtn').addEventListener('click', () => {
         const exportData = {
             ...editorData,
@@ -660,8 +602,6 @@ export function initRenderHandlers() {
         URL.revokeObjectURL(url);
         showToast('JSON экспортирован (дубли удалены)');
     });
-
-    // Импорт JSON
     document.getElementById('importBtn').addEventListener('click', () => {
         document.getElementById('importFile').click();
     });
@@ -704,8 +644,6 @@ export function initRenderHandlers() {
         reader.readAsText(file);
         this.value = '';
     });
-
-    // Сброс
     document.getElementById('resetBtn').addEventListener('click', () => {
         if (confirm('Сбросить все изменения?')) {
             loadEditorData();
@@ -713,8 +651,6 @@ export function initRenderHandlers() {
             showToast('Сброшено');
         }
     });
-
-    // Сохранение в HTML (упрощённо)
     document.getElementById('saveHtmlBtn').addEventListener('click', function() {
         const dataStr = JSON.stringify(editorData, null, 2);
         const blob = new Blob([`<!DOCTYPE html>
@@ -731,8 +667,6 @@ alert('Сохранение HTML с данными — для демонстра
         URL.revokeObjectURL(url);
         showToast('HTML сохранён (упрощённо)');
     });
-
-    // Общие кофры
     document.getElementById('manageCasesBtn').addEventListener('click', () => {
         openCasesManagerModal(() => {
             renderEditorAll();

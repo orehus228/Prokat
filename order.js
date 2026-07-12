@@ -1,9 +1,5 @@
-// order.js — Данные и логика заказа (сплиттер, мультикофры, сохранение)
 import { getItemProps, getCommonCases } from './data.js';
 
-// ============================================================
-// ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ЗАКАЗА
-// ============================================================
 export let order = {};
 export let orderSplits = {};
 export let links = {};
@@ -13,9 +9,6 @@ export let individualCaseValues = {};
 export let commonRoutes = {};
 export let caseModes = {};
 
-// ============================================================
-// ЗАГРУЗКА / СОХРАНЕНИЕ ЗАКАЗА
-// ============================================================
 export function loadOrderData() {
     try { order = JSON.parse(localStorage.getItem('order_data')) || {}; } catch(e){}
     try { orderSplits = JSON.parse(localStorage.getItem('order_splits')) || {}; } catch(e){}
@@ -38,9 +31,6 @@ export function saveOrderData() {
     localStorage.setItem('caseModes', JSON.stringify(caseModes));
 }
 
-// ============================================================
-// ФУНКЦИИ ДЛЯ РАБОТЫ С КОЛИЧЕСТВАМИ
-// ============================================================
 export function getTotalQty(path) {
     let total = order[path] || 0;
     if (orderSplits[path]) {
@@ -112,9 +102,6 @@ export function getSelectedOption(path) {
     return options[idx];
 }
 
-// ============================================================
-// РАСЧЁТ ВЕСА/ОБЪЁМА С УЧЁТОМ РЕЖИМОВ КОФРОВ
-// ============================================================
 export function calcItemWeightWithMode(path, qty) {
     const props = getItemProps(path);
     if (!props.weight) return 0;
@@ -126,15 +113,12 @@ export function calcItemWeightWithMode(path, qty) {
             const caseObj = getCommonCases().find(c => c.id === p.caseId);
             if (caseObj) {
                 const emptyWeight = caseObj.emptyWeight || 0;
-                const unitWeight = props.weight;
-                totalWeight += p.qty * unitWeight + (p.qty > 0 ? emptyWeight : 0);
+                totalWeight += p.qty * props.weight + (p.qty > 0 ? emptyWeight : 0);
                 totalPacked += p.qty;
             }
         });
         const remainder = qty - totalPacked;
-        if (remainder > 0) {
-            totalWeight += remainder * props.weight;
-        }
+        if (remainder > 0) totalWeight += remainder * props.weight;
         return totalWeight;
     }
     const vals = getIndividualCaseValues(path);
@@ -158,9 +142,8 @@ export function calcItemWeightWithMode(path, qty) {
     if (!opt || opt.qty <= 0) return qty * props.weight;
     const fullCases = Math.floor(qty / opt.qty);
     const rem = qty % opt.qty;
-    let weight = 0;
     const fullCaseWeight = (opt.weight || 0) + (opt.qty * props.weight);
-    weight += fullCases * fullCaseWeight;
+    let weight = fullCases * fullCaseWeight;
     if (rem > 0) weight += (opt.weight || 0) + (rem * props.weight);
     return weight;
 }
@@ -174,13 +157,10 @@ export function calcItemVolumeWithMode(path, qty) {
         let totalPacked = 0;
         packing.forEach(p => {
             const caseObj = getCommonCases().find(c => c.id === p.caseId);
-            if (caseObj && p.qty > 0) {
-                if (caseObj.dimensions) {
-                    const dims = caseObj.dimensions.split('x').map(s => parseFloat(s.trim()));
-                    if (dims.length === 3 && dims.every(d => !isNaN(d) && d > 0)) {
-                        const caseVolume = (dims[0]*dims[1]*dims[2]) / 1000000;
-                        totalVolume += caseVolume;
-                    }
+            if (caseObj && p.qty > 0 && caseObj.dimensions) {
+                const dims = caseObj.dimensions.split('x').map(s => parseFloat(s.trim()));
+                if (dims.length === 3 && dims.every(d => !isNaN(d) && d > 0)) {
+                    totalVolume += (dims[0]*dims[1]*dims[2]) / 1000000;
                 }
                 totalPacked += p.qty;
             }
@@ -248,9 +228,6 @@ export function calcItemCases(path, qty) {
     return Math.ceil(qty / opt.qty);
 }
 
-// ============================================================
-// ИНИЦИАЛИЗАЦИЯ (вызывается из main.js)
-// ============================================================
 export function initOrder() {
     loadOrderData();
 }

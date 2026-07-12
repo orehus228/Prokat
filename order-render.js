@@ -1,9 +1,8 @@
-// order-render.js — Полная отрисовка страницы создания заказа
 import { editorData, getStock, getItemProps, saveEditorData } from './data.js';
 import { CAT_NAMES } from './config.js';
-import { 
+import {
     order, orderSplits, links, notes, caseModes,
-    saveOrderData, getTotalQty, getSegmentsSum, 
+    saveOrderData, getTotalQty, getSegmentsSum,
     calcItemWeightWithMode, calcItemVolumeWithMode, calcItemCases,
     loadOrderData, getOrderPacking, setOrderPacking,
     getCommonRoutes, setCommonRoutes,
@@ -11,20 +10,13 @@ import {
     getCaseMode, getCaseOptions, getSelectedOption
 } from './order.js';
 import { esc, showToast } from './ui.js';
-import { openCommonCasesManager, openPropsModalEditor } from './cases.js';
 
-// ============================================================
-// ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ДЛЯ ЗАКАЗА
-// ============================================================
 let currentOrderCategory = 'sound';
-let showProps = false;
-let searchMode = false;
-let searchQuery = '';
-let detailsOpen = false;
+let showPropsOrder = false;
+let searchModeOrder = false;
+let searchQueryOrder = '';
+let detailsOpenOrder = false;
 
-// ============================================================
-// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-// ============================================================
 function getValue(path) {
     return order[path] || 0;
 }
@@ -37,19 +29,16 @@ function getStockValue(path) {
     return getStock(catKey, subKey, itemName) || 9999;
 }
 
-function setValue(path, val) {
+function setValueOrder(path, val) {
     val = Math.max(0, parseInt(val) || 0);
     if (order[path] === val) return;
     order[path] = val;
     if (val === 0) delete order[path];
     saveOrderData();
-    updateTotals();
-    updateCategoryTotals(currentOrderCategory);
+    updateTotalsOrder();
+    updateCategoryTotalsOrder(currentOrderCategory);
 }
 
-// ============================================================
-// РЕНДЕРИНГ ВКЛАДОК
-// ============================================================
 function renderOrderTabs() {
     const container = document.getElementById('categoryTabs');
     container.innerHTML = '';
@@ -61,71 +50,68 @@ function renderOrderTabs() {
         tab.textContent = CAT_NAMES[key] || key;
         tab.dataset.cat = key;
         tab.addEventListener('click', () => {
-            if (searchMode) { document.getElementById('searchInput').value = ''; searchMode = false; searchQuery = ''; }
+            if (searchModeOrder) { document.getElementById('searchInput').value = ''; searchModeOrder = false; searchQueryOrder = ''; }
             currentOrderCategory = key;
             renderOrderTabs();
             renderOrderCategory(key);
-            setupDescToggles();
-            setupInputListeners();
-            setupCaseToggles();
-            updateTotals();
-            updateLinkCount();
-            renderCommonCaseIndicators();
+            setupDescTogglesOrder();
+            setupInputListenersOrder();
+            setupCaseTogglesOrder();
+            updateTotalsOrder();
+            updateLinkCountOrder();
+            renderCommonCaseIndicatorsOrder();
         });
         container.appendChild(tab);
     });
 }
 
-// ============================================================
-// РЕНДЕРИНГ КАТЕГОРИИ
-// ============================================================
 function renderOrderCategory(catKey) {
     const container = document.getElementById('categoryContents');
     container.innerHTML = '';
     const wrapper = document.createElement('div');
     wrapper.className = 'category-content active';
-    if (catKey === 'all' || searchMode) {
-        wrapper.innerHTML = buildAllCategoriesHTML();
+    if (catKey === 'all' || searchModeOrder) {
+        wrapper.innerHTML = buildAllCategoriesHTMLOrder();
     } else {
         const catData = editorData.inventory[catKey];
         if (!catData) { wrapper.innerHTML = '<div class="empty-message">Категория пуста</div>'; container.appendChild(wrapper); return; }
-        wrapper.innerHTML = buildCategoryHTML(catData, [catKey], 0);
+        wrapper.innerHTML = buildCategoryHTMLOrder(catData, [catKey], 0);
     }
     container.appendChild(wrapper);
-    setupDescToggles();
-    setupInputListeners();
-    setupCaseToggles();
+    setupDescTogglesOrder();
+    setupInputListenersOrder();
+    setupCaseTogglesOrder();
     document.querySelectorAll('#categoryContents .row').forEach(row => {
         const path = row.dataset.path;
-        if (path) { updateRow(path); updateItemPropsDisplay(row, path); updateNoteDisplay(row, path); }
+        if (path) { updateRowOrder(path); updateItemPropsDisplayOrder(row, path); updateNoteDisplayOrder(row, path); }
     });
-    if (!searchMode) updateCategoryTotals(catKey);
-    updateTotals();
-    updateLinkCount();
-    applySearch();
-    if (detailsOpen) {
+    if (!searchModeOrder) updateCategoryTotalsOrder(catKey);
+    updateTotalsOrder();
+    updateLinkCountOrder();
+    applySearchOrder();
+    if (detailsOpenOrder) {
         document.getElementById('globalDetails').classList.add('open');
         document.getElementById('detailToggle').textContent = '📊 Скрыть';
     } else {
         document.getElementById('globalDetails').classList.remove('open');
         document.getElementById('detailToggle').textContent = '📊 Подробно';
     }
-    renderCommonCaseIndicators();
+    renderCommonCaseIndicatorsOrder();
 }
 
-function buildAllCategoriesHTML() {
+function buildAllCategoriesHTMLOrder() {
     let html = '';
     const orderKeys = editorData._categoryOrder || Object.keys(editorData.inventory);
     orderKeys.forEach(cat => {
         const catData = editorData.inventory[cat];
         if (!catData) return;
         html += `<div class="sub-cat-t">${CAT_NAMES[cat]||cat}</div>`;
-        html += buildCategoryHTML(catData, [cat], 0);
+        html += buildCategoryHTMLOrder(catData, [cat], 0);
     });
     return html;
 }
 
-function buildCategoryHTML(data, path, level) {
+function buildCategoryHTMLOrder(data, path, level) {
     let html = '';
     if (Array.isArray(data)) {
         data.forEach((item, idx) => {
@@ -142,27 +128,25 @@ function buildCategoryHTML(data, path, level) {
             const caseModeOn = mode.enabled;
             const overstock = getTotalQty(fullPath) > sq;
             const dynHtml = `<div class="dynamic-info"></div>`;
-            const staticHtml = `<div class="props-compact ${showProps ? 'visible' : ''}"></div>`;
+            const staticHtml = `<div class="props-compact ${showPropsOrder ? 'visible' : ''}"></div>`;
             const escapedName = esc(item);
             const searchText = item + ' ' + (hasDesc ? editorData.specs[fullPath] : '') + ' ' + (CAT_NAMES[path[0]] || '');
-
             let caseControls = '';
             let variantControls = '';
             let multiToggle = '';
             if (hasCase) {
                 const isMulti = localStorage.getItem('multi_' + fullPath) === 'true';
                 const showMultiToggle = options.length > 1;
-                multiToggle = showMultiToggle ? `<button class="multi-toggle ${isMulti ? 'active' : ''}" onclick="toggleMultiMode('${esc(fullPath)}')">${isMulti ? '🔀 Мульти' : '🔀 1'}</button>` : '';
-
+                multiToggle = showMultiToggle ? `<button class="multi-toggle ${isMulti ? 'active' : ''}" onclick="toggleMultiModeOrder('${esc(fullPath)}')">${isMulti ? '🔀 Мульти' : '🔀 1'}</button>` : '';
                 caseControls = `<div class="controls">
                     <span class="stock-info">в наличии: ${sq}</span>
-                    <button class="btn-c" onclick="chgPath('${esc(fullPath)}',-1,this)">−</button>
+                    <button class="btn-c" onclick="chgPathOrder('${esc(fullPath)}',-1,this)">−</button>
                     <input type="number" class="qty-input" value="${val}" min="0" step="1" data-path="${esc(fullPath)}">
-                    <button class="btn-c" onclick="chgPath('${esc(fullPath)}',1,this)">+</button>
+                    <button class="btn-c" onclick="chgPathOrder('${esc(fullPath)}',1,this)">+</button>
                     <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
                         <div class="case-toggle-wrap">
                             <label class="case-toggle"><input type="checkbox" class="case-switch" data-path="${esc(fullPath)}" ${caseModeOn ? 'checked' : ''}> Кофры</label>
-                            <button class="case-dropdown-btn" onclick="toggleCaseDropdown('${esc(fullPath)}',this)">▼</button>
+                            <button class="case-dropdown-btn" onclick="toggleCaseDropdownOrder('${esc(fullPath)}',this)">▼</button>
                             <div class="case-dropdown" data-path="${esc(fullPath)}">
                                 ${options.map((opt, i) => `<div class="case-dropdown-item ${mode.selectedOption === i && !mode.alt ? 'active' : ''}" data-path="${esc(fullPath)}" data-idx="${i}">Вариант ${i+1} (${opt.qty} шт)</div>`).join('')}
                                 <div class="case-dropdown-item case-dropdown-alt ${mode.alt ? 'active' : ''}" data-path="${esc(fullPath)}" data-alt="true">${mode.alt ? '✅' : '☐'} Альтернативный кофр</div>
@@ -180,37 +164,35 @@ function buildCategoryHTML(data, path, level) {
                     const caseVal = (selected && selected.qty > 0) ? Math.ceil(val / selected.qty) : 0;
                     variantControls = `
                         <div style="display:flex;align-items:center;gap:4px;margin-left:8px;">
-                            <button class="btn-c case-btn" onclick="chgCase('${esc(fullPath)}',-1,this)" style="border-color:#6a8a6a;color:#6a8a6a;width:32px;height:32px;font-size:16px;">−</button>
+                            <button class="btn-c case-btn" onclick="chgCaseOrder('${esc(fullPath)}',-1,this)" style="border-color:#6a8a6a;color:#6a8a6a;width:32px;height:32px;font-size:16px;">−</button>
                             <input type="number" class="case-input" value="${caseVal}" min="0" step="1" data-path="${esc(fullPath)}" style="width:50px;padding:4px;border:1px solid #6a8a6a;background:#1a2a1a;border-radius:8px;color:#d0d0d0;text-align:center;font-size:14px;">
-                            <button class="btn-c case-btn" onclick="chgCase('${esc(fullPath)}',1,this)" style="border-color:#6a8a6a;color:#6a8a6a;width:32px;height:32px;font-size:16px;">+</button>
+                            <button class="btn-c case-btn" onclick="chgCaseOrder('${esc(fullPath)}',1,this)" style="border-color:#6a8a6a;color:#6a8a6a;width:32px;height:32px;font-size:16px;">+</button>
                         </div>
                     `;
                 }
             } else {
                 caseControls = `<div class="controls">
                     <span class="stock-info">в наличии: ${sq}</span>
-                    <button class="btn-c" onclick="chgPath('${esc(fullPath)}',-1,this)">−</button>
+                    <button class="btn-c" onclick="chgPathOrder('${esc(fullPath)}',-1,this)">−</button>
                     <input type="number" class="qty-input" value="${val}" min="0" step="1" data-path="${esc(fullPath)}">
-                    <button class="btn-c" onclick="chgPath('${esc(fullPath)}',1,this)">+</button>
+                    <button class="btn-c" onclick="chgPathOrder('${esc(fullPath)}',1,this)">+</button>
                 </div>`;
             }
-
             let commonControlsHtml = '';
             if (props.allowCommon) {
                 const route = getCommonRoutes(fullPath);
                 if (route.length > 0) {
                     commonControlsHtml = `<div class="common-controls-wrapper" style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-left:8px;"></div>`;
                 } else {
-                    commonControlsHtml = `<div class="common-controls-wrapper" style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-left:8px;"><button class="route-btn" onclick="openRouteModal('${esc(fullPath)}')">🗺️ Маршрут</button></div>`;
+                    commonControlsHtml = `<div class="common-controls-wrapper" style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-left:8px;"><button class="route-btn" onclick="openRouteModalOrder('${esc(fullPath)}')">🗺️ Маршрут</button></div>`;
                 }
             }
-
             html += `<div class="row ${overstock ? 'overstock' : ''}" data-path="${esc(fullPath)}" data-search="${searchText.toLowerCase()}">
                 <div class="main-line">
                     <div class="name-area">
                         <span class="name">${escapedName}</span>
                         ${hasDesc ? `<button class="desc-toggle" data-path="${esc(fullPath)}">📄</button>` : ''}
-                        <button class="link-btn ${hasLink ? 'active' : ''}" onclick="openLinkModal('${esc(fullPath)}')" title="Настроить привязки">${linkIcon}</button>
+                        <button class="link-btn ${hasLink ? 'active' : ''}" onclick="openLinkModalOrder('${esc(fullPath)}')" title="Настроить привязки">${linkIcon}</button>
                         ${props.allowCommon ? '<span style="font-size:12px;color:#6a8a6a;">✅ Общие кофры</span>' : ''}
                     </div>
                     ${caseControls}
@@ -234,29 +216,26 @@ function buildCategoryHTML(data, path, level) {
             const isSubSub = level >= 2;
             if (isSubSub) html += `<div class="sub-sub-cat-t">${key}</div>`;
             else html += `<div class="sub-cat-t">${key}</div>`;
-            html += buildCategoryHTML(data[key], [...path, key], level + 1);
+            html += buildCategoryHTMLOrder(data[key], [...path, key], level + 1);
         });
         return html;
     }
     return '';
 }
 
-// ============================================================
-// УПРАВЛЕНИЕ КОЛИЧЕСТВОМ
-// ============================================================
-function chgPath(path, delta, btn) {
+function chgPathOrder(path, delta, btn) {
     const row = btn.closest('.row');
     const inp = row.querySelector('.qty-input');
     let val = parseInt(inp.value) || 0;
     val = Math.max(0, val + delta);
     inp.value = val;
-    setValue(path, val);
-    updateRow(path);
-    updateItemPropsDisplay(row, path);
-    renderCommonCaseIndicators();
+    setValueOrder(path, val);
+    updateRowOrder(path);
+    updateItemPropsDisplayOrder(row, path);
+    renderCommonCaseIndicatorsOrder();
 }
 
-function chgCase(path, delta, btn) {
+function chgCaseOrder(path, delta, btn) {
     const row = btn.closest('.row');
     const mode = getCaseMode(path);
     if (!mode.enabled) return;
@@ -268,12 +247,12 @@ function chgCase(path, delta, btn) {
     const opt = getSelectedOption(path);
     if (opt && opt.qty > 0) {
         const newQty = caseVal * opt.qty;
-        setValue(path, newQty);
+        setValueOrder(path, newQty);
     }
-    renderCommonCaseIndicators();
+    renderCommonCaseIndicatorsOrder();
 }
 
-function updateRow(path) {
+function updateRowOrder(path) {
     const row = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
     if (!row) return;
     const qtyInput = row.querySelector('.qty-input');
@@ -290,12 +269,12 @@ function updateRow(path) {
         warn.textContent = `⚠️ Больше нет (в наличии ${sq})`;
         row.querySelector('.controls').appendChild(warn);
     }
-    updateItemPropsDisplay(row, path);
-    updateNoteDisplay(row, path);
-    renderCommonCaseIndicators();
+    updateItemPropsDisplayOrder(row, path);
+    updateNoteDisplayOrder(row, path);
+    renderCommonCaseIndicatorsOrder();
 }
 
-function updateItemPropsDisplay(row, path) {
+function updateItemPropsDisplayOrder(row, path) {
     const dynDiv = row.querySelector('.dynamic-info');
     if (!dynDiv) return;
     const props = getItemProps(path);
@@ -328,11 +307,11 @@ function updateItemPropsDisplay(row, path) {
             caseStatic = '📦 Кофр: ' + options.map(o => `${o.qty} шт`).join(', ');
         }
         propsDiv.innerHTML = `<span>⚖️ 1 шт: ${weightStatic}</span><span>📐 ${dimsStatic}</span>${caseStatic ? `<span>${caseStatic}</span>` : ''}`;
-        propsDiv.classList.toggle('visible', showProps);
+        propsDiv.classList.toggle('visible', showPropsOrder);
     }
 }
 
-function updateNoteDisplay(row, path) {
+function updateNoteDisplayOrder(row, path) {
     let noteBlock = row.querySelector('.note-block');
     if (!noteBlock) {
         noteBlock = document.createElement('div');
@@ -343,7 +322,7 @@ function updateNoteDisplay(row, path) {
         const editBtn = document.createElement('button');
         editBtn.className = 'note-edit';
         editBtn.textContent = '✏️';
-        editBtn.onclick = () => editNote(path);
+        editBtn.onclick = () => editNoteOrder(path);
         noteBlock.appendChild(noteText);
         noteBlock.appendChild(editBtn);
         row.appendChild(noteBlock);
@@ -353,7 +332,7 @@ function updateNoteDisplay(row, path) {
     }
 }
 
-function editNote(path) {
+function editNoteOrder(path) {
     const current = notes[path] || '';
     const newNote = prompt('Введите заметку для позиции:', current);
     if (newNote === null) return;
@@ -364,20 +343,20 @@ function editNote(path) {
     }
     saveOrderData();
     const row = document.querySelector(`#categoryContents .row[data-path="${esc(path)}"]`);
-    if (row) updateNoteDisplay(row, path);
+    if (row) updateNoteDisplayOrder(row, path);
     showToast('Заметка сохранена');
 }
 
-function updateCategoryTotals(catKey) {
+function updateCategoryTotalsOrder(catKey) {
     const container = document.querySelector('#categoryContents .category-content.active');
-    if (!container || searchMode) return;
+    if (!container || searchModeOrder) return;
     let totalsDiv = container.querySelector('.category-totals');
     if (!totalsDiv) {
         totalsDiv = document.createElement('div');
         totalsDiv.className = 'category-totals';
         container.appendChild(totalsDiv);
     }
-    const items = getActiveItems().filter(({ path }) => path.startsWith(catKey + '|'));
+    const items = getActiveItemsOrder().filter(({ path }) => path.startsWith(catKey + '|'));
     let qty = 0, weight = 0, volume = 0, cases = 0;
     items.forEach(({ path, qty: q }) => {
         qty += q;
@@ -388,8 +367,8 @@ function updateCategoryTotals(catKey) {
     totalsDiv.innerHTML = `<span><strong>Итого в категории:</strong> ${qty} шт</span><span><strong>Вес:</strong> ${weight.toFixed(1)} кг</span><span><strong>Объём:</strong> ${volume.toFixed(3)} м³</span>${cases > 0 ? `<span><strong>Кофров:</strong> ${cases} шт</span>` : ''}`;
 }
 
-function updateTotals() {
-    const items = getActiveItems();
+function updateTotalsOrder() {
+    const items = getActiveItemsOrder();
     let totalQty = 0, totalWeight = 0, totalVolume = 0, totalCases = 0;
     const catTotals = {};
     items.forEach(({ path, qty }) => {
@@ -416,15 +395,14 @@ function updateTotals() {
         detailsHtml += `<div class="cat-detail"><strong>${CAT_NAMES[cat]||cat}</strong><br>${d.qty} шт<br>${d.weight.toFixed(1)} кг<br>${d.volume.toFixed(3)} м³${d.cases > 0 ? `<br>${d.cases} кофров` : ''}</div>`;
     });
     detailsDiv.innerHTML = detailsHtml || '';
-    renderCommonCaseIndicators();
+    renderCommonCaseIndicatorsOrder();
 }
 
-function getActiveItems() {
+function getActiveItemsOrder() {
     const items = [];
     for (let p in order) {
         if (order[p] > 0) items.push({ path: p, qty: order[p] });
     }
-    // Добавляем сегменты из сплиттера (пока заглушка, позже будет доработано)
     for (let p in orderSplits) {
         const segs = orderSplits[p];
         segs.forEach(seg => {
@@ -436,14 +414,11 @@ function getActiveItems() {
     return items;
 }
 
-// ============================================================
-// ПОИСК
-// ============================================================
-function applySearch() {
+function applySearchOrder() {
     const query = document.getElementById('searchInput').value.toLowerCase().trim();
-    searchQuery = query;
+    searchQueryOrder = query;
     if (query) {
-        if (!searchMode) { searchMode = true; currentOrderCategory = 'all'; renderOrderCategory('all'); return; }
+        if (!searchModeOrder) { searchModeOrder = true; currentOrderCategory = 'all'; renderOrderCategory('all'); return; }
         const rows = document.querySelectorAll('#categoryContents .row');
         rows.forEach(row => {
             const searchText = row.dataset.search || '';
@@ -451,28 +426,25 @@ function applySearch() {
             else row.classList.add('hidden');
         });
     } else {
-        if (searchMode) { searchMode = false; currentOrderCategory = editorData._categoryOrder[0] || 'sound'; renderOrderCategory(currentOrderCategory); }
+        if (searchModeOrder) { searchModeOrder = false; currentOrderCategory = editorData._categoryOrder[0] || 'sound'; renderOrderCategory(currentOrderCategory); }
         else { document.querySelectorAll('#categoryContents .row').forEach(row => row.classList.remove('hidden')); }
     }
 }
 
-function clearSearch() {
+function clearSearchOrder() {
     document.getElementById('searchInput').value = '';
-    if (searchMode) { searchMode = false; currentOrderCategory = editorData._categoryOrder[0] || 'sound'; renderOrderCategory(currentOrderCategory); }
+    if (searchModeOrder) { searchModeOrder = false; currentOrderCategory = editorData._categoryOrder[0] || 'sound'; renderOrderCategory(currentOrderCategory); }
     else { document.querySelectorAll('#categoryContents .row').forEach(row => row.classList.remove('hidden')); }
 }
 
-// ============================================================
-// ОБРАБОТЧИКИ UI
-// ============================================================
-function setupDescToggles() {
+function setupDescTogglesOrder() {
     document.querySelectorAll('#categoryContents .desc-toggle').forEach(btn => {
-        btn.removeEventListener('click', toggleDescOrder);
-        btn.addEventListener('click', toggleDescOrder);
+        btn.removeEventListener('click', toggleDescOrderOrder);
+        btn.addEventListener('click', toggleDescOrderOrder);
     });
 }
 
-function toggleDescOrder(e) {
+function toggleDescOrderOrder(e) {
     const btn = e.currentTarget;
     const path = btn.dataset.path;
     const block = document.querySelector(`.desc-block[data-path="${path}"]`);
@@ -482,37 +454,37 @@ function toggleDescOrder(e) {
     }
 }
 
-function setupInputListeners() {
+function setupInputListenersOrder() {
     document.querySelectorAll('#categoryContents .qty-input').forEach(inp => {
-        inp.removeEventListener('input', handleQtyInput);
-        inp.addEventListener('input', handleQtyInput);
+        inp.removeEventListener('input', handleQtyInputOrder);
+        inp.addEventListener('input', handleQtyInputOrder);
     });
 }
 
-function handleQtyInput(e) {
+function handleQtyInputOrder(e) {
     const inp = e.target;
     const path = inp.dataset.path;
     let val = parseInt(inp.value);
     if (isNaN(val) || val < 0) val = 0;
     inp.value = val;
-    setValue(path, val);
+    setValueOrder(path, val);
     const row = inp.closest('.row');
-    if (row) updateItemPropsDisplay(row, path);
-    renderCommonCaseIndicators();
+    if (row) updateItemPropsDisplayOrder(row, path);
+    renderCommonCaseIndicatorsOrder();
 }
 
-function setupCaseToggles() {
+function setupCaseTogglesOrder() {
     document.querySelectorAll('#categoryContents .case-switch').forEach(cb => {
-        cb.removeEventListener('change', handleCaseSwitch);
-        cb.addEventListener('change', handleCaseSwitch);
+        cb.removeEventListener('change', handleCaseSwitchOrder);
+        cb.addEventListener('change', handleCaseSwitchOrder);
     });
     document.querySelectorAll('#categoryContents .case-dropdown-item').forEach(item => {
-        item.removeEventListener('click', handleDropdownItem);
-        item.addEventListener('click', handleDropdownItem);
+        item.removeEventListener('click', handleDropdownItemOrder);
+        item.addEventListener('click', handleDropdownItemOrder);
     });
 }
 
-function handleCaseSwitch(e) {
+function handleCaseSwitchOrder(e) {
     const cb = e.target;
     const path = cb.dataset.path;
     const mode = getCaseMode(path);
@@ -535,18 +507,17 @@ function handleCaseSwitch(e) {
         }
     }
     saveOrderData();
-    updateRow(path);
-    updateTotals();
-    updateCategoryTotals(currentOrderCategory);
+    updateRowOrder(path);
+    updateTotalsOrder();
+    updateCategoryTotalsOrder(currentOrderCategory);
     const row = cb.closest('.row');
     if (row) {
-        updateItemPropsDisplay(row, path);
-        updateIndividualCaseControls(row, path);
+        updateItemPropsDisplayOrder(row, path);
     }
-    renderCommonCaseIndicators();
+    renderCommonCaseIndicatorsOrder();
 }
 
-function handleDropdownItem(e) {
+function handleDropdownItemOrder(e) {
     const item = e.currentTarget;
     const path = item.dataset.path;
     const idx = parseInt(item.dataset.idx);
@@ -556,17 +527,17 @@ function handleDropdownItem(e) {
     if (isAccumulate) {
         mode.accumulate = !mode.accumulate;
         saveOrderData();
-        updateRow(path);
-        updateTotals();
-        updateCategoryTotals(currentOrderCategory);
+        updateRowOrder(path);
+        updateTotalsOrder();
+        updateCategoryTotalsOrder(currentOrderCategory);
         const row = document.querySelector(`#categoryContents .row[data-path="${esc(path)}"]`);
-        if (row) updateItemPropsDisplay(row, path);
+        if (row) updateItemPropsDisplayOrder(row, path);
         showToast(mode.accumulate ? 'Режим "Копиться в кофре" включён' : 'Режим "Копиться в кофре" выключен');
-        renderCommonCaseIndicators();
+        renderCommonCaseIndicatorsOrder();
         return;
     }
     if (isAlt) {
-        openAltCaseModal(path);
+        openAltCaseModalOrder(path);
         const dropdown = item.closest('.case-dropdown');
         if (dropdown) dropdown.classList.remove('open');
         return;
@@ -575,19 +546,19 @@ function handleDropdownItem(e) {
         mode.selectedOption = idx;
         mode.alt = null;
         saveOrderData();
-        updateRow(path);
-        updateTotals();
-        updateCategoryTotals(currentOrderCategory);
+        updateRowOrder(path);
+        updateTotalsOrder();
+        updateCategoryTotalsOrder(currentOrderCategory);
         const row = document.querySelector(`#categoryContents .row[data-path="${esc(path)}"]`);
-        if (row) updateItemPropsDisplay(row, path);
+        if (row) updateItemPropsDisplayOrder(row, path);
         showToast('Вариант кофра выбран');
         const dropdown = item.closest('.case-dropdown');
         if (dropdown) dropdown.classList.remove('open');
-        renderCommonCaseIndicators();
+        renderCommonCaseIndicatorsOrder();
     }
 }
 
-function toggleCaseDropdown(path, btn) {
+function toggleCaseDropdownOrder(path, btn) {
     const row = btn.closest('.row');
     const dropdown = row.querySelector('.case-dropdown');
     if (dropdown) {
@@ -598,11 +569,11 @@ function toggleCaseDropdown(path, btn) {
     }
 }
 
-function openAltCaseModal(path) {
+function openAltCaseModalOrder(path) {
     showToast('Альтернативный кофр (будет реализован позже)');
 }
 
-function toggleMultiMode(path) {
+function toggleMultiModeOrder(path) {
     const mode = getCaseMode(path);
     if (!mode.enabled) { showToast('Сначала включите режим кофров'); return; }
     const options = getCaseOptions(path);
@@ -628,31 +599,22 @@ function toggleMultiMode(path) {
     renderOrderCategory(currentOrderCategory);
 }
 
-function updateIndividualCaseControls(row, path) {
-    // Заглушка – будет реализована в полной версии
-}
+function renderCommonCaseIndicatorsOrder() {}
 
-function renderCommonCaseIndicators() {
-    // Заглушка – будет реализована в полной версии
-}
-
-function updateLinkCount() {
+function updateLinkCountOrder() {
     let count = 0;
     for (let src in links) count += links[src].length;
     document.getElementById('linkCount').textContent = `(${count} активных)`;
 }
 
-function openLinkModal(sourcePath) {
+function openLinkModalOrder(sourcePath) {
     showToast('Матрица привязок (будет реализована позже)');
 }
 
-function openRouteModal(path) {
+function openRouteModalOrder(path) {
     showToast('Маршрут (будет реализован позже) для ' + path);
 }
 
-// ============================================================
-// ГЛАВНАЯ ФУНКЦИЯ ОТРИСОВКИ
-// ============================================================
 export function renderOrderAll() {
     loadOrderData();
     document.getElementById('pComment').value = localStorage.getItem('last_comment') || '';
@@ -660,46 +622,21 @@ export function renderOrderAll() {
     if (savedDate) document.getElementById('pDate').value = savedDate;
     renderOrderTabs();
     renderOrderCategory(currentOrderCategory);
-    setupDescToggles();
-    setupInputListeners();
-    setupCaseToggles();
-    updateTotals();
-    document.querySelectorAll('.props-compact').forEach(el => el.classList.toggle('visible', showProps));
-    updateLinkCount();
-    applySearch();
-    if (detailsOpen) {
+    setupDescTogglesOrder();
+    setupInputListenersOrder();
+    setupCaseTogglesOrder();
+    updateTotalsOrder();
+    document.querySelectorAll('.props-compact').forEach(el => el.classList.toggle('visible', showPropsOrder));
+    updateLinkCountOrder();
+    applySearchOrder();
+    if (detailsOpenOrder) {
         document.getElementById('globalDetails').classList.add('open');
         document.getElementById('detailToggle').textContent = '📊 Скрыть';
     } else {
         document.getElementById('globalDetails').classList.remove('open');
         document.getElementById('detailToggle').textContent = '📊 Подробно';
     }
-    renderCommonCaseIndicators();
+    renderCommonCaseIndicatorsOrder();
 }
 
-// ============================================================
-// ЭКСПОРТ ДЛЯ ВНЕШНЕГО ИСПОЛЬЗОВАНИЯ
-// ============================================================
-export { applySearch, clearSearch, renderOrderCategory };
-
-// ============================================================
-// ОБРАБОТЧИКИ ДЛЯ КНОПОК СТРАНИЦЫ ЗАКАЗА (инициализация)
-// ============================================================
-document.addEventListener('DOMContentLoaded', () => {
-    // Переключение свойств
-    document.getElementById('togglePropsBtn')?.addEventListener('click', function() {
-        showProps = !showProps;
-        document.getElementById('propsStatus').textContent = showProps ? '(свойства видны)' : '(свойства скрыты)';
-        localStorage.setItem('showProps', JSON.stringify(showProps));
-        document.querySelectorAll('.props-compact').forEach(el => el.classList.toggle('visible', showProps));
-    });
-
-    // Подробно
-    document.getElementById('detailToggle')?.addEventListener('click', function() {
-        const details = document.getElementById('globalDetails');
-        details.classList.toggle('open');
-        detailsOpen = details.classList.contains('open');
-        localStorage.setItem('detailsOpen', JSON.stringify(detailsOpen));
-        this.textContent = detailsOpen ? '📊 Скрыть' : '📊 Подробно';
-    });
-});
+export { applySearchOrder as applySearch, clearSearchOrder as clearSearch, renderOrderCategory };

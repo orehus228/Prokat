@@ -1,4 +1,3 @@
-// config.js — Константы и дефолтные данные
 export const CAT_NAMES = {
     sound: "🔊 Звук",
     light: "💡 Свет",
@@ -10,34 +9,12 @@ export const CAT_NAMES = {
 
 export const DEFAULT_INVENTORY = {
     sound: {
-        "Акустические системы": [
-            "Топ пассивный d&b Q1",
-            "Сабвуфер пассивный d&b Q-Sub"
-        ],
-        "Пульты": {
-            "Цифровые": [
-                "Behringer x32 Rack",
-                "Midas MR18"
-            ]
-        }
+        "Акустические системы": ["Топ пассивный d&b Q1", "Сабвуфер пассивный d&b Q-Sub"],
+        "Пульты": { "Цифровые": ["Behringer x32 Rack", "Midas MR18"] }
     },
-    light: {
-        "Приборы": [
-            "LED Wash 19x40",
-            "Beam 295W"
-        ]
-    },
-    extra: [
-        "Кейс с бобышками",
-        "Стяжной ремень"
-    ],
-    video: {
-        "Телевизоры": [
-            "Телевизор 55\"",
-            "Телевизор 65\"",
-            "Телевизор 75\""
-        ]
-    }
+    light: { "Приборы": ["LED Wash 19x40", "Beam 295W"] },
+    extra: ["Кейс с бобышками", "Стяжной ремень"],
+    video: { "Телевизоры": ["Телевизор 55\"", "Телевизор 65\"", "Телевизор 75\""] }
 };
 
 export const DEFAULT_STOCK = {
@@ -62,27 +39,9 @@ export const DEFAULT_SPECS = {
 };
 
 export const DEFAULT_PROPS = {
-    "sound|Акустические системы|Топ пассивный d&b Q1": {
-        weight: 25,
-        dimensions: "60x40x30",
-        individualCases: [],
-        allowCommon: false,
-        commonCases: []
-    },
-    "sound|Акустические системы|Сабвуфер пассивный d&b Q-Sub": {
-        weight: 30,
-        dimensions: "70x50x40",
-        individualCases: [],
-        allowCommon: false,
-        commonCases: []
-    },
-    "light|Приборы|LED Wash 19x40": {
-        weight: 8,
-        dimensions: "50x30x20",
-        individualCases: [],
-        allowCommon: false,
-        commonCases: []
-    }
+    "sound|Акустические системы|Топ пассивный d&b Q1": { weight: 25, dimensions: "60x40x30", individualCases: [], allowCommon: false, commonCases: [] },
+    "sound|Акустические системы|Сабвуфер пассивный d&b Q-Sub": { weight: 30, dimensions: "70x50x40", individualCases: [], allowCommon: false, commonCases: [] },
+    "light|Приборы|LED Wash 19x40": { weight: 8, dimensions: "50x30x20", individualCases: [], allowCommon: false, commonCases: [] }
 };
 
 export const DEFAULT_COMMON_CASES = [
@@ -91,5 +50,4 @@ export const DEFAULT_COMMON_CASES = [
 ];
 
 export const DEFAULT_CATEGORY_ORDER = Object.keys(DEFAULT_INVENTORY);
-
 export const DUPLICATE_VIDEO_GROUPS = ['Экраны', 'Экран', 'Кабинеты'];

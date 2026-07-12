@@ -1,17 +1,8 @@
-// ui.js — Базовые утилиты и модальные окна (ввод текста, тосты)
-
-// ============================================================
-// ЭКРАНИРОВАНИЕ СТРОК ДЛЯ HTML
-// ============================================================
 export function esc(str) {
     return String(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-// ============================================================
-// ВСПЛЫВАЮЩИЕ УВЕДОМЛЕНИЯ (TOAST)
-// ============================================================
 let toastTimeout = null;
-
 export function showToast(msg) {
     const t = document.getElementById('toast');
     if (!t) return;
@@ -21,11 +12,7 @@ export function showToast(msg) {
     toastTimeout = setTimeout(() => t.classList.remove('show'), 2500);
 }
 
-// ============================================================
-// МОДАЛКА ДЛЯ ВВОДА ТЕКСТА (название новой позиции/подгруппы/категории)
-// ============================================================
 let modalResolve = null;
-
 export function showModalEditor(title, callback) {
     const overlay = document.getElementById('modalOverlay');
     if (!overlay) return;
@@ -36,7 +23,6 @@ export function showModalEditor(title, callback) {
     modalResolve = callback;
 }
 
-// Обработчики кнопок модалки (регистрируются один раз при загрузке)
 export function initModalHandlers() {
     const cancelBtn = document.getElementById('modalCancel');
     const confirmBtn = document.getElementById('modalConfirm');
@@ -66,7 +52,6 @@ export function initModalHandlers() {
         });
     }
 
-    // Закрытие по клику на фон (overlay)
     const overlay = document.getElementById('modalOverlay');
     if (overlay) {
         overlay.addEventListener('click', (e) => {
@@ -78,7 +63,3 @@ export function initModalHandlers() {
         });
     }
 }
-
-// ============================================================
-// ВСЕ ФУНКЦИИ, СВЯЗАННЫЕ С КОФРАМИ, УДАЛЕНЫ (они в cases.js)
-// ============================================================

@@ -1,4 +1,3 @@
-// data.js — Работа с данными (загрузка, сохранение, доступ)
 import {
     CAT_NAMES,
     DEFAULT_INVENTORY,
@@ -10,15 +9,9 @@ import {
     DUPLICATE_VIDEO_GROUPS
 } from './config.js';
 
-// ============================================================
-// ГЛОБАЛЬНЫЕ ДАННЫЕ (состояние приложения)
-// ============================================================
 export let editorData = null;
 export let editorCurrentCategory = 'sound';
 
-// ============================================================
-// ОЧИСТКА ОТ ДУБЛЕЙ (ЭКРАНЫ/КАБИНЕТЫ)
-// ============================================================
 export function cleanupInventory(inventory, stock, specs, itemProps) {
     if (!inventory || !inventory.video) return inventory;
     let changed = false;
@@ -32,7 +25,6 @@ export function cleanupInventory(inventory, stock, specs, itemProps) {
             }
         }
     });
-    // Удаляем все ключи, начинающиеся с video|Экран| или video|Экраны|
     const prefixes = ['video|Экран|', 'video|Экраны|'];
     const keysToDeleteStock = Object.keys(stock || {}).filter(k => prefixes.some(p => k.startsWith(p)));
     keysToDeleteStock.forEach(k => delete stock[k]);
@@ -40,7 +32,6 @@ export function cleanupInventory(inventory, stock, specs, itemProps) {
     keysToDeleteSpecs.forEach(k => delete specs[k]);
     const keysToDeleteProps = Object.keys(itemProps || {}).filter(k => prefixes.some(p => k.startsWith(p)));
     keysToDeleteProps.forEach(k => delete itemProps[k]);
-
     if (changed) {
         const keys = Object.keys(inventory.video).filter(k => k !== '_subOrder');
         if (keys.length === 0) {
@@ -57,9 +48,6 @@ export function cleanupInventory(inventory, stock, specs, itemProps) {
     return inventory;
 }
 
-// ============================================================
-// КОНВЕРТАЦИЯ СТАРЫХ ДАННЫХ (для импорта)
-// ============================================================
 export function convertOldItemProps(itemProps) {
     const converted = {};
     for (let key in itemProps) {
@@ -116,15 +104,11 @@ export function convertOldItemProps(itemProps) {
     return converted;
 }
 
-// ============================================================
-// ЗАГРУЗКА / СОХРАНЕНИЕ ДАННЫХ
-// ============================================================
 export function loadEditorData() {
     const saved = localStorage.getItem('inventoryEditorData');
     if (saved) {
         try {
             editorData = JSON.parse(saved);
-            // Убедимся, что все нужные поля есть
             if (!editorData.inventory) editorData.inventory = JSON.parse(JSON.stringify(DEFAULT_INVENTORY));
             if (!editorData.stock) editorData.stock = JSON.parse(JSON.stringify(DEFAULT_STOCK));
             if (!editorData.specs) editorData.specs = JSON.parse(JSON.stringify(DEFAULT_SPECS));
@@ -132,16 +116,13 @@ export function loadEditorData() {
             if (!editorData.catNames) editorData.catNames = JSON.parse(JSON.stringify(CAT_NAMES));
             if (!editorData._categoryOrder) editorData._categoryOrder = JSON.parse(JSON.stringify(DEFAULT_CATEGORY_ORDER));
             if (!editorData.commonCases) editorData.commonCases = JSON.parse(JSON.stringify(DEFAULT_COMMON_CASES));
-            // Очистка от дублей
             cleanupInventory(editorData.inventory, editorData.stock, editorData.specs, editorData.itemProps);
-            // Для каждой категории, если это объект, добавляем _subOrder
             for (let cat in editorData.inventory) {
                 const catData = editorData.inventory[cat];
                 if (typeof catData === 'object' && !Array.isArray(catData)) {
                     if (!catData._subOrder) catData._subOrder = Object.keys(catData).filter(k => k !== '_subOrder');
                 }
             }
-            // Приводим структуру свойств: individualCases, allowCommon, commonCases, maxCases
             for (let key in editorData.itemProps) {
                 const props = editorData.itemProps[key];
                 if (props.individualCases === undefined) props.individualCases = [];
@@ -162,7 +143,6 @@ export function loadEditorData() {
             console.warn('Ошибка загрузки данных, используем дефолтные', e);
         }
     }
-    // Инициализация дефолтными
     editorData = {
         inventory: JSON.parse(JSON.stringify(DEFAULT_INVENTORY)),
         stock: JSON.parse(JSON.stringify(DEFAULT_STOCK)),
@@ -186,9 +166,6 @@ export function saveEditorData() {
     localStorage.setItem('inventoryEditorData', JSON.stringify(editorData));
 }
 
-// ============================================================
-// ДОСТУП К ДАННЫМ (геттеры/сеттеры)
-// ============================================================
 export function getStockKey(catKey, subKey, itemName) {
     if (subKey) return catKey + '|' + subKey + '|' + itemName;
     return catKey + '|' + itemName;
@@ -229,9 +206,6 @@ export function setItemProps(catKey, subKey, itemName, props) {
     saveEditorData();
 }
 
-// ============================================================
-// РАБОТА С ОБЩИМИ КОФРАМИ
-// ============================================================
 export function getCommonCases() {
     return editorData.commonCases || [];
 }
@@ -251,7 +225,6 @@ export function updateCommonCase(id, newData) {
 
 export function deleteCommonCase(id) {
     editorData.commonCases = editorData.commonCases.filter(c => c.id !== id);
-    // Также удаляем ссылки на этот кофр из свойств позиций
     for (let key in editorData.itemProps) {
         const props = editorData.itemProps[key];
         if (props.commonCases) {
@@ -262,19 +235,12 @@ export function deleteCommonCase(id) {
     saveEditorData();
 }
 
-// ============================================================
-// УСТАНОВКА ТЕКУЩЕЙ КАТЕГОРИИ
-// ============================================================
 export function setCurrentCategory(cat) {
     editorCurrentCategory = cat;
 }
 
-// ============================================================
-// ИНИЦИАЛИЗАЦИЯ (вызывается из main.js)
-// ============================================================
 export function initData() {
     loadEditorData();
-    // Устанавливаем первую категорию как текущую, если есть
     if (editorData._categoryOrder && editorData._categoryOrder.length > 0) {
         editorCurrentCategory = editorData._categoryOrder[0];
     } else {
