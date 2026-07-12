@@ -1,4 +1,4 @@
-// render-order.js — Полностью переработанная версия (плоский список, без рекурсии)
+// render-order.js — Отрисовка страницы создания заказа (пошаговый рендеринг, без зависаний)
 import {
     editorData,
     getStock,
@@ -58,6 +58,8 @@ const infoBlocksOpen = {};
 
 // Кеш плоского списка позиций
 let flatItemsCache = null;
+let renderTimeout = null;
+let isRendering = false;
 
 // ============================================================
 // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
@@ -94,9 +96,7 @@ function buildFlatItemsList() {
     const inventory = editorData.inventory;
     if (!inventory) return result;
 
-    // Используем стек для обхода без рекурсии
     const stack = [];
-    // Начинаем с корневых категорий
     const orderKeys = editorData._categoryOrder || Object.keys(inventory);
     orderKeys.forEach(cat => {
         if (inventory[cat] !== undefined) {
@@ -115,7 +115,6 @@ function buildFlatItemsList() {
             });
         } else if (data && typeof data === 'object') {
             const keys = Object.keys(data).filter(k => !k.startsWith('_'));
-            // Сначала добавляем подгруппы в стек (чтобы сохранить порядок, используем push с обратным порядком)
             for (let i = keys.length - 1; i >= 0; i--) {
                 const key = keys[i];
                 const child = data[key];
@@ -165,20 +164,34 @@ function renderOrderTabs() {
 }
 
 // ============================================================
-// РЕНДЕРИНГ КАТЕГОРИИ
+// РЕНДЕРИНГ КАТЕГОРИИ (пошагово)
 // ============================================================
 function renderOrderCategory(catKey) {
     const container = document.getElementById('categoryContents');
     container.innerHTML = '';
     const wrapper = document.createElement('div');
     wrapper.className = 'category-content active';
+    container.appendChild(wrapper);
 
+    // Показываем индикатор загрузки
+    const loadingDiv = document.createElement('div');
+    loadingDiv.className = 'empty-message';
+    loadingDiv.textContent = 'Загрузка...';
+    wrapper.appendChild(loadingDiv);
+
+    // Отменяем предыдущий таймер
+    if (renderTimeout) {
+        clearTimeout(renderTimeout);
+        renderTimeout = null;
+    }
+
+    // Получаем список путей
     const allPaths = buildFlatItemsList();
 
+    let filteredPaths = [];
     if (catKey === 'all' || searchMode) {
-        // Режим поиска
         const query = searchQuery.toLowerCase();
-        let filteredPaths = allPaths;
+        filteredPaths = allPaths;
         if (query) {
             filteredPaths = allPaths.filter(path => {
                 const name = path.split('|').pop();
@@ -186,74 +199,111 @@ function renderOrderCategory(catKey) {
                 return name.toLowerCase().includes(query) || spec.toLowerCase().includes(query);
             });
         }
-        if (filteredPaths.length === 0) {
-            wrapper.innerHTML = '<div class="empty-message">Ничего не найдено</div>';
-        } else {
-            const grouped = {};
-            filteredPaths.forEach(path => {
-                const cat = path.split('|')[0];
-                if (!grouped[cat]) grouped[cat] = [];
-                grouped[cat].push(path);
-            });
-            let html = '';
-            const orderKeys = (editorData._categoryOrder || Object.keys(editorData.inventory))
-                .filter(key => editorData.inventory && editorData.inventory[key] !== undefined);
-            orderKeys.forEach(cat => {
-                if (!grouped[cat]) return;
-                html += `<div class="sub-cat-t">${CAT_NAMES[cat]||cat}</div>`;
-                grouped[cat].forEach(path => {
-                    html += buildItemRow(path, 0);
-                });
-            });
-            wrapper.innerHTML = html;
-        }
     } else {
-        // Обычный режим — фильтруем позиции по категории
-        const filteredPaths = allPaths.filter(path => path.startsWith(catKey + '|'));
-        if (filteredPaths.length === 0) {
-            wrapper.innerHTML = '<div class="empty-message">Категория пуста</div>';
-        } else {
-            // Группируем по подкатегориям (второй уровень)
-            const subGroups = {};
-            filteredPaths.forEach(path => {
-                const parts = path.split('|');
-                const sub = parts.length > 2 ? parts.slice(1, -1).join('|') : ''; // подкатегория без имени позиции
-                if (!subGroups[sub]) subGroups[sub] = [];
-                subGroups[sub].push(path);
-            });
-            let html = '';
-            const subKeys = Object.keys(subGroups).sort();
-            subKeys.forEach(sub => {
-                if (sub) {
-                    // Если есть подкатегория, показываем её
-                    html += `<div class="sub-sub-cat-t">${sub}</div>`;
+        filteredPaths = allPaths.filter(path => path.startsWith(catKey + '|'));
+    }
+
+    if (filteredPaths.length === 0) {
+        loadingDiv.textContent = 'Ничего не найдено';
+        return;
+    }
+
+    // Группируем для отображения подзаголовков (только для обычного режима, не поиска)
+    let groupedPaths;
+    if (catKey !== 'all' && !searchMode) {
+        groupedPaths = {};
+        filteredPaths.forEach(path => {
+            const parts = path.split('|');
+            const sub = parts.length > 2 ? parts.slice(1, -1).join('|') : '';
+            if (!groupedPaths[sub]) groupedPaths[sub] = [];
+            groupedPaths[sub].push(path);
+        });
+    } else {
+        // Для поиска — просто список без группировки
+        groupedPaths = { '': filteredPaths };
+    }
+
+    // Удаляем индикатор загрузки
+    wrapper.removeChild(loadingDiv);
+
+    // Рендерим порциями
+    const subKeys = Object.keys(groupedPaths).sort();
+    let currentSubIndex = 0;
+    let currentItemIndex = 0;
+    let totalItems = 0;
+    subKeys.forEach(sub => { totalItems += groupedPaths[sub].length; });
+
+    const BATCH_SIZE = 30; // количество строк за один раз
+    let renderedCount = 0;
+
+    function renderBatch() {
+        if (isRendering) return;
+        isRendering = true;
+
+        // Создаём фрагмент
+        const fragment = document.createDocumentFragment();
+
+        let batchCount = 0;
+        while (batchCount < BATCH_SIZE && currentSubIndex < subKeys.length) {
+            const sub = subKeys[currentSubIndex];
+            const paths = groupedPaths[sub];
+            // Если все позиции в этой подгруппе уже отрендерены, переходим к следующей
+            if (currentItemIndex >= paths.length) {
+                currentSubIndex++;
+                currentItemIndex = 0;
+                continue;
+            }
+
+            // Добавляем заголовок подгруппы (если есть и если это первый элемент подгруппы)
+            if (currentItemIndex === 0 && sub) {
+                const header = document.createElement('div');
+                header.className = 'sub-sub-cat-t';
+                header.textContent = sub;
+                fragment.appendChild(header);
+            }
+
+            // Добавляем строки
+            const end = Math.min(currentItemIndex + BATCH_SIZE - batchCount, paths.length);
+            for (let i = currentItemIndex; i < end; i++) {
+                const path = paths[i];
+                const rowHtml = buildItemRow(path, sub ? 2 : 1);
+                // Создаем временный контейнер для парсинга HTML
+                const temp = document.createElement('div');
+                temp.innerHTML = rowHtml;
+                while (temp.firstChild) {
+                    fragment.appendChild(temp.firstChild);
                 }
-                subGroups[sub].forEach(path => {
-                    html += buildItemRow(path, sub ? 2 : 1);
-                });
+                batchCount++;
+                renderedCount++;
+            }
+            currentItemIndex = end;
+        }
+
+        // Вставляем фрагмент в wrapper
+        wrapper.appendChild(fragment);
+
+        isRendering = false;
+
+        // Если не все отрендерили, планируем следующий батч
+        if (renderedCount < totalItems) {
+            renderTimeout = setTimeout(renderBatch, 50);
+        } else {
+            // Постобработка: обновляем строки
+            document.querySelectorAll('#categoryContents .row').forEach(row => {
+                const path = row.dataset.path;
+                if (path) { updateRow(path); }
             });
-            wrapper.innerHTML = html;
+            if (!searchMode) updateCategoryTotals(catKey);
+            updateTotals();
+            updateLinkCount();
+            applySearch();
+            setupInputListeners();
+            setupActionButtons();
         }
     }
 
-    container.appendChild(wrapper);
-    setupInputListeners();
-    setupActionButtons();
-    document.querySelectorAll('#categoryContents .row').forEach(row => {
-        const path = row.dataset.path;
-        if (path) { updateRow(path); }
-    });
-    if (!searchMode) updateCategoryTotals(catKey);
-    updateTotals();
-    updateLinkCount();
-    applySearch();
-    if (detailsOpen) {
-        document.getElementById('globalDetails').classList.add('open');
-        document.getElementById('detailToggle').textContent = 'Скрыть';
-    } else {
-        document.getElementById('globalDetails').classList.remove('open');
-        document.getElementById('detailToggle').textContent = 'Подробно';
-    }
+    // Запускаем первый батч
+    renderTimeout = setTimeout(renderBatch, 10);
 }
 
 // ============================================================
@@ -780,25 +830,22 @@ export async function clearOrderData() {
 export function renderOrderAll() {
     // Сбрасываем кеш при загрузке новых данных
     flatItemsCache = null;
+    // Отменяем предыдущий рендеринг
+    if (renderTimeout) {
+        clearTimeout(renderTimeout);
+        renderTimeout = null;
+    }
+    isRendering = false;
     loadOrderData();
     document.getElementById('pComment').value = localStorage.getItem('last_comment') || '';
     const savedDate = localStorage.getItem('last_date');
     if (savedDate) document.getElementById('pDate').value = savedDate;
     renderOrderTabs();
     renderOrderCategory(currentCategory);
-    setupInputListeners();
-    setupActionButtons();
     setupQuantityDelegation();
-    updateTotals();
-    updateLinkCount();
-    applySearch();
-    if (detailsOpen) {
-        document.getElementById('globalDetails').classList.add('open');
-        document.getElementById('detailToggle').textContent = 'Скрыть';
-    } else {
-        document.getElementById('globalDetails').classList.remove('open');
-        document.getElementById('detailToggle').textContent = 'Подробно';
-    }
+    // Настройки слушателей будут применены после завершения рендеринга в renderBatch
+    // но чтобы они работали для уже отрисованных строк, добавим их вызов после завершения
+    // Они будут вызваны в конце renderBatch
 }
 
 // ============================================================
