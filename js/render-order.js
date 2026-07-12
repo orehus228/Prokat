@@ -8,7 +8,8 @@ import {
 } from './data.js';
 
 import {
-    CAT_NAMES
+    CAT_NAMES,
+    STORAGE_KEYS
 } from './config.js';
 
 import {
@@ -162,30 +163,31 @@ function renderOrderTabs() {
 }
 
 // ============================================================
-// РЕНДЕРИНГ КАТЕГОРИИ
+// РЕНДЕРИНГ КАТЕГОРИИ (с поддержкой фильтрации по поиску)
 // ============================================================
-function renderOrderCategory(catKey) {
+function renderOrderCategory(catKey, filterQuery = '') {
     const container = document.getElementById('categoryContents');
     const wrapper = document.createElement('div');
     wrapper.className = 'category-content active';
     container.innerHTML = '';
     container.appendChild(wrapper);
 
-    if (catKey === 'all' || searchModeOrder) {
+    // Если поиск активен, строим полный список и фильтруем
+    const query = (filterQuery || searchQueryOrder || '').toLowerCase().trim();
+    const isSearchMode = !!query;
+
+    if (isSearchMode) {
         const allPaths = buildFlatItemsList();
-        const query = searchQueryOrder.toLowerCase();
-        let filteredPaths = allPaths;
-        if (query) {
-            filteredPaths = allPaths.filter(path => {
-                const name = path.split('|').pop();
-                const spec = editorData.specs && editorData.specs[path] || '';
-                return name.toLowerCase().includes(query) || spec.toLowerCase().includes(query);
-            });
-        }
+        const filteredPaths = allPaths.filter(path => {
+            const name = path.split('|').pop().toLowerCase();
+            const spec = (editorData.specs && editorData.specs[path] || '').toLowerCase();
+            return name.includes(query) || spec.includes(query);
+        });
         if (filteredPaths.length === 0) {
             wrapper.innerHTML = '<div class="empty-message">Ничего не найдено</div>';
             return;
         }
+        // Группируем по категориям
         const grouped = {};
         filteredPaths.forEach(path => {
             const cat = path.split('|')[0];
@@ -202,13 +204,30 @@ function renderOrderCategory(catKey) {
             });
         });
         wrapper.innerHTML = html;
+        // Устанавливаем флаг, что мы в режиме поиска
+        searchModeOrder = true;
+        currentOrderCategory = 'all';
     } else {
+        // Обычный режим — показываем выбранную категорию
+        searchModeOrder = false;
+        if (catKey === 'all') {
+            // Если вдруг all без поиска — показываем первую категорию
+            const first = editorData._categoryOrder?.[0] || Object.keys(editorData.inventory)[0];
+            if (first) {
+                currentOrderCategory = first;
+                renderOrderCategory(first);
+            } else {
+                wrapper.innerHTML = '<div class="empty-message">Нет категорий</div>';
+            }
+            return;
+        }
         const catData = editorData.inventory[catKey];
         if (!catData) {
             wrapper.innerHTML = '<div class="empty-message">Категория пуста</div>';
             return;
         }
         wrapper.innerHTML = buildCategoryHTML(catData, [catKey], 0);
+        currentOrderCategory = catKey;
     }
 
     if (!eventDelegationInitialized) {
@@ -227,7 +246,6 @@ function renderOrderCategory(catKey) {
     if (!searchModeOrder) updateCategoryTotalsOrder(catKey);
     updateTotalsOrder();
     updateLinkCountOrder();
-    applySearchOrder();
     if (detailsOpenOrder) {
         document.getElementById('globalDetails').classList.add('open');
         document.getElementById('detailToggle').textContent = 'Скрыть';
@@ -286,7 +304,6 @@ function buildItemRow(fullPath, level) {
     const hasNote = !!(notes[fullPath] && notes[fullPath].trim());
     const isCaseModeOn = mode.enabled || false;
     
-    // Вычисляем вес и объём
     let weightDisplay = '0 кг', volumeDisplay = '0 м³';
     if (props.weight !== undefined && props.weight !== null && props.weight > 0) {
         const w = calcItemWeightWithMode(fullPath, totalQty);
@@ -303,7 +320,6 @@ function buildItemRow(fullPath, level) {
     const isOverstock = overstock;
     const rowClass = (isAdded ? 'added' : '') + (isOverstock ? ' overstock' : '');
 
-    // Индикация статусов для кнопок
     const linkClass = hasLink ? 'active' : '';
     const noteClass = hasNote ? 'has-note' : '';
     const caseClass = isCaseModeOn ? 'active' : '';
@@ -345,20 +361,16 @@ function buildItemRow(fullPath, level) {
 function buildInfoHtml(path, props, mode) {
     let html = `<div style="display:flex;flex-wrap:wrap;gap:12px;">`;
     
-    // Вес 1 шт
     const weightPerUnit = (props.weight !== undefined && props.weight !== null) ? props.weight + ' кг' : 'н/д';
     html += `<span><strong>Вес 1 шт:</strong> ${weightPerUnit}</span>`;
     
-    // Габариты 1 шт
     const dims = props.dimensions || 'н/д';
     html += `<span><strong>Габариты:</strong> ${dims}</span>`;
     
-    // Объём 1 шт
     if (props.volume) {
         html += `<span><strong>Объём 1 шт:</strong> ${props.volume} м³</span>`;
     }
     
-    // Если режим кофров включён, показываем детали по кофру
     if (mode.enabled) {
         const opt = getSelectedOption(path);
         const alt = mode.alt;
@@ -374,7 +386,6 @@ function buildInfoHtml(path, props, mode) {
                 }
             }
         }
-        // Вес с кофром (для текущего количества)
         const totalQty = getTotalQty(path);
         if (props.weight && totalQty > 0) {
             const weightWithCase = calcItemWeightWithMode(path, totalQty);
@@ -382,17 +393,14 @@ function buildInfoHtml(path, props, mode) {
         }
     }
     
-    // Варианты кофров (из individualCases)
     if (props.individualCases && props.individualCases.length > 0) {
         html += `<span><strong>Варианты кофров:</strong> ${props.individualCases.map(c => c.qty+' шт').join(', ')}</span>`;
     }
     
-    // Разрешены общие кофры
     if (props.allowCommon) {
         html += `<span><strong>Разрешены общие кофры</strong></span>`;
     }
     
-    // Привязка к общим кофрам
     const packing = getOrderPacking(path);
     if (packing.length > 0) {
         html += `<span><strong>Привязка к общим кофрам:</strong> ${packing.length} кофров</span>`;
@@ -452,13 +460,22 @@ function handleContainerClick(e) {
 
     const linkBtn = e.target.closest('.link-btn');
     if (linkBtn) {
-        openLinkOrder(linkBtn);
+        // Передаём showPresets = false при вызове через кнопку Линк
+        import('./cases.js').then(module => {
+            module.openMatrixModal(linkBtn.dataset.path, false);
+        });
         return;
     }
 
     const caseBtn = e.target.closest('.case-btn');
     if (caseBtn) {
-        openCaseSettingsOrder(caseBtn);
+        import('./cases.js').then(module => {
+            module.openCaseSettingsModal(caseBtn.dataset.path, () => {
+                updateRowOrder(caseBtn.dataset.path);
+                updateTotalsOrder();
+                updateCategoryTotalsOrder(currentOrderCategory);
+            });
+        });
         return;
     }
 
@@ -555,24 +572,6 @@ function toggleDescOrder(btn) {
     }
 }
 
-function openLinkOrder(btn) {
-    const path = btn.dataset.path;
-    import('./cases.js').then(module => {
-        module.openMatrixModal(path);
-    });
-}
-
-function openCaseSettingsOrder(btn) {
-    const path = btn.dataset.path;
-    import('./cases.js').then(module => {
-        module.openCaseSettingsModal(path, () => {
-            updateRowOrder(path);
-            updateTotalsOrder();
-            updateCategoryTotalsOrder(currentOrderCategory);
-        });
-    });
-}
-
 async function openNoteEditorOrder(btn) {
     const path = btn.dataset.path;
     const current = notes[path] || '';
@@ -584,16 +583,7 @@ async function openNoteEditorOrder(btn) {
         notes[path] = newNote.trim();
     }
     saveOrderData();
-    // Обновляем индикацию кнопки заметки
-    const row = btn.closest('.row');
-    if (row) {
-        const noteBtn = row.querySelector('.note-btn');
-        if (noteBtn) {
-            const hasNote = !!(notes[path] && notes[path].trim());
-            noteBtn.textContent = 'Заметка' + (hasNote ? ' ✓' : '');
-            noteBtn.classList.toggle('has-note', hasNote);
-        }
-    }
+    updateRowOrder(path);
     showToast('Заметка сохранена', 'neutral');
 }
 
@@ -614,7 +604,7 @@ function handleDropdownItemOrder(item) {
         return;
     }
     if (isAlt) {
-        openAltCaseModalOrder(path);
+        showToast('Альтернативный кофр (будет реализован позже)');
         const dropdown = item.closest('.case-dropdown');
         if (dropdown) dropdown.classList.remove('open');
         return;
@@ -631,35 +621,6 @@ function handleDropdownItemOrder(item) {
         if (dropdown) dropdown.classList.remove('open');
         renderCommonCaseIndicatorsOrder();
     }
-}
-
-function openAltCaseModalOrder(path) {
-    showToast('Альтернативный кофр (будет реализован позже)');
-}
-
-function toggleMultiModeOrder(path) {
-    const mode = getCaseMode(path);
-    if (!mode.enabled) { showToast('Сначала включите режим кофров'); return; }
-    const options = getCaseOptions(path);
-    if (options.length < 2) { showToast('Нужно минимум 2 варианта кофров'); return; }
-    const key = 'multi_' + path;
-    const current = localStorage.getItem(key) === 'true';
-    localStorage.setItem(key, current ? 'false' : 'true');
-    if (!current) {
-        const vals = getIndividualCaseValues(path);
-        if (vals.length === 0) {
-            setIndividualCaseValues(path, options.map(() => 0));
-        }
-    } else {
-        const vals = getIndividualCaseValues(path);
-        const total = vals.reduce((a,b) => a + b, 0);
-        if (total > 0) {
-            setIndividualCaseValues(path, [total]);
-        } else {
-            setIndividualCaseValues(path, []);
-        }
-    }
-    renderOrderCategory(currentOrderCategory);
 }
 
 // ============================================================
@@ -802,31 +763,29 @@ function getActiveItemsOrder() {
 }
 
 // ============================================================
-// ПОИСК
+// ПОИСК (обновлён)
 // ============================================================
 const debouncedSearch = debounce(applySearchOrder, 300);
 
 function applySearchOrder() {
     const query = document.getElementById('searchInput').value.toLowerCase().trim();
     searchQueryOrder = query;
-    if (query) {
-        if (!searchModeOrder) { searchModeOrder = true; currentOrderCategory = 'all'; renderOrderCategory('all'); return; }
-        const rows = document.querySelectorAll('#categoryContents .row');
-        rows.forEach(row => {
-            const searchText = row.dataset.search || '';
-            if (searchText.includes(query)) row.classList.remove('hidden');
-            else row.classList.add('hidden');
-        });
-    } else {
-        if (searchModeOrder) { searchModeOrder = false; currentOrderCategory = editorData._categoryOrder[0] || 'sound'; renderOrderCategory(currentOrderCategory); }
-        else { document.querySelectorAll('#categoryContents .row').forEach(row => row.classList.remove('hidden')); }
-    }
+    // Перерисовываем категорию с фильтром
+    renderOrderCategory('all', query);
 }
 
 function clearSearchOrder() {
     document.getElementById('searchInput').value = '';
-    if (searchModeOrder) { searchModeOrder = false; currentOrderCategory = editorData._categoryOrder[0] || 'sound'; renderOrderCategory(currentOrderCategory); }
-    else { document.querySelectorAll('#categoryContents .row').forEach(row => row.classList.remove('hidden')); }
+    searchQueryOrder = '';
+    searchModeOrder = false;
+    // Возвращаемся к текущей категории
+    const first = editorData._categoryOrder?.[0] || Object.keys(editorData.inventory)[0];
+    if (first) {
+        currentOrderCategory = first;
+        renderOrderCategory(first);
+    } else {
+        renderOrderCategory(null);
+    }
 }
 
 function setupInputListenersOrder() {}
@@ -839,6 +798,214 @@ function updateLinkCountOrder() {
 }
 
 function renderCommonCaseIndicatorsOrder() {}
+
+// ============================================================
+// ГЛОБАЛЬНЫЕ ПРЕСЕТЫ ЗАКАЗА
+// ============================================================
+const ORDER_PRESETS_KEY = STORAGE_KEYS.ORDER_PRESETS || 'order_presets';
+
+function getOrderPresets() {
+    try {
+        const raw = localStorage.getItem(ORDER_PRESETS_KEY);
+        return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+}
+
+function saveOrderPresets(presets) {
+    localStorage.setItem(ORDER_PRESETS_KEY, JSON.stringify(presets));
+}
+
+function populateOrderPresetSelect() {
+    const select = document.getElementById('orderPresetSelect');
+    if (!select) return;
+    const presets = getOrderPresets();
+    select.innerHTML = '<option value="">— Выберите пресет —</option>';
+    presets.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.name;
+        opt.textContent = p.name;
+        select.appendChild(opt);
+    });
+}
+
+async function saveOrderPreset() {
+    const name = await showPrompt('Сохранить пресет заказа', 'Введите имя пресета:', '', '');
+    if (!name || !name.trim()) return;
+    const presets = getOrderPresets();
+    const existing = presets.find(p => p.name === name.trim());
+    if (existing) {
+        const overwrite = await showConfirm(`Пресет "${name.trim()}" уже существует. Перезаписать?`);
+        if (!overwrite) return;
+        const idx = presets.indexOf(existing);
+        presets.splice(idx, 1);
+    }
+    // Собираем текущее состояние
+    const snapshot = {
+        order: { ...order },
+        splits: JSON.parse(JSON.stringify(orderSplits)),
+        links: JSON.parse(JSON.stringify(links)),
+        notes: { ...notes },
+        packing: JSON.parse(JSON.stringify(orderPacking)),
+        individualCases: JSON.parse(JSON.stringify(individualCaseValues)),
+        routes: JSON.parse(JSON.stringify(commonRoutes)),
+        caseModes: JSON.parse(JSON.stringify(caseModes)),
+        exclude: { ...orderExclude }
+    };
+    presets.push({ name: name.trim(), data: snapshot });
+    saveOrderPresets(presets);
+    populateOrderPresetSelect();
+    showToast('Пресет сохранён', 'success');
+}
+
+async function loadOrderPreset(overlay = true) {
+    const select = document.getElementById('orderPresetSelect');
+    const name = select.value;
+    if (!name) {
+        showToast('Выберите пресет', 'warning');
+        return;
+    }
+    const presets = getOrderPresets();
+    const preset = presets.find(p => p.name === name);
+    if (!preset) {
+        showToast('Пресет не найден', 'error');
+        return;
+    }
+    const data = preset.data;
+    if (!overlay) {
+        // Замена: очищаем всё
+        for (let key in order) delete order[key];
+        for (let key in orderSplits) delete orderSplits[key];
+        for (let key in links) delete links[key];
+        for (let key in notes) delete notes[key];
+        for (let key in orderPacking) delete orderPacking[key];
+        for (let key in individualCaseValues) delete individualCaseValues[key];
+        for (let key in commonRoutes) delete commonRoutes[key];
+        for (let key in caseModes) delete caseModes[key];
+        for (let key in orderExclude) delete orderExclude[key];
+    }
+    // Загружаем
+    // order: суммируем количества, если overlay
+    if (overlay) {
+        for (let path in data.order) {
+            order[path] = (order[path] || 0) + data.order[path];
+        }
+        for (let path in data.splits) {
+            if (!orderSplits[path]) orderSplits[path] = [];
+            data.splits[path].forEach(seg => {
+                // Добавляем сегменты, можно упростить: просто добавляем все
+                orderSplits[path].push({ ...seg });
+            });
+        }
+        // Для остальных полей — объединяем (если нет, добавляем)
+        for (let path in data.links) {
+            if (!links[path]) links[path] = [];
+            data.links[path].forEach(pl => {
+                const existing = links[path].find(l => l.target === pl.target);
+                if (existing) existing.multiplier += pl.multiplier;
+                else links[path].push({ ...pl });
+            });
+        }
+        for (let path in data.notes) {
+            if (!notes[path]) notes[path] = data.notes[path];
+        }
+        for (let path in data.packing) {
+            if (!orderPacking[path]) orderPacking[path] = [];
+            data.packing[path].forEach(p => {
+                orderPacking[path].push({ ...p });
+            });
+        }
+        for (let path in data.individualCases) {
+            if (!individualCaseValues[path]) individualCaseValues[path] = [];
+            data.individualCases[path].forEach(v => {
+                individualCaseValues[path].push(v);
+            });
+        }
+        for (let path in data.routes) {
+            if (!commonRoutes[path]) commonRoutes[path] = [];
+            data.routes[path].forEach(r => {
+                commonRoutes[path].push({ ...r });
+            });
+        }
+        for (let path in data.caseModes) {
+            if (!caseModes[path]) caseModes[path] = { ...data.caseModes[path] };
+        }
+        for (let path in data.exclude) {
+            orderExclude[path] = true;
+        }
+    } else {
+        // Просто копируем
+        Object.assign(order, data.order);
+        Object.assign(orderSplits, JSON.parse(JSON.stringify(data.splits)));
+        Object.assign(links, JSON.parse(JSON.stringify(data.links)));
+        Object.assign(notes, data.notes);
+        Object.assign(orderPacking, JSON.parse(JSON.stringify(data.packing)));
+        Object.assign(individualCaseValues, JSON.parse(JSON.stringify(data.individualCases)));
+        Object.assign(commonRoutes, JSON.parse(JSON.stringify(data.routes)));
+        Object.assign(caseModes, JSON.parse(JSON.stringify(data.caseModes)));
+        Object.assign(orderExclude, data.exclude);
+    }
+    saveOrderData();
+    renderOrderAll();
+    showToast(`Пресет "${name}" загружен ${overlay ? '(наложение)' : '(замена)'}`, 'success');
+}
+
+async function deleteOrderPreset() {
+    const select = document.getElementById('orderPresetSelect');
+    const name = select.value;
+    if (!name) {
+        showToast('Выберите пресет', 'warning');
+        return;
+    }
+    const confirmed = await showConfirm(`Удалить пресет "${name}"?`);
+    if (!confirmed) return;
+    let presets = getOrderPresets();
+    presets = presets.filter(p => p.name !== name);
+    saveOrderPresets(presets);
+    populateOrderPresetSelect();
+    showToast('Пресет удалён', 'neutral');
+}
+
+function exportOrderPresets() {
+    const presets = getOrderPresets();
+    if (presets.length === 0) {
+        showToast('Нет пресетов для экспорта', 'warning');
+        return;
+    }
+    const blob = new Blob([JSON.stringify(presets, null, 2)], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'order_presets.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Пресеты экспортированы', 'success');
+}
+
+function importOrderPresets(file) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (!Array.isArray(data)) throw new Error('Неверный формат: ожидается массив');
+            data.forEach(p => {
+                if (!p.name || typeof p.name !== 'string') throw new Error('У пресета отсутствует имя');
+                if (!p.data || typeof p.data !== 'object') throw new Error('У пресета отсутствуют данные');
+            });
+            let presets = getOrderPresets();
+            data.forEach(newP => {
+                const idx = presets.findIndex(p => p.name === newP.name);
+                if (idx !== -1) presets[idx] = newP;
+                else presets.push(newP);
+            });
+            saveOrderPresets(presets);
+            populateOrderPresetSelect();
+            showToast('Пресеты импортированы', 'success');
+        } catch(err) {
+            showToast('Ошибка импорта: ' + err.message, 'error');
+        }
+    };
+    reader.readAsText(file);
+}
 
 // ============================================================
 // ЭКСПОРТ
@@ -980,7 +1147,6 @@ export async function clearOrderData() {
     for (let key in caseModes) delete caseModes[key];
     for (let key in orderExclude) delete orderExclude[key];
     saveOrderData();
-    // Принудительно обновляем интерфейс
     renderOrderAll();
     showToast('Список очищен', 'success');
 }
@@ -992,6 +1158,13 @@ export function renderOrderAll() {
     document.getElementById('pComment').value = localStorage.getItem('last_comment') || '';
     const savedDate = localStorage.getItem('last_date');
     if (savedDate) document.getElementById('pDate').value = savedDate;
+    // Заполняем селект пресетов
+    populateOrderPresetSelect();
+    // Определяем текущую категорию
+    if (!currentOrderCategory || !editorData.inventory[currentOrderCategory]) {
+        const first = editorData._categoryOrder?.[0] || Object.keys(editorData.inventory)[0];
+        if (first) currentOrderCategory = first;
+    }
     renderOrderTabs();
     renderOrderCategory(currentOrderCategory);
 }
@@ -1020,4 +1193,25 @@ export function initOrderUI() {
     document.getElementById('saveJ')?.addEventListener('click', exportOrderJSON);
     document.getElementById('savePdf')?.addEventListener('click', exportOrderPDF);
     document.getElementById('clearOrder')?.addEventListener('click', clearOrderData);
+
+    // Пресеты заказа
+    document.getElementById('saveOrderPreset')?.addEventListener('click', saveOrderPreset);
+    document.getElementById('loadOrderPreset')?.addEventListener('click', async () => {
+        const overlay = document.getElementById('orderOverlayToggle')?.checked || false;
+        await loadOrderPreset(overlay);
+    });
+    document.getElementById('deleteOrderPreset')?.addEventListener('click', deleteOrderPreset);
+    document.getElementById('exportOrderPresets')?.addEventListener('click', exportOrderPresets);
+    document.getElementById('importOrderPresetsBtn')?.addEventListener('click', () => {
+        document.getElementById('orderPresetFileInput')?.click();
+    });
+    document.getElementById('orderPresetFileInput')?.addEventListener('change', function(e) {
+        if (this.files[0]) {
+            importOrderPresets(this.files[0]);
+            this.value = '';
+        }
+    });
+
+    // Инициализируем селект пресетов
+    populateOrderPresetSelect();
 }

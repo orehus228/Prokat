@@ -698,6 +698,10 @@ body {
     border-color: var(--accent);
     color: var(--accent);
 }
+.action-btn.has-note {
+    border-color: var(--color-note);
+    color: var(--color-note);
+}
 /* Инфо — зелёный */
 .action-btn.info-btn {
     border-color: var(--color-info);
@@ -869,7 +873,7 @@ body {
     display: none;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    z-index: 1100; /* Повышен, чтобы быть поверх матрицы */
     padding: 16px;
 }
 .modal-overlay.open {
@@ -1010,10 +1014,9 @@ body {
 }
 .matrix-table {
     border-collapse: collapse;
-    width: auto;
-    min-width: 100%;
+    width: 100%;
     font-size: 13px;
-    table-layout: fixed;
+    table-layout: fixed; /* Фиксированная ширина */
 }
 .matrix-table th,
 .matrix-table td {
@@ -1022,10 +1025,18 @@ body {
     text-align: center;
     white-space: nowrap;
     height: 32px;
-    min-width: 70px !important;
-    max-width: 120px !important;
     overflow: hidden;
     text-overflow: ellipsis;
+    width: 90px; /* Фиксированная ширина для всех ячеек */
+    min-width: 90px;
+    max-width: 90px;
+}
+.matrix-table th:first-child,
+.matrix-table td:first-child {
+    width: 120px;
+    min-width: 120px;
+    max-width: 120px;
+    text-align: left;
 }
 .matrix-table th {
     background: var(--matrix-header-bg);
@@ -1048,14 +1059,18 @@ body {
     font-weight: 600;
     cursor: pointer;
     border-color: var(--border-color);
+    width: auto !important;
+    min-width: auto !important;
+    max-width: none !important;
 }
 .matrix-table .matrix-category .toggle {
     display: inline-block;
     width: 20px;
 }
 .matrix-table .matrix-cell {
-    min-width: 70px !important;
-    max-width: 120px !important;
+    width: 90px;
+    min-width: 90px;
+    max-width: 90px;
     height: 32px !important;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1064,6 +1079,9 @@ body {
     text-align: left;
     font-weight: 500;
     color: var(--text-primary);
+    width: 120px;
+    min-width: 120px;
+    max-width: 120px;
 }
 .matrix-table .matrix-diagonal {
     color: var(--text-muted);
