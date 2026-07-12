@@ -1,4 +1,4 @@
-// render-order.js — Отрисовка страницы создания заказа (плоский список, без рекурсии)
+// render-order.js — Отрисовка страницы создания заказа (полная, стабильная версия)
 import {
     editorData,
     getStock,
@@ -42,8 +42,7 @@ import {
     getCaseOptions,
     getSelectedOption,
     updateOrderPaths,
-    isExcludedFromLoading,
-    setExcludeFromLoading
+    orderExclude
 } from './order.js';
 
 // ============================================================
@@ -85,7 +84,7 @@ function setValue(path, val) {
 }
 
 // ============================================================
-// ПОСТРОЕНИЕ ПЛОСКОГО СПИСКА (однократно, без рекурсии)
+// ПОСТРОЕНИЕ ПЛОСКОГО СПИСКА (без рекурсии)
 // ============================================================
 function buildFlatItemsList() {
     if (flatItemsCache) return flatItemsCache;
@@ -93,7 +92,6 @@ function buildFlatItemsList() {
     const inventory = editorData.inventory;
     if (!inventory) return result;
 
-    // Используем стек для итеративного обхода (без рекурсии)
     const stack = [];
     const orderKeys = editorData._categoryOrder || Object.keys(inventory);
     orderKeys.forEach(cat => {
@@ -162,7 +160,7 @@ function renderOrderTabs() {
 }
 
 // ============================================================
-// РЕНДЕРИНГ КАТЕГОРИИ (плоский список, без рекурсии)
+// РЕНДЕРИНГ КАТЕГОРИИ (плоский список)
 // ============================================================
 function renderOrderCategory(catKey) {
     const container = document.getElementById('categoryContents');
@@ -188,7 +186,7 @@ function renderOrderCategory(catKey) {
         return;
     }
 
-    // Строим HTML синхронно (но без рекурсии)
+    // Строим HTML
     let html = '';
     filteredPaths.forEach(path => {
         html += buildItemRow(path, 1);
@@ -622,7 +620,7 @@ export function exportOrderJSON() {
 }
 
 // ============================================================
-// ЭКСПОРТ ЗАКАЗА В PDF
+// ЭКСПОРТ ЗАКАЗА В PDF (полная версия)
 // ============================================================
 export function exportOrderPDF() {
     const data = {
@@ -738,7 +736,7 @@ export async function clearOrderData() {
 // ГЛАВНАЯ ФУНКЦИЯ ОТРИСОВКИ
 // ============================================================
 export function renderOrderAll() {
-    // Сбрасываем кеш при загрузке (если данные изменились)
+    // Сбрасываем кеш при загрузке
     flatItemsCache = null;
     loadOrderData();
     document.getElementById('pComment').value = localStorage.getItem('last_comment') || '';
