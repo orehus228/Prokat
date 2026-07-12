@@ -1,4 +1,4 @@
-// render-order.js — Отрисовка страницы создания заказа (плоский список для поиска, защита от циклов)
+// render-order.js — Отрисовка страницы создания заказа (с защитой от циклов)
 import {
     editorData,
     getStock,
@@ -83,24 +83,52 @@ function setValue(path, val) {
 }
 
 // ============================================================
-// ПОЛУЧЕНИЕ ВСЕХ ПУТЕЙ ПОЗИЦИЙ (плоский список)
+// ПОЛУЧЕНИЕ ВСЕХ ПУТЕЙ ПОЗИЦИЙ (с защитой от циклов)
 // ============================================================
 function getAllItemPaths() {
     const result = [];
-    function traverse(obj, path) {
+    const visited = new Set();
+    const MAX_DEPTH = 20;
+
+    function traverse(obj, path, depth) {
+        if (depth > MAX_DEPTH) {
+            console.warn('Превышена глубина обхода', path);
+            return;
+        }
+        if (visited.has(obj)) {
+            console.warn('Обнаружена циклическая ссылка', path);
+            return;
+        }
+        visited.add(obj);
+
         if (Array.isArray(obj)) {
             obj.forEach(item => {
-                const fullPath = path.length ? path.join('|') + '|' + item : item;
-                result.push(fullPath);
+                if (typeof item === 'string') {
+                    const fullPath = path.length ? path.join('|') + '|' + item : item;
+                    result.push(fullPath);
+                }
             });
-        } else if (typeof obj === 'object' && obj !== null) {
+        } else if (obj && typeof obj === 'object') {
             const keys = Object.keys(obj).filter(k => !k.startsWith('_'));
             keys.forEach(key => {
-                traverse(obj[key], [...path, key]);
+                const child = obj[key];
+                const childPath = [...path, key];
+                // Проверяем, не является ли child примитивом
+                if (typeof child === 'string') {
+                    const fullPath = childPath.join('|');
+                    result.push(fullPath);
+                } else {
+                    traverse(child, childPath, depth + 1);
+                }
             });
         }
     }
-    traverse(editorData.inventory, []);
+
+    try {
+        traverse(editorData.inventory, [], 0);
+    } catch (e) {
+        console.error('Ошибка обхода дерева', e);
+    }
     return result;
 }
 
@@ -162,7 +190,6 @@ function renderOrderCategory(catKey) {
         if (filteredPaths.length === 0) {
             wrapper.innerHTML = '<div class="empty-message">Ничего не найдено</div>';
         } else {
-            // Группируем по категориям для отображения
             const grouped = {};
             filteredPaths.forEach(path => {
                 const cat = path.split('|')[0];
@@ -175,7 +202,6 @@ function renderOrderCategory(catKey) {
             orderKeys.forEach(cat => {
                 if (!grouped[cat]) return;
                 html += `<div class="sub-cat-t">${CAT_NAMES[cat]||cat}</div>`;
-                // Для каждой позиции в этой категории рисуем строку
                 grouped[cat].forEach(path => {
                     html += buildItemRow(path, 0);
                 });
@@ -215,18 +241,23 @@ function renderOrderCategory(catKey) {
 }
 
 // ============================================================
-// ПОСТРОЕНИЕ HTML ДЛЯ КАТЕГОРИИ (плоское, без глубокой рекурсии)
+// ПОСТРОЕНИЕ HTML ДЛЯ КАТЕГОРИИ (с защитой от циклов)
 // ============================================================
 function buildCategoryHTMLFlat(data, path, level) {
-    if (level > 5) return ''; // ограничим глубину
+    if (level > 15) {
+        console.warn('Превышена глубина в buildCategoryHTMLFlat', path);
+        return '';
+    }
     let html = '';
     if (Array.isArray(data)) {
         data.forEach(item => {
-            const fullPath = path.length ? path.join('|') + '|' + item : item;
-            html += buildItemRow(fullPath, level);
+            if (typeof item === 'string') {
+                const fullPath = path.length ? path.join('|') + '|' + item : item;
+                html += buildItemRow(fullPath, level);
+            }
         });
         return html;
-    } else if (typeof data === 'object' && data !== null) {
+    } else if (data && typeof data === 'object') {
         const keys = Object.keys(data).filter(k => !k.startsWith('_'));
         keys.forEach(key => {
             const childPath = [...path, key];
