@@ -1,298 +1,265 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Прокатошная</title>
-    <link rel="stylesheet" href="css/style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Прокатошная</title>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="app">
-    <!-- Шапка -->
-    <div class="header">
-        <div class="header-left">
-            <div class="logo">📦</div>
-            <h1>Прокатошная</h1>
+<div class="header">
+    <div class="logo">📦</div>
+    <h1>Прокатошная</h1>
+    <button class="theme-toggle" id="themeToggle" title="Переключить тему"></button>
+</div>
+
+<!-- Главное меню -->
+<div class="card" id="mMenu" style="display:block;">
+    <h2 style="color:#aaa;font-weight:500;margin-bottom:12px;">Выберите действие:</h2>
+    <button class="btn" id="btnCreateOrder">📝 Создать список</button>
+    <button class="btn btn-sec" id="btnOpenOrder">📂 Открыть список</button>
+    <button class="btn btn-orange" id="btnLoadLibrary">📥 Загрузить библиотеку</button>
+    <button class="btn btn-red" id="btnResetAll">🔄 Сбросить данные</button>
+    <button class="btn btn-purple" id="btnEditor">📦 Редактор склада</button>
+</div>
+
+<!-- Страница создания списка -->
+<div id="mPage" class="card" style="display:none;">
+    <button class="btn btn-sec" id="btnBackToMenu">◀ В меню</button>
+    <h3 style="color:#d0d0d0;font-weight:600;margin-bottom:12px;">📝 Создание списка</h3>
+    <input type="text" id="pName" class="input-field" placeholder="Название мероприятия">
+    <input type="date" id="pDate" class="input-field">
+    <textarea id="pComment" class="input-textarea" placeholder="Комментарий"></textarea>
+    <div style="margin-bottom:15px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+        <button class="btn btn-purple" id="togglePropsBtn">📐 Показать свойства</button>
+        <span style="font-size:14px;color:#888;" id="propsStatus">(свойства скрыты)</span>
+        <button class="matrix-btn" id="openMatrixModal">📊 Матрица привязок</button>
+        <span style="font-size:14px;color:#888;" id="linkCount">(0 активных)</span>
+        <button class="matrix-btn" id="openCommonCasesManager">📦 Общие кофры</button>
+    </div>
+    <div class="preset-bar">
+        <select id="orderPresetSelect"><option value="">— Выберите пресет —</option></select>
+        <button id="saveOrderPreset">💾 Сохранить</button>
+        <button id="loadOrderPreset">📂 Загрузить</button>
+        <button id="exportOrderPresets">📤 Экспорт</button>
+        <button id="importOrderPresetsBtn">📥 Импорт</button>
+        <input type="file" id="orderPresetFileInput" style="display:none" accept=".json">
+        <button id="deleteOrderPreset" style="color:#a07070;">🗑️ Удалить</button>
+        <label class="overlay-toggle"><input type="checkbox" id="orderOverlayToggle"> Наложение</label>
+    </div>
+    <div class="category-tabs" id="categoryTabs"></div>
+    <div class="search-box"><input type="text" id="searchInput" placeholder="🔍 Глобальный поиск..."><button class="clear-btn" id="clearSearchBtn">✕</button></div>
+    <div id="categoryContents"></div>
+    <div id="globalTotals" class="global-totals">
+        <span><strong>Всего:</strong> <span id="totalQty">0</span> шт</span>
+        <span><strong>Вес:</strong> <span id="totalWeight">0</span> кг</span>
+        <span><strong>Объём:</strong> <span id="totalVolume">0</span> м³</span>
+        <button class="detail-btn" id="detailToggle">📊 Подробно</button>
+        <div class="global-details" id="globalDetails"></div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:15px;">
+        <button class="btn btn-green" style="flex:1;" id="saveJ">💾 Сохранить JSON</button>
+        <button class="btn btn-orange" style="flex:1;" id="savePdf">📄 Сохранить PDF</button>
+        <button class="btn btn-red" style="flex:1;" id="clearOrder">🗑️ Очистить</button>
+    </div>
+</div>
+
+<!-- Страница открытия списка -->
+<div id="sPage" style="display:none;">
+    <div class="card">
+        <button class="btn btn-sec" id="btnBackToMenu2">◀ В меню</button>
+        <h3 style="color:#d0d0d0;font-weight:600;margin-bottom:12px;">📂 Открыть список</h3>
+        <label class="btn btn-sec" for="fSel">📎 Выберите JSON-файл</label>
+        <input type="file" id="fSel" style="display:none" accept=".json">
+        <div style="margin-top:12px;font-size:14px;color:#888;"><span id="loadStatus">Файл не выбран</span></div>
+    </div>
+    <div class="card" id="sRes" style="display:none;">
+        <h2 id="rName">Мероприятие</h2>
+        <div id="rDate" style="color:#888;margin-bottom:10px;">📅 Дата:</div>
+        <div id="rComment" style="color:#aaa;margin-bottom:12px;font-style:italic;padding:10px;background:#1e1e1e;border-radius:10px;"></div>
+        <button class="btn btn-red" style="width:auto;padding:8px 18px;font-size:14px;" id="resetCheckboxes">🔄 Сброс отметок</button>
+        <div id="sCats"></div>
+        <div id="globalTotalsOpen" class="global-totals">
+            <span><strong>Общий вес:</strong> <span id="totalWeightOpen">0</span> кг</span>
+            <span><strong>Общий объём:</strong> <span id="totalVolumeOpen">0</span> м³</span>
         </div>
-        <div class="header-right">
-            <button class="theme-toggle" id="themeToggle" title="Переключить тему"></button>
+        <div class="progress-container">
+            <strong>Собрано:</strong> <span id="progressCount">0/0</span>
+            <span id="progressPercent" style="margin-left:10px;color:#888;">0%</span>
+            <div class="progress-bar-bg"><div id="progressBar" class="progress-bar-fill" style="width:0%;"></div></div>
+            <button class="check-missing-btn" id="checkMissingItems">🔍 Проверить пропущенное</button>
         </div>
     </div>
+</div>
 
-    <!-- Главное меню -->
-    <div id="mMenu" class="card">
-        <h2 style="color:var(--text-secondary);font-weight:500;margin-bottom:12px;">Выберите действие:</h2>
-        <div class="menu-grid">
-            <button class="btn btn-neutral" id="btnMenuOrder">Создать список</button>
-            <button class="btn btn-neutral" id="btnMenuOpen">Открыть список</button>
-            <button class="btn btn-neutral" id="btnMenuEditor">Редактор склада</button>
-            <button class="btn btn-loading" id="btnMenuLoading">Рассчитать загрузку</button>
-            <button class="btn btn-import" id="btnMenuLoadLibrary">Загрузить библиотеку</button>
-            <button class="btn btn-reset" id="btnMenuResetLibrary">Сбросить библиотеку</button>
+<!-- Страница редактора склада -->
+<div id="editorPage" style="display:none;">
+    <div class="card">
+        <button class="btn btn-sec" id="btnBackToMenu3">◀ В меню</button>
+        <h3 style="color:#d0d0d0;font-weight:600;margin-bottom:12px;">📦 Редактор склада</h3>
+        <div class="toolbar">
+            <button id="exportBtn">📤 Экспорт JSON</button>
+            <button id="importBtn">📥 Импорт JSON</button>
+            <button id="resetBtn">🔄 Сброс</button>
+            <button id="saveHtmlBtn" class="btn-purple">💾 Сохранить в HTML</button>
+            <button id="manageCasesBtn" class="btn-purple">📦 Общие кофры</button>
+        </div>
+        <input type="file" id="importFile" style="display:none" accept=".json">
+        <div class="category-tabs" id="editorTabs"></div>
+        <div id="editorContents"></div>
+        <div class="editor-add">
+            <input type="text" id="newCategoryName" placeholder="Новая категория">
+            <button class="btn btn-green" style="width:auto;" id="addCategoryBtn">➕ Добавить категорию</button>
         </div>
     </div>
+</div>
 
-    <!-- Страница создания заказа -->
-    <div id="orderPage" class="card" style="display:none;">
-        <button class="btn btn-sec" id="btnBackToMenu">◀ В меню</button>
-        <h3 style="color:var(--text-primary);font-weight:600;margin-bottom:12px;">Создание списка</h3>
-        <input type="text" id="pName" class="input-field" placeholder="Название мероприятия">
-        <input type="date" id="pDate" class="input-field">
-        <textarea id="pComment" class="input-field" style="min-height:60px;" placeholder="Комментарий"></textarea>
-        <div style="margin-bottom:15px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
-            <button class="btn btn-neutral" id="btnMatrix">Матрица привязок</button>
-            <span style="font-size:14px;color:var(--text-secondary);" id="linkCount">(0 активных)</span>
-            <button class="btn btn-neutral" id="btnCommonCases">Общие кофры</button>
-        </div>
-        <div class="preset-bar">
-            <select id="orderPresetSelect"><option value="">— Выберите пресет —</option></select>
-            <button id="btnSavePreset">Сохранить</button>
-            <button id="btnLoadPreset">Загрузить</button>
-            <button id="btnExportPresets">Экспорт</button>
-            <button id="btnImportPresets">Импорт</button>
-            <input type="file" id="presetFileInput" style="display:none" accept=".json">
-            <button id="btnDeletePreset" style="color:var(--danger);">Удалить</button>
-        </div>
-        <div class="category-tabs" id="categoryTabs"></div>
-        <div class="search-box">
-            <input type="text" id="searchInput" placeholder="Поиск...">
-            <button class="clear-btn" id="clearSearchBtn">✕</button>
-        </div>
-        <div id="categoryContents"></div>
-        <div id="globalTotals" class="global-totals">
-            <span><strong>Всего:</strong> <span id="totalQty">0</span> шт</span>
-            <span><strong>Вес:</strong> <span id="totalWeight">0</span> кг</span>
-            <span><strong>Объём:</strong> <span id="totalVolume">0</span> м³</span>
-            <button class="btn btn-sm" id="detailToggle">Подробно</button>
-            <div class="global-details" id="globalDetails"></div>
-        </div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:15px;">
-            <button class="btn btn-green" style="flex:1;" id="btnSaveJSON">Сохранить JSON</button>
-            <button class="btn btn-orange" style="flex:1;" id="btnSavePDF">Сохранить PDF</button>
-            <button class="btn btn-red" style="flex:1;" id="btnClearOrder">Очистить</button>
+<!-- Модалки -->
+
+<!-- Модалка ввода текста -->
+<div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+        <h3 id="modalTitle">Новая позиция</h3>
+        <label for="modalInput">Название:</label>
+        <input type="text" id="modalInput" placeholder="Введите название...">
+        <div class="buttons">
+            <button class="cancel" id="modalCancel">Отмена</button>
+            <button class="confirm" id="modalConfirm">Добавить</button>
         </div>
     </div>
+</div>
 
-    <!-- Страница открытия заказа -->
-    <div id="openPage" style="display:none;">
-        <div class="card">
-            <button class="btn btn-sec" id="btnBackToMenu2">◀ В меню</button>
-            <h3 style="color:var(--text-primary);font-weight:600;margin-bottom:12px;">Открыть список</h3>
-            <label class="btn btn-sec" for="fSel">Выберите JSON-файл</label>
-            <input type="file" id="fSel" style="display:none" accept=".json">
-            <div style="margin-top:12px;font-size:14px;color:var(--text-secondary);"><span id="loadStatus">Файл не выбран</span></div>
+<!-- Модалка свойств позиции -->
+<div class="modal-overlay" id="propsModal">
+    <div class="modal" style="max-width:700px;">
+        <h3 id="propsTitle">Свойства позиции</h3>
+        <label>Вес 1 шт (кг):</label>
+        <input type="number" id="propWeight" step="0.1" min="0" placeholder="0.0">
+        <label>Габариты 1 шт (Д×Ш×В, см):</label>
+        <input type="text" id="propDimensions" placeholder="50x40x30">
+        <label>Объём 1 шт (м³) – опционально:</label>
+        <input type="number" id="propVolume" step="0.001" min="0" placeholder="0.000">
+        <hr>
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+            <strong style="color:#d0d0d0;">🧩 Индивидуальные кофры (свои параметры)</strong>
+            <button class="btn btn-green" style="width:auto;padding:4px 12px;font-size:13px;" id="addIndividualCaseVariantBtn">➕ Добавить вариант</button>
         </div>
-        <div class="card" id="sRes" style="display:none;">
-            <h2 id="rName">Мероприятие</h2>
-            <div id="rDate" style="color:var(--text-secondary);margin-bottom:10px;">Дата:</div>
-            <div id="rComment" style="color:var(--text-secondary);margin-bottom:12px;font-style:italic;padding:10px;background:var(--bg-secondary);border-radius:10px;"></div>
-            <button class="btn btn-red" style="width:auto;padding:8px 18px;font-size:14px;" id="resetCheckboxes">Сброс отметок</button>
-            <div id="sCats"></div>
-            <div id="globalTotalsOpen" class="global-totals">
-                <span><strong>Общий вес:</strong> <span id="totalWeightOpen">0</span> кг</span>
-                <span><strong>Общий объём:</strong> <span id="totalVolumeOpen">0</span> м³</span>
+        <div id="individualCasesContainer"></div>
+        <hr>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" id="propAllowCommon"> Разрешено использование общих кофров
+        </label>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
+            <strong style="color:#d0d0d0;">📦 Привязка к общим кофрам</strong>
+            <button class="btn btn-green" style="width:auto;padding:4px 12px;font-size:13px;" id="addCommonCaseVariantBtn">➕ Добавить связь</button>
+        </div>
+        <div id="commonCasesContainer"></div>
+        <div class="buttons">
+            <button class="cancel" id="propsCancel">Отмена</button>
+            <button class="confirm" id="propsConfirm">Сохранить</button>
+        </div>
+    </div>
+</div>
+
+<!-- Модалка общих кофров -->
+<div class="modal-overlay" id="casesManagerModal">
+    <div class="modal" style="max-width:700px;">
+        <h3>📦 Общие кофры (для режима создания заказа)</h3>
+        <div id="casesList" style="margin-bottom:15px;max-height:300px;overflow-y:auto;"></div>
+        <div style="border-top:1px solid #333;padding-top:15px;">
+            <h4 style="color:#aaa;">Добавить / редактировать кофр</h4>
+            <label>Название:</label>
+            <input type="text" id="newCaseName" placeholder="Например: Ящик 120x80x60">
+            <label>Вместимость (шт):</label>
+            <input type="number" id="newCaseQty" placeholder="0">
+            <label>Габариты (Д×Ш×В, см):</label>
+            <input type="text" id="newCaseDim" placeholder="120x80x60">
+            <label>Вес пустого (кг):</label>
+            <input type="number" id="newCaseWeight" step="0.1" placeholder="0.0">
+            <label>Максимальный вес груза (кг):</label>
+            <input type="number" id="newCaseMaxWeight" step="0.1" placeholder="0.0">
+            <label>Максимальный объём (м³):</label>
+            <input type="number" id="newCaseMaxVolume" step="0.001" placeholder="0.000">
+            <div class="buttons">
+                <button class="cancel" id="casesManagerClose">Закрыть</button>
+                <button class="confirm" id="casesManagerAdd">➕ Добавить</button>
             </div>
-            <div class="progress-container">
-                <strong>Собрано:</strong> <span id="progressCount">0/0</span>
-                <span id="progressPercent" style="margin-left:10px;color:var(--text-secondary);">0%</span>
-                <div class="progress-bar-bg"><div id="progressBar" class="progress-bar-fill" style="width:0%;"></div></div>
-                <button class="btn" id="checkMissingItems">Проверить пропущенное</button>
-            </div>
         </div>
     </div>
+</div>
 
-    <!-- Страница редактора склада -->
-    <div id="editorPage" style="display:none;">
-        <div class="card">
-            <button class="btn btn-sec" id="btnBackToMenu3">◀ В меню</button>
-            <h3 style="color:var(--text-primary);font-weight:600;margin-bottom:12px;">Редактор склада</h3>
-            <div class="toolbar">
-                <button id="exportBtn">Экспорт JSON</button>
-                <button id="importBtn">Импорт JSON</button>
-                <button id="resetBtn">Сброс</button>
-                <button id="manageCasesBtn">Общие кофры</button>
-            </div>
-            <input type="file" id="importFile" style="display:none" accept=".json">
-            <div class="category-tabs" id="editorTabs"></div>
-            <div id="editorContents"></div>
-            <div class="editor-add">
-                <input type="text" id="newCategoryName" placeholder="Новая категория">
-                <button class="btn btn-green" id="addCategoryBtn">+ Добавить категорию</button>
-            </div>
+<!-- Модалка настройки кофров для позиции -->
+<div class="modal-overlay" id="caseSettingsModal">
+    <div class="modal" style="max-width:600px;">
+        <h3 id="caseSettingsTitle">Настройка кофров</h3>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" id="caseSettingsEnable"> Включить режим кофров
+        </label>
+        <hr>
+        <div>
+            <strong style="color:var(--text-primary);">Варианты кофров</strong>
+            <div id="caseSettingsOptions" style="margin-top:6px;"></div>
         </div>
-    </div>
-
-    <!-- Страница расчёта загрузки -->
-    <div id="loadingPage" style="display:none;">
-        <div class="card">
-            <button class="btn btn-sec" id="btnBackToMenu4">◀ В меню</button>
-            <div id="loadingContent"></div>
-        </div>
-    </div>
-
-    <!-- Модалка свойств позиции -->
-    <div class="modal-overlay" id="propsModal">
-        <div class="modal" style="max-width:700px;">
-            <h3 id="propsTitle">Свойства позиции</h3>
-            <label>Вес 1 шт (кг):</label>
-            <input type="number" id="propWeight" step="0.1" min="0" placeholder="0.0">
-            <label>Габариты 1 шт (Д×Ш×В, см):</label>
-            <input type="text" id="propDimensions" placeholder="50x40x30">
-            <label>Объём 1 шт (м³) – опционально:</label>
-            <input type="number" id="propVolume" step="0.001" min="0" placeholder="0.000">
-            <hr>
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-                <strong style="color:var(--text-primary);">Индивидуальные кофры</strong>
-                <button class="btn btn-green" style="width:auto;padding:4px 12px;font-size:13px;" id="addIndividualCaseVariantBtn">+ Добавить вариант</button>
-            </div>
-            <div id="individualCasesContainer"></div>
-            <hr>
+        <div id="caseSettingsMulti" style="margin-top:8px;display:none;">
             <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-                <input type="checkbox" id="propAllowCommon"> Разрешено использование общих кофров
+                <input type="checkbox" id="caseSettingsMultiCheck"> Мульти-режим (использовать несколько вариантов одновременно)
             </label>
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
-                <strong style="color:var(--text-primary);">Привязка к общим кофрам</strong>
-                <button class="btn btn-green" style="width:auto;padding:4px 12px;font-size:13px;" id="addCommonCaseVariantBtn">+ Добавить связь</button>
-            </div>
-            <div id="commonCasesContainer"></div>
-            <div class="buttons">
-                <button class="cancel" id="propsCancel">Отмена</button>
-                <button class="confirm" id="propsConfirm">Сохранить</button>
-            </div>
+        </div>
+        <hr>
+        <div>
+            <strong style="color:var(--text-primary);">Альтернативный кофр</strong>
+            <div id="caseSettingsAlt" style="margin-top:6px;"></div>
+        </div>
+        <hr>
+        <div id="caseSettingsCommon" style="display:none;">
+            <strong style="color:var(--text-primary);">Привязка к общим кофрам</strong>
+            <div id="caseSettingsCommonList" style="margin-top:6px;"></div>
+            <button class="btn btn-sm" id="caseSettingsCommonAdd" style="margin-top:6px;">+ Добавить общий кофр</button>
+        </div>
+        <div class="buttons" style="margin-top:16px;">
+            <button class="cancel" id="caseSettingsCancel">Отмена</button>
+            <button class="confirm" id="caseSettingsSave">Сохранить</button>
         </div>
     </div>
+</div>
 
-    <!-- Модалка управления общими кофрами -->
-    <div class="modal-overlay" id="casesManagerModal">
-        <div class="modal" style="max-width:700px;">
-            <h3>Общие кофры</h3>
-            <div id="casesList" style="margin-bottom:15px;max-height:300px;overflow-y:auto;"></div>
-            <div style="border-top:1px solid var(--border-color);padding-top:15px;">
-                <h4 style="color:var(--text-secondary);">Добавить / редактировать кофр</h4>
-                <label>Название:</label>
-                <input type="text" id="newCaseName" placeholder="Например: Ящик 120x80x60">
-                <label>Вместимость (шт):</label>
-                <input type="number" id="newCaseQty" placeholder="0">
-                <label>Габариты (Д×Ш×В, см):</label>
-                <input type="text" id="newCaseDim" placeholder="120x80x60">
-                <label>Вес пустого (кг):</label>
-                <input type="number" id="newCaseWeight" step="0.1" placeholder="0.0">
-                <label>Максимальный вес груза (кг):</label>
-                <input type="number" id="newCaseMaxWeight" step="0.1" placeholder="0.0">
-                <label>Максимальный объём (м³):</label>
-                <input type="number" id="newCaseMaxVolume" step="0.001" placeholder="0.000">
-                <div class="buttons">
-                    <button class="cancel" id="casesManagerClose">Закрыть</button>
-                    <button class="confirm" id="casesManagerAdd">+ Добавить</button>
-                </div>
-            </div>
+<!-- Модалка матрицы привязок -->
+<div class="modal-overlay" id="matrixModal">
+    <div class="modal" style="max-width:95vw;max-height:85vh;overflow:hidden;">
+        <h3>📊 Матрица привязок</h3>
+        <div class="filter-row" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+            <input type="text" id="matrixSearchSource" placeholder="Фильтр источников" style="flex:1;padding:6px 10px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);">
+            <input type="text" id="matrixSearchTarget" placeholder="Фильтр целей" style="flex:1;padding:6px 10px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);">
+        </div>
+        <div class="matrix-zoom-controls">
+            <span style="color:var(--text-secondary);">Масштаб:</span>
+            <input type="range" id="matrixZoomSlider" min="0.5" max="2" step="0.05" value="1">
+            <span id="matrixZoomLevelLabel" style="min-width:50px;text-align:center;color:var(--text-secondary);">100%</span>
+        </div>
+        <div class="table-wrap" id="matrixContainer" style="overflow:auto;max-height:60vh;"></div>
+        <div class="buttons" style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
+            <button class="cancel" id="matrixClearAll">Удалить все привязки</button>
+            <button class="cancel" id="matrixClose">Закрыть</button>
         </div>
     </div>
+</div>
 
-    <!-- Модалка настройки кофров для позиции -->
-    <div class="modal-overlay" id="caseSettingsModal">
-        <div class="modal" style="max-width:600px;">
-            <h3 id="caseSettingsTitle">Настройка кофров</h3>
-            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-                <input type="checkbox" id="caseSettingsEnable"> Включить режим кофров
-            </label>
-            <hr>
-            <div>
-                <strong style="color:var(--text-primary);">Варианты кофров</strong>
-                <div id="caseSettingsOptions" style="margin-top:6px;"></div>
-            </div>
-            <div id="caseSettingsMulti" style="margin-top:8px;display:none;">
-                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-                    <input type="checkbox" id="caseSettingsMultiCheck"> Мульти-режим (использовать несколько вариантов одновременно)
-                </label>
-            </div>
-            <hr>
-            <div>
-                <strong style="color:var(--text-primary);">Альтернативный кофр</strong>
-                <div id="caseSettingsAlt" style="margin-top:6px;"></div>
-            </div>
-            <hr>
-            <div id="caseSettingsCommon" style="display:none;">
-                <strong style="color:var(--text-primary);">Привязка к общим кофрам</strong>
-                <div id="caseSettingsCommonList" style="margin-top:6px;"></div>
-                <button class="btn btn-sm" id="caseSettingsCommonAdd" style="margin-top:6px;">+ Добавить общий кофр</button>
-            </div>
-            <div class="buttons" style="margin-top:16px;">
-                <button class="cancel" id="caseSettingsCancel">Отмена</button>
-                <button class="confirm" id="caseSettingsSave">Сохранить</button>
-            </div>
+<!-- Модалка подтверждения -->
+<div class="modal-overlay confirm-modal" id="confirmOverlay">
+    <div class="modal">
+        <h3 id="confirmTitle">Подтверждение</h3>
+        <div class="message" id="confirmMessage">Вы уверены?</div>
+        <div class="buttons">
+            <button class="cancel" id="confirmNo">Отмена</button>
+            <button class="confirm" id="confirmYes">Да</button>
         </div>
     </div>
+</div>
 
-    <!-- Модалка матрицы привязок -->
-    <div class="modal-overlay" id="matrixModal">
-        <div class="modal" style="max-width:95vw;max-height:85vh;overflow:hidden;">
-            <h3>Матрица привязок</h3>
-            <div class="filter-row" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
-                <input type="text" id="matrixSearchSource" placeholder="Фильтр источников" style="flex:1;padding:6px 10px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);">
-                <input type="text" id="matrixSearchTarget" placeholder="Фильтр целей" style="flex:1;padding:6px 10px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);">
-            </div>
-            <div class="table-wrap" id="matrixContainer" style="overflow:auto;max-height:60vh;"></div>
-            <div class="buttons" style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
-                <button class="cancel" id="matrixClearAll">Удалить все привязки</button>
-                <button class="cancel" id="matrixClose">Закрыть</button>
-            </div>
-        </div>
-    </div>
+<!-- Тосты -->
+<div class="toast" id="toast"></div>
 
-    <!-- Модалка управления грузовиками -->
-    <div class="modal-overlay" id="truckManagerModal">
-        <div class="modal" style="max-width:600px;">
-            <h3>Управление грузовиками</h3>
-            <div id="truckList" style="margin-bottom:15px;max-height:250px;overflow-y:auto;"></div>
-            <div style="border-top:1px solid var(--border-color);padding-top:15px;">
-                <h4 style="color:var(--text-secondary);">Добавить / редактировать грузовик</h4>
-                <label>Название:</label>
-                <input type="text" id="truckName" placeholder="Например: Грузовик 10т">
-                <label>Длина (см):</label>
-                <input type="number" id="truckLength" placeholder="600" step="1">
-                <label>Ширина (см):</label>
-                <input type="number" id="truckWidth" placeholder="240" step="1">
-                <label>Высота (см):</label>
-                <input type="number" id="truckHeight" placeholder="240" step="1">
-                <label>Максимальный вес (кг, опционально):</label>
-                <input type="number" id="truckMaxWeight" placeholder="10000" step="1">
-                <div class="buttons">
-                    <button class="cancel" id="truckManagerClose">Закрыть</button>
-                    <button class="confirm" id="truckAddBtn">+ Добавить</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Модалка ввода текста (prompt) -->
-    <div class="modal-overlay" id="modalOverlay">
-        <div class="modal">
-            <h3 id="modalTitle">Новая позиция</h3>
-            <label id="modalLabel" for="modalInput">Название:</label>
-            <input type="text" id="modalInput" placeholder="Введите название...">
-            <div class="buttons">
-                <button class="cancel" id="modalCancel">Отмена</button>
-                <button class="confirm" id="modalConfirm">Добавить</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Модалка подтверждения (кастомный confirm) -->
-    <div class="modal-overlay confirm-modal" id="confirmOverlay">
-        <div class="modal">
-            <h3 id="confirmTitle">Подтверждение</h3>
-            <div class="message" id="confirmMessage">Вы уверены?</div>
-            <div class="buttons">
-                <button class="cancel" id="confirmNo">Отмена</button>
-                <button class="confirm" id="confirmYes">Да</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Тосты -->
-    <div class="toast" id="toast"></div>
-
-    <script type="module" src="js/main.js"></script>
+<script type="module" src="main.js"></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-/* ===== CSS для Прокатошной (минималистичная версия) ===== */
+/* ===== Базовые переменные ===== */
 :root {
     --bg-primary: #1a1a1a;
     --bg-secondary: #252525;
@@ -35,8 +35,6 @@
     --btn-import-hover: #4a5a6a;
     --btn-reset: #5a3a3a;
     --btn-reset-hover: #6a4a4a;
-    --btn-loading: #3a4a3a;
-    --btn-loading-hover: #4a5a4a;
 }
 
 [data-theme="light"] {
@@ -75,8 +73,6 @@
     --btn-import-hover: #b0c0d0;
     --btn-reset: #e0c0c0;
     --btn-reset-hover: #d0b0b0;
-    --btn-loading: #c0d8c0;
-    --btn-loading-hover: #b0c8b0;
 }
 
 * {
@@ -93,12 +89,10 @@ body {
     min-height: 100vh;
     transition: background 0.3s, color 0.3s;
 }
-
 .app {
     max-width: 1000px;
     margin: 0 auto;
 }
-
 .card {
     background: var(--bg-card);
     padding: 16px;
@@ -108,6 +102,7 @@ body {
     transition: background 0.3s, border-color 0.3s;
 }
 
+/* Кнопки */
 .btn {
     background: var(--bg-secondary);
     color: var(--text-primary);
@@ -131,7 +126,6 @@ body {
 .btn:active {
     transform: scale(0.97);
 }
-
 .btn-neutral {
     background: var(--btn-neutral);
     border-color: var(--border-light);
@@ -140,7 +134,6 @@ body {
 .btn-neutral:hover {
     background: var(--btn-neutral-hover);
 }
-
 .btn-import {
     background: var(--btn-import);
     border-color: var(--border-light);
@@ -149,7 +142,6 @@ body {
 .btn-import:hover {
     background: var(--btn-import-hover);
 }
-
 .btn-reset {
     background: var(--btn-reset);
     border-color: var(--border-light);
@@ -158,16 +150,6 @@ body {
 .btn-reset:hover {
     background: var(--btn-reset-hover);
 }
-
-.btn-loading {
-    background: var(--btn-loading);
-    border-color: var(--border-light);
-    color: var(--text-primary);
-}
-.btn-loading:hover {
-    background: var(--btn-loading-hover);
-}
-
 .btn-green {
     background: var(--accent);
     border-color: var(--accent);
@@ -177,7 +159,6 @@ body {
     background: var(--accent-hover);
     border-color: var(--accent-hover);
 }
-
 .btn-red {
     background: var(--danger);
     border-color: var(--danger);
@@ -187,7 +168,6 @@ body {
     background: var(--danger-hover);
     border-color: var(--danger-hover);
 }
-
 .btn-sec {
     background: var(--bg-secondary);
     border-color: var(--border-light);
@@ -200,12 +180,21 @@ body {
 .btn-orange:hover {
     background: #6a5a4a;
 }
+.btn-purple {
+    background: #3a2a4a;
+    border-color: #5a3a6a;
+    color: white;
+}
+.btn-purple:hover {
+    background: #4a3a5a;
+}
 .btn-sm {
     padding: 6px 12px;
     font-size: 13px;
     min-height: 34px;
 }
 
+/* Поля ввода */
 .input-field {
     width: 100%;
     padding: 10px 14px;
@@ -222,10 +211,21 @@ body {
     outline: none;
     border-color: var(--accent);
 }
-
-textarea.input-field {
+.input-textarea {
     resize: vertical;
     font-family: inherit;
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    font-size: 15px;
+}
+.input-textarea:focus {
+    outline: none;
+    border-color: var(--accent);
 }
 
 /* Тосты */
@@ -283,22 +283,13 @@ textarea.input-field {
     border: 1px solid var(--border-color);
     transition: background 0.3s, border-color 0.3s;
 }
-.header-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
+.header .logo {
+    font-size: 28px;
 }
 .header h1 {
     font-size: 22px;
     font-weight: 600;
-}
-.header .logo {
-    font-size: 24px;
-}
-.header-right {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    flex: 1;
 }
 .theme-toggle {
     width: 40px;
@@ -455,23 +446,24 @@ textarea.input-field {
     font-size: 14px;
 }
 .item-row .qty {
-    width: 64px;
-    padding: 4px;
-    background: var(--bg-input);
+    width: 70px;
+    padding: 4px 6px;
     border: 1px solid var(--border-light);
     border-radius: 4px;
-    color: var(--text-primary);
-    text-align: center;
     font-size: 14px;
+    text-align: center;
+    background: var(--bg-input);
+    color: var(--text-primary);
 }
 .item-row .spec {
     flex: 2 1 200px;
     padding: 4px 6px;
-    background: var(--bg-input);
     border: 1px solid var(--border-light);
     border-radius: 4px;
-    color: var(--text-primary);
     font-size: 13px;
+    min-width: 120px;
+    background: var(--bg-input);
+    color: var(--text-primary);
 }
 .item-row .actions {
     display: flex;
@@ -497,6 +489,7 @@ textarea.input-field {
     display: flex;
     flex-wrap: wrap;
     gap: 12px;
+    align-items: center;
 }
 .item-row .props-info .na {
     color: var(--text-muted);
@@ -668,16 +661,16 @@ textarea.input-field {
 
 /* Индикаторы */
 .row.added {
-    background: var(--added-bg);
-    border-left: 3px solid var(--success);
+    background: var(--added-bg) !important;
+    border-left: 3px solid var(--success) !important;
 }
 .row.overstock {
-    background: var(--overstock-bg);
-    border-left: 3px solid var(--danger);
+    background: var(--overstock-bg) !important;
+    border-left: 3px solid var(--danger) !important;
 }
 .row.added:hover,
 .row.overstock:hover {
-    background: var(--bg-hover);
+    background: var(--bg-hover) !important;
 }
 .overstock-warning {
     color: var(--danger);
@@ -1003,8 +996,8 @@ textarea.input-field {
     text-align: center;
     white-space: nowrap;
     height: 32px;
-    min-width: 70px;
-    max-width: 120px;
+    min-width: 70px !important;
+    max-width: 120px !important;
     overflow: hidden;
     text-overflow: ellipsis;
 }
@@ -1035,8 +1028,9 @@ textarea.input-field {
     width: 20px;
 }
 .matrix-table .matrix-cell {
-    min-width: 70px;
-    max-width: 120px;
+    min-width: 70px !important;
+    max-width: 120px !important;
+    height: 32px !important;
     overflow: hidden;
     text-overflow: ellipsis;
 }
@@ -1087,6 +1081,42 @@ textarea.input-field {
     border-radius: 4px;
     color: var(--text-primary);
 }
+.matrix-zoom-controls {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 12px;
+}
+.matrix-zoom-controls input[type="range"] {
+    flex: 1;
+    min-width: 100px;
+    background: var(--bg-input);
+    accent-color: var(--accent);
+    height: 6px;
+    border-radius: 3px;
+}
+.matrix-zoom-controls input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+}
+.matrix-zoom-controls input[type="range"]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: none;
+}
+#matrixZoomLevelLabel {
+    min-width: 50px;
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
 
 /* Общие кофры */
 #casesList {
@@ -1094,20 +1124,6 @@ textarea.input-field {
     overflow-y: auto;
 }
 #casesList > div {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 6px 8px;
-    border-bottom: 1px solid var(--border-color);
-    gap: 10px;
-}
-
-/* Управление грузовиками */
-#truckList {
-    max-height: 250px;
-    overflow-y: auto;
-}
-#truckList > div {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -1174,15 +1190,15 @@ textarea.input-field {
         flex-wrap: wrap;
         justify-content: center;
     }
-    .header-right {
-        width: 100%;
-        justify-content: center;
-    }
     .matrix-table th,
     .matrix-table td {
         min-width: 50px;
         font-size: 11px;
         padding: 2px 4px;
+    }
+    .matrix-zoom-controls {
+        flex-wrap: wrap;
+        justify-content: center;
     }
 }
 @media (max-width: 400px) {

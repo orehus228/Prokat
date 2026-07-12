@@ -1,4 +1,4 @@
-// cases.js — Модалки: свойства позиции, общие кофры, матрица привязок
+// cases.js — Модалки: свойства, общие кофры, матрица, настройка кофров
 import {
     getItemProps,
     setItemProps,
@@ -12,7 +12,8 @@ import {
     renameCategory,
     renameSubgroup,
     renameItem,
-    moveItem
+    moveItem,
+    getTruckPresets
 } from './data.js';
 
 import {
@@ -23,7 +24,19 @@ import {
 } from './ui.js';
 
 import { CAT_NAMES } from './config.js';
-import { links, saveOrderData } from './order.js';
+import {
+    links,
+    saveOrderData,
+    getCaseMode,
+    getCaseOptions,
+    getSelectedOption,
+    setIndividualCaseValues,
+    getIndividualCaseValues,
+    getOrderPacking,
+    setOrderPacking,
+    caseModes,
+    orderExclude
+} from './order.js';
 
 // ============================================================
 // ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
@@ -31,9 +44,14 @@ import { links, saveOrderData } from './order.js';
 let currentPropsPath = null;
 let variantCounter = 0;
 let casesManagerCallback = null;
+let currentCaseSettingsPath = null;
+let caseSettingsCallback = null;
+let matrixZoomLevel = 1;
+const MATRIX_MIN_ZOOM = 0.5;
+const MATRIX_MAX_ZOOM = 2;
 
 // ============================================================
-// МОДАЛКА СВОЙСТВ ПОЗИЦИИ
+// МОДАЛКА СВОЙСТВ ПОЗИЦИИ (уже есть, оставляем)
 // ============================================================
 export function openPropsModalEditor(catKey, subKey, itemName, onSaveCallback) {
     currentPropsPath = { catKey, subKey, itemName, onSaveCallback };
@@ -72,26 +90,21 @@ export function openPropsModalEditor(catKey, subKey, itemName, onSaveCallback) {
     document.getElementById('propsModal').classList.add('open');
 }
 
-// ============================================================
-// ИНДИВИДУАЛЬНЫЕ КОФРЫ
-// ============================================================
 function addIndividualCaseVariant(qty, dim, weight, maxCases) {
     const container = document.getElementById('individualCasesContainer');
     const group = document.createElement('div');
     group.className = 'case-variant-group';
-    
     const removeBtn = document.createElement('button');
     removeBtn.className = 'remove-variant';
     removeBtn.textContent = '✕';
-    removeBtn.addEventListener('click', () => { 
+    removeBtn.addEventListener('click', () => {
         if (container.children.length <= 1) {
             showToast('Нельзя удалить последний вариант', 'warning');
             return;
         }
-        group.remove(); 
+        group.remove();
     });
     group.appendChild(removeBtn);
-    
     const id = 'ind_' + Date.now() + '_' + (variantCounter++);
     group.innerHTML += `
         <label>Кол-во в кофре (шт):</label>
@@ -110,20 +123,15 @@ export function addIndividualCaseVariantBtn() {
     addIndividualCaseVariant();
 }
 
-// ============================================================
-// ОБЩИЕ КОФРЫ (привязка к позиции)
-// ============================================================
 function addCommonCaseVariant(caseId, qty) {
     const container = document.getElementById('commonCasesContainer');
     const group = document.createElement('div');
     group.className = 'case-variant-group';
-    
     const removeBtn = document.createElement('button');
     removeBtn.className = 'remove-variant';
     removeBtn.textContent = '✕';
     removeBtn.addEventListener('click', () => { group.remove(); });
     group.appendChild(removeBtn);
-    
     const id = 'com_' + Date.now() + '_' + (variantCounter++);
     const commonCases = getCommonCases();
     let selectHtml = `<select class="com-case-select" data-id="${id}" style="width:100%;padding:6px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:6px;color:var(--text-primary);margin-bottom:6px;">`;
@@ -149,7 +157,6 @@ export function addCommonCaseVariantBtn() {
 
 export function addNewCaseFromProps(btn) {
     const group = btn.closest('.case-variant-group');
-    const select = group.querySelector('.com-case-select');
     openCasesManagerModal(() => {
         document.querySelectorAll('.com-case-select').forEach(sel => {
             const currentVal = sel.value;
@@ -164,83 +171,284 @@ export function addNewCaseFromProps(btn) {
     });
 }
 
-// ============================================================
-// СОХРАНЕНИЕ СВОЙСТВ
-// ============================================================
 export function initPropsSaveHandler() {
-    const confirmBtn = document.getElementById('propsConfirm');
-    if (confirmBtn) {
-        confirmBtn.addEventListener('click', async () => {
-            if (!currentPropsPath) return;
-            const { catKey, subKey, itemName, onSaveCallback } = currentPropsPath;
-            const weight = parseFloat(document.getElementById('propWeight').value);
-            const dimensions = document.getElementById('propDimensions').value.trim();
-            const volume = parseFloat(document.getElementById('propVolume').value);
-            const allowCommon = document.getElementById('propAllowCommon').checked;
-            const props = {};
-            if (!isNaN(weight) && weight > 0) props.weight = weight;
-            if (dimensions) props.dimensions = dimensions;
-            if (!isNaN(volume) && volume > 0) props.volume = volume;
-            props.allowCommon = allowCommon;
-            
-            // Индивидуальные кофры
-            const individualCases = [];
-            document.querySelectorAll('#individualCasesContainer .case-variant-group').forEach(group => {
-                const qtyInput = group.querySelector('.ind-qty');
-                const dimInput = group.querySelector('.ind-dim');
-                const weightInput = group.querySelector('.ind-weight');
-                const maxCasesInput = group.querySelector('.ind-max-cases');
-                const qty = parseInt(qtyInput ? qtyInput.value : 0);
-                const dim = dimInput ? dimInput.value.trim() : '';
-                const w = parseFloat(weightInput ? weightInput.value : 0);
-                const maxCases = parseInt(maxCasesInput ? maxCasesInput.value : 0);
-                if (qty > 0 || dim || w > 0) {
-                    individualCases.push({ 
-                        qty, 
-                        dimensions: dim, 
-                        weight: isNaN(w) ? 0 : w, 
-                        maxCases: isNaN(maxCases) ? 0 : maxCases 
-                    });
-                }
-            });
-            if (individualCases.length > 0) props.individualCases = individualCases;
-            else delete props.individualCases;
-            
-            // Общие кофры
-            const commonCases = [];
-            document.querySelectorAll('#commonCasesContainer .case-variant-group').forEach(group => {
-                const select = group.querySelector('.com-case-select');
-                const qtyInput = group.querySelector('.com-qty');
-                const caseId = select ? select.value : '';
-                const qty = parseInt(qtyInput ? qtyInput.value : 0);
-                if (caseId && !isNaN(qty) && qty > 0) {
-                    commonCases.push({ caseId, qty });
-                }
-            });
-            if (commonCases.length > 0) props.commonCases = commonCases;
-            else delete props.commonCases;
-            
-            setItemProps(catKey, subKey, itemName, props);
-            document.getElementById('propsModal').classList.remove('open');
-            currentPropsPath = null;
-            if (onSaveCallback) onSaveCallback();
-            showToast('Свойства сохранены', 'success');
+    document.getElementById('propsConfirm').addEventListener('click', () => {
+        if (!currentPropsPath) return;
+        const { catKey, subKey, itemName, onSaveCallback } = currentPropsPath;
+        const weight = parseFloat(document.getElementById('propWeight').value);
+        const dimensions = document.getElementById('propDimensions').value.trim();
+        const volume = parseFloat(document.getElementById('propVolume').value);
+        const allowCommon = document.getElementById('propAllowCommon').checked;
+        const props = {};
+        if (!isNaN(weight) && weight > 0) props.weight = weight;
+        if (dimensions) props.dimensions = dimensions;
+        if (!isNaN(volume) && volume > 0) props.volume = volume;
+        props.allowCommon = allowCommon;
+        
+        const individualCases = [];
+        document.querySelectorAll('#individualCasesContainer .case-variant-group').forEach(group => {
+            const qtyInput = group.querySelector('.ind-qty');
+            const dimInput = group.querySelector('.ind-dim');
+            const weightInput = group.querySelector('.ind-weight');
+            const maxCasesInput = group.querySelector('.ind-max-cases');
+            const qty = parseInt(qtyInput ? qtyInput.value : 0);
+            const dim = dimInput ? dimInput.value.trim() : '';
+            const w = parseFloat(weightInput ? weightInput.value : 0);
+            const maxCases = parseInt(maxCasesInput ? maxCasesInput.value : 0);
+            if (qty > 0 || dim || w > 0) {
+                individualCases.push({ qty, dimensions: dim, weight: isNaN(w) ? 0 : w, maxCases: isNaN(maxCases) ? 0 : maxCases });
+            }
         });
-    }
+        if (individualCases.length > 0) props.individualCases = individualCases;
+        else delete props.individualCases;
+        
+        const commonCases = [];
+        document.querySelectorAll('#commonCasesContainer .case-variant-group').forEach(group => {
+            const select = group.querySelector('.com-case-select');
+            const qtyInput = group.querySelector('.com-qty');
+            const caseId = select ? select.value : '';
+            const qty = parseInt(qtyInput ? qtyInput.value : 0);
+            if (caseId && !isNaN(qty) && qty > 0) {
+                commonCases.push({ caseId, qty });
+            }
+        });
+        if (commonCases.length > 0) props.commonCases = commonCases;
+        else delete props.commonCases;
+        
+        setItemProps(catKey, subKey, itemName, props);
+        document.getElementById('propsModal').classList.remove('open');
+        currentPropsPath = null;
+        if (onSaveCallback) onSaveCallback();
+        showToast('Свойства сохранены', 'success');
+    });
 }
 
 export function initPropsCancelHandler() {
-    const cancelBtn = document.getElementById('propsCancel');
-    if (cancelBtn) {
-        cancelBtn.addEventListener('click', () => {
-            document.getElementById('propsModal').classList.remove('open');
-            currentPropsPath = null;
-        });
-    }
+    document.getElementById('propsCancel').addEventListener('click', () => {
+        document.getElementById('propsModal').classList.remove('open');
+        currentPropsPath = null;
+    });
 }
 
 // ============================================================
-// МОДАЛКА УПРАВЛЕНИЯ ОБЩИМИ КОФРАМИ
+// МОДАЛКА НАСТРОЙКИ КОФРОВ ДЛЯ ПОЗИЦИИ (НОВАЯ)
+// ============================================================
+export function openCaseSettingsModal(path, callback) {
+    currentCaseSettingsPath = path;
+    caseSettingsCallback = callback || null;
+    const mode = getCaseMode(path);
+    const props = getItemProps(path);
+    const options = getCaseOptions(path);
+    const packing = getOrderPacking(path);
+    const commonCases = getCommonCases();
+    const individualVals = getIndividualCaseValues(path);
+    const isMulti = localStorage.getItem('multi_' + path) === 'true';
+
+    const modal = document.getElementById('caseSettingsModal');
+    if (!modal) {
+        showToast('Модалка настройки кофров не найдена', 'error');
+        return;
+    }
+
+    document.getElementById('caseSettingsTitle').textContent = 'Настройка кофров: ' + path.split('|').pop();
+    document.getElementById('caseSettingsEnable').checked = mode.enabled;
+
+    const optionsContainer = document.getElementById('caseSettingsOptions');
+    optionsContainer.innerHTML = '';
+    if (options.length > 0) {
+        options.forEach((opt, idx) => {
+            const div = document.createElement('div');
+            div.className = 'case-option-item' + (mode.selectedOption === idx && !mode.alt ? ' active' : '');
+            div.innerHTML = `
+                <input type="radio" name="caseOption" value="${idx}" ${mode.selectedOption === idx && !mode.alt ? 'checked' : ''}>
+                <span>Вариант ${idx+1}: ${opt.qty} шт, габ: ${opt.dims || 'н/д'}, вес пустого: ${opt.weight || 0} кг</span>
+            `;
+            div.addEventListener('click', () => {
+                const radio = div.querySelector('input[type="radio"]');
+                radio.checked = true;
+                mode.selectedOption = idx;
+                mode.alt = null;
+                saveOrderData();
+                document.querySelectorAll('.case-option-item').forEach(el => el.classList.remove('active'));
+                div.classList.add('active');
+                showToast('Вариант кофра выбран', 'neutral');
+            });
+            optionsContainer.appendChild(div);
+        });
+        const multiContainer = document.getElementById('caseSettingsMulti');
+        if (options.length > 1) {
+            multiContainer.style.display = 'block';
+            document.getElementById('caseSettingsMultiCheck').checked = isMulti;
+        } else {
+            multiContainer.style.display = 'none';
+        }
+    } else {
+        optionsContainer.innerHTML = '<div style="color:var(--text-muted);">Нет индивидуальных кофров для этой позиции</div>';
+        document.getElementById('caseSettingsMulti').style.display = 'none';
+    }
+
+    const altContainer = document.getElementById('caseSettingsAlt');
+    if (mode.alt) {
+        altContainer.innerHTML = `
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <span>Альтернативный: ${mode.alt.qty} шт, габ: ${mode.alt.dims || 'н/д'}, вес: ${mode.alt.weight || 0} кг</span>
+                <button class="btn btn-sm" onclick="window.clearAltCase()">Очистить</button>
+            </div>
+        `;
+    } else {
+        altContainer.innerHTML = `
+            <button class="btn btn-sm" onclick="window.addAltCase()">+ Альтернативный кофр</button>
+        `;
+    }
+
+    const commonContainer = document.getElementById('caseSettingsCommon');
+    if (props.allowCommon) {
+        commonContainer.style.display = 'block';
+        const list = document.getElementById('caseSettingsCommonList');
+        list.innerHTML = '';
+        if (packing.length > 0) {
+            packing.forEach((p, idx) => {
+                const c = commonCases.find(c => c.id === p.caseId);
+                const div = document.createElement('div');
+                div.className = 'common-case-item';
+                div.innerHTML = `
+                    <span>${c ? c.name : 'Удалённый кофр'} (кол-во: ${p.qty} шт)</span>
+                    <button class="btn btn-sm" onclick="window.removeCommonCasePacking('${path}', ${idx})">✕</button>
+                `;
+                list.appendChild(div);
+            });
+        } else {
+            list.innerHTML = '<div style="color:var(--text-muted);">Нет привязок к общим кофрам</div>';
+        }
+        const addBtn = document.getElementById('caseSettingsCommonAdd');
+        addBtn.onclick = () => {
+            showPrompt('Выберите общий кофр', 'Введите ID кофра (или название для поиска):', '', '', (val) => {
+                if (!val) return null;
+                const found = commonCases.find(c => c.id === val || c.name.toLowerCase().includes(val.toLowerCase()));
+                if (!found) {
+                    showToast('Кофр не найден', 'error');
+                    return 'Кофр не найден';
+                }
+                showPrompt('Количество единиц в кофре', 'Введите кол-во:', '1', '', (qty) => {
+                    const num = parseInt(qty);
+                    if (isNaN(num) || num <= 0) {
+                        showToast('Введите положительное число', 'error');
+                        return 'Некорректное количество';
+                    }
+                    const currentPacking = getOrderPacking(path);
+                    currentPacking.push({ caseId: found.id, qty: num });
+                    setOrderPacking(path, currentPacking);
+                    saveOrderData();
+                    if (caseSettingsCallback) caseSettingsCallback();
+                    openCaseSettingsModal(path, caseSettingsCallback);
+                    showToast('Привязка добавлена', 'success');
+                    return null;
+                });
+                return null;
+            });
+        };
+    } else {
+        commonContainer.style.display = 'none';
+    }
+
+    modal.classList.add('open');
+
+    const saveBtn = document.getElementById('caseSettingsSave');
+    saveBtn.onclick = () => {
+        const enabled = document.getElementById('caseSettingsEnable').checked;
+        mode.enabled = enabled;
+        if (!enabled) {
+            mode.alt = null;
+            localStorage.removeItem('multi_' + path);
+            setIndividualCaseValues(path, []);
+        } else {
+            const selectedRadio = document.querySelector('input[name="caseOption"]:checked');
+            if (selectedRadio) {
+                const idx = parseInt(selectedRadio.value);
+                mode.selectedOption = idx;
+                mode.alt = null;
+            }
+            const multiCheck = document.getElementById('caseSettingsMultiCheck');
+            if (multiCheck && multiCheck.checked) {
+                localStorage.setItem('multi_' + path, 'true');
+                const vals = getIndividualCaseValues(path);
+                if (vals.length === 0) {
+                    setIndividualCaseValues(path, options.map(() => 0));
+                }
+            } else {
+                localStorage.removeItem('multi_' + path);
+                const vals = getIndividualCaseValues(path);
+                if (vals.length > 0) {
+                    const total = vals.reduce((a,b) => a + b, 0);
+                    setIndividualCaseValues(path, [total]);
+                }
+            }
+        }
+        saveOrderData();
+        modal.classList.remove('open');
+        if (caseSettingsCallback) caseSettingsCallback();
+        showToast('Настройки кофров сохранены', 'success');
+    };
+
+    document.getElementById('caseSettingsCancel').onclick = () => {
+        modal.classList.remove('open');
+    };
+
+    modal.onclick = (e) => {
+        if (e.target === modal) {
+            modal.classList.remove('open');
+        }
+    };
+}
+
+window.addAltCase = function() {
+    const path = currentCaseSettingsPath;
+    if (!path) return;
+    showPrompt('Альтернативный кофр', 'Вместимость (шт):', '', '', (qty) => {
+        const numQty = parseInt(qty);
+        if (isNaN(numQty) || numQty <= 0) {
+            showToast('Введите корректную вместимость', 'error');
+            return 'Некорректное количество';
+        }
+        showPrompt('Альтернативный кофр', 'Вес пустого (кг):', '0', '', (weight) => {
+            const w = parseFloat(weight) || 0;
+            showPrompt('Альтернативный кофр', 'Габариты (Д×Ш×В, см):', '', '', (dims) => {
+                const mode = getCaseMode(path);
+                mode.alt = { qty: numQty, weight: w, dims: dims || '' };
+                mode.enabled = true;
+                document.getElementById('caseSettingsEnable').checked = true;
+                saveOrderData();
+                openCaseSettingsModal(path, caseSettingsCallback);
+                showToast('Альтернативный кофр добавлен', 'success');
+                return null;
+            });
+            return null;
+        });
+        return null;
+    });
+};
+
+window.clearAltCase = function() {
+    const path = currentCaseSettingsPath;
+    if (!path) return;
+    const mode = getCaseMode(path);
+    mode.alt = null;
+    saveOrderData();
+    openCaseSettingsModal(path, caseSettingsCallback);
+    showToast('Альтернативный кофр удалён', 'neutral');
+};
+
+window.removeCommonCasePacking = function(path, idx) {
+    const packing = getOrderPacking(path);
+    packing.splice(idx, 1);
+    setOrderPacking(path, packing);
+    saveOrderData();
+    openCaseSettingsModal(path, caseSettingsCallback);
+    showToast('Привязка удалена', 'neutral');
+};
+
+// ============================================================
+// МОДАЛКА УПРАВЛЕНИЯ ОБЩИМИ КОФРАМИ (уже есть)
 // ============================================================
 export function openCasesManagerModal(callback) {
     casesManagerCallback = callback || null;
@@ -294,78 +502,59 @@ async function deleteCase(id) {
 
 export function initCasesManagerHandlers() {
     const addBtn = document.getElementById('casesManagerAdd');
-    if (addBtn) {
-        addBtn.addEventListener('click', function() {
-            const name = document.getElementById('newCaseName').value.trim();
-            const qty = parseInt(document.getElementById('newCaseQty').value);
-            const dimensions = document.getElementById('newCaseDim').value.trim();
-            const emptyWeight = parseFloat(document.getElementById('newCaseWeight').value);
-            const maxWeight = parseFloat(document.getElementById('newCaseMaxWeight').value);
-            const maxVolume = parseFloat(document.getElementById('newCaseMaxVolume').value);
-            if (!name) { showToast('Введите название кофра', 'warning'); return; }
-            if (isNaN(qty) || qty <= 0) { showToast('Вместимость должна быть положительным числом', 'warning'); return; }
-            const editId = this.dataset.editId;
-            if (editId) {
-                updateCommonCase(editId, { 
-                    name, 
-                    qty, 
-                    dimensions, 
-                    emptyWeight: isNaN(emptyWeight)?0:emptyWeight, 
-                    maxWeight: isNaN(maxWeight)?0:maxWeight, 
-                    maxVolume: isNaN(maxVolume)?0:maxVolume 
-                });
-                showToast('Кофр обновлён', 'success');
-            } else {
-                const newCase = {
-                    id: 'case_' + Date.now(),
-                    name, 
-                    qty, 
-                    dimensions, 
-                    emptyWeight: isNaN(emptyWeight)?0:emptyWeight, 
-                    maxWeight: isNaN(maxWeight)?0:maxWeight, 
-                    maxVolume: isNaN(maxVolume)?0:maxVolume
-                };
-                addCommonCase(newCase);
-                showToast('Кофр добавлен', 'success');
-            }
-            document.getElementById('newCaseName').value = '';
-            document.getElementById('newCaseQty').value = '';
-            document.getElementById('newCaseDim').value = '';
-            document.getElementById('newCaseWeight').value = '';
-            document.getElementById('newCaseMaxWeight').value = '';
-            document.getElementById('newCaseMaxVolume').value = '';
-            this.textContent = '+ Добавить';
-            delete this.dataset.editId;
-            renderCasesList();
-            if (casesManagerCallback) casesManagerCallback();
-        });
-    }
+    addBtn.addEventListener('click', function() {
+        const name = document.getElementById('newCaseName').value.trim();
+        const qty = parseInt(document.getElementById('newCaseQty').value);
+        const dimensions = document.getElementById('newCaseDim').value.trim();
+        const emptyWeight = parseFloat(document.getElementById('newCaseWeight').value);
+        const maxWeight = parseFloat(document.getElementById('newCaseMaxWeight').value);
+        const maxVolume = parseFloat(document.getElementById('newCaseMaxVolume').value);
+        if (!name) { showToast('Введите название кофра', 'warning'); return; }
+        if (isNaN(qty) || qty <= 0) { showToast('Вместимость должна быть положительным числом', 'warning'); return; }
+        const editId = this.dataset.editId;
+        if (editId) {
+            updateCommonCase(editId, { name, qty, dimensions, emptyWeight: isNaN(emptyWeight)?0:emptyWeight, maxWeight: isNaN(maxWeight)?0:maxWeight, maxVolume: isNaN(maxVolume)?0:maxVolume });
+            showToast('Кофр обновлён', 'success');
+        } else {
+            const newCase = {
+                id: 'case_' + Date.now(),
+                name, qty, dimensions, emptyWeight: isNaN(emptyWeight)?0:emptyWeight, maxWeight: isNaN(maxWeight)?0:maxWeight, maxVolume: isNaN(maxVolume)?0:maxVolume
+            };
+            addCommonCase(newCase);
+            showToast('Кофр добавлен', 'success');
+        }
+        document.getElementById('newCaseName').value = '';
+        document.getElementById('newCaseQty').value = '';
+        document.getElementById('newCaseDim').value = '';
+        document.getElementById('newCaseWeight').value = '';
+        document.getElementById('newCaseMaxWeight').value = '';
+        document.getElementById('newCaseMaxVolume').value = '';
+        this.textContent = '+ Добавить';
+        delete this.dataset.editId;
+        renderCasesList();
+        if (casesManagerCallback) casesManagerCallback();
+    });
 }
 
 export function initCasesManagerCloseHandler() {
-    const closeBtn = document.getElementById('casesManagerClose');
-    if (closeBtn) {
-        closeBtn.addEventListener('click', () => {
-            document.getElementById('casesManagerModal').classList.remove('open');
-            if (casesManagerCallback) casesManagerCallback();
-        });
-    }
+    document.getElementById('casesManagerClose').addEventListener('click', () => {
+        document.getElementById('casesManagerModal').classList.remove('open');
+        if (casesManagerCallback) casesManagerCallback();
+    });
 }
 
 export function initCasesManagerOverlayClose() {
     const overlay = document.getElementById('casesManagerModal');
-    if (overlay) {
-        overlay.addEventListener('click', (e) => {
-            if (e.target === overlay) {
-                document.getElementById('casesManagerModal').classList.remove('open');
-                if (casesManagerCallback) casesManagerCallback();
-            }
-        });
-    }
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+            document.getElementById('casesManagerModal').classList.remove('open');
+            if (casesManagerCallback) casesManagerCallback();
+        }
+    });
 }
 
 // ============================================================
-// МАТРИЦА ПРИВЯЗОК
+// МАТРИЦА ПРИВЯЗОК (С ПОЛЗУНКОМ ЗУМА)
 // ============================================================
 export function openMatrixModal(sourcePath) {
     const modal = document.getElementById('matrixModal');
@@ -379,6 +568,8 @@ export function openMatrixModal(sourcePath) {
         document.getElementById('matrixSearchSource').value = '';
     }
     document.getElementById('matrixSearchTarget').value = '';
+    matrixZoomLevel = 1;
+    updateMatrixZoom();
     renderMatrix();
     modal.classList.add('open');
 }
@@ -413,7 +604,7 @@ function renderMatrix() {
     allTargets = unique;
     if (tgtFilter) allTargets = allTargets.filter(t => t.name.toLowerCase().includes(tgtFilter));
 
-    let html = `<div class="matrix-table-wrapper"><table class="matrix-table">`;
+    let html = `<div class="matrix-table-wrapper"><table class="matrix-table" style="font-size:${13 * matrixZoomLevel}px;">`;
     html += `<thead><tr><th class="matrix-header">Источник \\ Цель</th>`;
     allTargets.forEach(target => {
         const displayName = truncateName(target.name);
@@ -441,8 +632,23 @@ function renderMatrix() {
                 } else {
                     const link = links[source.full] ? links[source.full].find(l => l.target === target.full) : null;
                     const value = link ? link.multiplier : '';
+                    const conflicts = [];
+                    for (let src in links) {
+                        if (src === source.full) continue;
+                        const lnk = links[src].find(l => l.target === target.full);
+                        if (lnk) {
+                            conflicts.push({ source: src, multiplier: lnk.multiplier });
+                        }
+                    }
                     if (value !== '') {
                         let cellContent = `<span class="matrix-value">${value}</span>`;
+                        if (conflicts.length > 0) {
+                            const conflictInfo = conflicts.map(c => {
+                                const srcName = c.source.split('|').pop();
+                                return `${srcName} (×${c.multiplier})`;
+                            }).join(', ');
+                            cellContent += `<span class="matrix-conflict" title="Конфликт! Также ссылаются: ${conflictInfo}">!</span>`;
+                        }
                         html += `<td class="matrix-cell matrix-value-cell" data-src="${source.full}" data-target="${target.full}" onclick="window.editMatrixCell(this,'${source.full}','${target.full}')">${cellContent}</td>`;
                     } else {
                         html += `<td class="matrix-cell matrix-empty" data-src="${source.full}" data-target="${target.full}" onclick="window.editMatrixCell(this,'${source.full}','${target.full}')">+</td>`;
@@ -455,9 +661,10 @@ function renderMatrix() {
     });
     html += '</tbody></table></div>';
     container.innerHTML = html;
+    updateMatrixZoom();
 }
 
-function truncateName(name, maxLen = 12) {
+function truncateName(name, maxLen = 10) {
     if (name.length <= maxLen) return name;
     const parts = name.split(' ');
     if (parts.length <= 2) {
@@ -482,6 +689,38 @@ function getAllItemPaths() {
     }
     traverse(editorData.inventory, []);
     return res;
+}
+
+function updateMatrixZoom() {
+    const table = document.querySelector('.matrix-table');
+    if (table) {
+        table.style.fontSize = (13 * matrixZoomLevel) + 'px';
+        const cells = table.querySelectorAll('th, td');
+        cells.forEach(cell => {
+            cell.style.minWidth = (70 * matrixZoomLevel) + 'px';
+            cell.style.maxWidth = (120 * matrixZoomLevel) + 'px';
+            cell.style.padding = (4 * matrixZoomLevel) + 'px ' + (6 * matrixZoomLevel) + 'px';
+        });
+    }
+    const slider = document.getElementById('matrixZoomSlider');
+    if (slider) slider.value = matrixZoomLevel;
+    const label = document.getElementById('matrixZoomLevelLabel');
+    if (label) label.textContent = Math.round(matrixZoomLevel * 100) + '%';
+}
+
+function zoomMatrix(delta) {
+    matrixZoomLevel = Math.min(Math.max(matrixZoomLevel + delta, MATRIX_MIN_ZOOM), MATRIX_MAX_ZOOM);
+    updateMatrixZoom();
+}
+
+function setupMatrixZoomSlider() {
+    const slider = document.getElementById('matrixZoomSlider');
+    if (slider) {
+        slider.addEventListener('input', function() {
+            matrixZoomLevel = parseFloat(this.value);
+            updateMatrixZoom();
+        });
+    }
 }
 
 window.toggleMatrixCategory = function(catId) {
@@ -554,6 +793,8 @@ export function initMatrixHandlers() {
     if (srcInput) srcInput.addEventListener('input', renderMatrix);
     const tgtInput = document.getElementById('matrixSearchTarget');
     if (tgtInput) tgtInput.addEventListener('input', renderMatrix);
+
+    setupMatrixZoomSlider();
 }
 
 // ============================================================
