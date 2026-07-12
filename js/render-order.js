@@ -54,7 +54,6 @@ let searchQuery = '';
 let detailsOpen = false;
 const infoBlocksOpen = {};
 
-// Кеш плоского списка позиций (строится один раз)
 let flatItemsCache = null;
 
 // ============================================================
@@ -186,7 +185,6 @@ function renderOrderCategory(catKey) {
         return;
     }
 
-    // Строим HTML
     let html = '';
     filteredPaths.forEach(path => {
         html += buildItemRow(path, 1);
@@ -194,7 +192,6 @@ function renderOrderCategory(catKey) {
 
     container.innerHTML = html;
 
-    // Постобработка
     setupInputListeners();
     setupActionButtons();
     document.querySelectorAll('#categoryContents .row').forEach(row => {
@@ -620,7 +617,7 @@ export function exportOrderJSON() {
 }
 
 // ============================================================
-// ЭКСПОРТ ЗАКАЗА В PDF (полная версия)
+// ЭКСПОРТ ЗАКАЗА В PDF
 // ============================================================
 export function exportOrderPDF() {
     const data = {
@@ -736,7 +733,6 @@ export async function clearOrderData() {
 // ГЛАВНАЯ ФУНКЦИЯ ОТРИСОВКИ
 // ============================================================
 export function renderOrderAll() {
-    // Сбрасываем кеш при загрузке
     flatItemsCache = null;
     loadOrderData();
     document.getElementById('pComment').value = localStorage.getItem('last_comment') || '';

@@ -1,25 +1,14 @@
 // data.js — Работа с данными (загрузка, сохранение, доступ)
 import {
     CAT_NAMES,
-    DEFAULT_INVENTORY,
-    DEFAULT_STOCK,
-    DEFAULT_SPECS,
-    DEFAULT_PROPS,
-    DEFAULT_COMMON_CASES,
-    DEFAULT_CATEGORY_ORDER,
     DUPLICATE_VIDEO_GROUPS,
-    STORAGE_KEYS,
-    DEFAULT_TRUCK_PRESETS
+    STORAGE_KEYS
 } from './config.js';
 
-// ============================================================
-// ГЛОБАЛЬНОЕ СОСТОЯНИЕ
-// ============================================================
 export let editorData = {};
 
-// ============================================================
-// ЗАГРУЗКА / СОХРАНЕНИЕ
-// ============================================================
+const calculationCache = new Map();
+
 export function loadEditorData() {
     try {
         const saved = localStorage.getItem(STORAGE_KEYS.APP_DATA);
@@ -45,12 +34,12 @@ function resetToEmpty() {
         catNames: { ...CAT_NAMES },
         _categoryOrder: [],
         commonCases: [],
-        truckPresets: [] // пустой, пользователь добавит свои
+        truckPresets: []
     };
 }
 
 function normalizeAllData() {
-    // 1. Удаляем дублирующиеся группы видео (оставляем только "Экран")
+    // Удаляем дублирующиеся группы видео (оставляем только "Экран")
     if (editorData.inventory && editorData.inventory.video) {
         const video = editorData.inventory.video;
         DUPLICATE_VIDEO_GROUPS.forEach(name => {
@@ -67,7 +56,7 @@ function normalizeAllData() {
         }
     }
 
-    // 2. Приводим itemProps к корректному виду
+    // Приводим itemProps к корректному виду
     for (let key in editorData.itemProps) {
         const props = editorData.itemProps[key];
         if (props.individualCases === undefined) props.individualCases = [];
@@ -79,14 +68,13 @@ function normalizeAllData() {
             if (c.maxCases === undefined) c.maxCases = 0;
             return c;
         });
-        // Удаляем устаревшие поля
         if (props.caseOptions !== undefined) delete props.caseOptions;
         if (props.weight === undefined) props.weight = 0;
         if (props.dimensions === undefined) props.dimensions = '';
         if (props.volume === undefined) props.volume = 0;
     }
 
-    // 3. Категории с подгруппами: проверяем _subOrder
+    // Категории с подгруппами: проверяем _subOrder
     for (let cat in editorData.inventory) {
         const catData = editorData.inventory[cat];
         if (typeof catData === 'object' && !Array.isArray(catData)) {
@@ -103,23 +91,14 @@ function normalizeAllData() {
         }
     }
 
-    // 4. Инициализируем truckPresets, если отсутствуют
     if (!editorData.truckPresets) {
         editorData.truckPresets = [];
-    }
-
-    // 5. Фильтруем _categoryOrder (удаляем несуществующие категории)
-    if (editorData._categoryOrder) {
-        editorData._categoryOrder = editorData._categoryOrder.filter(cat => 
-            editorData.inventory && editorData.inventory[cat] !== undefined
-        );
-    } else {
-        editorData._categoryOrder = Object.keys(editorData.inventory);
     }
 }
 
 export function saveEditorData() {
     localStorage.setItem(STORAGE_KEYS.APP_DATA, JSON.stringify(editorData));
+    calculationCache.clear();
 }
 
 export function resetAllData() {
@@ -286,7 +265,7 @@ export function setItemProps(catKey, subKey, itemName, props) {
 }
 
 // ============================================================
-// ПРЕСЕТЫ ГРУЗОВИКОВ (для режима расчёта загрузки)
+// ПРЕСЕТЫ ГРУЗОВИКОВ
 // ============================================================
 export function getTruckPresets() {
     return editorData.truckPresets || [];
@@ -295,9 +274,6 @@ export function getTruckPresets() {
 export function addTruckPreset(preset) {
     if (!editorData.truckPresets) editorData.truckPresets = [];
     if (!preset.id) preset.id = 'truck_' + Date.now();
-    // Проверяем уникальность имени
-    const exists = editorData.truckPresets.some(p => p.name === preset.name && p.id !== preset.id);
-    if (exists) throw new Error('Грузовик с таким именем уже существует');
     editorData.truckPresets.push(preset);
     saveEditorData();
 }
@@ -350,6 +326,21 @@ export function deleteCommonCase(id) {
         }
     }
     saveEditorData();
+}
+
+// ============================================================
+// КЕШИРОВАНИЕ (экспортируем)
+// ============================================================
+export function getCachedCalculation(key) {
+    return calculationCache.get(key);
+}
+
+export function setCachedCalculation(key, value) {
+    calculationCache.set(key, value);
+}
+
+export function clearCache() {
+    calculationCache.clear();
 }
 
 // ============================================================

@@ -12,7 +12,7 @@ export let orderPacking = {};
 export let individualCaseValues = {};
 export let commonRoutes = {};
 export let caseModes = {};
-export let orderExclude = {}; // Добавлено
+export let orderExclude = {}; // Исключение позиций из загрузки
 
 // ============================================================
 // ЗАГРУЗКА / СОХРАНЕНИЕ
@@ -140,7 +140,7 @@ export function getSelectedOption(path) {
 }
 
 // ============================================================
-// ФУНКЦИИ ДЛЯ ИСКЛЮЧЕНИЯ ИЗ ЗАГРУЗКИ (если нужны, но оставим для совместимости)
+// ФУНКЦИИ ДЛЯ ИСКЛЮЧЕНИЯ ИЗ ЗАГРУЗКИ
 // ============================================================
 export function isExcludedFromLoading(path) {
     return !!orderExclude[path];
@@ -156,7 +156,7 @@ export function setExcludeFromLoading(path, exclude) {
 }
 
 // ============================================================
-// ПОЛУЧЕНИЕ ГАБАРИТОВ ПОЗИЦИИ ДЛЯ РАСЧЁТА ЗАГРУЗКИ (не используется в этом файле, но оставим)
+// ПОЛУЧЕНИЕ ГАБАРИТОВ ПОЗИЦИИ ДЛЯ РАСЧЁТА ЗАГРУЗКИ
 // ============================================================
 export function getItemDimensionsForLoading(path, qty) {
     // Возвращает массив объектов { width, height, depth, weight } для каждой единицы/кофра
