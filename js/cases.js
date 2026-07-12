@@ -1,4 +1,4 @@
-// cases.js — Модалки: свойства позиции, общие кофры, матрица привязок, настройка кофров для позиции
+// cases.js — Модалки: свойства позиции, общие кофры, матрица привязок
 import {
     getItemProps,
     setItemProps,
@@ -12,8 +12,7 @@ import {
     renameCategory,
     renameSubgroup,
     renameItem,
-    moveItem,
-    getTruckPresets
+    moveItem
 } from './data.js';
 
 import {
@@ -24,19 +23,7 @@ import {
 } from './ui.js';
 
 import { CAT_NAMES } from './config.js';
-import {
-    links,
-    saveOrderData,
-    getCaseMode,
-    getCaseOptions,
-    getSelectedOption,
-    setIndividualCaseValues,
-    getIndividualCaseValues,
-    getOrderPacking,
-    setOrderPacking,
-    caseModes,
-    orderExclude
-} from './order.js';
+import { links, saveOrderData } from './order.js';
 
 // ============================================================
 // ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
@@ -44,14 +31,9 @@ import {
 let currentPropsPath = null;
 let variantCounter = 0;
 let casesManagerCallback = null;
-let currentCaseSettingsPath = null;
-let caseSettingsCallback = null;
-let matrixZoomLevel = 1;
-const MATRIX_MIN_ZOOM = 0.5;
-const MATRIX_MAX_ZOOM = 2;
 
 // ============================================================
-// МОДАЛКА СВОЙСТВ ПОЗИЦИИ (полная версия)
+// МОДАЛКА СВОЙСТВ ПОЗИЦИИ
 // ============================================================
 export function openPropsModalEditor(catKey, subKey, itemName, onSaveCallback) {
     currentPropsPath = { catKey, subKey, itemName, onSaveCallback };
@@ -258,228 +240,6 @@ export function initPropsCancelHandler() {
 }
 
 // ============================================================
-// МОДАЛКА НАСТРОЙКИ КОФРОВ ДЛЯ ПОЗИЦИИ (НОВАЯ)
-// ============================================================
-export function openCaseSettingsModal(path, callback) {
-    currentCaseSettingsPath = path;
-    caseSettingsCallback = callback || null;
-    const mode = getCaseMode(path);
-    const props = getItemProps(path);
-    const options = getCaseOptions(path);
-    const packing = getOrderPacking(path);
-    const commonCases = getCommonCases();
-    const individualVals = getIndividualCaseValues(path);
-    const isMulti = localStorage.getItem('multi_' + path) === 'true';
-
-    const modal = document.getElementById('caseSettingsModal');
-    if (!modal) {
-        showToast('Модалка настройки кофров не найдена', 'error');
-        return;
-    }
-
-    document.getElementById('caseSettingsTitle').textContent = 'Настройка кофров: ' + path.split('|').pop();
-    document.getElementById('caseSettingsEnable').checked = mode.enabled;
-
-    // Варианты кофров
-    const optionsContainer = document.getElementById('caseSettingsOptions');
-    optionsContainer.innerHTML = '';
-    if (options.length > 0) {
-        options.forEach((opt, idx) => {
-            const div = document.createElement('div');
-            div.className = 'case-option-item' + (mode.selectedOption === idx && !mode.alt ? ' active' : '');
-            div.innerHTML = `
-                <input type="radio" name="caseOption" value="${idx}" ${mode.selectedOption === idx && !mode.alt ? 'checked' : ''}>
-                <span>Вариант ${idx+1}: ${opt.qty} шт, габ: ${opt.dims || 'н/д'}, вес пустого: ${opt.weight || 0} кг</span>
-            `;
-            div.addEventListener('click', () => {
-                const radio = div.querySelector('input[type="radio"]');
-                radio.checked = true;
-                mode.selectedOption = idx;
-                mode.alt = null;
-                saveOrderData();
-                document.querySelectorAll('.case-option-item').forEach(el => el.classList.remove('active'));
-                div.classList.add('active');
-                showToast('Вариант кофра выбран', 'neutral');
-            });
-            optionsContainer.appendChild(div);
-        });
-        const multiContainer = document.getElementById('caseSettingsMulti');
-        if (options.length > 1) {
-            multiContainer.style.display = 'block';
-            document.getElementById('caseSettingsMultiCheck').checked = isMulti;
-        } else {
-            multiContainer.style.display = 'none';
-        }
-    } else {
-        optionsContainer.innerHTML = '<div style="color:var(--text-muted);">Нет индивидуальных кофров для этой позиции</div>';
-        document.getElementById('caseSettingsMulti').style.display = 'none';
-    }
-
-    // Альтернативный кофр
-    const altContainer = document.getElementById('caseSettingsAlt');
-    if (mode.alt) {
-        altContainer.innerHTML = `
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                <span>Альтернативный: ${mode.alt.qty} шт, габ: ${mode.alt.dims || 'н/д'}, вес: ${mode.alt.weight || 0} кг</span>
-                <button class="btn btn-sm" onclick="window.clearAltCase()">Очистить</button>
-            </div>
-        `;
-    } else {
-        altContainer.innerHTML = `
-            <button class="btn btn-sm" onclick="window.addAltCase()">+ Альтернативный кофр</button>
-        `;
-    }
-
-    // Привязка к общим кофрам
-    const commonContainer = document.getElementById('caseSettingsCommon');
-    if (props.allowCommon) {
-        commonContainer.style.display = 'block';
-        const list = document.getElementById('caseSettingsCommonList');
-        list.innerHTML = '';
-        if (packing.length > 0) {
-            packing.forEach((p, idx) => {
-                const c = commonCases.find(c => c.id === p.caseId);
-                const div = document.createElement('div');
-                div.className = 'common-case-item';
-                div.innerHTML = `
-                    <span>${c ? c.name : 'Удалённый кофр'} (кол-во: ${p.qty} шт)</span>
-                    <button class="btn btn-sm" onclick="window.removeCommonCasePacking('${path}', ${idx})">✕</button>
-                `;
-                list.appendChild(div);
-            });
-        } else {
-            list.innerHTML = '<div style="color:var(--text-muted);">Нет привязок к общим кофрам</div>';
-        }
-        const addBtn = document.getElementById('caseSettingsCommonAdd');
-        addBtn.onclick = () => {
-            showPrompt('Выберите общий кофр', 'Введите ID кофра (или название для поиска):', '', '', (val) => {
-                if (!val) return null;
-                const found = commonCases.find(c => c.id === val || c.name.toLowerCase().includes(val.toLowerCase()));
-                if (!found) {
-                    showToast('Кофр не найден', 'error');
-                    return 'Кофр не найден';
-                }
-                showPrompt('Количество единиц в кофре', 'Введите кол-во:', '1', '', (qty) => {
-                    const num = parseInt(qty);
-                    if (isNaN(num) || num <= 0) {
-                        showToast('Введите положительное число', 'error');
-                        return 'Некорректное количество';
-                    }
-                    const currentPacking = getOrderPacking(path);
-                    currentPacking.push({ caseId: found.id, qty: num });
-                    setOrderPacking(path, currentPacking);
-                    saveOrderData();
-                    if (caseSettingsCallback) caseSettingsCallback();
-                    openCaseSettingsModal(path, caseSettingsCallback);
-                    showToast('Привязка добавлена', 'success');
-                    return null;
-                });
-                return null;
-            });
-        };
-    } else {
-        commonContainer.style.display = 'none';
-    }
-
-    modal.classList.add('open');
-
-    // Сохранение
-    const saveBtn = document.getElementById('caseSettingsSave');
-    saveBtn.onclick = () => {
-        const enabled = document.getElementById('caseSettingsEnable').checked;
-        mode.enabled = enabled;
-        if (!enabled) {
-            mode.alt = null;
-            localStorage.removeItem('multi_' + path);
-            setIndividualCaseValues(path, []);
-        } else {
-            const selectedRadio = document.querySelector('input[name="caseOption"]:checked');
-            if (selectedRadio) {
-                const idx = parseInt(selectedRadio.value);
-                mode.selectedOption = idx;
-                mode.alt = null;
-            }
-            const multiCheck = document.getElementById('caseSettingsMultiCheck');
-            if (multiCheck && multiCheck.checked) {
-                localStorage.setItem('multi_' + path, 'true');
-                const vals = getIndividualCaseValues(path);
-                if (vals.length === 0) {
-                    setIndividualCaseValues(path, options.map(() => 0));
-                }
-            } else {
-                localStorage.removeItem('multi_' + path);
-                const vals = getIndividualCaseValues(path);
-                if (vals.length > 0) {
-                    const total = vals.reduce((a,b) => a + b, 0);
-                    setIndividualCaseValues(path, [total]);
-                }
-            }
-        }
-        saveOrderData();
-        modal.classList.remove('open');
-        if (caseSettingsCallback) caseSettingsCallback();
-        showToast('Настройки кофров сохранены', 'success');
-    };
-
-    document.getElementById('caseSettingsCancel').onclick = () => {
-        modal.classList.remove('open');
-    };
-
-    modal.onclick = (e) => {
-        if (e.target === modal) {
-            modal.classList.remove('open');
-        }
-    };
-}
-
-// Глобальные функции для вызова из модалки
-window.addAltCase = function() {
-    const path = currentCaseSettingsPath;
-    if (!path) return;
-    showPrompt('Альтернативный кофр', 'Вместимость (шт):', '', '', (qty) => {
-        const numQty = parseInt(qty);
-        if (isNaN(numQty) || numQty <= 0) {
-            showToast('Введите корректную вместимость', 'error');
-            return 'Некорректное количество';
-        }
-        showPrompt('Альтернативный кофр', 'Вес пустого (кг):', '0', '', (weight) => {
-            const w = parseFloat(weight) || 0;
-            showPrompt('Альтернативный кофр', 'Габариты (Д×Ш×В, см):', '', '', (dims) => {
-                const mode = getCaseMode(path);
-                mode.alt = { qty: numQty, weight: w, dims: dims || '' };
-                mode.enabled = true;
-                document.getElementById('caseSettingsEnable').checked = true;
-                saveOrderData();
-                openCaseSettingsModal(path, caseSettingsCallback);
-                showToast('Альтернативный кофр добавлен', 'success');
-                return null;
-            });
-            return null;
-        });
-        return null;
-    });
-};
-
-window.clearAltCase = function() {
-    const path = currentCaseSettingsPath;
-    if (!path) return;
-    const mode = getCaseMode(path);
-    mode.alt = null;
-    saveOrderData();
-    openCaseSettingsModal(path, caseSettingsCallback);
-    showToast('Альтернативный кофр удалён', 'neutral');
-};
-
-window.removeCommonCasePacking = function(path, idx) {
-    const packing = getOrderPacking(path);
-    packing.splice(idx, 1);
-    setOrderPacking(path, packing);
-    saveOrderData();
-    openCaseSettingsModal(path, caseSettingsCallback);
-    showToast('Привязка удалена', 'neutral');
-};
-
-// ============================================================
 // МОДАЛКА УПРАВЛЕНИЯ ОБЩИМИ КОФРАМИ
 // ============================================================
 export function openCasesManagerModal(callback) {
@@ -605,7 +365,7 @@ export function initCasesManagerOverlayClose() {
 }
 
 // ============================================================
-// МАТРИЦА ПРИВЯЗОК (УЛУЧШЕННАЯ)
+// МАТРИЦА ПРИВЯЗОК
 // ============================================================
 export function openMatrixModal(sourcePath) {
     const modal = document.getElementById('matrixModal');
@@ -619,8 +379,6 @@ export function openMatrixModal(sourcePath) {
         document.getElementById('matrixSearchSource').value = '';
     }
     document.getElementById('matrixSearchTarget').value = '';
-    matrixZoomLevel = 1;
-    updateMatrixZoom();
     renderMatrix();
     modal.classList.add('open');
 }
@@ -655,7 +413,7 @@ function renderMatrix() {
     allTargets = unique;
     if (tgtFilter) allTargets = allTargets.filter(t => t.name.toLowerCase().includes(tgtFilter));
 
-    let html = `<div class="matrix-table-wrapper"><table class="matrix-table" style="font-size:${13 * matrixZoomLevel}px;">`;
+    let html = `<div class="matrix-table-wrapper"><table class="matrix-table">`;
     html += `<thead><tr><th class="matrix-header">Источник \\ Цель</th>`;
     allTargets.forEach(target => {
         const displayName = truncateName(target.name);
@@ -683,23 +441,8 @@ function renderMatrix() {
                 } else {
                     const link = links[source.full] ? links[source.full].find(l => l.target === target.full) : null;
                     const value = link ? link.multiplier : '';
-                    const conflicts = [];
-                    for (let src in links) {
-                        if (src === source.full) continue;
-                        const lnk = links[src].find(l => l.target === target.full);
-                        if (lnk) {
-                            conflicts.push({ source: src, multiplier: lnk.multiplier });
-                        }
-                    }
                     if (value !== '') {
                         let cellContent = `<span class="matrix-value">${value}</span>`;
-                        if (conflicts.length > 0) {
-                            const conflictInfo = conflicts.map(c => {
-                                const srcName = c.source.split('|').pop();
-                                return `${srcName} (×${c.multiplier})`;
-                            }).join(', ');
-                            cellContent += `<span class="matrix-conflict" title="Конфликт! Также ссылаются: ${conflictInfo}">!</span>`;
-                        }
                         html += `<td class="matrix-cell matrix-value-cell" data-src="${source.full}" data-target="${target.full}" onclick="window.editMatrixCell(this,'${source.full}','${target.full}')">${cellContent}</td>`;
                     } else {
                         html += `<td class="matrix-cell matrix-empty" data-src="${source.full}" data-target="${target.full}" onclick="window.editMatrixCell(this,'${source.full}','${target.full}')">+</td>`;
@@ -712,10 +455,9 @@ function renderMatrix() {
     });
     html += '</tbody></table></div>';
     container.innerHTML = html;
-    updateMatrixZoom();
 }
 
-function truncateName(name, maxLen = 10) {
+function truncateName(name, maxLen = 12) {
     if (name.length <= maxLen) return name;
     const parts = name.split(' ');
     if (parts.length <= 2) {
@@ -740,25 +482,6 @@ function getAllItemPaths() {
     }
     traverse(editorData.inventory, []);
     return res;
-}
-
-function updateMatrixZoom() {
-    const table = document.querySelector('.matrix-table');
-    if (table) {
-        table.style.fontSize = (13 * matrixZoomLevel) + 'px';
-        const cells = table.querySelectorAll('th, td');
-        cells.forEach(cell => {
-            cell.style.minWidth = (70 * matrixZoomLevel) + 'px';
-            cell.style.maxWidth = (120 * matrixZoomLevel) + 'px';
-            cell.style.padding = (4 * matrixZoomLevel) + 'px ' + (6 * matrixZoomLevel) + 'px';
-        });
-    }
-}
-
-function zoomMatrix(delta) {
-    matrixZoomLevel = Math.min(Math.max(matrixZoomLevel + delta, MATRIX_MIN_ZOOM), MATRIX_MAX_ZOOM);
-    updateMatrixZoom();
-    document.getElementById('matrixZoomLevel').textContent = Math.round(matrixZoomLevel * 100) + '%';
 }
 
 window.toggleMatrixCategory = function(catId) {
@@ -831,14 +554,6 @@ export function initMatrixHandlers() {
     if (srcInput) srcInput.addEventListener('input', renderMatrix);
     const tgtInput = document.getElementById('matrixSearchTarget');
     if (tgtInput) tgtInput.addEventListener('input', renderMatrix);
-
-    // Зум матрицы
-    const zoomIn = document.getElementById('matrixZoomIn');
-    const zoomOut = document.getElementById('matrixZoomOut');
-    const zoomReset = document.getElementById('matrixZoomReset');
-    if (zoomIn) zoomIn.addEventListener('click', () => zoomMatrix(0.1));
-    if (zoomOut) zoomOut.addEventListener('click', () => zoomMatrix(-0.1));
-    if (zoomReset) zoomReset.addEventListener('click', () => { matrixZoomLevel = 1; updateMatrixZoom(); document.getElementById('matrixZoomLevel').textContent = '100%'; });
 }
 
 // ============================================================

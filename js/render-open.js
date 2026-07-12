@@ -1,9 +1,7 @@
 // render-open.js — Отрисовка страницы открытия заказа (чек-лист)
 import {
     editorData,
-    getItemProps,
-    getCachedCalculation,
-    setCachedCalculation
+    getItemProps
 } from './data.js';
 
 import {
@@ -97,9 +95,9 @@ export function renderOpenOrder(d) {
             const isOpen = !openCategoryState[fullPath];
             const toggleIcon = isOpen ? '▼' : '▶';
             if (level === 0) {
-                html += `<div class="sub-cat-t" style="cursor:pointer;border-left:3px solid #8a7a6a;padding-left:12px;" onclick="window.toggleOpenCategory('${esc(fullPath)}')">${toggleIcon} ${key} (${child._items ? child._items.length : 0})</div>`;
+                html += `<div class="sub-cat-t" style="cursor:pointer;border-left:3px solid var(--accent);padding-left:12px;" onclick="window.toggleOpenCategory('${esc(fullPath)}')">${toggleIcon} ${key} (${child._items ? child._items.length : 0})</div>`;
             } else {
-                html += `<div class="sub-sub-cat-t" style="cursor:pointer;border-left-color:#5a5a5a;padding-left:${12 + level*16}px;" onclick="window.toggleOpenCategory('${esc(fullPath)}')">${toggleIcon} ${key} (${child._items ? child._items.length : 0})</div>`;
+                html += `<div class="sub-sub-cat-t" style="cursor:pointer;border-left-color:var(--border-light);padding-left:${12 + level*16}px;" onclick="window.toggleOpenCategory('${esc(fullPath)}')">${toggleIcon} ${key} (${child._items ? child._items.length : 0})</div>`;
             }
             const contentStyle = isOpen ? '' : 'display:none;';
             html += `<div class="category-content-open" style="${contentStyle}padding-left:${level*20+10}px;">`;
@@ -112,10 +110,10 @@ export function renderOpenOrder(d) {
                     const weight = calcItemWeightWithMode(item.path, item.qty);
                     const volume = calcItemVolumeWithMode(item.path, item.qty);
                     const props = getItemProps(item.path);
-                    const dims = props.dimensions || 'n/a';
+                    const dims = props.dimensions || 'н/д';
                     const mode = getCaseMode(item.path);
                     const cases = mode.enabled ? calcItemCases(item.path, item.qty) : null;
-                    html += `<div class="row" style="border-left:2px solid #3a3a3a;padding-left:8px;margin-left:10px;background:${checked ? '#1a2a22' : ''};">`;
+                    html += `<div class="row" style="border-left:2px solid var(--border-color);padding-left:8px;margin-left:10px;background:${checked ? 'var(--added-bg)' : ''};">`;
                     html += `<div class="main-line">`;
                     html += `<div class="name-area">`;
                     html += `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;">`;
@@ -126,7 +124,7 @@ export function renderOpenOrder(d) {
                         html += `<button class="desc-toggle" onclick="window.toggleOpenDesc('${esc(item.path)}')">${descOpen ? '📕' : '📄'}</button>`;
                     }
                     html += `</div>`;
-                    html += `<div style="display:flex;gap:12px;flex-wrap:wrap;font-size:14px;color:#888;">`;
+                    html += `<div style="display:flex;gap:12px;flex-wrap:wrap;font-size:14px;color:var(--text-secondary);">`;
                     html += `<span>${item.qty} шт</span>`;
                     if (cases !== null) html += `<span>${cases} кофр${cases>1?'а':''}</span>`;
                     html += `<span>${weight.toFixed(1)} кг</span>`;
@@ -151,7 +149,6 @@ export function renderOpenOrder(d) {
     updateOpenProgress();
 }
 
-// Глобальные функции для вызова из HTML
 window.toggleOpenCategory = function(fullPath) {
     openCategoryState[fullPath] = !openCategoryState[fullPath];
     saveOpenState();
@@ -175,7 +172,7 @@ window.toggleOpenChecked = function(path, checkbox) {
     updateOpenProgress();
     const row = checkbox.closest('.row');
     if (row) {
-        row.style.background = checkbox.checked ? '#1a2a22' : '';
+        row.style.background = checkbox.checked ? 'var(--added-bg)' : '';
     }
 };
 
@@ -211,7 +208,7 @@ export async function resetCheckboxes() {
     openChecked = {};
     saveOpenState();
     renderOpenOrder(loadedOrder);
-    showToast('Отметки сброшены', 'success');
+    showToast('Отметки сброшены', 'neutral');
 }
 
 export function checkMissingItems() {
@@ -231,9 +228,9 @@ export function checkMissingItems() {
         document.querySelectorAll('.open-check').forEach(cb => {
             const path = cb.dataset.path;
             if (loadedOrder.items[path] > 0 && !cb.checked) {
-                cb.closest('.row').style.borderLeft = '4px solid #d4a040';
+                cb.closest('.row').style.borderLeft = '4px solid var(--danger)';
             } else {
-                cb.closest('.row').style.borderLeft = '2px solid #3a3a3a';
+                cb.closest('.row').style.borderLeft = '2px solid var(--border-color)';
             }
         });
     }

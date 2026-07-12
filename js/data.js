@@ -1,14 +1,25 @@
 // data.js — Работа с данными (загрузка, сохранение, доступ)
 import {
     CAT_NAMES,
+    DEFAULT_INVENTORY,
+    DEFAULT_STOCK,
+    DEFAULT_SPECS,
+    DEFAULT_PROPS,
+    DEFAULT_COMMON_CASES,
+    DEFAULT_CATEGORY_ORDER,
     DUPLICATE_VIDEO_GROUPS,
-    STORAGE_KEYS
+    STORAGE_KEYS,
+    DEFAULT_TRUCK_PRESETS
 } from './config.js';
 
+// ============================================================
+// ГЛОБАЛЬНОЕ СОСТОЯНИЕ
+// ============================================================
 export let editorData = {};
 
-const calculationCache = new Map();
-
+// ============================================================
+// ЗАГРУЗКА / СОХРАНЕНИЕ
+// ============================================================
 export function loadEditorData() {
     try {
         const saved = localStorage.getItem(STORAGE_KEYS.APP_DATA);
@@ -34,21 +45,12 @@ function resetToEmpty() {
         catNames: { ...CAT_NAMES },
         _categoryOrder: [],
         commonCases: [],
-        truckPresets: []
+        truckPresets: [] // пустой, пользователь добавит свои
     };
 }
 
 function normalizeAllData() {
-    // 1. Фильтруем _categoryOrder — оставляем только существующие категории
-    if (editorData._categoryOrder) {
-        editorData._categoryOrder = editorData._categoryOrder.filter(cat => 
-            editorData.inventory && editorData.inventory[cat] !== undefined
-        );
-    } else {
-        editorData._categoryOrder = Object.keys(editorData.inventory);
-    }
-
-    // 2. Удаляем дублирующиеся группы видео (оставляем только "Экран")
+    // 1. Удаляем дублирующиеся группы видео (оставляем только "Экран")
     if (editorData.inventory && editorData.inventory.video) {
         const video = editorData.inventory.video;
         DUPLICATE_VIDEO_GROUPS.forEach(name => {
@@ -65,7 +67,7 @@ function normalizeAllData() {
         }
     }
 
-    // 3. Приводим itemProps к корректному виду
+    // 2. Приводим itemProps к корректному виду
     for (let key in editorData.itemProps) {
         const props = editorData.itemProps[key];
         if (props.individualCases === undefined) props.individualCases = [];
@@ -77,22 +79,21 @@ function normalizeAllData() {
             if (c.maxCases === undefined) c.maxCases = 0;
             return c;
         });
+        // Удаляем устаревшие поля
         if (props.caseOptions !== undefined) delete props.caseOptions;
         if (props.weight === undefined) props.weight = 0;
         if (props.dimensions === undefined) props.dimensions = '';
         if (props.volume === undefined) props.volume = 0;
     }
 
-    // 4. Категории с подгруппами: проверяем _subOrder
+    // 3. Категории с подгруппами: проверяем _subOrder
     for (let cat in editorData.inventory) {
         const catData = editorData.inventory[cat];
         if (typeof catData === 'object' && !Array.isArray(catData)) {
             if (!catData._subOrder) {
                 catData._subOrder = Object.keys(catData).filter(k => k !== '_subOrder');
             } else {
-                // Фильтруем только существующие подгруппы
                 catData._subOrder = catData._subOrder.filter(k => catData[k] !== undefined);
-                // Добавляем недостающие подгруппы
                 Object.keys(catData).forEach(k => {
                     if (k !== '_subOrder' && !catData._subOrder.includes(k)) {
                         catData._subOrder.push(k);
@@ -102,18 +103,23 @@ function normalizeAllData() {
         }
     }
 
-    // 5. Инициализируем truckPresets, если отсутствуют
+    // 4. Инициализируем truckPresets, если отсутствуют
     if (!editorData.truckPresets) {
         editorData.truckPresets = [];
     }
 
-    // 6. Удаляем мусор из stock, specs, itemProps (ключи, которые не соответствуют существующим позициям)
-    // Для простоты пока не делаем, чтобы не потерять данные при импорте
+    // 5. Фильтруем _categoryOrder (удаляем несуществующие категории)
+    if (editorData._categoryOrder) {
+        editorData._categoryOrder = editorData._categoryOrder.filter(cat => 
+            editorData.inventory && editorData.inventory[cat] !== undefined
+        );
+    } else {
+        editorData._categoryOrder = Object.keys(editorData.inventory);
+    }
 }
 
 export function saveEditorData() {
     localStorage.setItem(STORAGE_KEYS.APP_DATA, JSON.stringify(editorData));
-    calculationCache.clear();
 }
 
 export function resetAllData() {
@@ -280,7 +286,7 @@ export function setItemProps(catKey, subKey, itemName, props) {
 }
 
 // ============================================================
-// ФУНКЦИИ ДЛЯ ПРЕСЕТОВ ГРУЗОВИКОВ
+// ПРЕСЕТЫ ГРУЗОВИКОВ (для режима расчёта загрузки)
 // ============================================================
 export function getTruckPresets() {
     return editorData.truckPresets || [];
@@ -289,6 +295,9 @@ export function getTruckPresets() {
 export function addTruckPreset(preset) {
     if (!editorData.truckPresets) editorData.truckPresets = [];
     if (!preset.id) preset.id = 'truck_' + Date.now();
+    // Проверяем уникальность имени
+    const exists = editorData.truckPresets.some(p => p.name === preset.name && p.id !== preset.id);
+    if (exists) throw new Error('Грузовик с таким именем уже существует');
     editorData.truckPresets.push(preset);
     saveEditorData();
 }
@@ -309,6 +318,38 @@ export function deleteTruckPreset(id) {
 
 export function getTruckPreset(id) {
     return getTruckPresets().find(p => p.id === id);
+}
+
+// ============================================================
+// ОБЩИЕ КОФРЫ
+// ============================================================
+export function getCommonCases() {
+    return editorData.commonCases || [];
+}
+
+export function addCommonCase(caseObj) {
+    editorData.commonCases.push(caseObj);
+    saveEditorData();
+}
+
+export function updateCommonCase(id, newData) {
+    const idx = editorData.commonCases.findIndex(c => c.id === id);
+    if (idx !== -1) {
+        editorData.commonCases[idx] = { ...editorData.commonCases[idx], ...newData };
+        saveEditorData();
+    }
+}
+
+export function deleteCommonCase(id) {
+    editorData.commonCases = editorData.commonCases.filter(c => c.id !== id);
+    for (let key in editorData.itemProps) {
+        const props = editorData.itemProps[key];
+        if (props.commonCases) {
+            props.commonCases = props.commonCases.filter(opt => opt.caseId !== id);
+            if (props.commonCases.length === 0) delete props.commonCases;
+        }
+    }
+    saveEditorData();
 }
 
 // ============================================================
@@ -429,53 +470,6 @@ export function moveItem(catKey, subKey, itemName, targetCat, targetSub) {
     const newPath = getStockKey(targetCat, targetSub, itemName);
     updateAllKeys(oldPath, newPath);
     saveEditorData();
-}
-
-// ============================================================
-// РАБОТА С ОБЩИМИ КОФРАМИ
-// ============================================================
-export function getCommonCases() {
-    return editorData.commonCases || [];
-}
-
-export function addCommonCase(caseObj) {
-    editorData.commonCases.push(caseObj);
-    saveEditorData();
-}
-
-export function updateCommonCase(id, newData) {
-    const idx = editorData.commonCases.findIndex(c => c.id === id);
-    if (idx !== -1) {
-        editorData.commonCases[idx] = { ...editorData.commonCases[idx], ...newData };
-        saveEditorData();
-    }
-}
-
-export function deleteCommonCase(id) {
-    editorData.commonCases = editorData.commonCases.filter(c => c.id !== id);
-    for (let key in editorData.itemProps) {
-        const props = editorData.itemProps[key];
-        if (props.commonCases) {
-            props.commonCases = props.commonCases.filter(opt => opt.caseId !== id);
-            if (props.commonCases.length === 0) delete props.commonCases;
-        }
-    }
-    saveEditorData();
-}
-
-// ============================================================
-// КЕШИРОВАНИЕ
-// ============================================================
-export function getCachedCalculation(key) {
-    return calculationCache.get(key);
-}
-
-export function setCachedCalculation(key, value) {
-    calculationCache.set(key, value);
-}
-
-export function clearCache() {
-    calculationCache.clear();
 }
 
 // ============================================================

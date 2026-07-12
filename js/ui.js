@@ -1,17 +1,13 @@
-// ui.js — Базовые утилиты и модалки (исправленная версия)
+// ui.js — Базовые утилиты и модалки
 
+// ============================================================
+// ТОСТЫ
+// ============================================================
 let toastTimeout = null;
 let toastQueue = [];
 let isToastShowing = false;
 
-// ===== ТОСТЫ (нейтральные, без очереди при быстрых кликах) =====
-export function showToast(msg, type = 'info', duration = 2500) {
-    // Если тип не error или warning, делаем нейтральным
-    let actualType = type;
-    if (type !== 'error' && type !== 'warning') {
-        actualType = 'neutral';
-    }
-    
+export function showToast(msg, type = 'neutral', duration = 2500) {
     const t = document.getElementById('toast');
     if (!t) {
         const newToast = document.createElement('div');
@@ -22,33 +18,27 @@ export function showToast(msg, type = 'info', duration = 2500) {
         return;
     }
 
-    // Если тост уже виден, сбрасываем таймер и перезаписываем содержимое
+    // Если тост уже виден, сбрасываем таймер и перезаписываем
     if (t.classList.contains('show')) {
         clearTimeout(toastTimeout);
-        // Очищаем очередь, так как мы показываем новое уведомление
         toastQueue = [];
-        // Обновляем текст и перезапускаем
         t.textContent = msg;
-        t.className = 'toast ' + actualType;
-        // Перезапускаем таймер
+        t.className = 'toast ' + type;
         toastTimeout = setTimeout(() => {
             t.classList.remove('show');
             isToastShowing = false;
-            // Если есть очередь, показываем следующее (но обычно её нет, так как мы её очистили)
             if (toastQueue.length > 0) {
                 const next = toastQueue.shift();
                 showToast(next.msg, next.type, next.duration);
             }
         }, duration);
-        // Принудительно обновляем анимацию
         void t.offsetWidth;
         t.classList.add('show');
         return;
     }
 
-    // Если тост скрыт, показываем новый
     t.textContent = msg;
-    t.className = 'toast ' + actualType;
+    t.className = 'toast ' + type;
     void t.offsetWidth;
     t.classList.add('show');
     isToastShowing = true;
@@ -63,31 +53,9 @@ export function showToast(msg, type = 'info', duration = 2500) {
     }, duration);
 }
 
-// Альтернативный вариант для экстренных уведомлений (без очереди)
-export function showToastImmediate(msg, type = 'info', duration = 2500) {
-    toastQueue = []; // очищаем очередь
-    clearTimeout(toastTimeout);
-    const t = document.getElementById('toast');
-    if (!t) {
-        const newToast = document.createElement('div');
-        newToast.id = 'toast';
-        newToast.className = 'toast';
-        document.body.appendChild(newToast);
-        showToastImmediate(msg, type, duration);
-        return;
-    }
-    t.textContent = msg;
-    t.className = 'toast ' + (type !== 'error' && type !== 'warning' ? 'neutral' : type);
-    void t.offsetWidth;
-    t.classList.add('show');
-    isToastShowing = true;
-    toastTimeout = setTimeout(() => {
-        t.classList.remove('show');
-        isToastShowing = false;
-    }, duration);
-}
-
-// ===== PROMPT (модалка ввода) =====
+// ============================================================
+// МОДАЛКА ВВОДА ТЕКСТА (prompt)
+// ============================================================
 let modalResolve = null;
 let modalReject = null;
 
@@ -143,14 +111,15 @@ export function showPrompt(title, label = 'Введите значение:', de
     });
 }
 
-// Упрощённая обёртка для совместимости
 export function showModalEditor(title, callback) {
     showPrompt(title, 'Название:', '', 'Введите название...')
         .then(val => callback(val))
         .catch(() => callback(null));
 }
 
-// ===== CONFIRM (подтверждение) =====
+// ============================================================
+// КАСТОМНОЕ ПОДТВЕРЖДЕНИЕ (confirm)
+// ============================================================
 export function showConfirm(message, title = 'Подтверждение') {
     return new Promise((resolve) => {
         const overlay = document.getElementById('confirmOverlay');
@@ -180,7 +149,9 @@ export function showConfirm(message, title = 'Подтверждение') {
     });
 }
 
-// ===== ЭКРАНИРОВАНИЕ =====
+// ============================================================
+// ЭКРАНИРОВАНИЕ
+// ============================================================
 export function esc(str) {
     if (!str) return '';
     return String(str)
@@ -191,7 +162,9 @@ export function esc(str) {
         .replace(/>/g, '&gt;');
 }
 
-// ===== DOM-УТИЛИТЫ =====
+// ============================================================
+// DOM-УТИЛИТЫ
+// ============================================================
 export function getElement(selector, parent = document) {
     const el = parent.querySelector(selector);
     if (!el) console.warn('Элемент не найден:', selector);
@@ -204,7 +177,9 @@ export function getElementSafe(selector, parent = document) {
     return el;
 }
 
-// ===== DEBOUNCE =====
+// ============================================================
+// DEBOUNCE
+// ============================================================
 export function debounce(fn, delay = 300) {
     let timeout = null;
     return function(...args) {
@@ -213,7 +188,9 @@ export function debounce(fn, delay = 300) {
     };
 }
 
-// ===== ИНИЦИАЛИЗАЦИЯ МОДАЛКИ =====
+// ============================================================
+// ИНИЦИАЛИЗАЦИЯ МОДАЛКИ
+// ============================================================
 export function initModalHandlers() {
     const cancelBtn = document.getElementById('modalCancel');
     const confirmBtn = document.getElementById('modalConfirm');

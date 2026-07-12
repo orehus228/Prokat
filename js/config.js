@@ -28,3 +28,9 @@ export const DEFAULT_CATEGORY_ORDER = [];
 // При импорте удаляем "Экраны", оставляем "Экран"
 export const DUPLICATE_VIDEO_GROUPS = ['Экраны'];
 // "Экран" остаётся
+
+// --- Константы для расчёта загрузки (используются в render-loading.js) ---
+export const DEFAULT_TRUCK_PRESETS = [
+    { id: 'truck_1', name: 'Грузовик 10т', length: 600, width: 240, height: 240, maxWeight: 10000 },
+    { id: 'truck_2', name: 'Фура 20т', length: 1360, width: 245, height: 270, maxWeight: 20000 }
+];

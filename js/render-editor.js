@@ -1,4 +1,4 @@
-// render-editor.js — Отрисовка редактора склада (минималистичная версия)
+// render-editor.js — Отрисовка редактора склада
 import {
     editorData,
     getStock,
@@ -15,8 +15,7 @@ import {
     renameSubgroup,
     renameItem,
     moveItem,
-    getStockKey,
-    resetAllData
+    getStockKey
 } from './data.js';
 
 import {
@@ -58,7 +57,7 @@ function renderEditorTabs() {
     container.innerHTML = '';
     const order = editorData._categoryOrder || Object.keys(editorData.inventory);
     if (order.length === 0) {
-        container.innerHTML = '<div style="color:#666;padding:12px;">Нет категорий. Создайте первую.</div>';
+        container.innerHTML = '<div class="empty-message">Нет категорий</div>';
         return;
     }
     order.forEach(key => {
@@ -99,6 +98,11 @@ function renderEditorTabs() {
         });
         container.appendChild(tab);
     });
+    if (!order.includes(currentCategory) && order.length > 0) {
+        currentCategory = order[0];
+        renderEditorTabs();
+        renderEditorCategory(currentCategory);
+    }
 }
 
 // ============================================================
@@ -138,8 +142,9 @@ async function deleteCategory(key) {
     for (let k in editorData.stock) if (k.startsWith(prefix)) delete editorData.stock[k];
     for (let k in editorData.specs) if (k.startsWith(prefix)) delete editorData.specs[k];
     for (let k in editorData.itemProps) if (k.startsWith(prefix)) delete editorData.itemProps[k];
+    const order = editorData._categoryOrder;
     if (currentCategory === key) {
-        currentCategory = editorData._categoryOrder.length > 0 ? editorData._categoryOrder[0] : null;
+        currentCategory = order.length > 0 ? order[0] : null;
     }
     saveEditorData();
     renderEditorAll();
@@ -152,11 +157,15 @@ async function deleteCategory(key) {
 function renderEditorCategory(catKey) {
     const container = document.getElementById('editorContents');
     container.innerHTML = '';
-    if (!catKey || !editorData.inventory[catKey]) {
-        container.innerHTML = '<div style="color:#666;padding:20px;text-align:center;">Выберите категорию или создайте новую</div>';
+    if (!catKey) {
+        container.innerHTML = '<div class="empty-message">Нет категорий</div>';
         return;
     }
     const catData = editorData.inventory[catKey];
+    if (!catData) {
+        container.innerHTML = '<div class="empty-message">Категория пуста</div>';
+        return;
+    }
 
     if (Array.isArray(catData)) {
         // Плоский список
@@ -399,27 +408,27 @@ function createItemRowEditor(catKey, subKey, itemName) {
     mainLine.appendChild(actions);
     row.appendChild(mainLine);
 
-    // Информация о свойствах (видна всегда в редакторе)
+    // Информация о свойствах
     const props = getItemProps(catKey, subKey, itemName);
     const infoDiv = document.createElement('div');
     infoDiv.className = 'props-info';
-    const weight = props.weight ? props.weight + ' кг' : 'n/a';
-    const dims = props.dimensions || 'n/a';
+    const weight = props.weight ? props.weight + ' кг' : '<span class="na">н/д</span>';
+    const dims = props.dimensions || '<span class="na">н/д</span>';
     const cases = (props.individualCases || []).length;
     const common = (props.commonCases || []).length;
     infoDiv.innerHTML = `
-        <span>Вес: ${weight}</span>
-        <span>Габариты: ${dims}</span>
-        <span>Индивидуальные кофры: ${cases}</span>
-        <span>Общие кофры: ${common}</span>
-        <span>Общие кофры разрешены: ${props.allowCommon ? 'Да' : 'Нет'}</span>
+        <span>⚖️ ${weight}</span>
+        <span>📐 ${dims}</span>
+        <span>🧩 Инд. кофры: ${cases}</span>
+        <span>📦 Общ. кофры: ${common}</span>
+        <span>Разрешены общие кофры: ${props.allowCommon ? '✅' : '❌'}</span>
     `;
     row.appendChild(infoDiv);
     return row;
 }
 
 // ============================================================
-// ФУНКЦИИ РЕДАКТИРОВАНИЯ
+// ФУНКЦИИ РЕДАКТИРОВАНИЯ (перемещение, переименование)
 // ============================================================
 async function renameItemHandler(catKey, subKey, oldName) {
     const newName = await showPrompt('Переименовать позицию', 'Новое название:', oldName);
@@ -509,18 +518,11 @@ export async function addCategory() {
 // ============================================================
 export function renderEditorAll() {
     renderEditorTabs();
-    if (currentCategory && editorData.inventory[currentCategory]) {
-        renderEditorCategory(currentCategory);
-    } else if (editorData._categoryOrder && editorData._categoryOrder.length > 0) {
-        currentCategory = editorData._categoryOrder[0];
-        renderEditorCategory(currentCategory);
-    } else {
-        renderEditorCategory(null);
-    }
+    renderEditorCategory(currentCategory);
 }
 
 // ============================================================
-// ИНИЦИАЛИЗАЦИЯ ОБРАБОТЧИКОВ КНОПОК
+// ИНИЦИАЛИЗАЦИЯ ОБРАБОТЧИКОВ КНОПОК ПАНЕЛИ ИНСТРУМЕНТОВ
 // ============================================================
 export function initRenderHandlers() {
     // Экспорт
@@ -537,7 +539,7 @@ export function initRenderHandlers() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'library.json';
+        a.download = 'inventory_editor_data.json';
         a.click();
         URL.revokeObjectURL(url);
         showToast('JSON экспортирован', 'success');
@@ -555,14 +557,18 @@ export function initRenderHandlers() {
             try {
                 let imported = JSON.parse(ev.target.result);
                 if (imported.itemProps) imported.itemProps = convertOldItemProps(imported.itemProps);
-                if (!imported.inventory) imported.inventory = {};
-                if (!imported.stock) imported.stock = {};
-                if (!imported.specs) imported.specs = {};
-                if (!imported.catNames) imported.catNames = { ...CAT_NAMES };
-                if (!imported._categoryOrder) imported._categoryOrder = Object.keys(imported.inventory);
-                if (!imported.commonCases) imported.commonCases = [];
-                for (let cat in imported.inventory) {
-                    const catData = imported.inventory[cat];
+                // Импортируем данные
+                if (imported.inventory) editorData.inventory = imported.inventory;
+                if (imported.stock) editorData.stock = imported.stock;
+                if (imported.specs) editorData.specs = imported.specs;
+                if (imported.itemProps) editorData.itemProps = imported.itemProps;
+                if (imported.catNames) editorData.catNames = imported.catNames;
+                if (imported._categoryOrder) editorData._categoryOrder = imported._categoryOrder;
+                if (imported.commonCases) editorData.commonCases = imported.commonCases;
+                if (imported.truckPresets) editorData.truckPresets = imported.truckPresets;
+                // Нормализуем
+                for (let cat in editorData.inventory) {
+                    const catData = editorData.inventory[cat];
                     if (typeof catData === 'object' && !Array.isArray(catData)) {
                         if (catData._subOrder) {
                             catData._subOrder = catData._subOrder.filter(k => k !== '_subOrder' && catData[k] !== undefined);
@@ -571,11 +577,7 @@ export function initRenderHandlers() {
                         }
                     }
                 }
-                cleanupInventory(imported.inventory, imported.stock, imported.specs, imported.itemProps);
-                // Применяем импорт
-                for (let key in imported) {
-                    editorData[key] = imported[key];
-                }
+                cleanupInventory(editorData.inventory, editorData.stock, editorData.specs, editorData.itemProps);
                 saveEditorData();
                 renderEditorAll();
                 showToast('Импорт выполнен', 'success');
@@ -587,13 +589,25 @@ export function initRenderHandlers() {
         this.value = '';
     });
 
-    // Сброс (удаляет все данные редактора)
+    // Сброс к пустому состоянию
     document.getElementById('resetBtn').addEventListener('click', async () => {
-        const confirmed = await showConfirm('Сбросить все данные редактора? Это удалит все категории и позиции.');
+        const confirmed = await showConfirm('Сбросить все данные редактора?');
         if (!confirmed) return;
-        resetAllData();
+        // Полностью очищаем данные редактора, но оставляем пресеты грузовиков?
+        // Согласно новому плану, пресеты грузовиков — отдельно, их не трогаем.
+        // Очищаем инвентарь, стоки, спеки, свойства, категории, общие кофры.
+        editorData.inventory = {};
+        editorData.stock = {};
+        editorData.specs = {};
+        editorData.itemProps = {};
+        editorData.catNames = { ...CAT_NAMES };
+        editorData._categoryOrder = [];
+        editorData.commonCases = [];
+        // truckPresets не трогаем
+        saveEditorData();
+        currentCategory = null;
         renderEditorAll();
-        showToast('Все данные сброшены', 'success');
+        showToast('Данные сброшены', 'neutral');
     });
 
     // Общие кофры

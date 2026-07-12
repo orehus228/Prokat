@@ -26,6 +26,7 @@
             <button class="btn btn-neutral" id="btnMenuOrder">Создать список</button>
             <button class="btn btn-neutral" id="btnMenuOpen">Открыть список</button>
             <button class="btn btn-neutral" id="btnMenuEditor">Редактор склада</button>
+            <button class="btn btn-loading" id="btnMenuLoading">Рассчитать загрузку</button>
             <button class="btn btn-import" id="btnMenuLoadLibrary">Загрузить библиотеку</button>
             <button class="btn btn-reset" id="btnMenuResetLibrary">Сбросить библиотеку</button>
         </div>
@@ -118,6 +119,14 @@
                 <input type="text" id="newCategoryName" placeholder="Новая категория">
                 <button class="btn btn-green" id="addCategoryBtn">+ Добавить категорию</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Страница расчёта загрузки -->
+    <div id="loadingPage" style="display:none;">
+        <div class="card">
+            <button class="btn btn-sec" id="btnBackToMenu4">◀ В меню</button>
+            <div id="loadingContent"></div>
         </div>
     </div>
 
@@ -223,16 +232,35 @@
                 <input type="text" id="matrixSearchSource" placeholder="Фильтр источников" style="flex:1;padding:6px 10px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);">
                 <input type="text" id="matrixSearchTarget" placeholder="Фильтр целей" style="flex:1;padding:6px 10px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);">
             </div>
-            <div class="matrix-zoom-controls" style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
-                <button class="btn btn-sm" id="matrixZoomOut">−</button>
-                <span id="matrixZoomLevel">100%</span>
-                <button class="btn btn-sm" id="matrixZoomIn">+</button>
-                <button class="btn btn-sm" id="matrixZoomReset">1:1</button>
-            </div>
             <div class="table-wrap" id="matrixContainer" style="overflow:auto;max-height:60vh;"></div>
             <div class="buttons" style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
                 <button class="cancel" id="matrixClearAll">Удалить все привязки</button>
                 <button class="cancel" id="matrixClose">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модалка управления грузовиками -->
+    <div class="modal-overlay" id="truckManagerModal">
+        <div class="modal" style="max-width:600px;">
+            <h3>Управление грузовиками</h3>
+            <div id="truckList" style="margin-bottom:15px;max-height:250px;overflow-y:auto;"></div>
+            <div style="border-top:1px solid var(--border-color);padding-top:15px;">
+                <h4 style="color:var(--text-secondary);">Добавить / редактировать грузовик</h4>
+                <label>Название:</label>
+                <input type="text" id="truckName" placeholder="Например: Грузовик 10т">
+                <label>Длина (см):</label>
+                <input type="number" id="truckLength" placeholder="600" step="1">
+                <label>Ширина (см):</label>
+                <input type="number" id="truckWidth" placeholder="240" step="1">
+                <label>Высота (см):</label>
+                <input type="number" id="truckHeight" placeholder="240" step="1">
+                <label>Максимальный вес (кг, опционально):</label>
+                <input type="number" id="truckMaxWeight" placeholder="10000" step="1">
+                <div class="buttons">
+                    <button class="cancel" id="truckManagerClose">Закрыть</button>
+                    <button class="confirm" id="truckAddBtn">+ Добавить</button>
+                </div>
             </div>
         </div>
     </div>
