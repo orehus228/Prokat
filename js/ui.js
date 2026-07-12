@@ -1,17 +1,11 @@
-// ui.js — Базовые утилиты и модалки (исправленная версия)
+// ui.js — Базовые утилиты и модалки (финальная версия)
 
-// ============================================================
-// ТОСТЫ
-// ============================================================
 let toastTimeout = null;
 let toastQueue = [];
+let modalResolve = null;
+let modalReject = null;
 
-/**
- * Показывает всплывающее сообщение
- * @param {string} msg - текст сообщения
- * @param {string} type - 'info', 'warning', 'error', 'success' (по умолчанию 'info')
- * @param {number} duration - время показа в мс (по умолчанию 2500)
- */
+// ===== ТОСТЫ =====
 export function showToast(msg, type = 'info', duration = 2500) {
     const t = document.getElementById('toast');
     if (!t) {
@@ -40,12 +34,7 @@ export function showToast(msg, type = 'info', duration = 2500) {
     }, duration);
 }
 
-// ============================================================
-// МОДАЛКА ВВОДА ТЕКСТА (prompt)
-// ============================================================
-let modalResolve = null;
-let modalReject = null;
-
+// ===== PROMPT =====
 export function showPrompt(title, label = 'Введите значение:', defaultValue = '', placeholder = '', validator = null) {
     return new Promise((resolve, reject) => {
         const overlay = document.getElementById('modalOverlay');
@@ -84,12 +73,8 @@ export function showPrompt(title, label = 'Введите значение:', de
         const cancelBtn = document.getElementById('modalCancel');
         const inputEl = document.getElementById('modalInput');
 
-        const newConfirm = () => {
-            if (modalResolve) modalResolve(inputEl.value);
-        };
-        const newCancel = () => {
-            if (modalReject) modalReject();
-        };
+        const newConfirm = () => { if (modalResolve) modalResolve(inputEl.value); };
+        const newCancel = () => { if (modalReject) modalReject(); };
         const newKeydown = (e) => {
             if (e.key === 'Enter') newConfirm();
             if (e.key === 'Escape') newCancel();
@@ -98,24 +83,18 @@ export function showPrompt(title, label = 'Введите значение:', de
         confirmBtn.onclick = newConfirm;
         cancelBtn.onclick = newCancel;
         inputEl.onkeydown = newKeydown;
-        overlay.onclick = (e) => {
-            if (e.target === overlay) newCancel();
-        };
+        overlay.onclick = (e) => { if (e.target === overlay) newCancel(); };
     });
 }
 
-// Упрощённая обёртка для совместимости со старым кодом
+// ===== УПРОЩЁННАЯ ОБЁРТКА =====
 export function showModalEditor(title, callback) {
     showPrompt(title, 'Название:', '', 'Введите название...')
         .then(val => callback(val))
         .catch(() => callback(null));
 }
 
-// ============================================================
-// КАСТОМНОЕ ПОДТВЕРЖДЕНИЕ (confirm)
-// ============================================================
-let confirmResolve = null;
-
+// ===== CONFIRM =====
 export function showConfirm(message, title = 'Подтверждение') {
     return new Promise((resolve) => {
         const overlay = document.getElementById('confirmOverlay');
@@ -145,9 +124,7 @@ export function showConfirm(message, title = 'Подтверждение') {
     });
 }
 
-// ============================================================
-// ЭКРАНИРОВАНИЕ
-// ============================================================
+// ===== ЭКРАНИРОВАНИЕ =====
 export function esc(str) {
     if (!str) return '';
     return String(str)
@@ -158,9 +135,7 @@ export function esc(str) {
         .replace(/>/g, '&gt;');
 }
 
-// ============================================================
-// УТИЛИТЫ ДЛЯ РАБОТЫ С DOM
-// ============================================================
+// ===== DOM-УТИЛИТЫ =====
 export function getElement(selector, parent = document) {
     const el = parent.querySelector(selector);
     if (!el) console.warn('Элемент не найден:', selector);
@@ -173,9 +148,7 @@ export function getElementSafe(selector, parent = document) {
     return el;
 }
 
-// ============================================================
-// DEBOUNCE / THROTTLE
-// ============================================================
+// ===== DEBOUNCE =====
 export function debounce(fn, delay = 300) {
     let timeout = null;
     return function(...args) {
@@ -184,9 +157,7 @@ export function debounce(fn, delay = 300) {
     };
 }
 
-// ============================================================
-// ИНИЦИАЛИЗАЦИЯ ОБРАБОТЧИКОВ МОДАЛОК (только для prompt)
-// ============================================================
+// ===== ИНИЦИАЛИЗАЦИЯ МОДАЛКИ =====
 export function initModalHandlers() {
     const cancelBtn = document.getElementById('modalCancel');
     const confirmBtn = document.getElementById('modalConfirm');
