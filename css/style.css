@@ -1,4 +1,4 @@
-/* ===== CSS для Прокатошной (финальная версия) ===== */
+/* ===== CSS для Прокатошной (финальная, чистая версия) ===== */
 :root {
     --bg-primary: #1a1a1a;
     --bg-secondary: #252525;
@@ -1109,6 +1109,19 @@ body {
     overflow-y: auto;
 }
 #casesList > div {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border-color);
+    gap: 10px;
+}
+
+#truckList {
+    max-height: 250px;
+    overflow-y: auto;
+}
+#truckList > div {
     display: flex;
     justify-content: space-between;
     align-items: center;
