@@ -1,4 +1,4 @@
-// render-order.js — Отрисовка страницы создания заказа (финальная версия)
+// render-order.js — Отрисовка страницы создания заказа (полная версия с правильными импортами)
 import {
     editorData,
     getStock,
@@ -239,7 +239,7 @@ function renderOrderCategory(catKey) {
 }
 
 // ============================================================
-// РЕКУРСИВНЫЙ ОБХОД КАТЕГОРИИ (с защитой от циклов)
+// РЕКУРСИВНЫЙ ОБХОД КАТЕГОРИИ
 // ============================================================
 function buildCategoryHTML(data, path, level) {
     if (level > 15) {
@@ -270,7 +270,7 @@ function buildCategoryHTML(data, path, level) {
 }
 
 // ============================================================
-// ПОСТРОЕНИЕ СТРОКИ ДЛЯ ОДНОЙ ПОЗИЦИИ (С ОТОБРАЖЕНИЕМ ХАРАКТЕРИСТИК)
+// ПОСТРОЕНИЕ СТРОКИ С ОТОБРАЖЕНИЕМ ВЕСА/ОБЪЁМА
 // ============================================================
 function buildItemRow(fullPath, level) {
     const val = getValue(fullPath);
@@ -284,7 +284,7 @@ function buildItemRow(fullPath, level) {
     const isInfoOpen = infoBlocksOpen[fullPath] || false;
     const totalQty = getTotalQty(fullPath);
     
-    // Вычисляем вес и объём для отображения в строке
+    // Вычисляем вес и объём
     let weightDisplay = '0 кг', volumeDisplay = '0 м³';
     if (props.weight) {
         const w = calcItemWeightWithMode(fullPath, totalQty);
@@ -597,7 +597,7 @@ function toggleMultiModeOrder(path) {
 }
 
 // ============================================================
-// ОБНОВЛЕНИЕ СТРОКИ (с пересчётом веса/объёма)
+// ОБНОВЛЕНИЕ СТРОКИ
 // ============================================================
 function updateRowOrder(path) {
     const row = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
@@ -743,9 +743,6 @@ function clearSearchOrder() {
     else { document.querySelectorAll('#categoryContents .row').forEach(row => row.classList.remove('hidden')); }
 }
 
-// ============================================================
-// ВСПОМОГАТЕЛЬНЫЕ НАСТРОЙКИ
-// ============================================================
 function setupInputListenersOrder() {}
 function setupCaseTogglesOrder() {}
 
