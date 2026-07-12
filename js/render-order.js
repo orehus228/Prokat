@@ -1,4 +1,4 @@
-// render-order.js — Отрисовка страницы создания заказа (пошаговый рендеринг, без зависаний)
+// render-order.js — Отрисовка страницы создания заказа (синхронный рендеринг, без порций)
 import {
     editorData,
     getStock,
@@ -58,8 +58,6 @@ const infoBlocksOpen = {};
 
 // Кеш плоского списка позиций
 let flatItemsCache = null;
-let renderTimeout = null;
-let isRendering = false;
 
 // ============================================================
 // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
@@ -164,28 +162,10 @@ function renderOrderTabs() {
 }
 
 // ============================================================
-// РЕНДЕРИНГ КАТЕГОРИИ (пошагово)
+// РЕНДЕРИНГ КАТЕГОРИИ (синхронный, без порций)
 // ============================================================
 function renderOrderCategory(catKey) {
     const container = document.getElementById('categoryContents');
-    container.innerHTML = '';
-    const wrapper = document.createElement('div');
-    wrapper.className = 'category-content active';
-    container.appendChild(wrapper);
-
-    // Показываем индикатор загрузки
-    const loadingDiv = document.createElement('div');
-    loadingDiv.className = 'empty-message';
-    loadingDiv.textContent = 'Загрузка...';
-    wrapper.appendChild(loadingDiv);
-
-    // Отменяем предыдущий таймер
-    if (renderTimeout) {
-        clearTimeout(renderTimeout);
-        renderTimeout = null;
-    }
-
-    // Получаем список путей
     const allPaths = buildFlatItemsList();
 
     let filteredPaths = [];
@@ -204,11 +184,11 @@ function renderOrderCategory(catKey) {
     }
 
     if (filteredPaths.length === 0) {
-        loadingDiv.textContent = 'Ничего не найдено';
+        container.innerHTML = '<div class="empty-message">Ничего не найдено</div>';
         return;
     }
 
-    // Группируем для отображения подзаголовков (только для обычного режима, не поиска)
+    // Группируем для отображения подзаголовков
     let groupedPaths;
     if (catKey !== 'all' && !searchMode) {
         groupedPaths = {};
@@ -219,91 +199,43 @@ function renderOrderCategory(catKey) {
             groupedPaths[sub].push(path);
         });
     } else {
-        // Для поиска — просто список без группировки
         groupedPaths = { '': filteredPaths };
     }
 
-    // Удаляем индикатор загрузки
-    wrapper.removeChild(loadingDiv);
-
-    // Рендерим порциями
+    // Генерируем HTML синхронно
+    let html = '';
     const subKeys = Object.keys(groupedPaths).sort();
-    let currentSubIndex = 0;
-    let currentItemIndex = 0;
-    let totalItems = 0;
-    subKeys.forEach(sub => { totalItems += groupedPaths[sub].length; });
-
-    const BATCH_SIZE = 30; // количество строк за один раз
-    let renderedCount = 0;
-
-    function renderBatch() {
-        if (isRendering) return;
-        isRendering = true;
-
-        // Создаём фрагмент
-        const fragment = document.createDocumentFragment();
-
-        let batchCount = 0;
-        while (batchCount < BATCH_SIZE && currentSubIndex < subKeys.length) {
-            const sub = subKeys[currentSubIndex];
-            const paths = groupedPaths[sub];
-            // Если все позиции в этой подгруппе уже отрендерены, переходим к следующей
-            if (currentItemIndex >= paths.length) {
-                currentSubIndex++;
-                currentItemIndex = 0;
-                continue;
-            }
-
-            // Добавляем заголовок подгруппы (если есть и если это первый элемент подгруппы)
-            if (currentItemIndex === 0 && sub) {
-                const header = document.createElement('div');
-                header.className = 'sub-sub-cat-t';
-                header.textContent = sub;
-                fragment.appendChild(header);
-            }
-
-            // Добавляем строки
-            const end = Math.min(currentItemIndex + BATCH_SIZE - batchCount, paths.length);
-            for (let i = currentItemIndex; i < end; i++) {
-                const path = paths[i];
-                const rowHtml = buildItemRow(path, sub ? 2 : 1);
-                // Создаем временный контейнер для парсинга HTML
-                const temp = document.createElement('div');
-                temp.innerHTML = rowHtml;
-                while (temp.firstChild) {
-                    fragment.appendChild(temp.firstChild);
-                }
-                batchCount++;
-                renderedCount++;
-            }
-            currentItemIndex = end;
+    subKeys.forEach(sub => {
+        const paths = groupedPaths[sub];
+        if (sub) {
+            html += `<div class="sub-sub-cat-t">${sub}</div>`;
         }
+        paths.forEach(path => {
+            html += buildItemRow(path, sub ? 2 : 1);
+        });
+    });
 
-        // Вставляем фрагмент в wrapper
-        wrapper.appendChild(fragment);
+    // Устанавливаем innerHTML одной операцией (одна перерисовка)
+    container.innerHTML = html;
 
-        isRendering = false;
-
-        // Если не все отрендерили, планируем следующий батч
-        if (renderedCount < totalItems) {
-            renderTimeout = setTimeout(renderBatch, 50);
-        } else {
-            // Постобработка: обновляем строки
-            document.querySelectorAll('#categoryContents .row').forEach(row => {
-                const path = row.dataset.path;
-                if (path) { updateRow(path); }
-            });
-            if (!searchMode) updateCategoryTotals(catKey);
-            updateTotals();
-            updateLinkCount();
-            applySearch();
-            setupInputListeners();
-            setupActionButtons();
-        }
+    // Постобработка
+    setupInputListeners();
+    setupActionButtons();
+    document.querySelectorAll('#categoryContents .row').forEach(row => {
+        const path = row.dataset.path;
+        if (path) { updateRow(path); }
+    });
+    if (!searchMode) updateCategoryTotals(catKey);
+    updateTotals();
+    updateLinkCount();
+    applySearch();
+    if (detailsOpen) {
+        document.getElementById('globalDetails').classList.add('open');
+        document.getElementById('detailToggle').textContent = 'Скрыть';
+    } else {
+        document.getElementById('globalDetails').classList.remove('open');
+        document.getElementById('detailToggle').textContent = 'Подробно';
     }
-
-    // Запускаем первый батч
-    renderTimeout = setTimeout(renderBatch, 10);
 }
 
 // ============================================================
@@ -558,7 +490,7 @@ function updateRow(path) {
 // ============================================================
 function updateCategoryTotals(catKey) {
     const container = document.querySelector('#categoryContents .category-content.active');
-    if (!container || searchMode) return;
+    if (!container) return;
     let totalsDiv = container.querySelector('.category-totals');
     if (!totalsDiv) {
         totalsDiv = document.createElement('div');
@@ -828,14 +760,7 @@ export async function clearOrderData() {
 // ГЛАВНАЯ ФУНКЦИЯ ОТРИСОВКИ
 // ============================================================
 export function renderOrderAll() {
-    // Сбрасываем кеш при загрузке новых данных
     flatItemsCache = null;
-    // Отменяем предыдущий рендеринг
-    if (renderTimeout) {
-        clearTimeout(renderTimeout);
-        renderTimeout = null;
-    }
-    isRendering = false;
     loadOrderData();
     document.getElementById('pComment').value = localStorage.getItem('last_comment') || '';
     const savedDate = localStorage.getItem('last_date');
@@ -843,9 +768,7 @@ export function renderOrderAll() {
     renderOrderTabs();
     renderOrderCategory(currentCategory);
     setupQuantityDelegation();
-    // Настройки слушателей будут применены после завершения рендеринга в renderBatch
-    // но чтобы они работали для уже отрисованных строк, добавим их вызов после завершения
-    // Они будут вызваны в конце renderBatch
+    // Остальное настраивается внутри renderOrderCategory после рендера
 }
 
 // ============================================================
