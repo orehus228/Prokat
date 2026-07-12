@@ -5,7 +5,7 @@ import { renderOrderAll, initOrderUI, exportOrderJSON, exportOrderPDF, clearOrde
 import { renderOpenOrder, initOpenUI } from './render-open.js';
 import { initModalHandlers, showToast, showConfirm } from './ui.js';
 import { initCases, openCasesManagerModal, openMatrixModal, openCaseSettingsModal } from './cases.js';
-import { loadOrderData, saveOrderData } from './order.js';
+import { loadOrderData, saveOrderData, clearOrderData as clearOrder } from './order.js';
 import { STORAGE_KEYS } from './config.js';
 
 console.log('main.js загружен');
@@ -40,8 +40,10 @@ function toggleTheme() {
     currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
     document.body.setAttribute('data-theme', currentTheme);
     localStorage.setItem('theme', currentTheme);
-    // Кнопка уже обновляется через CSS, текст не нужен
-    showToast('Тема: ' + (currentTheme === 'dark' ? 'тёмная' : 'светлая'), 'info');
+    const toggle = document.getElementById('themeToggle');
+    if (toggle) toggle.classList.toggle('light', currentTheme === 'light');
+    // Уведомление о смене темы (нейтральное)
+    showToast('Тема: ' + (currentTheme === 'dark' ? 'тёмная' : 'светлая'), 'neutral');
 }
 
 function loadTheme() {
@@ -52,6 +54,8 @@ function loadTheme() {
         currentTheme = 'dark';
     }
     document.body.setAttribute('data-theme', currentTheme);
+    const toggle = document.getElementById('themeToggle');
+    if (toggle) toggle.classList.toggle('light', currentTheme === 'light');
 }
 
 function loadLibrary() {
@@ -75,6 +79,7 @@ function loadLibrary() {
                 if (data.catNames) editorData.catNames = data.catNames;
                 if (data._categoryOrder) editorData._categoryOrder = data._categoryOrder;
                 if (data.commonCases) editorData.commonCases = data.commonCases;
+                if (data.truckPresets) editorData.truckPresets = data.truckPresets;
                 saveEditorData();
                 showToast('Библиотека загружена', 'success');
                 if (currentMode === 'editor') renderEditorAll();
@@ -98,11 +103,11 @@ async function resetLibrary() {
     location.reload();
 }
 
-function savePreset() { showToast('Сохранение пресета (заглушка)', 'info'); }
-function loadPreset() { showToast('Загрузка пресета (заглушка)', 'info'); }
-function exportPresets() { showToast('Экспорт пресетов (заглушка)', 'info'); }
+function savePreset() { showToast('Сохранение пресета (заглушка)', 'neutral'); }
+function loadPreset() { showToast('Загрузка пресета (заглушка)', 'neutral'); }
+function exportPresets() { showToast('Экспорт пресетов (заглушка)', 'neutral'); }
 function importPresets() { document.getElementById('presetFileInput').click(); }
-function deletePreset() { showToast('Удаление пресета (заглушка)', 'info'); }
+function deletePreset() { showToast('Удаление пресета (заглушка)', 'neutral'); }
 
 function initApp() {
     console.log('Инициализация...');
@@ -141,6 +146,7 @@ function initApp() {
         }
     });
 
+    // Кнопки на странице заказа
     const btnMatrix = document.getElementById('btnMatrix');
     const btnCommonCases = document.getElementById('btnCommonCases');
     const btnSavePreset = document.getElementById('btnSavePreset');
@@ -162,7 +168,7 @@ function initApp() {
     if (presetFileInput) {
         presetFileInput.addEventListener('change', function(e) {
             if (e.target.files[0]) {
-                showToast('Импорт пресета (заглушка)', 'info');
+                showToast('Импорт пресета (заглушка)', 'neutral');
                 this.value = '';
             }
         });
@@ -172,11 +178,13 @@ function initApp() {
     if (btnSavePDF) btnSavePDF.addEventListener('click', exportOrderPDF);
     if (btnClearOrder) btnClearOrder.addEventListener('click', clearOrderData);
 
+    // Редактор
     const addCategoryBtn = document.getElementById('addCategoryBtn');
     if (addCategoryBtn) addCategoryBtn.addEventListener('click', addCategory);
 
+    // Показываем меню по умолчанию
     switchMode('menu');
-    showToast('Прокатошная загружена', 'success');
+    showToast('Прокатошная загружена', 'neutral');
 }
 
 if (document.readyState === 'loading') {

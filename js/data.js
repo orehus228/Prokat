@@ -33,7 +33,8 @@ function resetToEmpty() {
         itemProps: {},
         catNames: { ...CAT_NAMES },
         _categoryOrder: [],
-        commonCases: []
+        commonCases: [],
+        truckPresets: [] // Новое поле для пресетов грузовиков
     };
 }
 
@@ -55,6 +56,7 @@ function normalizeAllData() {
         }
     }
 
+    // Приводим itemProps к корректному виду
     for (let key in editorData.itemProps) {
         const props = editorData.itemProps[key];
         if (props.individualCases === undefined) props.individualCases = [];
@@ -66,9 +68,15 @@ function normalizeAllData() {
             if (c.maxCases === undefined) c.maxCases = 0;
             return c;
         });
+        // Удаляем устаревшее поле caseOptions
         if (props.caseOptions !== undefined) delete props.caseOptions;
+        // Убедимся, что есть weight, dimensions, volume (хотя бы пустые)
+        if (props.weight === undefined) props.weight = 0;
+        if (props.dimensions === undefined) props.dimensions = '';
+        if (props.volume === undefined) props.volume = 0;
     }
 
+    // Категории с подгруппами: проверяем _subOrder
     for (let cat in editorData.inventory) {
         const catData = editorData.inventory[cat];
         if (typeof catData === 'object' && !Array.isArray(catData)) {
@@ -84,6 +92,11 @@ function normalizeAllData() {
             }
         }
     }
+
+    // Если нет truckPresets, инициализируем пустым массивом
+    if (!editorData.truckPresets) {
+        editorData.truckPresets = [];
+    }
 }
 
 export function saveEditorData() {
@@ -97,7 +110,7 @@ export function resetAllData() {
 }
 
 // ============================================================
-// ОЧИСТКА ОТ ДУБЛЕЙ (ЭКРАНЫ/КАБИНЕТЫ) — для импорта
+// ОЧИСТКА ОТ ДУБЛЕЙ (для импорта)
 // ============================================================
 export function cleanupInventory(inventory, stock, specs, itemProps) {
     if (!inventory || !inventory.video) return;
@@ -189,6 +202,10 @@ export function convertOldItemProps(itemProps) {
                 return c;
             });
         }
+        // Убедимся, что есть weight, dimensions, volume
+        if (newProps.weight === undefined) newProps.weight = 0;
+        if (newProps.dimensions === undefined) newProps.dimensions = '';
+        if (newProps.volume === undefined) newProps.volume = 0;
         if (newProps.caseOptions !== undefined) delete newProps.caseOptions;
         converted[key] = newProps;
     }
@@ -228,14 +245,62 @@ export function setSpec(catKey, subKey, itemName, val) {
 
 export function getItemProps(catKey, subKey, itemName) {
     const key = getStockKey(catKey, subKey, itemName);
-    return editorData.itemProps[key] || {};
+    const props = editorData.itemProps[key];
+    if (props) {
+        // Нормализуем на всякий случай
+        if (props.weight === undefined) props.weight = 0;
+        if (props.dimensions === undefined) props.dimensions = '';
+        if (props.volume === undefined) props.volume = 0;
+        return props;
+    }
+    return { weight: 0, dimensions: '', volume: 0, individualCases: [], allowCommon: false, commonCases: [] };
 }
 
 export function setItemProps(catKey, subKey, itemName, props) {
     const key = getStockKey(catKey, subKey, itemName);
-    if (props && Object.keys(props).length > 0) editorData.itemProps[key] = props;
-    else delete editorData.itemProps[key];
+    if (props && Object.keys(props).length > 0) {
+        // Нормализуем перед сохранением
+        if (props.weight === undefined) props.weight = 0;
+        if (props.dimensions === undefined) props.dimensions = '';
+        if (props.volume === undefined) props.volume = 0;
+        editorData.itemProps[key] = props;
+    } else {
+        delete editorData.itemProps[key];
+    }
     saveEditorData();
+}
+
+// ============================================================
+// ФУНКЦИИ ДЛЯ ПРЕСЕТОВ ГРУЗОВИКОВ
+// ============================================================
+export function getTruckPresets() {
+    return editorData.truckPresets || [];
+}
+
+export function addTruckPreset(preset) {
+    if (!editorData.truckPresets) editorData.truckPresets = [];
+    // Проверяем уникальность id
+    if (!preset.id) preset.id = 'truck_' + Date.now();
+    editorData.truckPresets.push(preset);
+    saveEditorData();
+}
+
+export function updateTruckPreset(id, newData) {
+    const presets = getTruckPresets();
+    const idx = presets.findIndex(p => p.id === id);
+    if (idx !== -1) {
+        presets[idx] = { ...presets[idx], ...newData };
+        saveEditorData();
+    }
+}
+
+export function deleteTruckPreset(id) {
+    editorData.truckPresets = editorData.truckPresets.filter(p => p.id !== id);
+    saveEditorData();
+}
+
+export function getTruckPreset(id) {
+    return getTruckPresets().find(p => p.id === id);
 }
 
 // ============================================================
@@ -390,6 +455,9 @@ export function deleteCommonCase(id) {
     saveEditorData();
 }
 
+// ============================================================
+// КЕШИРОВАНИЕ
+// ============================================================
 export function getCachedCalculation(key) {
     return calculationCache.get(key);
 }
@@ -402,6 +470,9 @@ export function clearCache() {
     calculationCache.clear();
 }
 
+// ============================================================
+// ИНИЦИАЛИЗАЦИЯ
+// ============================================================
 export function initData() {
     loadEditorData();
 }

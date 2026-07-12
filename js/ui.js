@@ -1,12 +1,17 @@
-// ui.js — Базовые утилиты и модалки (минималистичная версия)
+// ui.js — Базовые утилиты и модалки (исправленная версия)
 
 let toastTimeout = null;
 let toastQueue = [];
-let modalResolve = null;
-let modalReject = null;
+let isToastShowing = false;
 
-// ===== ТОСТЫ =====
+// ===== ТОСТЫ (нейтральные, без очереди при быстрых кликах) =====
 export function showToast(msg, type = 'info', duration = 2500) {
+    // Если тип не error или warning, делаем нейтральным
+    let actualType = type;
+    if (type !== 'error' && type !== 'warning') {
+        actualType = 'neutral';
+    }
+    
     const t = document.getElementById('toast');
     if (!t) {
         const newToast = document.createElement('div');
@@ -16,17 +21,41 @@ export function showToast(msg, type = 'info', duration = 2500) {
         showToast(msg, type, duration);
         return;
     }
+
+    // Если тост уже виден, сбрасываем таймер и перезаписываем содержимое
     if (t.classList.contains('show')) {
-        toastQueue.push({ msg, type, duration });
+        clearTimeout(toastTimeout);
+        // Очищаем очередь, так как мы показываем новое уведомление
+        toastQueue = [];
+        // Обновляем текст и перезапускаем
+        t.textContent = msg;
+        t.className = 'toast ' + actualType;
+        // Перезапускаем таймер
+        toastTimeout = setTimeout(() => {
+            t.classList.remove('show');
+            isToastShowing = false;
+            // Если есть очередь, показываем следующее (но обычно её нет, так как мы её очистили)
+            if (toastQueue.length > 0) {
+                const next = toastQueue.shift();
+                showToast(next.msg, next.type, next.duration);
+            }
+        }, duration);
+        // Принудительно обновляем анимацию
+        void t.offsetWidth;
+        t.classList.add('show');
         return;
     }
+
+    // Если тост скрыт, показываем новый
     t.textContent = msg;
-    t.className = 'toast ' + type;
+    t.className = 'toast ' + actualType;
     void t.offsetWidth;
     t.classList.add('show');
+    isToastShowing = true;
     clearTimeout(toastTimeout);
     toastTimeout = setTimeout(() => {
         t.classList.remove('show');
+        isToastShowing = false;
         if (toastQueue.length > 0) {
             const next = toastQueue.shift();
             showToast(next.msg, next.type, next.duration);
@@ -34,7 +63,34 @@ export function showToast(msg, type = 'info', duration = 2500) {
     }, duration);
 }
 
+// Альтернативный вариант для экстренных уведомлений (без очереди)
+export function showToastImmediate(msg, type = 'info', duration = 2500) {
+    toastQueue = []; // очищаем очередь
+    clearTimeout(toastTimeout);
+    const t = document.getElementById('toast');
+    if (!t) {
+        const newToast = document.createElement('div');
+        newToast.id = 'toast';
+        newToast.className = 'toast';
+        document.body.appendChild(newToast);
+        showToastImmediate(msg, type, duration);
+        return;
+    }
+    t.textContent = msg;
+    t.className = 'toast ' + (type !== 'error' && type !== 'warning' ? 'neutral' : type);
+    void t.offsetWidth;
+    t.classList.add('show');
+    isToastShowing = true;
+    toastTimeout = setTimeout(() => {
+        t.classList.remove('show');
+        isToastShowing = false;
+    }, duration);
+}
+
 // ===== PROMPT (модалка ввода) =====
+let modalResolve = null;
+let modalReject = null;
+
 export function showPrompt(title, label = 'Введите значение:', defaultValue = '', placeholder = '', validator = null) {
     return new Promise((resolve, reject) => {
         const overlay = document.getElementById('modalOverlay');
@@ -157,7 +213,7 @@ export function debounce(fn, delay = 300) {
     };
 }
 
-// ===== ИНИЦИАЛИЗАЦИЯ МОДАЛКИ (обработчики) =====
+// ===== ИНИЦИАЛИЗАЦИЯ МОДАЛКИ =====
 export function initModalHandlers() {
     const cancelBtn = document.getElementById('modalCancel');
     const confirmBtn = document.getElementById('modalConfirm');

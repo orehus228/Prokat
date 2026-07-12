@@ -1,4 +1,4 @@
-// render-order.js — Отрисовка страницы создания заказа (полная переработка)
+// render-order.js — Отрисовка страницы создания заказа (исправленная версия)
 import {
     editorData,
     getStock,
@@ -41,7 +41,9 @@ import {
     getCaseMode,
     getCaseOptions,
     getSelectedOption,
-    updateOrderPaths
+    updateOrderPaths,
+    isExcludedFromLoading,
+    setExcludeFromLoading
 } from './order.js';
 
 // ============================================================
@@ -51,7 +53,6 @@ let currentCategory = 'sound';
 let searchMode = false;
 let searchQuery = '';
 let detailsOpen = false;
-// Состояние открытых блоков "Инфо" для каждой строки
 const infoBlocksOpen = {};
 
 // ============================================================
@@ -125,7 +126,6 @@ function renderOrderCategory(catKey) {
     container.appendChild(wrapper);
     setupInputListeners();
     setupActionButtons();
-    // Обновляем строки после рендера
     document.querySelectorAll('#categoryContents .row').forEach(row => {
         const path = row.dataset.path;
         if (path) { updateRow(path); }
@@ -146,20 +146,55 @@ function renderOrderCategory(catKey) {
 function buildAllCategoriesHTML() {
     let html = '';
     const orderKeys = editorData._categoryOrder || Object.keys(editorData.inventory);
+    const searchQueryLower = searchQuery.toLowerCase();
+    let hasMatches = false;
     orderKeys.forEach(cat => {
         const catData = editorData.inventory[cat];
         if (!catData) return;
+        // Проверяем, есть ли совпадения в этой категории
+        const catHasMatch = hasMatchesInCategory(catData, [cat], searchQueryLower);
+        if (searchQuery && !catHasMatch) return;
+        hasMatches = true;
         html += `<div class="sub-cat-t">${CAT_NAMES[cat]||cat}</div>`;
         html += buildCategoryHTML(catData, [cat], 0);
     });
+    if (searchQuery && !hasMatches) {
+        return '<div class="empty-message">Ничего не найдено</div>';
+    }
     return html;
+}
+
+function hasMatchesInCategory(data, path, query) {
+    if (!query) return true;
+    if (Array.isArray(data)) {
+        return data.some(item => {
+            const fullPath = path.length ? path.join('|') + '|' + item : item;
+            const searchText = item + ' ' + (editorData.specs[fullPath] || '');
+            return searchText.toLowerCase().includes(query);
+        });
+    } else if (typeof data === 'object' && data !== null) {
+        const keys = Object.keys(data).filter(k => !k.startsWith('_'));
+        return keys.some(key => {
+            const childPath = [...path, key];
+            return hasMatchesInCategory(data[key], childPath, query);
+        });
+    }
+    return false;
 }
 
 function buildCategoryHTML(data, path, level) {
     let html = '';
+    const searchQueryLower = searchQuery.toLowerCase();
     if (Array.isArray(data)) {
         data.forEach((item, idx) => {
             const fullPath = path.length ? path.join('|') + '|' + item : item;
+            // Проверка на совпадение для поиска
+            if (searchQueryLower) {
+                const searchText = item + ' ' + (editorData.specs[fullPath] || '');
+                if (!searchText.toLowerCase().includes(searchQueryLower)) {
+                    return;
+                }
+            }
             const val = getValue(fullPath);
             const sq = getStockValue(fullPath);
             const hasDesc = !!editorData.specs[fullPath];
@@ -183,30 +218,17 @@ function buildCategoryHTML(data, path, level) {
                 volumeDisplay = v.toFixed(3) + ' м³';
             }
 
-            const escapedName = esc(item);
-            const searchText = item + ' ' + (hasDesc ? editorData.specs[fullPath] : '') + ' ' + (CAT_NAMES[path[0]] || '');
+            // Информация для блока "Инфо"
+            const infoHtml = buildInfoHtml(fullPath, props, mode);
 
-            // Индикаторы
+            const escapedName = esc(item);
             const isAdded = totalQty > 0;
             const isOverstock = overstock;
+
+            // Классы для индикации и наведения
             const rowClass = (isAdded ? 'added' : '') + (isOverstock ? ' overstock' : '');
 
-            // Блок с информацией о позиции (вес/объём)
-            const infoBlockHtml = `
-                <div class="row-info" style="display:${isInfoOpen ? 'block' : 'none'};margin-top:6px;padding:8px 12px;background:var(--bg-secondary);border-radius:6px;font-size:13px;color:var(--text-secondary);">
-                    <div style="display:flex;flex-wrap:wrap;gap:12px;">
-                        <span><strong>Вес 1 шт:</strong> ${props.weight ? props.weight + ' кг' : 'н/д'}</span>
-                        <span><strong>Габариты:</strong> ${props.dimensions || 'н/д'}</span>
-                        ${props.volume ? `<span><strong>Объём 1 шт:</strong> ${props.volume} м³</span>` : ''}
-                        ${props.individualCases && props.individualCases.length > 0 ? `<span><strong>Варианты кофров:</strong> ${props.individualCases.map(c => c.qty+' шт').join(', ')}</span>` : ''}
-                        ${props.allowCommon ? `<span><strong>Разрешены общие кофры</strong></span>` : ''}
-                        ${mode.enabled ? `<span><strong>Режим кофров включён</strong> ${mode.alt ? '(альтернативный)' : ''}</span>` : ''}
-                        ${getOrderPacking(fullPath).length > 0 ? `<span><strong>Привязка к общим кофрам:</strong> ${getOrderPacking(fullPath).length} кофров</span>` : ''}
-                    </div>
-                </div>
-            `;
-
-            html += `<div class="row ${rowClass}" data-path="${esc(fullPath)}" data-search="${searchText.toLowerCase()}">
+            html += `<div class="row ${rowClass}" data-path="${esc(fullPath)}" data-search="${item}">
                 <div class="main-line">
                     <div class="name-area">
                         <span class="name">${escapedName}</span>
@@ -224,7 +246,7 @@ function buildCategoryHTML(data, path, level) {
                         <button class="btn-c qty-btn" data-path="${esc(fullPath)}" data-delta="1">+</button>
                     </div>
                 </div>
-                ${infoBlockHtml}
+                ${isInfoOpen ? `<div class="row-info">${infoHtml}</div>` : ''}
             </div>`;
             if (hasDesc) {
                 html += `<div class="desc-block" data-path="${esc(fullPath)}">${esc(editorData.specs[fullPath])}</div>`;
@@ -239,14 +261,39 @@ function buildCategoryHTML(data, path, level) {
     } else if (typeof data === 'object' && data !== null) {
         const keys = Object.keys(data).filter(k => !k.startsWith('_'));
         keys.forEach(key => {
+            const childPath = [...path, key];
+            // Проверяем, есть ли совпадения в этой подгруппе
+            if (searchQueryLower && !hasMatchesInCategory(data[key], childPath, searchQueryLower)) {
+                return;
+            }
             const isSubSub = level >= 2;
             if (isSubSub) html += `<div class="sub-sub-cat-t">${key}</div>`;
             else html += `<div class="sub-cat-t">${key}</div>`;
-            html += buildCategoryHTML(data[key], [...path, key], level + 1);
+            html += buildCategoryHTML(data[key], childPath, level + 1);
         });
         return html;
     }
     return '';
+}
+
+function buildInfoHtml(path, props, mode) {
+    let html = `<div style="display:flex;flex-wrap:wrap;gap:12px;">`;
+    html += `<span><strong>Вес 1 шт:</strong> ${props.weight ? props.weight + ' кг' : 'н/д'}</span>`;
+    html += `<span><strong>Габариты:</strong> ${props.dimensions || 'н/д'}</span>`;
+    if (props.volume) html += `<span><strong>Объём 1 шт:</strong> ${props.volume} м³</span>`;
+    if (props.individualCases && props.individualCases.length > 0) {
+        html += `<span><strong>Варианты кофров:</strong> ${props.individualCases.map(c => c.qty+' шт').join(', ')}</span>`;
+    }
+    if (props.allowCommon) html += `<span><strong>Разрешены общие кофры</strong></span>`;
+    if (mode.enabled) {
+        html += `<span><strong>Режим кофров включён</strong> ${mode.alt ? '(альтернативный)' : ''}</span>`;
+    }
+    const packing = getOrderPacking(path);
+    if (packing.length > 0) {
+        html += `<span><strong>Привязка к общим кофрам:</strong> ${packing.length} кофров</span>`;
+    }
+    html += `</div>`;
+    return html;
 }
 
 // ============================================================
@@ -277,27 +324,22 @@ function handleQuantityClick(e) {
 // НАСТРОЙКА КНОПОК В СТРОКЕ
 // ============================================================
 function setupActionButtons() {
-    // Кнопка "Инфо" — раскрытие/скрытие блока
     document.querySelectorAll('#categoryContents .info-btn').forEach(btn => {
         btn.removeEventListener('click', toggleInfo);
         btn.addEventListener('click', toggleInfo);
     });
-    // Кнопка "Описание" — раскрытие/скрытие описания
     document.querySelectorAll('#categoryContents .desc-btn').forEach(btn => {
         btn.removeEventListener('click', toggleDesc);
         btn.addEventListener('click', toggleDesc);
     });
-    // Кнопка "Линк" — открытие матрицы
     document.querySelectorAll('#categoryContents .link-btn').forEach(btn => {
         btn.removeEventListener('click', openLink);
         btn.addEventListener('click', openLink);
     });
-    // Кнопка "Кофры" — открытие модалки настройки кофров
     document.querySelectorAll('#categoryContents .case-btn').forEach(btn => {
         btn.removeEventListener('click', openCaseSettings);
         btn.addEventListener('click', openCaseSettings);
     });
-    // Кнопка "Заметка" — открытие редактора заметки
     document.querySelectorAll('#categoryContents .note-btn').forEach(btn => {
         btn.removeEventListener('click', openNoteEditor);
         btn.addEventListener('click', openNoteEditor);
@@ -308,12 +350,24 @@ function toggleInfo(e) {
     const btn = e.currentTarget;
     const path = btn.dataset.path;
     const row = btn.closest('.row');
-    const infoBlock = row.querySelector('.row-info');
-    if (!infoBlock) return;
+    let infoBlock = row.querySelector('.row-info');
+    if (!infoBlock) {
+        infoBlock = document.createElement('div');
+        infoBlock.className = 'row-info';
+        row.appendChild(infoBlock);
+    }
     const isOpen = infoBlocksOpen[path] || false;
     infoBlocksOpen[path] = !isOpen;
-    infoBlock.style.display = infoBlocksOpen[path] ? 'block' : 'none';
-    btn.textContent = infoBlocksOpen[path] ? 'Скрыть' : 'Инфо';
+    if (infoBlocksOpen[path]) {
+        const props = getItemProps(path);
+        const mode = getCaseMode(path);
+        infoBlock.innerHTML = buildInfoHtml(path, props, mode);
+        infoBlock.style.display = 'block';
+        btn.textContent = 'Скрыть';
+    } else {
+        infoBlock.style.display = 'none';
+        btn.textContent = 'Инфо';
+    }
 }
 
 function toggleDesc(e) {
@@ -358,7 +412,7 @@ async function openNoteEditor(e) {
         notes[path] = newNote.trim();
     }
     saveOrderData();
-    showToast('Заметка сохранена', 'info');
+    showToast('Заметка сохранена', 'neutral');
 }
 
 // ============================================================
@@ -375,6 +429,7 @@ function updateRow(path) {
     const isOverstock = totalQty > sq;
     row.classList.toggle('added', isAdded);
     row.classList.toggle('overstock', isOverstock);
+    // Удаляем старые предупреждения
     const oldWarn = row.querySelector('.overstock-warning');
     if (oldWarn) oldWarn.remove();
     if (isOverstock) {
@@ -384,7 +439,7 @@ function updateRow(path) {
         warn.title = 'Больше нет (в наличии ' + sq + ')';
         row.querySelector('.qty-controls').appendChild(warn);
     }
-    // Обновляем отображение веса/объёма
+    // Обновляем вес/объём
     const weightVolDisplay = row.querySelector('.weight-vol-display');
     if (weightVolDisplay) {
         const props = getItemProps(path);
@@ -399,26 +454,14 @@ function updateRow(path) {
         }
         weightVolDisplay.textContent = weightDisplay + ' / ' + volumeDisplay;
     }
-    // Обновляем инфо-блок, если он открыт
+    // Обновляем инфо-блок, если открыт
     if (infoBlocksOpen[path]) {
         const infoBlock = row.querySelector('.row-info');
         if (infoBlock) {
-            // пересоздаём содержимое или обновляем
             const props = getItemProps(path);
             const mode = getCaseMode(path);
-            const packing = getOrderPacking(path);
-            let html = `
-                <div style="display:flex;flex-wrap:wrap;gap:12px;">
-                    <span><strong>Вес 1 шт:</strong> ${props.weight ? props.weight + ' кг' : 'н/д'}</span>
-                    <span><strong>Габариты:</strong> ${props.dimensions || 'н/д'}</span>
-                    ${props.volume ? `<span><strong>Объём 1 шт:</strong> ${props.volume} м³</span>` : ''}
-                    ${props.individualCases && props.individualCases.length > 0 ? `<span><strong>Варианты кофров:</strong> ${props.individualCases.map(c => c.qty+' шт').join(', ')}</span>` : ''}
-                    ${props.allowCommon ? `<span><strong>Разрешены общие кофры</strong></span>` : ''}
-                    ${mode.enabled ? `<span><strong>Режим кофров включён</strong> ${mode.alt ? '(альтернативный)' : ''}</span>` : ''}
-                    ${packing.length > 0 ? `<span><strong>Привязка к общим кофрам:</strong> ${packing.length} кофров</span>` : ''}
-                </div>
-            `;
-            infoBlock.innerHTML = html;
+            infoBlock.innerHTML = buildInfoHtml(path, props, mode);
+            infoBlock.style.display = 'block';
         }
     }
 }
@@ -502,22 +545,18 @@ function applySearch() {
     searchQuery = query;
     if (query) {
         if (!searchMode) { searchMode = true; currentCategory = 'all'; renderOrderCategory('all'); return; }
-        const rows = document.querySelectorAll('#categoryContents .row');
-        rows.forEach(row => {
-            const searchText = row.dataset.search || '';
-            if (searchText.includes(query)) row.classList.remove('hidden');
-            else row.classList.add('hidden');
-        });
+        renderOrderCategory('all');
     } else {
         if (searchMode) { searchMode = false; currentCategory = editorData._categoryOrder[0] || 'sound'; renderOrderCategory(currentCategory); }
-        else { document.querySelectorAll('#categoryContents .row').forEach(row => row.classList.remove('hidden')); }
+        else { renderOrderCategory(currentCategory); }
     }
 }
 
 function clearSearch() {
     document.getElementById('searchInput').value = '';
+    searchQuery = '';
     if (searchMode) { searchMode = false; currentCategory = editorData._categoryOrder[0] || 'sound'; renderOrderCategory(currentCategory); }
-    else { document.querySelectorAll('#categoryContents .row').forEach(row => row.classList.remove('hidden')); }
+    else { renderOrderCategory(currentCategory); }
 }
 
 // ============================================================
@@ -560,7 +599,8 @@ export function exportOrderJSON() {
         individual_cases: individualCaseValues,
         routes: commonRoutes,
         links: links,
-        notes: notes
+        notes: notes,
+        exclude: orderExclude
     };
     if (Object.keys(order).length === 0 && Object.keys(orderSplits).length === 0) {
         showToast('Список пуст', 'warning'); return;
@@ -576,7 +616,7 @@ export function exportOrderJSON() {
 }
 
 // ============================================================
-// ЭКСПОРТ ЗАКАЗА В PDF (с предпросмотром и кнопками)
+// ЭКСПОРТ ЗАКАЗА В PDF
 // ============================================================
 export function exportOrderPDF() {
     const data = {
@@ -607,7 +647,7 @@ export function exportOrderPDF() {
         }
         const weight = calcItemWeightWithMode(path, qty);
         const volume = calcItemVolumeWithMode(path, qty);
-        const dims = getItemProps(path).dimensions || 'n/a';
+        const dims = getItemProps(path).dimensions || 'н/д';
         catItems[cat].push({ name, qty, weight, volume, dims, detail });
     });
 
@@ -681,6 +721,7 @@ export async function clearOrderData() {
     for (let key in individualCaseValues) delete individualCaseValues[key];
     for (let key in commonRoutes) delete commonRoutes[key];
     for (let key in caseModes) delete caseModes[key];
+    for (let key in orderExclude) delete orderExclude[key];
     saveOrderData();
     renderOrderAll();
     showToast('Список очищен', 'success');

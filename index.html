@@ -223,6 +223,12 @@
                 <input type="text" id="matrixSearchSource" placeholder="Фильтр источников" style="flex:1;padding:6px 10px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);">
                 <input type="text" id="matrixSearchTarget" placeholder="Фильтр целей" style="flex:1;padding:6px 10px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);">
             </div>
+            <div class="matrix-zoom-controls" style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+                <button class="btn btn-sm" id="matrixZoomOut">−</button>
+                <span id="matrixZoomLevel">100%</span>
+                <button class="btn btn-sm" id="matrixZoomIn">+</button>
+                <button class="btn btn-sm" id="matrixZoomReset">1:1</button>
+            </div>
             <div class="table-wrap" id="matrixContainer" style="overflow:auto;max-height:60vh;"></div>
             <div class="buttons" style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
                 <button class="cancel" id="matrixClearAll">Удалить все привязки</button>
