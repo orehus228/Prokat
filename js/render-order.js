@@ -1,4 +1,4 @@
-// render-order.js — Отрисовка страницы создания заказа (оптимизированная, с отображением характеристик)
+// render-order.js — Отрисовка страницы создания заказа (финальная версия)
 import {
     editorData,
     getStock,
@@ -46,7 +46,7 @@ import {
 } from './order.js';
 
 // ============================================================
-// СОСТОЯНИЕ
+// СОСТОЯНИЕ СТРАНИЦЫ ЗАКАЗА
 // ============================================================
 let currentOrderCategory = 'sound';
 let showPropsOrder = false;
@@ -59,7 +59,7 @@ let flatItemsCache = null;
 let eventDelegationInitialized = false;
 
 // ============================================================
-// ВСПОМОГАТЕЛЬНЫЕ
+// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 // ============================================================
 function getValue(path) {
     return order[path] || 0;
@@ -85,7 +85,7 @@ function setValueOrder(path, val) {
 }
 
 // ============================================================
-// ПЛОСКИЙ СПИСОК (кешируется)
+// ПОСТРОЕНИЕ ПЛОСКОГО СПИСКА (без рекурсии, кешируется)
 // ============================================================
 function buildFlatItemsList() {
     if (flatItemsCache) return flatItemsCache;
@@ -127,7 +127,7 @@ function buildFlatItemsList() {
 }
 
 // ============================================================
-// ВКЛАДКИ
+// ОТРИСОВКА ВКЛАДОК КАТЕГОРИЙ
 // ============================================================
 function renderOrderTabs() {
     const container = document.getElementById('categoryTabs');
@@ -239,10 +239,13 @@ function renderOrderCategory(catKey) {
 }
 
 // ============================================================
-// РЕКУРСИВНЫЙ ОБХОД
+// РЕКУРСИВНЫЙ ОБХОД КАТЕГОРИИ (с защитой от циклов)
 // ============================================================
 function buildCategoryHTML(data, path, level) {
-    if (level > 15) return '';
+    if (level > 15) {
+        console.warn('Превышена глубина обхода', path);
+        return '';
+    }
     let html = '';
     if (Array.isArray(data)) {
         data.forEach(item => {
@@ -267,7 +270,7 @@ function buildCategoryHTML(data, path, level) {
 }
 
 // ============================================================
-// ПОСТРОЕНИЕ СТРОКИ (с вычислением веса/объёма)
+// ПОСТРОЕНИЕ СТРОКИ ДЛЯ ОДНОЙ ПОЗИЦИИ (С ОТОБРАЖЕНИЕМ ХАРАКТЕРИСТИК)
 // ============================================================
 function buildItemRow(fullPath, level) {
     const val = getValue(fullPath);
@@ -785,7 +788,6 @@ export function exportOrderJSON() {
 }
 
 export function exportOrderPDF() {
-    // Аналогично предыдущему, но с полным отчётом
     const data = {
         project_name: document.getElementById('pName').value.trim() || "Мероприятие",
         date: document.getElementById('pDate').value || new Date().toLocaleDateString('ru-RU'),

@@ -12,7 +12,7 @@ export let orderPacking = {};
 export let individualCaseValues = {};
 export let commonRoutes = {};
 export let caseModes = {};
-export let orderExclude = {}; // Исключение позиций из загрузки
+export let orderExclude = {};
 
 // ============================================================
 // ЗАГРУЗКА / СОХРАНЕНИЕ
@@ -33,7 +33,7 @@ export function loadOrderData() {
         commonRoutes = data.commonRoutes || {};
         caseModes = data.caseModes || {};
         orderExclude = data.orderExclude || {};
-        // Приводим caseModes к корректному виду
+        // Нормализуем caseModes
         for (let path in caseModes) {
             const mode = caseModes[path];
             if (mode.enabled === undefined) mode.enabled = false;
@@ -140,7 +140,7 @@ export function getSelectedOption(path) {
 }
 
 // ============================================================
-// ФУНКЦИИ ДЛЯ ИСКЛЮЧЕНИЯ ИЗ ЗАГРУЗКИ
+// ИСКЛЮЧЕНИЕ ИЗ ЗАГРУЗКИ
 // ============================================================
 export function isExcludedFromLoading(path) {
     return !!orderExclude[path];
@@ -156,162 +156,7 @@ export function setExcludeFromLoading(path, exclude) {
 }
 
 // ============================================================
-// ПОЛУЧЕНИЕ ГАБАРИТОВ ПОЗИЦИИ ДЛЯ РАСЧЁТА ЗАГРУЗКИ
-// ============================================================
-export function getItemDimensionsForLoading(path, qty) {
-    // Возвращает массив объектов { width, height, depth, weight } для каждой единицы/кофра
-    // Если позиция исключена, возвращаем пустой массив
-    if (isExcludedFromLoading(path)) {
-        return [];
-    }
-
-    const props = getItemProps(path);
-    const mode = getCaseMode(path);
-    const packing = getOrderPacking(path);
-    const totalQty = qty || getTotalQty(path);
-    if (totalQty <= 0) return [];
-
-    // Проверяем, есть ли привязка к общим кофрам
-    if (packing.length > 0) {
-        // Каждый общий кофр — это отдельный элемент с его габаритами
-        const result = [];
-        let remaining = totalQty;
-        for (let p of packing) {
-            const caseObj = getCommonCases().find(c => c.id === p.caseId);
-            if (!caseObj) continue;
-            // Сколько единиц помещается в этот кофр
-            const capacity = caseObj.qty || 1;
-            const unitsInThisCase = Math.min(remaining, capacity);
-            if (unitsInThisCase <= 0) continue;
-            // Вес: вес позиций + вес кофра
-            const unitWeight = props.weight || 0;
-            const totalWeight = unitsInThisCase * unitWeight + (caseObj.emptyWeight || 0);
-            // Габариты кофра
-            const dims = caseObj.dimensions ? caseObj.dimensions.split('x').map(s => parseFloat(s.trim())) : [0,0,0];
-            const w = dims[0] || 0;
-            const h = dims[1] || 0;
-            const d = dims[2] || 0;
-            result.push({ width: w, height: h, depth: d, weight: totalWeight, name: caseObj.name });
-            remaining -= unitsInThisCase;
-        }
-        // Если остались единицы (не поместились в кофры), добавляем их без кофра
-        if (remaining > 0) {
-            const dims = props.dimensions ? props.dimensions.split('x').map(s => parseFloat(s.trim())) : [0,0,0];
-            const w = dims[0] || 0;
-            const h = dims[1] || 0;
-            const d = dims[2] || 0;
-            const unitWeight = props.weight || 0;
-            result.push({ width: w, height: h, depth: d, weight: remaining * unitWeight, name: 'Без кофра (остаток)' });
-        }
-        return result;
-    }
-
-    // Индивидуальные кофры (мульти-кофры)
-    const individualVals = getIndividualCaseValues(path);
-    const options = getCaseOptions(path);
-    if (individualVals.length > 0 && options.length > 0) {
-        const result = [];
-        let remaining = totalQty;
-        // Проходим по каждому варианту мульти-кофра
-        for (let i = 0; i < individualVals.length; i++) {
-            const val = individualVals[i];
-            if (val <= 0) continue;
-            const opt = options[i] || options[0];
-            const unitsInThisCase = Math.min(remaining, val);
-            if (unitsInThisCase <= 0) continue;
-            // Если есть альтернативный кофр, используем его
-            const alt = mode.alt;
-            let dimsStr, emptyWeight, qtyPerCase;
-            if (alt && mode.enabled) {
-                dimsStr = alt.dims || '';
-                emptyWeight = alt.weight || 0;
-                qtyPerCase = alt.qty || 1;
-            } else {
-                dimsStr = opt.dims || '';
-                emptyWeight = opt.weight || 0;
-                qtyPerCase = opt.qty || 1;
-            }
-            const dims = dimsStr.split('x').map(s => parseFloat(s.trim()));
-            const w = dims[0] || 0;
-            const h = dims[1] || 0;
-            const d = dims[2] || 0;
-            const unitWeight = props.weight || 0;
-            const totalWeight = unitsInThisCase * unitWeight + emptyWeight;
-            // Рассчитываем, сколько полных кофров получится
-            const fullCases = Math.floor(unitsInThisCase / qtyPerCase);
-            const rem = unitsInThisCase % qtyPerCase;
-            // Добавляем полные кофры
-            for (let c = 0; c < fullCases; c++) {
-                result.push({ width: w, height: h, depth: d, weight: qtyPerCase * unitWeight + emptyWeight, name: `Кофр вар.${i+1}` });
-            }
-            if (rem > 0) {
-                // Неполный кофр — занимает тот же объём, вес меньше
-                result.push({ width: w, height: h, depth: d, weight: rem * unitWeight + emptyWeight, name: `Кофр вар.${i+1} (неполный)` });
-            }
-            remaining -= unitsInThisCase;
-        }
-        // Остаток без кофров
-        if (remaining > 0) {
-            const dims = props.dimensions ? props.dimensions.split('x').map(s => parseFloat(s.trim())) : [0,0,0];
-            const w = dims[0] || 0;
-            const h = dims[1] || 0;
-            const d = dims[2] || 0;
-            const unitWeight = props.weight || 0;
-            result.push({ width: w, height: h, depth: d, weight: remaining * unitWeight, name: 'Без кофра (остаток)' });
-        }
-        return result;
-    }
-
-    // Если режим кофров включён, но нет мульти-вариантов, используем выбранный вариант или альтернативный
-    if (mode.enabled) {
-        let opt = getSelectedOption(path);
-        let alt = mode.alt;
-        let dimsStr, emptyWeight, qtyPerCase;
-        if (alt) {
-            dimsStr = alt.dims || '';
-            emptyWeight = alt.weight || 0;
-            qtyPerCase = alt.qty || 1;
-        } else if (opt) {
-            dimsStr = opt.dims || '';
-            emptyWeight = opt.weight || 0;
-            qtyPerCase = opt.qty || 1;
-        } else {
-            // Нет данных — используем собственные габариты
-            const dims = props.dimensions ? props.dimensions.split('x').map(s => parseFloat(s.trim())) : [0,0,0];
-            const w = dims[0] || 0;
-            const h = dims[1] || 0;
-            const d = dims[2] || 0;
-            const unitWeight = props.weight || 0;
-            return [{ width: w, height: h, depth: d, weight: totalQty * unitWeight, name: 'Без кофра' }];
-        }
-        const dims = dimsStr.split('x').map(s => parseFloat(s.trim()));
-        const w = dims[0] || 0;
-        const h = dims[1] || 0;
-        const d = dims[2] || 0;
-        const unitWeight = props.weight || 0;
-        const fullCases = Math.floor(totalQty / qtyPerCase);
-        const rem = totalQty % qtyPerCase;
-        const result = [];
-        for (let c = 0; c < fullCases; c++) {
-            result.push({ width: w, height: h, depth: d, weight: qtyPerCase * unitWeight + emptyWeight, name: 'Кофр' });
-        }
-        if (rem > 0) {
-            result.push({ width: w, height: h, depth: d, weight: rem * unitWeight + emptyWeight, name: 'Неполный кофр' });
-        }
-        return result;
-    }
-
-    // Без кофров — используем собственные габариты
-    const dims = props.dimensions ? props.dimensions.split('x').map(s => parseFloat(s.trim())) : [0,0,0];
-    const w = dims[0] || 0;
-    const h = dims[1] || 0;
-    const d = dims[2] || 0;
-    const unitWeight = props.weight || 0;
-    return [{ width: w, height: h, depth: d, weight: totalQty * unitWeight, name: 'Без кофра' }];
-}
-
-// ============================================================
-// РАСЧЁТ ВЕСА С КЕШИРОВАНИЕМ
+// РАСЧЁТ ВЕСА/ОБЪЁМА (с кешированием)
 // ============================================================
 function getCacheKey(path, qty, mode) {
     return `${path}|${qty}|${mode.enabled}|${mode.selectedOption}|${mode.alt ? 'alt' : 'none'}|${mode.accumulate}`;
@@ -381,9 +226,6 @@ export function calcItemWeightWithMode(path, qty) {
     return result;
 }
 
-// ============================================================
-// РАСЧЁТ ОБЪЁМА С КЕШИРОВАНИЕМ
-// ============================================================
 export function calcItemVolumeWithMode(path, qty) {
     if (qty <= 0) return 0;
     const props = getItemProps(path);
@@ -471,9 +313,6 @@ export function calcItemVolumeWithMode(path, qty) {
     return result;
 }
 
-// ============================================================
-// РАСЧЁТ КОЛИЧЕСТВА КОФРОВ
-// ============================================================
 export function calcItemCases(path, qty) {
     if (qty <= 0) return 0;
     const mode = getCaseMode(path);

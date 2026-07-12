@@ -1,8 +1,9 @@
-// main.js — Точка входа, навигация, инициализация (финальная версия)
+// main.js — Точка входа, навигация, инициализация
 import { initData, saveEditorData, editorData, resetAllData } from './data.js';
-import { renderEditorAll, addCategory, initRenderHandlers } from './render.js';
+import { renderEditorAll, addCategory, initRenderHandlers } from './render-editor.js';
 import { renderOrderAll, initOrderUI, exportOrderJSON, exportOrderPDF, clearOrderData } from './render-order.js';
 import { renderOpenOrder, initOpenUI } from './render-open.js';
+import { renderLoadingPage, initTruckManagerHandlers } from './render-loading.js';
 import { initModalHandlers, showToast, showConfirm } from './ui.js';
 import { initCases, openCasesManagerModal, openMatrixModal, openCaseSettingsModal } from './cases.js';
 import { loadOrderData, saveOrderData } from './order.js';
@@ -20,11 +21,13 @@ function switchMode(mode) {
     const editorPage = document.getElementById('editorPage');
     const orderPage = document.getElementById('mPage');
     const openPage = document.getElementById('sPage');
+    const loadingPage = document.getElementById('loadingPage');
 
     if (menu) menu.style.display = (mode === 'menu') ? 'block' : 'none';
     if (editorPage) editorPage.style.display = (mode === 'editor') ? 'block' : 'none';
     if (orderPage) orderPage.style.display = (mode === 'order') ? 'block' : 'none';
     if (openPage) openPage.style.display = (mode === 'open') ? 'block' : 'none';
+    if (loadingPage) loadingPage.style.display = (mode === 'loading') ? 'block' : 'none';
 
     if (mode === 'editor') renderEditorAll();
     if (mode === 'order') renderOrderAll();
@@ -33,6 +36,9 @@ function switchMode(mode) {
         if (sRes) sRes.style.display = 'none';
         document.getElementById('loadStatus').textContent = 'Файл не выбран';
         document.getElementById('fSel').value = '';
+    }
+    if (mode === 'loading') {
+        renderLoadingPage();
     }
 }
 
@@ -83,6 +89,7 @@ function loadLibrary() {
                 showToast('Библиотека загружена', 'success');
                 if (currentMode === 'editor') renderEditorAll();
                 if (currentMode === 'order') renderOrderAll();
+                if (currentMode === 'loading') renderLoadingPage();
             } catch(err) {
                 showToast('Ошибка: ' + err.message, 'error');
             }
@@ -118,6 +125,7 @@ function initApp() {
     initRenderHandlers();
     initOrderUI();
     initOpenUI();
+    initTruckManagerHandlers();
 
     const themeToggle = document.getElementById('themeToggle');
     if (themeToggle) themeToggle.addEventListener('click', toggleTheme);
@@ -127,14 +135,16 @@ function initApp() {
     const btnMenuEditor = document.getElementById('btnEditor');
     const btnMenuLoadLibrary = document.getElementById('btnLoadLibrary');
     const btnMenuResetLibrary = document.getElementById('btnResetAll');
+    const btnMenuLoading = document.getElementById('btnLoading');
 
     if (btnMenuOrder) btnMenuOrder.addEventListener('click', () => switchMode('order'));
     if (btnMenuOpen) btnMenuOpen.addEventListener('click', () => switchMode('open'));
     if (btnMenuEditor) btnMenuEditor.addEventListener('click', () => switchMode('editor'));
     if (btnMenuLoadLibrary) btnMenuLoadLibrary.addEventListener('click', loadLibrary);
     if (btnMenuResetLibrary) btnMenuResetLibrary.addEventListener('click', resetLibrary);
+    if (btnMenuLoading) btnMenuLoading.addEventListener('click', () => switchMode('loading'));
 
-    const backBtns = document.querySelectorAll('#btnBackToMenu, #btnBackToMenu2, #btnBackToMenu3');
+    const backBtns = document.querySelectorAll('#btnBackToMenu, #btnBackToMenu2, #btnBackToMenu3, #btnBackToMenu4');
     backBtns.forEach(btn => {
         if (btn) {
             btn.addEventListener('click', function(e) {

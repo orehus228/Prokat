@@ -19,6 +19,7 @@
     <h2 style="color:#aaa;font-weight:500;margin-bottom:12px;">Выберите действие:</h2>
     <button class="btn" id="btnCreateOrder">📝 Создать список</button>
     <button class="btn btn-sec" id="btnOpenOrder">📂 Открыть список</button>
+    <button class="btn btn-loading" id="btnLoading">🚚 Рассчитать загрузку</button>
     <button class="btn btn-orange" id="btnLoadLibrary">📥 Загрузить библиотеку</button>
     <button class="btn btn-red" id="btnResetAll">🔄 Сбросить данные</button>
     <button class="btn btn-purple" id="btnEditor">📦 Редактор склада</button>
@@ -93,6 +94,15 @@
     </div>
 </div>
 
+<!-- Страница расчёта загрузки -->
+<div id="loadingPage" style="display:none;">
+    <div class="card">
+        <button class="btn btn-sec" id="btnBackToMenu4">◀ В меню</button>
+        <h3 style="color:#d0d0d0;font-weight:600;margin-bottom:12px;">🚚 Расчёт загрузки</h3>
+        <div id="loadingContent"></div>
+    </div>
+</div>
+
 <!-- Страница редактора склада -->
 <div id="editorPage" style="display:none;">
     <div class="card">
@@ -115,13 +125,11 @@
     </div>
 </div>
 
-<!-- Модалки -->
-
 <!-- Модалка ввода текста -->
 <div class="modal-overlay" id="modalOverlay">
     <div class="modal">
         <h3 id="modalTitle">Новая позиция</h3>
-        <label for="modalInput">Название:</label>
+        <label id="modalLabel" for="modalInput">Название:</label>
         <input type="text" id="modalInput" placeholder="Введите название...">
         <div class="buttons">
             <button class="cancel" id="modalCancel">Отмена</button>
@@ -167,8 +175,8 @@
     <div class="modal" style="max-width:700px;">
         <h3>📦 Общие кофры (для режима создания заказа)</h3>
         <div id="casesList" style="margin-bottom:15px;max-height:300px;overflow-y:auto;"></div>
-        <div style="border-top:1px solid #333;padding-top:15px;">
-            <h4 style="color:#aaa;">Добавить / редактировать кофр</h4>
+        <div style="border-top:1px solid var(--border-color);padding-top:15px;">
+            <h4 style="color:var(--text-secondary);">Добавить / редактировать кофр</h4>
             <label>Название:</label>
             <input type="text" id="newCaseName" placeholder="Например: Ящик 120x80x60">
             <label>Вместимость (шт):</label>
@@ -241,6 +249,31 @@
         <div class="buttons" style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
             <button class="cancel" id="matrixClearAll">Удалить все привязки</button>
             <button class="cancel" id="matrixClose">Закрыть</button>
+        </div>
+    </div>
+</div>
+
+<!-- Модалка управления грузовиками -->
+<div class="modal-overlay" id="truckManagerModal">
+    <div class="modal" style="max-width:600px;">
+        <h3>🚚 Управление грузовиками</h3>
+        <div id="truckList" style="margin-bottom:15px;max-height:250px;overflow-y:auto;"></div>
+        <div style="border-top:1px solid var(--border-color);padding-top:15px;">
+            <h4 style="color:var(--text-secondary);">Добавить / редактировать грузовик</h4>
+            <label>Название:</label>
+            <input type="text" id="truckName" placeholder="Грузовик 10т">
+            <label>Длина (см):</label>
+            <input type="number" id="truckLength" placeholder="600">
+            <label>Ширина (см):</label>
+            <input type="number" id="truckWidth" placeholder="240">
+            <label>Высота (см):</label>
+            <input type="number" id="truckHeight" placeholder="240">
+            <label>Максимальный вес (кг):</label>
+            <input type="number" id="truckMaxWeight" placeholder="10000">
+            <div class="buttons">
+                <button class="cancel" id="truckManagerClose">Закрыть</button>
+                <button class="confirm" id="truckAddBtn">➕ Добавить</button>
+            </div>
         </div>
     </div>
 </div>

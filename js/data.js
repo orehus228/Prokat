@@ -2,11 +2,11 @@
 import {
     CAT_NAMES,
     DUPLICATE_VIDEO_GROUPS,
-    STORAGE_KEYS
+    STORAGE_KEYS,
+    DEFAULT_TRUCK_PRESETS
 } from './config.js';
 
 export let editorData = {};
-
 const calculationCache = new Map();
 
 export function loadEditorData() {
@@ -34,12 +34,11 @@ function resetToEmpty() {
         catNames: { ...CAT_NAMES },
         _categoryOrder: [],
         commonCases: [],
-        truckPresets: []
+        truckPresets: [...DEFAULT_TRUCK_PRESETS]
     };
 }
 
 function normalizeAllData() {
-    // Удаляем дублирующиеся группы видео (оставляем только "Экран")
     if (editorData.inventory && editorData.inventory.video) {
         const video = editorData.inventory.video;
         DUPLICATE_VIDEO_GROUPS.forEach(name => {
@@ -56,7 +55,6 @@ function normalizeAllData() {
         }
     }
 
-    // Приводим itemProps к корректному виду
     for (let key in editorData.itemProps) {
         const props = editorData.itemProps[key];
         if (props.individualCases === undefined) props.individualCases = [];
@@ -74,7 +72,6 @@ function normalizeAllData() {
         if (props.volume === undefined) props.volume = 0;
     }
 
-    // Категории с подгруппами: проверяем _subOrder
     for (let cat in editorData.inventory) {
         const catData = editorData.inventory[cat];
         if (typeof catData === 'object' && !Array.isArray(catData)) {
@@ -92,7 +89,15 @@ function normalizeAllData() {
     }
 
     if (!editorData.truckPresets) {
-        editorData.truckPresets = [];
+        editorData.truckPresets = [...DEFAULT_TRUCK_PRESETS];
+    }
+
+    if (editorData._categoryOrder) {
+        editorData._categoryOrder = editorData._categoryOrder.filter(cat => 
+            editorData.inventory && editorData.inventory[cat] !== undefined
+        );
+    } else {
+        editorData._categoryOrder = Object.keys(editorData.inventory);
     }
 }
 
@@ -106,9 +111,6 @@ export function resetAllData() {
     saveEditorData();
 }
 
-// ============================================================
-// ОЧИСТКА ОТ ДУБЛЕЙ (для импорта)
-// ============================================================
 export function cleanupInventory(inventory, stock, specs, itemProps) {
     if (!inventory || !inventory.video) return;
     let changed = false;
@@ -145,9 +147,6 @@ export function cleanupInventory(inventory, stock, specs, itemProps) {
     }
 }
 
-// ============================================================
-// КОНВЕРТАЦИЯ СТАРЫХ ДАННЫХ (для импорта)
-// ============================================================
 export function convertOldItemProps(itemProps) {
     const converted = {};
     for (let key in itemProps) {
@@ -208,9 +207,6 @@ export function convertOldItemProps(itemProps) {
     return converted;
 }
 
-// ============================================================
-// ДОСТУП К ДАННЫМ (геттеры/сеттеры)
-// ============================================================
 export function getStockKey(catKey, subKey, itemName) {
     if (subKey) return catKey + '|' + subKey + '|' + itemName;
     return catKey + '|' + itemName;
@@ -264,41 +260,6 @@ export function setItemProps(catKey, subKey, itemName, props) {
     saveEditorData();
 }
 
-// ============================================================
-// ПРЕСЕТЫ ГРУЗОВИКОВ
-// ============================================================
-export function getTruckPresets() {
-    return editorData.truckPresets || [];
-}
-
-export function addTruckPreset(preset) {
-    if (!editorData.truckPresets) editorData.truckPresets = [];
-    if (!preset.id) preset.id = 'truck_' + Date.now();
-    editorData.truckPresets.push(preset);
-    saveEditorData();
-}
-
-export function updateTruckPreset(id, newData) {
-    const presets = getTruckPresets();
-    const idx = presets.findIndex(p => p.id === id);
-    if (idx !== -1) {
-        presets[idx] = { ...presets[idx], ...newData };
-        saveEditorData();
-    }
-}
-
-export function deleteTruckPreset(id) {
-    editorData.truckPresets = editorData.truckPresets.filter(p => p.id !== id);
-    saveEditorData();
-}
-
-export function getTruckPreset(id) {
-    return getTruckPresets().find(p => p.id === id);
-}
-
-// ============================================================
-// ОБЩИЕ КОФРЫ
-// ============================================================
 export function getCommonCases() {
     return editorData.commonCases || [];
 }
@@ -328,9 +289,35 @@ export function deleteCommonCase(id) {
     saveEditorData();
 }
 
-// ============================================================
-// КЕШИРОВАНИЕ (экспортируем)
-// ============================================================
+export function getTruckPresets() {
+    return editorData.truckPresets || [];
+}
+
+export function addTruckPreset(preset) {
+    if (!editorData.truckPresets) editorData.truckPresets = [];
+    if (!preset.id) preset.id = 'truck_' + Date.now();
+    editorData.truckPresets.push(preset);
+    saveEditorData();
+}
+
+export function updateTruckPreset(id, newData) {
+    const presets = getTruckPresets();
+    const idx = presets.findIndex(p => p.id === id);
+    if (idx !== -1) {
+        presets[idx] = { ...presets[idx], ...newData };
+        saveEditorData();
+    }
+}
+
+export function deleteTruckPreset(id) {
+    editorData.truckPresets = editorData.truckPresets.filter(p => p.id !== id);
+    saveEditorData();
+}
+
+export function getTruckPreset(id) {
+    return getTruckPresets().find(p => p.id === id);
+}
+
 export function getCachedCalculation(key) {
     return calculationCache.get(key);
 }
@@ -343,27 +330,9 @@ export function clearCache() {
     calculationCache.clear();
 }
 
-// ============================================================
-// ФУНКЦИИ ДЛЯ БЕЗОПАСНОГО ПЕРЕИМЕНОВАНИЯ / ПЕРЕМЕЩЕНИЯ
-// ============================================================
-function updateAllKeys(oldPath, newPath) {
-    if (editorData.stock[oldPath] !== undefined) {
-        editorData.stock[newPath] = editorData.stock[oldPath];
-        delete editorData.stock[oldPath];
-    }
-    if (editorData.specs[oldPath] !== undefined) {
-        editorData.specs[newPath] = editorData.specs[oldPath];
-        delete editorData.specs[oldPath];
-    }
-    if (editorData.itemProps[oldPath] !== undefined) {
-        editorData.itemProps[newPath] = editorData.itemProps[oldPath];
-        delete editorData.itemProps[oldPath];
-    }
-}
-
 export function renameCategory(oldName, newName) {
     if (oldName === newName) return;
-    if (editorData.inventory[newName]) throw new Error('Категория с таким именем уже существует');
+    if (editorData.inventory[newName]) throw new Error('Категория уже существует');
     editorData.inventory[newName] = editorData.inventory[oldName];
     delete editorData.inventory[oldName];
     const idx = editorData._categoryOrder.indexOf(oldName);
@@ -399,7 +368,7 @@ export function renameSubgroup(catKey, oldSub, newSub) {
     if (oldSub === newSub) return;
     const catData = editorData.inventory[catKey];
     if (!catData || typeof catData !== 'object' || Array.isArray(catData)) return;
-    if (catData[newSub]) throw new Error('Подгруппа с таким именем уже существует');
+    if (catData[newSub]) throw new Error('Подгруппа уже существует');
     catData[newSub] = catData[oldSub];
     delete catData[oldSub];
     const order = catData._subOrder;
@@ -436,12 +405,27 @@ export function renameItem(catKey, subKey, oldName, newName) {
     if (!Array.isArray(targetArray)) return;
     const idx = targetArray.indexOf(oldName);
     if (idx === -1) throw new Error('Позиция не найдена');
-    if (targetArray.includes(newName)) throw new Error('Позиция с таким именем уже существует');
+    if (targetArray.includes(newName)) throw new Error('Позиция уже существует');
     targetArray[idx] = newName;
     const oldPath = getStockKey(catKey, subKey, oldName);
     const newPath = getStockKey(catKey, subKey, newName);
     updateAllKeys(oldPath, newPath);
     saveEditorData();
+}
+
+function updateAllKeys(oldPath, newPath) {
+    if (editorData.stock[oldPath] !== undefined) {
+        editorData.stock[newPath] = editorData.stock[oldPath];
+        delete editorData.stock[oldPath];
+    }
+    if (editorData.specs[oldPath] !== undefined) {
+        editorData.specs[newPath] = editorData.specs[oldPath];
+        delete editorData.specs[oldPath];
+    }
+    if (editorData.itemProps[oldPath] !== undefined) {
+        editorData.itemProps[newPath] = editorData.itemProps[oldPath];
+        delete editorData.itemProps[oldPath];
+    }
 }
 
 export function moveItem(catKey, subKey, itemName, targetCat, targetSub) {
@@ -463,9 +447,6 @@ export function moveItem(catKey, subKey, itemName, targetCat, targetSub) {
     saveEditorData();
 }
 
-// ============================================================
-// ИНИЦИАЛИЗАЦИЯ
-// ============================================================
 export function initData() {
     loadEditorData();
 }

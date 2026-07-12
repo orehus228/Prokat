@@ -1,4 +1,4 @@
-/* ===== Базовые переменные ===== */
+/* ===== CSS для Прокатошной (финальная версия) ===== */
 :root {
     --bg-primary: #1a1a1a;
     --bg-secondary: #252525;
@@ -102,7 +102,6 @@ body {
     transition: background 0.3s, border-color 0.3s;
 }
 
-/* Кнопки */
 .btn {
     background: var(--bg-secondary);
     color: var(--text-primary);
@@ -194,7 +193,6 @@ body {
     min-height: 34px;
 }
 
-/* Поля ввода */
 .input-field {
     width: 100%;
     padding: 10px 14px;
@@ -228,7 +226,6 @@ body {
     border-color: var(--accent);
 }
 
-/* Тосты */
 .toast {
     position: fixed;
     bottom: 30px;
@@ -270,7 +267,6 @@ body {
     color: #d0a0a0;
 }
 
-/* Шапка */
 .header {
     display: flex;
     align-items: center;
@@ -326,7 +322,6 @@ body {
     border-color: var(--text-secondary);
 }
 
-/* Меню */
 .menu-grid {
     display: flex;
     flex-wrap: wrap;
@@ -336,7 +331,6 @@ body {
     flex: 1 1 160px;
 }
 
-/* Вкладки */
 .category-tabs {
     display: flex;
     flex-wrap: wrap;
@@ -388,7 +382,6 @@ body {
     color: var(--danger-hover);
 }
 
-/* Редактор */
 .subgroup {
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
@@ -549,7 +542,6 @@ body {
     padding: 8px 12px;
 }
 
-/* Заказ */
 .search-box {
     display: flex;
     gap: 8px;
@@ -596,7 +588,6 @@ body {
     font-size: 13px;
 }
 
-/* Строки позиций */
 .row {
     display: flex;
     flex-direction: column;
@@ -659,7 +650,6 @@ body {
     border-color: var(--text-secondary);
 }
 
-/* Индикаторы */
 .row.added {
     background: var(--added-bg) !important;
     border-left: 3px solid var(--success) !important;
@@ -680,7 +670,6 @@ body {
     cursor: help;
 }
 
-/* Кнопки в строке */
 .action-btn {
     background: none;
     border: 1px solid var(--border-light);
@@ -830,7 +819,6 @@ body {
     display: none !important;
 }
 
-/* Модалки */
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -925,7 +913,6 @@ body {
     background: var(--danger-hover);
 }
 
-/* Модалка настройки кофров */
 #caseSettingsModal .modal {
     max-width: 600px;
 }
@@ -965,7 +952,6 @@ body {
     font-size: 16px;
 }
 
-/* Матрица привязок */
 #matrixModal .modal {
     max-width: 95vw;
     max-height: 85vh;
@@ -1118,7 +1104,6 @@ body {
     font-size: 14px;
 }
 
-/* Общие кофры */
 #casesList {
     max-height: 300px;
     overflow-y: auto;
@@ -1132,7 +1117,6 @@ body {
     gap: 10px;
 }
 
-/* Скроллбар */
 ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
@@ -1148,7 +1132,6 @@ body {
     background: var(--text-muted);
 }
 
-/* Адаптив */
 @media (max-width: 600px) {
     body {
         padding: 8px;

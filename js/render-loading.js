@@ -362,10 +362,8 @@ export function renderLoadingPage() {
 
     container.innerHTML = html;
 
-    // Отрисовка выбора грузовиков
     renderTruckSelection();
 
-    // Обработчики
     document.getElementById('calcLoadingBtn')?.addEventListener('click', runCalculation);
     document.getElementById('manageTrucksBtn')?.addEventListener('click', openTruckManager);
 }
@@ -508,7 +506,6 @@ function exportLoadingPDF() {
         showToast('Нет данных для экспорта', 'warning');
         return;
     }
-    // Простой текстовый PDF через печать
     const projectName = document.getElementById('pName')?.value.trim() || 'Загрузка';
     let html = `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>План загрузки</title>
