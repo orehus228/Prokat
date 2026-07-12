@@ -1,4 +1,4 @@
-// render-order.js — Отрисовка страницы создания заказа (оптимизированная, быстрая)
+// render-order.js — Отрисовка страницы создания заказа (оптимизированная, как в старой версии)
 import {
     editorData,
     getStock,
@@ -48,12 +48,14 @@ import {
 // ============================================================
 // СОСТОЯНИЕ СТРАНИЦЫ ЗАКАЗА
 // ============================================================
-let currentCategory = 'sound';
-let searchMode = false;
-let searchQuery = '';
-let detailsOpen = false;
+let currentOrderCategory = 'sound';
+let showPropsOrder = false;
+let searchModeOrder = false;
+let searchQueryOrder = '';
+let detailsOpenOrder = false;
 const infoBlocksOpen = {};
 
+// Кеш плоского списка позиций
 let flatItemsCache = null;
 let eventDelegationInitialized = false;
 
@@ -72,15 +74,15 @@ function getStockValue(path) {
     return getStock(catKey, subKey, itemName) || 9999;
 }
 
-function setValue(path, val) {
+function setValueOrder(path, val) {
     val = Math.max(0, parseInt(val) || 0);
     if (order[path] === val) return;
     order[path] = val;
     if (val === 0) delete order[path];
     saveOrderData();
-    updateTotals();
-    updateCategoryTotals(currentCategory);
-    updateRow(path);
+    updateTotalsOrder();
+    updateCategoryTotalsOrder(currentOrderCategory);
+    updateRowOrder(path);
 }
 
 // ============================================================
@@ -139,35 +141,42 @@ function renderOrderTabs() {
     }
     orderKeys.forEach(key => {
         const tab = document.createElement('div');
-        tab.className = 'category-tab' + (key === currentCategory ? ' active' : '');
+        tab.className = 'category-tab' + (key === currentOrderCategory ? ' active' : '');
         tab.textContent = CAT_NAMES[key] || key;
         tab.dataset.cat = key;
         tab.addEventListener('click', () => {
-            if (searchMode) { document.getElementById('searchInput').value = ''; searchMode = false; searchQuery = ''; }
-            currentCategory = key;
+            if (searchModeOrder) { document.getElementById('searchInput').value = ''; searchModeOrder = false; searchQueryOrder = ''; }
+            currentOrderCategory = key;
             renderOrderTabs();
             renderOrderCategory(key);
-            updateTotals();
-            updateLinkCount();
+            setupInputListenersOrder();
+            setupCaseTogglesOrder();
+            updateTotalsOrder();
+            updateLinkCountOrder();
+            renderCommonCaseIndicatorsOrder();
         });
         container.appendChild(tab);
     });
-    if (!orderKeys.includes(currentCategory)) {
-        currentCategory = orderKeys[0];
+    if (!orderKeys.includes(currentOrderCategory)) {
+        currentOrderCategory = orderKeys[0];
     }
 }
 
 // ============================================================
-// РЕНДЕРИНГ КАТЕГОРИИ (оптимизированный)
+// РЕНДЕРИНГ КАТЕГОРИИ (рекурсивный обход, но с защитой)
 // ============================================================
 function renderOrderCategory(catKey) {
     const container = document.getElementById('categoryContents');
-    const allPaths = buildFlatItemsList();
+    const wrapper = document.createElement('div');
+    wrapper.className = 'category-content active';
+    container.innerHTML = '';
+    container.appendChild(wrapper);
 
-    let filteredPaths = [];
-    if (catKey === 'all' || searchMode) {
-        const query = searchQuery.toLowerCase();
-        filteredPaths = allPaths;
+    if (catKey === 'all' || searchModeOrder) {
+        // Поиск — используем плоский список
+        const allPaths = buildFlatItemsList();
+        const query = searchQueryOrder.toLowerCase();
+        let filteredPaths = allPaths;
         if (query) {
             filteredPaths = allPaths.filter(path => {
                 const name = path.split('|').pop();
@@ -175,41 +184,96 @@ function renderOrderCategory(catKey) {
                 return name.toLowerCase().includes(query) || spec.toLowerCase().includes(query);
             });
         }
+        if (filteredPaths.length === 0) {
+            wrapper.innerHTML = '<div class="empty-message">Ничего не найдено</div>';
+            return;
+        }
+        // Группируем по категориям
+        const grouped = {};
+        filteredPaths.forEach(path => {
+            const cat = path.split('|')[0];
+            if (!grouped[cat]) grouped[cat] = [];
+            grouped[cat].push(path);
+        });
+        let html = '';
+        const orderKeys = editorData._categoryOrder || Object.keys(editorData.inventory);
+        orderKeys.forEach(cat => {
+            if (!grouped[cat]) return;
+            html += `<div class="sub-cat-t">${CAT_NAMES[cat]||cat}</div>`;
+            grouped[cat].forEach(path => {
+                html += buildItemRow(path, 1);
+            });
+        });
+        wrapper.innerHTML = html;
     } else {
-        filteredPaths = allPaths.filter(path => path.startsWith(catKey + '|'));
+        // Обычный режим — рекурсивный обход категории
+        const catData = editorData.inventory[catKey];
+        if (!catData) {
+            wrapper.innerHTML = '<div class="empty-message">Категория пуста</div>';
+            return;
+        }
+        wrapper.innerHTML = buildCategoryHTML(catData, [catKey], 0);
     }
 
-    if (filteredPaths.length === 0) {
-        container.innerHTML = '<div class="empty-message">Ничего не найдено</div>';
-        return;
-    }
-
-    // Строим HTML
-    let html = '';
-    filteredPaths.forEach(path => {
-        html += buildItemRow(path, 1);
-    });
-
-    container.innerHTML = html;
-
-    // Инициализируем делегирование событий (один раз)
+    // Инициализация делегирования событий (один раз)
     if (!eventDelegationInitialized) {
         setupEventDelegation();
         eventDelegationInitialized = true;
     }
 
-    // Обновляем итоги
-    if (!searchMode) updateCategoryTotals(catKey);
-    updateTotals();
-    updateLinkCount();
-    applySearch();
-    if (detailsOpen) {
+    // Настройка обработчиков для case-переключателей и инпутов
+    setupInputListenersOrder();
+    setupCaseTogglesOrder();
+
+    // Обновляем строки (вес/объём и т.д.)
+    document.querySelectorAll('#categoryContents .row').forEach(row => {
+        const path = row.dataset.path;
+        if (path) { updateRowOrder(path); }
+    });
+
+    if (!searchModeOrder) updateCategoryTotalsOrder(catKey);
+    updateTotalsOrder();
+    updateLinkCountOrder();
+    applySearchOrder();
+    if (detailsOpenOrder) {
         document.getElementById('globalDetails').classList.add('open');
         document.getElementById('detailToggle').textContent = 'Скрыть';
     } else {
         document.getElementById('globalDetails').classList.remove('open');
         document.getElementById('detailToggle').textContent = 'Подробно';
     }
+    renderCommonCaseIndicatorsOrder();
+}
+
+// ============================================================
+// РЕКУРСИВНЫЙ ОБХОД КАТЕГОРИИ (с защитой от циклов)
+// ============================================================
+function buildCategoryHTML(data, path, level) {
+    if (level > 15) {
+        console.warn('Превышена глубина обхода', path);
+        return '';
+    }
+    let html = '';
+    if (Array.isArray(data)) {
+        data.forEach(item => {
+            if (typeof item === 'string') {
+                const fullPath = path.length ? path.join('|') + '|' + item : item;
+                html += buildItemRow(fullPath, level);
+            }
+        });
+        return html;
+    } else if (data && typeof data === 'object') {
+        const keys = Object.keys(data).filter(k => !k.startsWith('_'));
+        keys.forEach(key => {
+            const childPath = [...path, key];
+            const isSubSub = level >= 2;
+            if (isSubSub) html += `<div class="sub-sub-cat-t">${key}</div>`;
+            else html += `<div class="sub-cat-t">${key}</div>`;
+            html += buildCategoryHTML(data[key], childPath, level + 1);
+        });
+        return html;
+    }
+    return '';
 }
 
 // ============================================================
@@ -226,15 +290,9 @@ function buildItemRow(fullPath, level) {
     const overstock = getTotalQty(fullPath) > sq;
     const isInfoOpen = infoBlocksOpen[fullPath] || false;
     const totalQty = getTotalQty(fullPath);
-    let weightDisplay = '0 кг', volumeDisplay = '0 м³';
-    if (props.weight) {
-        const w = calcItemWeightWithMode(fullPath, totalQty);
-        weightDisplay = w.toFixed(1) + ' кг';
-    }
-    if (props.dimensions) {
-        const v = calcItemVolumeWithMode(fullPath, totalQty);
-        volumeDisplay = v.toFixed(3) + ' м³';
-    }
+    // Вес/объём будут вычислены в updateRow, здесь ставим заглушку
+    const weightDisplay = '0 кг';
+    const volumeDisplay = '0 м³';
     const infoHtml = buildInfoHtml(fullPath, props, mode);
     const escapedName = esc(fullPath.split('|').pop());
     const isAdded = totalQty > 0;
@@ -293,7 +351,7 @@ function buildInfoHtml(path, props, mode) {
 }
 
 // ============================================================
-// ДЕЛЕГИРОВАНИЕ СОБЫТИЙ (вместо навешивания на каждый элемент)
+// ДЕЛЕГИРОВАНИЕ СОБЫТИЙ
 // ============================================================
 function setupEventDelegation() {
     const container = document.getElementById('categoryContents');
@@ -315,8 +373,8 @@ function handleContainerClick(e) {
                 let val = parseInt(inp.value) || 0;
                 val = Math.max(0, val + delta);
                 inp.value = val;
-                setValue(path, val);
-                updateRow(path);
+                setValueOrder(path, val);
+                updateRowOrder(path);
             }
         }
         return;
@@ -324,31 +382,52 @@ function handleContainerClick(e) {
 
     const infoBtn = e.target.closest('.info-btn');
     if (infoBtn) {
-        toggleInfo(infoBtn);
+        toggleInfoOrder(infoBtn);
         return;
     }
 
     const descBtn = e.target.closest('.desc-btn');
     if (descBtn) {
-        toggleDesc(descBtn);
+        toggleDescOrder(descBtn);
         return;
     }
 
     const linkBtn = e.target.closest('.link-btn');
     if (linkBtn) {
-        openLink(linkBtn);
+        openLinkOrder(linkBtn);
         return;
     }
 
     const caseBtn = e.target.closest('.case-btn');
     if (caseBtn) {
-        openCaseSettings(caseBtn);
+        openCaseSettingsOrder(caseBtn);
         return;
     }
 
     const noteBtn = e.target.closest('.note-btn');
     if (noteBtn) {
-        openNoteEditor(noteBtn);
+        openNoteEditorOrder(noteBtn);
+        return;
+    }
+
+    // Обработка case-выпадающих списков
+    const dropdownBtn = e.target.closest('.case-dropdown-btn');
+    if (dropdownBtn) {
+        const path = dropdownBtn.dataset.path;
+        const row = dropdownBtn.closest('.row');
+        const dropdown = row.querySelector('.case-dropdown');
+        if (dropdown) {
+            dropdown.classList.toggle('open');
+            document.querySelectorAll('.case-dropdown.open').forEach(d => {
+                if (d !== dropdown) d.classList.remove('open');
+            });
+        }
+        return;
+    }
+
+    const dropdownItem = e.target.closest('.case-dropdown-item');
+    if (dropdownItem) {
+        handleDropdownItemOrder(dropdownItem);
         return;
     }
 }
@@ -360,15 +439,35 @@ function handleContainerInput(e) {
         let val = parseInt(target.value);
         if (isNaN(val) || val < 0) val = 0;
         target.value = val;
-        setValue(path, val);
-        updateRow(path);
+        setValueOrder(path, val);
+        updateRowOrder(path);
+        return;
+    }
+
+    // input для case-кофров
+    const caseInput = e.target.closest('.case-input');
+    if (caseInput) {
+        const path = caseInput.dataset.path;
+        let val = parseInt(caseInput.value);
+        if (isNaN(val) || val < 0) val = 0;
+        caseInput.value = val;
+        const mode = getCaseMode(path);
+        if (mode.enabled) {
+            const opt = getSelectedOption(path);
+            if (opt && opt.qty > 0) {
+                const newQty = val * opt.qty;
+                setValueOrder(path, newQty);
+            }
+        }
+        renderCommonCaseIndicatorsOrder();
+        return;
     }
 }
 
 // ============================================================
-// ФУНКЦИИ-ОБРАБОТЧИКИ (для делегирования)
+// ФУНКЦИИ-ОБРАБОТЧИКИ ДЛЯ КНОПОК
 // ============================================================
-function toggleInfo(btn) {
+function toggleInfoOrder(btn) {
     const path = btn.dataset.path;
     const row = btn.closest('.row');
     let infoBlock = row.querySelector('.row-info');
@@ -391,7 +490,7 @@ function toggleInfo(btn) {
     }
 }
 
-function toggleDesc(btn) {
+function toggleDescOrder(btn) {
     const path = btn.dataset.path;
     const block = document.querySelector(`.desc-block[data-path="${path}"]`);
     if (block) {
@@ -400,25 +499,25 @@ function toggleDesc(btn) {
     }
 }
 
-function openLink(btn) {
+function openLinkOrder(btn) {
     const path = btn.dataset.path;
     import('./cases.js').then(module => {
         module.openMatrixModal(path);
     });
 }
 
-function openCaseSettings(btn) {
+function openCaseSettingsOrder(btn) {
     const path = btn.dataset.path;
     import('./cases.js').then(module => {
         module.openCaseSettingsModal(path, () => {
-            updateRow(path);
-            updateTotals();
-            updateCategoryTotals(currentCategory);
+            updateRowOrder(path);
+            updateTotalsOrder();
+            updateCategoryTotalsOrder(currentOrderCategory);
         });
     });
 }
 
-async function openNoteEditor(btn) {
+async function openNoteEditorOrder(btn) {
     const path = btn.dataset.path;
     const current = notes[path] || '';
     const newNote = await showPrompt('Редактировать заметку', 'Заметка:', current);
@@ -432,10 +531,76 @@ async function openNoteEditor(btn) {
     showToast('Заметка сохранена', 'neutral');
 }
 
+function handleDropdownItemOrder(item) {
+    const path = item.dataset.path;
+    const idx = parseInt(item.dataset.idx);
+    const isAlt = item.dataset.alt === 'true';
+    const isAccumulate = item.dataset.accumulate === 'true';
+    const mode = getCaseMode(path);
+    if (isAccumulate) {
+        mode.accumulate = !mode.accumulate;
+        saveOrderData();
+        updateRowOrder(path);
+        updateTotalsOrder();
+        updateCategoryTotalsOrder(currentOrderCategory);
+        showToast(mode.accumulate ? 'Режим "Копиться в кофре" включён' : 'Режим "Копиться в кофре" выключен');
+        renderCommonCaseIndicatorsOrder();
+        return;
+    }
+    if (isAlt) {
+        openAltCaseModalOrder(path);
+        const dropdown = item.closest('.case-dropdown');
+        if (dropdown) dropdown.classList.remove('open');
+        return;
+    }
+    if (idx !== undefined) {
+        mode.selectedOption = idx;
+        mode.alt = null;
+        saveOrderData();
+        updateRowOrder(path);
+        updateTotalsOrder();
+        updateCategoryTotalsOrder(currentOrderCategory);
+        showToast('Вариант кофра выбран');
+        const dropdown = item.closest('.case-dropdown');
+        if (dropdown) dropdown.classList.remove('open');
+        renderCommonCaseIndicatorsOrder();
+    }
+}
+
+function openAltCaseModalOrder(path) {
+    // Упрощённая реализация (как в старой версии)
+    showToast('Альтернативный кофр (будет реализован позже)');
+}
+
+function toggleMultiModeOrder(path) {
+    const mode = getCaseMode(path);
+    if (!mode.enabled) { showToast('Сначала включите режим кофров'); return; }
+    const options = getCaseOptions(path);
+    if (options.length < 2) { showToast('Нужно минимум 2 варианта кофров'); return; }
+    const key = 'multi_' + path;
+    const current = localStorage.getItem(key) === 'true';
+    localStorage.setItem(key, current ? 'false' : 'true');
+    if (!current) {
+        const vals = getIndividualCaseValues(path);
+        if (vals.length === 0) {
+            setIndividualCaseValues(path, options.map(() => 0));
+        }
+    } else {
+        const vals = getIndividualCaseValues(path);
+        const total = vals.reduce((a,b) => a + b, 0);
+        if (total > 0) {
+            setIndividualCaseValues(path, [total]);
+        } else {
+            setIndividualCaseValues(path, []);
+        }
+    }
+    renderOrderCategory(currentOrderCategory);
+}
+
 // ============================================================
-// ИНКРЕМЕНТАЛЬНОЕ ОБНОВЛЕНИЕ СТРОКИ (только для изменённой)
+// ИНКРЕМЕНТАЛЬНОЕ ОБНОВЛЕНИЕ СТРОКИ (с вычислением веса/объёма)
 // ============================================================
-function updateRow(path) {
+function updateRowOrder(path) {
     const row = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
     if (!row) return;
     const qtyInput = row.querySelector('.qty-input');
@@ -455,6 +620,7 @@ function updateRow(path) {
         warn.title = 'Больше нет (в наличии ' + sq + ')';
         row.querySelector('.qty-controls').appendChild(warn);
     }
+    // Вычисляем вес и объём (с кешированием)
     const weightVolDisplay = row.querySelector('.weight-vol-display');
     if (weightVolDisplay) {
         const props = getItemProps(path);
@@ -469,6 +635,7 @@ function updateRow(path) {
         }
         weightVolDisplay.textContent = weightDisplay + ' / ' + volumeDisplay;
     }
+    // Обновляем инфо-блок, если открыт
     if (infoBlocksOpen[path]) {
         const infoBlock = row.querySelector('.row-info');
         if (infoBlock) {
@@ -478,21 +645,23 @@ function updateRow(path) {
             infoBlock.style.display = 'block';
         }
     }
+    // Обновляем индикаторы общих кофров (если нужно)
+    renderCommonCaseIndicatorsOrder();
 }
 
 // ============================================================
-// ОБНОВЛЕНИЕ ИТОГОВ (без изменений)
+// ОБНОВЛЕНИЕ ИТОГОВ
 // ============================================================
-function updateCategoryTotals(catKey) {
+function updateCategoryTotalsOrder(catKey) {
     const container = document.querySelector('#categoryContents .category-content.active');
-    if (!container || searchMode) return;
+    if (!container || searchModeOrder) return;
     let totalsDiv = container.querySelector('.category-totals');
     if (!totalsDiv) {
         totalsDiv = document.createElement('div');
         totalsDiv.className = 'category-totals';
         container.appendChild(totalsDiv);
     }
-    const items = getActiveItems().filter(({ path }) => path.startsWith(catKey + '|'));
+    const items = getActiveItemsOrder().filter(({ path }) => path.startsWith(catKey + '|'));
     let qty = 0, weight = 0, volume = 0, cases = 0;
     items.forEach(({ path, qty: q }) => {
         qty += q;
@@ -503,8 +672,8 @@ function updateCategoryTotals(catKey) {
     totalsDiv.innerHTML = `<span>Итого в категории: ${qty} шт</span><span>Вес: ${weight.toFixed(1)} кг</span><span>Объём: ${volume.toFixed(3)} м³</span>${cases > 0 ? `<span>Кофров: ${cases} шт</span>` : ''}`;
 }
 
-function updateTotals() {
-    const items = getActiveItems();
+function updateTotalsOrder() {
+    const items = getActiveItemsOrder();
     let totalQty = 0, totalWeight = 0, totalVolume = 0, totalCases = 0;
     const catTotals = {};
     items.forEach(({ path, qty }) => {
@@ -524,17 +693,17 @@ function updateTotals() {
     document.getElementById('totalVolume').textContent = totalVolume.toFixed(3);
     const detailsDiv = document.getElementById('globalDetails');
     let detailsHtml = '';
-    const orderKeys = (editorData._categoryOrder || Object.keys(editorData.inventory))
-        .filter(key => editorData.inventory && editorData.inventory[key] !== undefined);
+    const orderKeys = editorData._categoryOrder || Object.keys(editorData.inventory);
     orderKeys.forEach(cat => {
         if (!catTotals[cat]) return;
         const d = catTotals[cat];
         detailsHtml += `<div class="cat-detail"><strong>${CAT_NAMES[cat]||cat}</strong><br>${d.qty} шт<br>${d.weight.toFixed(1)} кг<br>${d.volume.toFixed(3)} м³${d.cases > 0 ? `<br>${d.cases} кофров` : ''}</div>`;
     });
     detailsDiv.innerHTML = detailsHtml || '';
+    renderCommonCaseIndicatorsOrder();
 }
 
-function getActiveItems() {
+function getActiveItemsOrder() {
     const items = [];
     for (let p in order) {
         if (order[p] > 0) items.push({ path: p, qty: order[p] });
@@ -553,42 +722,53 @@ function getActiveItems() {
 // ============================================================
 // ПОИСК (с debounce)
 // ============================================================
-const debouncedSearch = debounce(applySearch, 300);
+const debouncedSearch = debounce(applySearchOrder, 300);
 
-function applySearch() {
+function applySearchOrder() {
     const query = document.getElementById('searchInput').value.toLowerCase().trim();
-    searchQuery = query;
+    searchQueryOrder = query;
     if (query) {
-        if (!searchMode) { searchMode = true; currentCategory = 'all'; }
-        renderOrderCategory('all');
+        if (!searchModeOrder) { searchModeOrder = true; currentOrderCategory = 'all'; renderOrderCategory('all'); return; }
+        const rows = document.querySelectorAll('#categoryContents .row');
+        rows.forEach(row => {
+            const searchText = row.dataset.search || '';
+            if (searchText.includes(query)) row.classList.remove('hidden');
+            else row.classList.add('hidden');
+        });
     } else {
-        if (searchMode) { searchMode = false; 
-            const orderKeys = (editorData._categoryOrder || Object.keys(editorData.inventory))
-                .filter(key => editorData.inventory && editorData.inventory[key] !== undefined);
-            currentCategory = orderKeys[0] || 'sound'; 
-        }
-        renderOrderCategory(currentCategory);
+        if (searchModeOrder) { searchModeOrder = false; currentOrderCategory = editorData._categoryOrder[0] || 'sound'; renderOrderCategory(currentOrderCategory); }
+        else { document.querySelectorAll('#categoryContents .row').forEach(row => row.classList.remove('hidden')); }
     }
 }
 
-function clearSearch() {
+function clearSearchOrder() {
     document.getElementById('searchInput').value = '';
-    searchQuery = '';
-    if (searchMode) { searchMode = false; 
-        const orderKeys = (editorData._categoryOrder || Object.keys(editorData.inventory))
-            .filter(key => editorData.inventory && editorData.inventory[key] !== undefined);
-        currentCategory = orderKeys[0] || 'sound';
-    }
-    renderOrderCategory(currentCategory);
+    if (searchModeOrder) { searchModeOrder = false; currentOrderCategory = editorData._categoryOrder[0] || 'sound'; renderOrderCategory(currentOrderCategory); }
+    else { document.querySelectorAll('#categoryContents .row').forEach(row => row.classList.remove('hidden')); }
+}
+
+// ============================================================
+// НАСТРОЙКА ОБРАБОТЧИКОВ ВВОДА
+// ============================================================
+function setupInputListenersOrder() {
+    // Все обрабатывается через делегирование, здесь ничего не делаем
+}
+
+function setupCaseTogglesOrder() {
+    // Все обрабатывается через делегирование
 }
 
 // ============================================================
 // ОБНОВЛЕНИЕ СЧЁТЧИКА ССЫЛОК
 // ============================================================
-function updateLinkCount() {
+function updateLinkCountOrder() {
     let count = 0;
     for (let src in links) count += links[src].length;
     document.getElementById('linkCount').textContent = `(${count} активных)`;
+}
+
+function renderCommonCaseIndicatorsOrder() {
+    // Заглушка (можно реализовать позже)
 }
 
 // ============================================================
@@ -630,7 +810,7 @@ export function exportOrderPDF() {
         date: document.getElementById('pDate').value || new Date().toLocaleDateString('ru-RU'),
         comment: document.getElementById('pComment').value.trim() || ""
     };
-    const items = getActiveItems();
+    const items = getActiveItemsOrder();
     if (items.length === 0) { showToast('Нет позиций для экспорта', 'warning'); return; }
     const catItems = {};
     items.forEach(({ path, qty, isSplit, segData }) => {
@@ -681,8 +861,7 @@ tr:nth-child(even){background:#f9f9f9}
 <div class="meta"><strong>Дата:</strong> ${esc(data.date)}<br><strong>Комментарий:</strong> ${esc(data.comment||'—')}</div>
 <table><thead><tr><th>Категория</th><th>Позиция</th><th>Кол-во (шт)</th><th>Вес (кг)</th><th>Объём (м³)</th><th>Габариты (см)</th><th>Детали</th></tr></thead><tbody>`;
     let grandQty=0,grandWeight=0,grandVolume=0;
-    const orderKeys = (editorData._categoryOrder || Object.keys(editorData.inventory))
-        .filter(key => editorData.inventory && editorData.inventory[key] !== undefined);
+    const orderKeys = editorData._categoryOrder || Object.keys(editorData.inventory);
     orderKeys.forEach(cat => {
         if (!catItems[cat]) return;
         let first=true, catQty=0,catWeight=0,catVolume=0;
@@ -739,36 +918,36 @@ export async function clearOrderData() {
 // ============================================================
 export function renderOrderAll() {
     flatItemsCache = null;
-    eventDelegationInitialized = false; // позволит переинициализировать при необходимости
+    eventDelegationInitialized = false;
     loadOrderData();
     document.getElementById('pComment').value = localStorage.getItem('last_comment') || '';
     const savedDate = localStorage.getItem('last_date');
     if (savedDate) document.getElementById('pDate').value = savedDate;
     renderOrderTabs();
-    renderOrderCategory(currentCategory);
+    renderOrderCategory(currentOrderCategory);
 }
 
 // ============================================================
 // ЭКСПОРТ ДЛЯ ВНЕШНЕГО ИСПОЛЬЗОВАНИЯ
 // ============================================================
-export { applySearch, clearSearch, renderOrderCategory };
+export { applySearchOrder as applySearch, clearSearchOrder as clearSearch, renderOrderCategory };
 
 // ============================================================
 // ОБРАБОТЧИКИ ДЛЯ КНОПОК СТРАНИЦЫ ЗАКАЗА (инициализация)
 // ============================================================
 export function initOrderUI() {
-    detailsOpen = localStorage.getItem('detailsOpen') === 'true';
+    detailsOpenOrder = localStorage.getItem('detailsOpenOrder') === 'true';
 
     document.getElementById('detailToggle')?.addEventListener('click', function() {
         const details = document.getElementById('globalDetails');
         details.classList.toggle('open');
-        detailsOpen = details.classList.contains('open');
-        localStorage.setItem('detailsOpen', JSON.stringify(detailsOpen));
-        this.textContent = detailsOpen ? 'Скрыть' : 'Подробно';
+        detailsOpenOrder = details.classList.contains('open');
+        localStorage.setItem('detailsOpenOrder', JSON.stringify(detailsOpenOrder));
+        this.textContent = detailsOpenOrder ? 'Скрыть' : 'Подробно';
     });
 
     document.getElementById('searchInput')?.addEventListener('input', debouncedSearch);
-    document.getElementById('clearSearchBtn')?.addEventListener('click', clearSearch);
+    document.getElementById('clearSearchBtn')?.addEventListener('click', clearSearchOrder);
 
     document.getElementById('pDate')?.addEventListener('change', function() {
         localStorage.setItem('last_date', this.value);
