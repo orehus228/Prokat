@@ -1,10 +1,6 @@
 // order.js — Данные заказа (order, splits, packing, routes, caseModes)
-// Адаптировано под единое хранилище, с кешированием расчётов
 import { getItemProps, getCommonCases, getCachedCalculation, setCachedCalculation, clearCache } from './data.js';
 
-// ============================================================
-// ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ЗАКАЗА
-// ============================================================
 export let order = {};
 export let orderSplits = {};
 export let links = {};
@@ -14,9 +10,6 @@ export let individualCaseValues = {};
 export let commonRoutes = {};
 export let caseModes = {};
 
-// ============================================================
-// ЗАГРУЗКА / СОХРАНЕНИЕ (используем общий ключ)
-// ============================================================
 const STORAGE_ORDER_KEY = 'app_order_data';
 
 export function loadOrderData() {
@@ -32,7 +25,6 @@ export function loadOrderData() {
         individualCaseValues = data.individualCaseValues || {};
         commonRoutes = data.commonRoutes || {};
         caseModes = data.caseModes || {};
-        // Приводим caseModes к корректному виду
         for (let path in caseModes) {
             const mode = caseModes[path];
             if (mode.enabled === undefined) mode.enabled = false;
@@ -57,12 +49,9 @@ export function saveOrderData() {
         caseModes
     };
     localStorage.setItem(STORAGE_ORDER_KEY, JSON.stringify(data));
-    clearCache(); // сбрасываем кеш расчётов
+    clearCache();
 }
 
-// ============================================================
-// ФУНКЦИИ ДЛЯ РАБОТЫ С КОЛИЧЕСТВАМИ
-// ============================================================
 export function getTotalQty(path) {
     let total = order[path] || 0;
     if (orderSplits[path]) {
@@ -137,16 +126,10 @@ export function getSelectedOption(path) {
     return options[idx];
 }
 
-// ============================================================
-// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ РАСЧЁТОВ (с кешированием)
-// ============================================================
 function getCacheKey(path, qty, mode) {
     return `${path}|${qty}|${mode.enabled}|${mode.selectedOption}|${mode.alt ? 'alt' : 'none'}|${mode.accumulate}`;
 }
 
-// ============================================================
-// РАСЧЁТ ВЕСА С КЕШИРОВАНИЕМ
-// ============================================================
 export function calcItemWeightWithMode(path, qty) {
     if (qty <= 0) return 0;
     const props = getItemProps(path);
@@ -211,9 +194,6 @@ export function calcItemWeightWithMode(path, qty) {
     return result;
 }
 
-// ============================================================
-// РАСЧЁТ ОБЪЁМА С КЕШИРОВАНИЕМ
-// ============================================================
 export function calcItemVolumeWithMode(path, qty) {
     if (qty <= 0) return 0;
     const props = getItemProps(path);
@@ -301,9 +281,6 @@ export function calcItemVolumeWithMode(path, qty) {
     return result;
 }
 
-// ============================================================
-// РАСЧЁТ КОЛИЧЕСТВА КОФРОВ (без кеша)
-// ============================================================
 export function calcItemCases(path, qty) {
     if (qty <= 0) return 0;
     const mode = getCaseMode(path);
@@ -313,12 +290,7 @@ export function calcItemCases(path, qty) {
     return Math.ceil(qty / opt.qty);
 }
 
-// ============================================================
-// ФУНКЦИЯ ДЛЯ ОБНОВЛЕНИЯ ПУТЕЙ ПРИ ПЕРЕИМЕНОВАНИИ
-// (вызывается из data.js после переименования)
-// ============================================================
 export function updateOrderPaths(oldPath, newPath) {
-    // Обновляем все объекты заказа
     if (order[oldPath] !== undefined) {
         order[newPath] = order[oldPath];
         delete order[oldPath];
@@ -351,7 +323,5 @@ export function updateOrderPaths(oldPath, newPath) {
         caseModes[newPath] = caseModes[oldPath];
         delete caseModes[oldPath];
     }
-    // Также нужно обновить ссылки в links (если они есть как цели)
-    // Это сложнее, пока пропустим, можно добавить позже.
     saveOrderData();
 }

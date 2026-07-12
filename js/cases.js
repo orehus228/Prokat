@@ -23,7 +23,7 @@ import {
 } from './ui.js';
 
 import { CAT_NAMES } from './config.js';
-import { links, saveOrderData, updateOrderPaths } from './order.js';
+import { links, saveOrderData } from './order.js';
 
 // ============================================================
 // ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
@@ -33,7 +33,7 @@ let variantCounter = 0;
 let casesManagerCallback = null;
 
 // ============================================================
-// МОДАЛКА СВОЙСТВ ПОЗИЦИИ (с кофрами)
+// МОДАЛКА СВОЙСТВ ПОЗИЦИИ
 // ============================================================
 export function openPropsModalEditor(catKey, subKey, itemName, onSaveCallback) {
     currentPropsPath = { catKey, subKey, itemName, onSaveCallback };
@@ -73,7 +73,7 @@ export function openPropsModalEditor(catKey, subKey, itemName, onSaveCallback) {
 }
 
 // ============================================================
-// ИНДИВИДУАЛЬНЫЕ КОФРЫ (добавление варианта)
+// ИНДИВИДУАЛЬНЫЕ КОФРЫ
 // ============================================================
 function addIndividualCaseVariant(qty, dim, weight, maxCases) {
     const container = document.getElementById('individualCasesContainer');
@@ -138,7 +138,7 @@ function addCommonCaseVariant(caseId, qty) {
         ${selectHtml}
         <label>Количество единиц позиции в кофре (шт):</label>
         <input type="number" class="com-qty" data-id="${id}" value="${qty !== undefined ? qty : ''}" placeholder="0" min="1">
-        <button class="btn btn-green" style="width:auto;padding:2px 8px;font-size:12px;margin-top:4px;" onclick="addNewCaseFromProps(this)">➕ Новый кофр</button>
+        <button class="btn btn-green" style="width:auto;padding:2px 8px;font-size:12px;margin-top:4px;" onclick="addNewCaseFromProps(this)">+ Новый кофр</button>
     `;
     container.appendChild(group);
 }
@@ -151,7 +151,6 @@ export function addNewCaseFromProps(btn) {
     const group = btn.closest('.case-variant-group');
     const select = group.querySelector('.com-case-select');
     openCasesManagerModal(() => {
-        // Обновляем все select'ы
         document.querySelectorAll('.com-case-select').forEach(sel => {
             const currentVal = sel.value;
             const commonCases = getCommonCases();
@@ -184,7 +183,7 @@ export function initPropsSaveHandler() {
             if (!isNaN(volume) && volume > 0) props.volume = volume;
             props.allowCommon = allowCommon;
             
-            // Собираем индивидуальные кофры
+            // Индивидуальные кофры
             const individualCases = [];
             document.querySelectorAll('#individualCasesContainer .case-variant-group').forEach(group => {
                 const qtyInput = group.querySelector('.ind-qty');
@@ -207,7 +206,7 @@ export function initPropsSaveHandler() {
             if (individualCases.length > 0) props.individualCases = individualCases;
             else delete props.individualCases;
             
-            // Собираем привязки к общим кофрам
+            // Общие кофры
             const commonCases = [];
             document.querySelectorAll('#commonCasesContainer .case-variant-group').forEach(group => {
                 const select = group.querySelector('.com-case-select');
@@ -335,7 +334,7 @@ export function initCasesManagerHandlers() {
             document.getElementById('newCaseWeight').value = '';
             document.getElementById('newCaseMaxWeight').value = '';
             document.getElementById('newCaseMaxVolume').value = '';
-            this.textContent = '➕ Добавить';
+            this.textContent = '+ Добавить';
             delete this.dataset.editId;
             renderCasesList();
             if (casesManagerCallback) casesManagerCallback();
@@ -543,7 +542,7 @@ export function initMatrixHandlers() {
 }
 
 // ============================================================
-// ИНИЦИАЛИЗАЦИЯ ВСЕХ ОБРАБОТЧИКОВ
+// ИНИЦИАЛИЗАЦИЯ
 // ============================================================
 export function initCases() {
     initPropsSaveHandler();

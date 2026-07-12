@@ -1,4 +1,4 @@
-// render-editor.js — Отрисовка редактора склада
+// render-editor.js — Отрисовка редактора склада (минималистичная версия)
 import {
     editorData,
     getStock,
@@ -15,7 +15,8 @@ import {
     renameSubgroup,
     renameItem,
     moveItem,
-    getStockKey
+    getStockKey,
+    resetAllData
 } from './data.js';
 
 import {
@@ -31,7 +32,7 @@ import { CAT_NAMES } from './config.js';
 // ============================================================
 // СОСТОЯНИЕ РЕДАКТОРА
 // ============================================================
-let currentCategory = 'sound';
+let currentCategory = null;
 
 // ============================================================
 // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
@@ -56,6 +57,10 @@ function renderEditorTabs() {
     const container = document.getElementById('editorTabs');
     container.innerHTML = '';
     const order = editorData._categoryOrder || Object.keys(editorData.inventory);
+    if (order.length === 0) {
+        container.innerHTML = '<div style="color:#666;padding:12px;">Нет категорий. Создайте первую.</div>';
+        return;
+    }
     order.forEach(key => {
         if (!editorData.inventory[key]) return;
         const tab = document.createElement('div');
@@ -147,8 +152,11 @@ async function deleteCategory(key) {
 function renderEditorCategory(catKey) {
     const container = document.getElementById('editorContents');
     container.innerHTML = '';
+    if (!catKey || !editorData.inventory[catKey]) {
+        container.innerHTML = '<div style="color:#666;padding:20px;text-align:center;">Выберите категорию или создайте новую</div>';
+        return;
+    }
     const catData = editorData.inventory[catKey];
-    if (!catData) return;
 
     if (Array.isArray(catData)) {
         // Плоский список
@@ -391,27 +399,27 @@ function createItemRowEditor(catKey, subKey, itemName) {
     mainLine.appendChild(actions);
     row.appendChild(mainLine);
 
-    // Информация о свойствах
+    // Информация о свойствах (видна всегда в редакторе)
     const props = getItemProps(catKey, subKey, itemName);
     const infoDiv = document.createElement('div');
     infoDiv.className = 'props-info';
-    const weight = props.weight ? props.weight + ' кг' : '<span class="na">n/a</span>';
-    const dims = props.dimensions || '<span class="na">n/a</span>';
+    const weight = props.weight ? props.weight + ' кг' : 'n/a';
+    const dims = props.dimensions || 'n/a';
     const cases = (props.individualCases || []).length;
     const common = (props.commonCases || []).length;
     infoDiv.innerHTML = `
-        <span>⚖️ ${weight}</span>
-        <span>📐 ${dims}</span>
-        <span>🧩 Инд. кофры: ${cases}</span>
-        <span>📦 Общ. кофры: ${common}</span>
-        <span>Разрешены общие кофры: ${props.allowCommon ? '✅' : '❌'}</span>
+        <span>Вес: ${weight}</span>
+        <span>Габариты: ${dims}</span>
+        <span>Индивидуальные кофры: ${cases}</span>
+        <span>Общие кофры: ${common}</span>
+        <span>Общие кофры разрешены: ${props.allowCommon ? 'Да' : 'Нет'}</span>
     `;
     row.appendChild(infoDiv);
     return row;
 }
 
 // ============================================================
-// ФУНКЦИИ РЕДАКТИРОВАНИЯ (перемещение, переименование)
+// ФУНКЦИИ РЕДАКТИРОВАНИЯ
 // ============================================================
 async function renameItemHandler(catKey, subKey, oldName) {
     const newName = await showPrompt('Переименовать позицию', 'Новое название:', oldName);
@@ -501,11 +509,18 @@ export async function addCategory() {
 // ============================================================
 export function renderEditorAll() {
     renderEditorTabs();
-    renderEditorCategory(currentCategory);
+    if (currentCategory && editorData.inventory[currentCategory]) {
+        renderEditorCategory(currentCategory);
+    } else if (editorData._categoryOrder && editorData._categoryOrder.length > 0) {
+        currentCategory = editorData._categoryOrder[0];
+        renderEditorCategory(currentCategory);
+    } else {
+        renderEditorCategory(null);
+    }
 }
 
 // ============================================================
-// ИНИЦИАЛИЗАЦИЯ ОБРАБОТЧИКОВ КНОПОК ПАНЕЛИ ИНСТРУМЕНТОВ
+// ИНИЦИАЛИЗАЦИЯ ОБРАБОТЧИКОВ КНОПОК
 // ============================================================
 export function initRenderHandlers() {
     // Экспорт
@@ -522,7 +537,7 @@ export function initRenderHandlers() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'inventory_editor_data.json';
+        a.download = 'library.json';
         a.click();
         URL.revokeObjectURL(url);
         showToast('JSON экспортирован', 'success');
@@ -540,10 +555,10 @@ export function initRenderHandlers() {
             try {
                 let imported = JSON.parse(ev.target.result);
                 if (imported.itemProps) imported.itemProps = convertOldItemProps(imported.itemProps);
-                if (!imported.inventory) imported.inventory = JSON.parse(JSON.stringify(DEFAULT_INVENTORY));
-                if (!imported.stock) imported.stock = JSON.parse(JSON.stringify(DEFAULT_STOCK));
-                if (!imported.specs) imported.specs = JSON.parse(JSON.stringify(DEFAULT_SPECS));
-                if (!imported.catNames) imported.catNames = JSON.parse(JSON.stringify(CAT_NAMES));
+                if (!imported.inventory) imported.inventory = {};
+                if (!imported.stock) imported.stock = {};
+                if (!imported.specs) imported.specs = {};
+                if (!imported.catNames) imported.catNames = { ...CAT_NAMES };
                 if (!imported._categoryOrder) imported._categoryOrder = Object.keys(imported.inventory);
                 if (!imported.commonCases) imported.commonCases = [];
                 for (let cat in imported.inventory) {
@@ -563,7 +578,7 @@ export function initRenderHandlers() {
                 }
                 saveEditorData();
                 renderEditorAll();
-                showToast('✅ Импорт выполнен', 'success');
+                showToast('Импорт выполнен', 'success');
             } catch(err) {
                 showToast('Ошибка: ' + err.message, 'error');
             }
@@ -572,35 +587,13 @@ export function initRenderHandlers() {
         this.value = '';
     });
 
-    // Сброс (к дефолтам)
+    // Сброс (удаляет все данные редактора)
     document.getElementById('resetBtn').addEventListener('click', async () => {
-        const confirmed = await showConfirm('Сбросить все изменения в редакторе?');
+        const confirmed = await showConfirm('Сбросить все данные редактора? Это удалит все категории и позиции.');
         if (!confirmed) return;
-        // Перезагружаем дефолты из config
-        import('./config.js').then(({ 
-            DEFAULT_INVENTORY, DEFAULT_STOCK, DEFAULT_SPECS, 
-            DEFAULT_PROPS, CAT_NAMES, DEFAULT_CATEGORY_ORDER, DEFAULT_COMMON_CASES 
-        }) => {
-            editorData.inventory = JSON.parse(JSON.stringify(DEFAULT_INVENTORY));
-            editorData.stock = JSON.parse(JSON.stringify(DEFAULT_STOCK));
-            editorData.specs = JSON.parse(JSON.stringify(DEFAULT_SPECS));
-            editorData.itemProps = JSON.parse(JSON.stringify(DEFAULT_PROPS));
-            editorData.catNames = JSON.parse(JSON.stringify(CAT_NAMES));
-            editorData._categoryOrder = JSON.parse(JSON.stringify(DEFAULT_CATEGORY_ORDER));
-            editorData.commonCases = JSON.parse(JSON.stringify(DEFAULT_COMMON_CASES));
-            // Нормализация
-            for (let cat in editorData.inventory) {
-                const catData = editorData.inventory[cat];
-                if (typeof catData === 'object' && !Array.isArray(catData)) {
-                    if (!catData._subOrder) {
-                        catData._subOrder = Object.keys(catData).filter(k => k !== '_subOrder');
-                    }
-                }
-            }
-            saveEditorData();
-            renderEditorAll();
-            showToast('Данные сброшены к дефолтным', 'success');
-        });
+        resetAllData();
+        renderEditorAll();
+        showToast('Все данные сброшены', 'success');
     });
 
     // Общие кофры

@@ -1,4 +1,4 @@
-// ui.js — Базовые утилиты и модалки (финальная версия)
+// ui.js — Базовые утилиты и модалки (минималистичная версия)
 
 let toastTimeout = null;
 let toastQueue = [];
@@ -34,7 +34,7 @@ export function showToast(msg, type = 'info', duration = 2500) {
     }, duration);
 }
 
-// ===== PROMPT =====
+// ===== PROMPT (модалка ввода) =====
 export function showPrompt(title, label = 'Введите значение:', defaultValue = '', placeholder = '', validator = null) {
     return new Promise((resolve, reject) => {
         const overlay = document.getElementById('modalOverlay');
@@ -87,14 +87,14 @@ export function showPrompt(title, label = 'Введите значение:', de
     });
 }
 
-// ===== УПРОЩЁННАЯ ОБЁРТКА =====
+// Упрощённая обёртка для совместимости
 export function showModalEditor(title, callback) {
     showPrompt(title, 'Название:', '', 'Введите название...')
         .then(val => callback(val))
         .catch(() => callback(null));
 }
 
-// ===== CONFIRM =====
+// ===== CONFIRM (подтверждение) =====
 export function showConfirm(message, title = 'Подтверждение') {
     return new Promise((resolve) => {
         const overlay = document.getElementById('confirmOverlay');
@@ -157,7 +157,7 @@ export function debounce(fn, delay = 300) {
     };
 }
 
-// ===== ИНИЦИАЛИЗАЦИЯ МОДАЛКИ =====
+// ===== ИНИЦИАЛИЗАЦИЯ МОДАЛКИ (обработчики) =====
 export function initModalHandlers() {
     const cancelBtn = document.getElementById('modalCancel');
     const confirmBtn = document.getElementById('modalConfirm');

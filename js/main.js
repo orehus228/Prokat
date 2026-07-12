@@ -1,11 +1,11 @@
 // main.js — Точка входа, навигация, инициализация
-import { initData, saveEditorData, editorData } from './data.js';
+import { initData, saveEditorData, editorData, resetAllData } from './data.js';
 import { renderEditorAll, addCategory, initRenderHandlers } from './render-editor.js';
 import { renderOrderAll, initOrderUI, exportOrderJSON, exportOrderPDF, clearOrderData } from './render-order.js';
 import { renderOpenOrder, initOpenUI } from './render-open.js';
 import { initModalHandlers, showToast, showConfirm } from './ui.js';
 import { initCases, openCasesManagerModal, openMatrixModal } from './cases.js';
-import { loadOrderData, saveOrderData } from './order.js';
+import { loadOrderData, saveOrderData, clearOrderData as clearOrder } from './order.js';
 import { STORAGE_KEYS } from './config.js';
 
 console.log('main.js загружен');
@@ -14,6 +14,7 @@ console.log('main.js загружен');
 // НАВИГАЦИЯ
 // ============================================================
 let currentMode = 'menu'; // menu | editor | order | open
+let currentTheme = 'dark'; // dark | light
 
 function switchMode(mode) {
     console.log('switchMode:', mode);
@@ -36,6 +37,29 @@ function switchMode(mode) {
         document.getElementById('loadStatus').textContent = 'Файл не выбран';
         document.getElementById('fSel').value = '';
     }
+}
+
+// ============================================================
+// ПЕРЕКЛЮЧЕНИЕ ТЕМЫ
+// ============================================================
+function toggleTheme() {
+    currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    document.body.setAttribute('data-theme', currentTheme);
+    localStorage.setItem('theme', currentTheme);
+    document.getElementById('themeToggle').textContent = currentTheme === 'dark' ? '☀️' : '🌙';
+    showToast('Тема: ' + (currentTheme === 'dark' ? 'тёмная' : 'светлая'), 'info');
+}
+
+function loadTheme() {
+    const saved = localStorage.getItem('theme');
+    if (saved) {
+        currentTheme = saved;
+    } else {
+        currentTheme = 'dark'; // по умолчанию тёмная
+    }
+    document.body.setAttribute('data-theme', currentTheme);
+    const toggle = document.getElementById('themeToggle');
+    if (toggle) toggle.textContent = currentTheme === 'dark' ? '☀️' : '🌙';
 }
 
 // ============================================================
@@ -63,11 +87,11 @@ function loadLibrary() {
                 if (data._categoryOrder) editorData._categoryOrder = data._categoryOrder;
                 if (data.commonCases) editorData.commonCases = data.commonCases;
                 saveEditorData();
-                showToast('✅ Библиотека загружена', 'success');
+                showToast('Библиотека загружена', 'success');
                 if (currentMode === 'editor') renderEditorAll();
                 if (currentMode === 'order') renderOrderAll();
             } catch(err) {
-                showToast('❌ Ошибка: ' + err.message, 'error');
+                showToast('Ошибка: ' + err.message, 'error');
             }
             document.body.removeChild(input);
         };
@@ -76,41 +100,22 @@ function loadLibrary() {
 }
 
 // ============================================================
-// СБРОС ВСЕХ ДАННЫХ
+// СБРОС БИБЛИОТЕКИ (удаление всех данных из корня)
 // ============================================================
-async function resetAll() {
-    const confirmed = await showConfirm('⚠️ Удалить все данные? Это действие необратимо.');
+async function resetLibrary() {
+    const confirmed = await showConfirm('Удалить всю библиотеку? Все данные будут потеряны.');
     if (!confirmed) return;
-    // Очищаем все ключи localStorage
+    resetAllData();
+    // Также очищаем данные заказа
     for (let key in STORAGE_KEYS) {
         localStorage.removeItem(STORAGE_KEYS[key]);
     }
-    // Также удаляем старые ключи для совместимости
-    const oldKeys = [
-        'inventoryEditorData',
-        'order_data',
-        'order_splits',
-        'order_links',
-        'item_notes',
-        'order_packing',
-        'individualCaseValues',
-        'commonRoutes',
-        'caseModes',
-        'openChecked',
-        'openCategoryState',
-        'openDescState',
-        'showProps',
-        'detailsOpen',
-        'last_comment',
-        'last_date'
-    ];
-    oldKeys.forEach(k => localStorage.removeItem(k));
     // Перезагружаем страницу
     location.reload();
 }
 
 // ============================================================
-// ПРЕСЕТЫ (ЗАГЛУШКИ) — пока не реализованы
+// ПРЕСЕТЫ (ЗАГЛУШКИ)
 // ============================================================
 function savePreset() { showToast('Сохранение пресета (заглушка)', 'info'); }
 function loadPreset() { showToast('Загрузка пресета (заглушка)', 'info'); }
@@ -127,6 +132,7 @@ function initApp() {
     // Загружаем данные
     initData();
     loadOrderData();
+    loadTheme();
     
     // Инициализируем UI модули
     initModalHandlers();
@@ -135,18 +141,22 @@ function initApp() {
     initOrderUI();
     initOpenUI();
 
+    // === КНОПКА ПЕРЕКЛЮЧЕНИЯ ТЕМЫ ===
+    const themeToggle = document.getElementById('themeToggle');
+    if (themeToggle) themeToggle.addEventListener('click', toggleTheme);
+
     // === НАВИГАЦИЯ ПО КНОПКАМ МЕНЮ ===
     const btnMenuOrder = document.getElementById('btnMenuOrder');
     const btnMenuOpen = document.getElementById('btnMenuOpen');
     const btnMenuEditor = document.getElementById('btnMenuEditor');
     const btnMenuLoadLibrary = document.getElementById('btnMenuLoadLibrary');
-    const btnMenuReset = document.getElementById('btnMenuReset');
+    const btnMenuResetLibrary = document.getElementById('btnMenuResetLibrary');
 
     if (btnMenuOrder) btnMenuOrder.addEventListener('click', () => switchMode('order'));
     if (btnMenuOpen) btnMenuOpen.addEventListener('click', () => switchMode('open'));
     if (btnMenuEditor) btnMenuEditor.addEventListener('click', () => switchMode('editor'));
     if (btnMenuLoadLibrary) btnMenuLoadLibrary.addEventListener('click', loadLibrary);
-    if (btnMenuReset) btnMenuReset.addEventListener('click', resetAll);
+    if (btnMenuResetLibrary) btnMenuResetLibrary.addEventListener('click', resetLibrary);
 
     // === КНОПКИ "В МЕНЮ" ===
     const backBtns = document.querySelectorAll('#btnBackToMenu, #btnBackToMenu2, #btnBackToMenu3');
@@ -198,7 +208,7 @@ function initApp() {
 
     // Показываем меню по умолчанию
     switchMode('menu');
-    showToast('📦 Прокатошная загружена (обновлённая версия)', 'success');
+    showToast('Прокатошная загружена', 'success');
 }
 
 // Запуск приложения после загрузки DOM

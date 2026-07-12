@@ -65,7 +65,7 @@ export function renderOpenOrder(d) {
     container.innerHTML = '';
     document.getElementById('sRes').style.display = 'block';
     document.getElementById('rName').textContent = d.project_name || 'Мероприятие';
-    document.getElementById('rDate').textContent = '📅 Дата: ' + (d.date || '—');
+    document.getElementById('rDate').textContent = 'Дата: ' + (d.date || '—');
     document.getElementById('rComment').textContent = d.comment || '';
 
     // Построение дерева для отображения
@@ -128,14 +128,14 @@ export function renderOpenOrder(d) {
                     html += `</div>`;
                     html += `<div style="display:flex;gap:12px;flex-wrap:wrap;font-size:14px;color:#888;">`;
                     html += `<span>${item.qty} шт</span>`;
-                    if (cases !== null) html += `<span>📦 ${cases} кофр${cases>1?'а':''}</span>`;
-                    html += `<span>⚖️ ${weight.toFixed(1)} кг</span>`;
-                    html += `<span>📐 ${volume.toFixed(3)} м³</span>`;
-                    html += `<span>📦 ${dims}</span>`;
+                    if (cases !== null) html += `<span>${cases} кофр${cases>1?'а':''}</span>`;
+                    html += `<span>${weight.toFixed(1)} кг</span>`;
+                    html += `<span>${volume.toFixed(3)} м³</span>`;
+                    html += `<span>${dims}</span>`;
                     html += `</div>`;
                     html += `</div>`;
                     if (hasDesc) {
-                        html += `<div class="desc-block" style="display:${descOpen ? 'block' : 'none'};margin-left:20px;">📋 ${esc(desc)}</div>`;
+                        html += `<div class="desc-block" style="display:${descOpen ? 'block' : 'none'};margin-left:20px;">${esc(desc)}</div>`;
                     }
                     html += `</div>`;
                 }
@@ -224,9 +224,9 @@ export function checkMissingItems() {
         }
     }
     if (missing.length === 0) {
-        showToast('✅ Все позиции отмечены!', 'success');
+        showToast('Все позиции отмечены!', 'success');
     } else {
-        const msg = '⚠️ Не отмечены: ' + missing.join(', ');
+        const msg = 'Не отмечены: ' + missing.join(', ');
         showToast(msg, 'warning');
         document.querySelectorAll('.open-check').forEach(cb => {
             const path = cb.dataset.path;
@@ -240,7 +240,7 @@ export function checkMissingItems() {
 }
 
 // ============================================================
-// ИНИЦИАЛИЗАЦИЯ ОБРАБОТЧИКОВ ДЛЯ СТРАНИЦЫ ОТКРЫТИЯ
+// ИНИЦИАЛИЗАЦИЯ ОБРАБОТЧИКОВ
 // ============================================================
 export function initOpenUI() {
     loadOpenState();
@@ -258,11 +258,11 @@ export function initOpenUI() {
                 if (!data.items || typeof data.items !== 'object') {
                     throw new Error('Неверный формат: отсутствует поле items');
                 }
-                document.getElementById('loadStatus').textContent = '✅ Загружено: ' + (data.project_name || 'Без названия');
+                document.getElementById('loadStatus').textContent = 'Загружено: ' + (data.project_name || 'Без названия');
                 renderOpenOrder(data);
             } catch(err) {
-                document.getElementById('loadStatus').textContent = '❌ Ошибка: ' + err.message;
-                showToast('❌ Ошибка загрузки: ' + err.message, 'error');
+                document.getElementById('loadStatus').textContent = 'Ошибка: ' + err.message;
+                showToast('Ошибка загрузки: ' + err.message, 'error');
             }
         };
         reader.readAsText(file);
