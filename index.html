@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Прокатошная</title>
+<style>
+/* ===== ПОЛНЫЙ НАБОР СТИЛЕЙ ===== */
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Roboto,sans-serif;background:#1a1a1a;padding:16px;color:#d0d0d0;min-height:100vh}
+.app{max-width:1400px;margin:0 auto}
+.card{background:#252525;padding:18px;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,0.6);margin-bottom:16px;border:1px solid #3a3a3a}
+.btn{background:#333;color:#d0d0d0;border:1px solid #4a4a4a;padding:14px 12px;border-radius:12px;font-weight:600;cursor:pointer;width:100%;display:block;text-align:center;font-size:16px;margin-bottom:10px;transition:all .2s}
+.btn:hover{background:#3a3a3a}
+.btn-green{background:#2a4a3a;border-color:#3a6a4a;color:#d0e8d0}
+.btn-sec{background:#333;border-color:#4a4a4a}
+.btn-red{background:#4a2a2a;border-color:#6a3a3a;color:#e8d0d0}
+.btn-orange{background:#4a3a2a;border-color:#6a4a3a;color:#e8ddd0}
+.btn-purple{background:#3a2a4a;border-color:#5a3a6a;color:#ddd0e8}
+.btn-sm{padding:8px 16px;font-size:14px;width:auto;display:inline-block;margin:0}
+.input-field,.input-textarea{width:100%;padding:12px 16px;border:1px solid #3a3a3a;border-radius:12px;margin-bottom:10px;font-size:16px;background:#1e1e1e;color:#d0d0d0;font-family:inherit}
+.input-field::placeholder,.input-textarea::placeholder{color:#666}
+.input-field:focus,.input-textarea:focus{outline:none;border-color:#6a6a6a}
+.category-tabs{display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap;border-bottom:2px solid #333;padding-bottom:8px;overflow-x:auto}
+.category-tab{padding:10px 18px;border-radius:12px 12px 0 0;background:#2a2a2a;cursor:pointer;font-weight:500;transition:all .2s;color:#888;white-space:nowrap}
+.category-tab.active{background:#3a3a3a;color:#d0d0d0;border-color:#4a4a4a}
+.category-content{display:block;animation:fadeIn .25s}
+@keyframes fadeIn{from{opacity:.4}to{opacity:1}}
+.row{display:flex;flex-direction:column;padding:8px 0;border-bottom:1px solid #2a2a2a}
+.row .main-line{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.row .name{font-size:15px;font-weight:500}
+.row .controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.controls input[type="number"]{width:56px;padding:6px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:8px;color:#d0d0d0;text-align:center;font-size:16px}
+.btn-c{width:40px;height:40px;border-radius:50%;border:1px solid #4a4a4a;background:#1a1a1a;color:#aaa;font-size:20px;font-weight:bold;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+.global-totals{margin-top:20px;padding:14px 18px;background:#222;border-radius:14px;border:1px solid #333;display:flex;flex-wrap:wrap;gap:16px;font-size:16px}
+.global-totals strong{color:#e0e0e0}
+.modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.75);display:none;align-items:center;justify-content:center;z-index:1000;padding:16px}
+.modal-overlay.open{display:flex}
+.modal{background:#252525;padding:20px;border-radius:20px;border:1px solid #3a3a3a;width:100%;max-width:700px;max-height:90vh;overflow:hidden;display:flex;flex-direction:column}
+.modal h3{color:#d0d0d0;margin-bottom:16px;flex-shrink:0}
+.modal .buttons{display:flex;justify-content:flex-end;gap:8px;margin-top:12px;flex-shrink:0}
+.modal .buttons button{padding:8px 18px;border:0;border-radius:12px;cursor:pointer;font-size:14px}
+.modal .buttons .cancel{background:#2a2a2a;color:#aaa}
+.modal .buttons .cancel:hover{background:#333}
+.modal .buttons .confirm{background:#2d6a3d;color:#e8f0e8}
+.modal .buttons .confirm:hover{background:#3a7a4a}
+.modal .buttons .danger{background:#6a2a2a;color:#f0e0e0}
+.modal .buttons .danger:hover{background:#7a3a3a}
+.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#2a2a2a;color:#d0d0d0;padding:12px 24px;border-radius:10px;font-size:14px;opacity:0;transition:opacity .3s;pointer-events:none;border:1px solid #3a3a3a;z-index:2000}
+.toast.show{opacity:1}
+.header{display:flex;align-items:center;gap:15px;margin-bottom:15px;padding:10px 15px;background:#1e1e1e;border-radius:14px;border:1px solid #333}
+.header h1{margin:0;font-size:24px;color:#d0d0d0}
+.header .logo{width:48px;height:48px;border-radius:12px;background:#2a2a2a;display:flex;align-items:center;justify-content:center;font-size:24px;color:#777}
+.sub-cat-t{font-weight:600;margin:10px 0 6px;padding-left:12px;border-left:3px solid #8a7a6a;color:#d0d0d0}
+.desc-block{display:none;padding:6px 14px;background:#1a221a;border-radius:8px;font-size:14px;color:#8a9a7a;margin:4px 0 4px 20px;border-left:3px solid #6a8a6a;font-style:italic}
+.desc-block.open{display:block}
+.desc-toggle{cursor:pointer;background:0;border:0;color:#6a8a6a;font-size:16px;padding:0 4px}
+.search-box{display:flex;gap:8px;margin-bottom:16px}
+.search-box input{flex:1;padding:10px;border:1px solid #3a3a3a;border-radius:12px;background:#1a1a1a;color:#d0d0d0;font-size:16px}
+.search-box .clear-btn{background:0;border:0;color:#666;font-size:24px;cursor:pointer}
+.preset-bar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;padding:12px;background:#222;border-radius:14px;border:1px solid #333;align-items:center}
+.preset-bar select{padding:8px 12px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:8px;color:#d0d0d0;flex:1;min-width:120px;min-height:44px;font-size:14px}
+.preset-bar button{padding:6px 14px;background:#2a2a2a;border:1px solid #3a3a3a;border-radius:20px;color:#ccc;cursor:pointer;font-size:13px;min-height:40px}
+.preset-bar button:hover{background:#333}
+.matrix-btn{background:#222;color:#d0d0d0;border:1px solid #3a3a3a;padding:10px 18px;border-radius:12px;cursor:pointer;font-size:14px;display:inline-block;margin-bottom:10px;font-weight:500}
+.matrix-btn:hover{background:#2a2a2a}
+.empty-message{color:#666;padding:12px;font-style:italic}
+.item-row{display:flex;flex-direction:column;padding:6px 0;border-bottom:1px solid #2a2a2a}
+.item-row .main-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.item-row .name{flex:1 1 200px;font-size:14px;color:#ccc}
+.item-row .qty{width:70px;padding:4px 6px;border:1px solid #3a3a3a;border-radius:6px;font-size:14px;text-align:center;background:#1a1a1a;color:#d0d0d0}
+.item-row .spec{flex:2 1 250px;padding:4px 6px;border:1px solid #3a3a3a;border-radius:6px;font-size:13px;min-width:120px;background:#1a1a1a;color:#ccc}
+.item-row .actions{display:flex;gap:4px}
+.item-row .actions button{background:0;border:0;cursor:pointer;font-size:16px;padding:0 4px;color:#888}
+.item-row .actions button:hover{color:#c66}
+.item-row .actions button.move{color:#5a8aaa}
+.item-row .actions button.move:hover{color:#7aaaca}
+.item-row .actions button.props{color:#d4a040}
+.item-row .actions button.props:hover{color:#e0b060}
+.item-row .props-info{font-size:12px;color:#888;padding:2px 0 2px 10px;border-left:2px solid #5a8aaa;margin-left:10px;display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.item-row .props-info span{white-space:nowrap}
+.item-row .props-info .na{color:#555}
+.item-row .props-info .case-variant{margin-left:10px;padding-left:10px;border-left:1px solid #444;display:flex;flex-wrap:wrap;gap:6px}
+.add-item{margin:6px 0 10px 12px;padding:4px 12px;background:#2a2a2a;border:1px solid #3a3a3a;border-radius:6px;cursor:pointer;font-size:13px;color:#ccc}
+.add-item:hover{background:#333}
+.add-subgroup{margin:6px 0 16px 0;padding:6px 18px;background:#2a2a2a;color:#d0d0d0;border:1px solid #3a3a3a;border-radius:8px;cursor:pointer;font-size:14px}
+.add-subgroup:hover{background:#333}
+.editor-add{display:flex;gap:8px;margin:8px 0;flex-wrap:wrap;align-items:center}
+.editor-add input{flex:1;min-width:120px;padding:6px 10px;border:1px solid #3a3a3a;border-radius:6px;background:#1a1a1a;color:#d0d0d0}
+.editor-add input:focus{outline:none;border-color:#5a8aaa}
+.editor-add button{padding:6px 14px}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.toolbar button{padding:6px 16px;background:#2a2a2a;color:#d0d0d0;border:1px solid #3a3a3a;border-radius:8px;cursor:pointer;font-size:14px;flex:1}
+.toolbar button:hover{background:#333}
+.subgroup{background:#252525;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.3);margin-bottom:16px;border:1px solid #333;overflow:hidden}
+.subgroup-header{display:flex;align-items:center;background:#2a2a2a;padding:8px 16px;border-bottom:1px solid #333;gap:8px;flex-wrap:wrap}
+.subgroup-header .name{font-weight:600;font-size:16px;flex:1;color:#d0d0d0;cursor:pointer}
+.subgroup-header .name:hover{color:#7aaaca}
+.subgroup-header .controls{display:flex;gap:4px}
+.subgroup-header .controls button{background:0;border:1px solid #3a3a3a;border-radius:6px;padding:2px 8px;cursor:pointer;font-size:14px;color:#aaa}
+.subgroup-header .controls button:hover{background:#333;color:#e0e0e0}
+.subgroup-header .controls button.danger{color:#c66}
+.subgroup-header .controls button.danger:hover{background:#3a1a1a;border-color:#c66}
+.case-variant-group{border:1px solid #3a3a3a;border-radius:8px;padding:10px;margin-bottom:10px;background:#1e1e1e;position:relative}
+.case-variant-group .remove-variant{position:absolute;top:4px;right:8px;background:0;border:0;color:#c66;cursor:pointer;font-size:16px}
+.case-variant-group .remove-variant:hover{color:#f88}
+.progress-container{margin-top:20px;padding:16px;background:#1e1e1e;border-radius:14px}
+.progress-bar-bg{width:100%;background:#2a2a2a;height:14px;border-radius:10px;margin-top:8px;overflow:hidden}
+.progress-bar-fill{width:0;background:#8a7a6a;height:14px;border-radius:10px;transition:width .4s}
+.progress-bar-fill.complete{background:#6a8a6a}
+.check-missing-btn{background:#222;color:#d0d0d0;border:1px solid #3a3a3a;padding:12px 20px;border-radius:12px;cursor:pointer;font-size:16px;transition:.2s;width:100%;margin-top:16px}
+.check-missing-btn:hover{background:#2a2a2a}
+.global-details{display:none;width:100%;margin-top:12px;padding:12px;background:#1e1e1e;border-radius:10px;font-size:14px;color:#aaa;border:1px solid #333;flex-wrap:wrap;gap:16px}
+.global-details.open{display:flex}
+.global-details .cat-detail{flex:1 1 160px;padding:6px 10px;border-left:3px solid #8a7a6a}
+.global-details .cat-detail strong{color:#d0d0d0}
+.case-toggle-wrap{display:inline-flex;align-items:center;gap:4px;position:relative;flex-shrink:0}
+.case-toggle{display:inline-flex;align-items:center;gap:6px;font-size:14px;color:#aaa;cursor:pointer;user-select:none;padding:4px 12px 4px 8px;border-radius:20px;border:1px solid #3a3a3a;background:#1e1e1e;white-space:nowrap}
+.case-toggle input[type="checkbox"]{width:18px;height:18px;accent-color:#6a8a6a;cursor:pointer}
+.case-dropdown-btn{background:0;border:0;color:#888;cursor:pointer;font-size:16px;padding:0 4px;line-height:1}
+.case-dropdown-btn:hover{color:#aaa}
+.case-dropdown{display:none;position:absolute;top:100%;left:0;background:#2a2a2a;border:1px solid #3a3a3a;border-radius:8px;padding:6px 0;min-width:200px;z-index:50;box-shadow:0 4px 12px rgba(0,0,0,0.5)}
+.case-dropdown.open{display:block}
+.case-dropdown-item{padding:6px 14px;cursor:pointer;font-size:13px;color:#ccc;transition:background .2s;white-space:nowrap}
+.case-dropdown-item:hover{background:#333}
+.case-dropdown-item.active{color:#d4a040;background:#1a1a1a}
+.case-status{font-size:13px;color:#888;margin-left:6px;white-space:nowrap;flex-shrink:0}
+.multi-toggle{background:0;border:1px solid #5a8aaa;color:#5a8aaa;border-radius:12px;padding:0 6px;font-size:11px;cursor:pointer;min-height:22px}
+.multi-toggle:hover{background:#2a3a4a}
+.multi-toggle.active{background:#5a8aaa;color:#fff}
+.route-btn{background:0;border:1px solid #8a7a6a;color:#8a7a6a;border-radius:12px;padding:0 8px;font-size:11px;cursor:pointer;min-height:24px}
+.route-btn:hover{background:#3a3a2a}
+.common-controls-wrapper{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-left:8px}
+.common-case-control{display:flex;align-items:center;gap:2px;background:#1e1e1e;border:1px solid #3a3a3a;border-radius:6px;padding:2px 4px}
+.common-case-control .label{font-size:11px;color:#888;margin-right:2px}
+.common-case-control input[type="number"]{width:40px;padding:2px;background:transparent;border:none;color:#d0d0d0;text-align:center;font-size:13px}
+.common-case-control .btn-mini{background:0;border:0;color:#aaa;cursor:pointer;font-size:14px;padding:0 2px;line-height:1}
+.common-case-control .btn-mini:hover{color:#fff}
+.common-case-control .btn-mini.danger{color:#c44}
+.common-case-control .btn-mini.danger:hover{color:#f88}
+.common-case-indicator{display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:2px 8px;border-radius:10px;background:#2a2a2a;border:1px solid #3a3a3a}
+.common-case-indicator .fill-bar{width:60px;height:6px;background:#2a2a2a;border-radius:3px;overflow:hidden;position:relative}
+.common-case-indicator .fill-bar .fill{height:100%;border-radius:3px;transition:width .3s}
+.common-case-indicator .fill-bar .fill.green{background:#4a8a4a}
+.common-case-indicator .fill-bar .fill.yellow{background:#d4a040}
+.common-case-indicator .fill-bar .fill.red{background:#c44}
+.common-case-indicator .fill-text{color:#aaa;font-size:11px}
+.common-case-indicator .warning{color:#c44;font-weight:bold}
+.overstock .name{color:#e8a0a0}
+.overstock .controls input[type="number"]{border-color:#c44}
+.overstock .child-row .name{color:#e8a0a0}
+.child-row{padding-left:20px;border-left:2px solid #6a8a6a;margin:4px 0 4px 10px}
+.child-row .name{font-size:14px;color:#aaa}
+.child-row .sub-controls{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.child-row .sub-controls input[type="number"]{width:50px;padding:4px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:6px;color:#d0d0d0;text-align:center;font-size:14px}
+.error-icon{color:#c44;margin-left:8px;font-size:18px;cursor:help}
+@media(max-width:600px){.modal{width:98vw;padding:12px}.item-row .main-line{flex-direction:column;align-items:stretch}.item-row .actions{justify-content:flex-end}.item-row .props-info{flex-direction:column;gap:4px}}
+</style>
+</head>
+<body>
+<div class="app">
+<div class="header"><div class="logo">📦</div><h1>Прокатошная</h1></div>
+
+<!-- Главное меню -->
+<div class="card" id="mMenu" style="display:block;">
+    <h2 style="color:#aaa;font-weight:500;margin-bottom:12px;">Выберите действие:</h2>
+    <button class="btn" id="btnCreateOrder">📝 Создать список</button>
+    <button class="btn btn-sec" id="btnOpenOrder">📂 Открыть список</button>
+    <button class="btn btn-orange" id="btnLoadLibrary">📥 Загрузить библиотеку</button>
+    <button class="btn btn-red" id="btnResetAll">🔄 Сбросить данные</button>
+    <button class="btn btn-purple" id="btnEditor">📦 Редактор склада</button>
+</div>
+
+<!-- Страница создания списка -->
+<div id="mPage" class="card" style="display:none;">
+    <button class="btn btn-sec" id="btnBackToMenu">◀ В меню</button>
+    <h3 style="color:#d0d0d0;font-weight:600;margin-bottom:12px;">📝 Создание списка</h3>
+    <input type="text" id="pName" class="input-field" placeholder="Название мероприятия">
+    <input type="date" id="pDate" class="input-field">
+    <textarea id="pComment" class="input-textarea" placeholder="Комментарий"></textarea>
+    <div style="margin-bottom:15px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+        <button class="btn btn-purple" id="togglePropsBtn">📐 Показать свойства</button>
+        <span style="font-size:14px;color:#888;" id="propsStatus">(свойства скрыты)</span>
+        <button class="matrix-btn" id="openMatrixModal">📊 Матрица привязок</button>
+        <span style="font-size:14px;color:#888;" id="linkCount">(0 активных)</span>
+        <button class="matrix-btn" id="openCommonCasesManager">📦 Общие кофры</button>
+    </div>
+    <div class="preset-bar">
+        <select id="orderPresetSelect"><option value="">— Выберите пресет —</option></select>
+        <button id="saveOrderPreset">💾 Сохранить</button>
+        <button id="loadOrderPreset">📂 Загрузить</button>
+        <button id="exportOrderPresets">📤 Экспорт</button>
+        <button id="importOrderPresetsBtn">📥 Импорт</button>
+        <input type="file" id="orderPresetFileInput" style="display:none" accept=".json">
+        <button id="deleteOrderPreset" style="color:#a07070;">🗑️ Удалить</button>
+        <label class="overlay-toggle"><input type="checkbox" id="orderOverlayToggle"> Наложение</label>
+    </div>
+    <div class="category-tabs" id="categoryTabs"></div>
+    <div class="search-box"><input type="text" id="searchInput" placeholder="🔍 Глобальный поиск..."><button class="clear-btn" id="clearSearchBtn">✕</button></div>
+    <div id="categoryContents"></div>
+    <div id="globalTotals" class="global-totals">
+        <span><strong>Всего:</strong> <span id="totalQty">0</span> шт</span>
+        <span><strong>Вес:</strong> <span id="totalWeight">0</span> кг</span>
+        <span><strong>Объём:</strong> <span id="totalVolume">0</span> м³</span>
+        <button class="detail-btn" id="detailToggle">📊 Подробно</button>
+        <div class="global-details" id="globalDetails"></div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:15px;">
+        <button class="btn btn-green" style="flex:1;" id="saveJ">💾 Сохранить JSON</button>
+        <button class="btn btn-orange" style="flex:1;" id="savePdf">📄 Сохранить PDF</button>
+        <button class="btn btn-red" style="flex:1;" id="clearOrder">🗑️ Очистить</button>
+    </div>
+</div>
+
+<!-- Страница открытия списка -->
+<div id="sPage" style="display:none;">
+    <div class="card">
+        <button class="btn btn-sec" id="btnBackToMenu2">◀ В меню</button>
+        <h3 style="color:#d0d0d0;font-weight:600;margin-bottom:12px;">📂 Открыть список</h3>
+        <label class="btn btn-sec" for="fSel">📎 Выберите JSON-файл</label>
+        <input type="file" id="fSel" style="display:none" accept=".json">
+        <div style="margin-top:12px;font-size:14px;color:#888;"><span id="loadStatus">Файл не выбран</span></div>
+    </div>
+    <div class="card" id="sRes" style="display:none;">
+        <h2 id="rName">Мероприятие</h2>
+        <div id="rDate" style="color:#888;margin-bottom:10px;">📅 Дата:</div>
+        <div id="rComment" style="color:#aaa;margin-bottom:12px;font-style:italic;padding:10px;background:#1e1e1e;border-radius:10px;"></div>
+        <button class="btn btn-red" style="width:auto;padding:8px 18px;font-size:14px;" id="resetCheckboxes">🔄 Сброс отметок</button>
+        <div id="sCats"></div>
+        <div id="globalTotalsOpen" class="global-totals">
+            <span><strong>Общий вес:</strong> <span id="totalWeightOpen">0</span> кг</span>
+            <span><strong>Общий объём:</strong> <span id="totalVolumeOpen">0</span> м³</span>
+        </div>
+        <div class="progress-container">
+            <strong>Собрано:</strong> <span id="progressCount">0/0</span>
+            <span id="progressPercent" style="margin-left:10px;color:#888;">0%</span>
+            <div class="progress-bar-bg"><div id="progressBar" class="progress-bar-fill" style="width:0%;"></div></div>
+            <button class="check-missing-btn" id="checkMissingItems">🔍 Проверить пропущенное</button>
+        </div>
+    </div>
+</div>
+
+<!-- Страница редактора склада -->
+<div id="editorPage" style="display:none;">
+    <div class="card">
+        <button class="btn btn-sec" id="btnBackToMenu3">◀ В меню</button>
+        <h3 style="color:#d0d0d0;font-weight:600;margin-bottom:12px;">📦 Редактор склада</h3>
+        <div class="toolbar">
+            <button id="exportBtn">📤 Экспорт JSON</button>
+            <button id="importBtn">📥 Импорт JSON</button>
+            <button id="resetBtn">🔄 Сброс</button>
+            <button id="saveHtmlBtn" class="btn-purple">💾 Сохранить в HTML</button>
+            <button id="manageCasesBtn" class="btn-purple">📦 Общие кофры</button>
+        </div>
+        <input type="file" id="importFile" style="display:none" accept=".json">
+        <div class="category-tabs" id="editorTabs"></div>
+        <div id="editorContents"></div>
+        <div class="editor-add">
+            <input type="text" id="newCategoryName" placeholder="Новая категория">
+            <button class="btn btn-green" style="width:auto;" id="addCategoryBtn">➕ Добавить категорию</button>
+        </div>
+    </div>
+</div>
+
+<!-- Модалки -->
+<div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+        <h3 id="modalTitle">Новая позиция</h3>
+        <label for="modalInput">Название:</label>
+        <input type="text" id="modalInput" placeholder="Введите название...">
+        <div class="buttons">
+            <button class="cancel" id="modalCancel">Отмена</button>
+            <button class="confirm" id="modalConfirm">Добавить</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="propsModal">
+    <div class="modal" style="max-width:700px;">
+        <h3 id="propsTitle">Свойства позиции</h3>
+        <label>Вес 1 шт (кг):</label>
+        <input type="number" id="propWeight" step="0.1" min="0" placeholder="0.0">
+        <label>Габариты 1 шт (Д×Ш×В, см):</label>
+        <input type="text" id="propDimensions" placeholder="50x40x30">
+        <label>Объём 1 шт (м³) – опционально:</label>
+        <input type="number" id="propVolume" step="0.001" min="0" placeholder="0.000">
+        <hr>
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+            <strong style="color:#d0d0d0;">🧩 Индивидуальные кофры (свои параметры)</strong>
+            <button class="btn btn-green" style="width:auto;padding:4px 12px;font-size:13px;" id="addIndividualCaseVariantBtn">➕ Добавить вариант</button>
+        </div>
+        <div id="individualCasesContainer"></div>
+        <hr>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" id="propAllowCommon"> Разрешено использование общих кофров
+        </label>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
+            <strong style="color:#d0d0d0;">📦 Привязка к общим кофрам</strong>
+            <button class="btn btn-green" style="width:auto;padding:4px 12px;font-size:13px;" id="addCommonCaseVariantBtn">➕ Добавить связь</button>
+        </div>
+        <div id="commonCasesContainer"></div>
+        <div class="buttons">
+            <button class="cancel" id="propsCancel">Отмена</button>
+            <button class="confirm" id="propsConfirm">Сохранить</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="casesManagerModal">
+    <div class="modal" style="max-width:700px;">
+        <h3>📦 Общие кофры (для режима создания заказа)</h3>
+        <div id="casesList" style="margin-bottom:15px;max-height:300px;overflow-y:auto;"></div>
+        <div style="border-top:1px solid #333;padding-top:15px;">
+            <h4 style="color:#aaa;">Добавить / редактировать кофр</h4>
+            <label>Название:</label>
+            <input type="text" id="newCaseName" placeholder="Например: Ящик 120x80x60">
+            <label>Вместимость (шт):</label>
+            <input type="number" id="newCaseQty" placeholder="0">
+            <label>Габариты (Д×Ш×В, см):</label>
+            <input type="text" id="newCaseDim" placeholder="120x80x60">
+            <label>Вес пустого (кг):</label>
+            <input type="number" id="newCaseWeight" step="0.1" placeholder="0.0">
+            <label>Максимальный вес груза (кг):</label>
+            <input type="number" id="newCaseMaxWeight" step="0.1" placeholder="0.0">
+            <label>Максимальный объём (м³):</label>
+            <input type="number" id="newCaseMaxVolume" step="0.001" placeholder="0.000">
+            <div class="buttons">
+                <button class="cancel" id="casesManagerClose">Закрыть</button>
+                <button class="confirm" id="casesManagerAdd">➕ Добавить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+</div>
+
+<script type="module" src="main.js"></script>
+</body>
+</html>
