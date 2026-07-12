@@ -135,180 +135,69 @@ function initApp() {
     try {
         initData();
         loadOrderData();
-        initModalHandlers();
-        initCases();
-        initRenderHandlers();
         
         // === НАВИГАЦИЯ ===
-        const btnCreateOrder = document.getElementById('btnCreateOrder');
-        const btnOpenOrder = document.getElementById('btnOpenOrder');
-        const btnLoadLibrary = document.getElementById('btnLoadLibrary');
-        const btnResetAll = document.getElementById('btnResetAll');
-        const btnEditor = document.getElementById('btnEditor');
-        const btnBackToMenu = document.querySelectorAll('#btnBackToMenu, #btnBackToMenu2, #btnBackToMenu3');
-        
-        if (btnCreateOrder) {
-            btnCreateOrder.addEventListener('click', function() {
-                console.log('Кнопка "Создать список" нажата');
-                navigateTo('mPage');
-            });
-        } else {
-            console.warn('btnCreateOrder не найден');
-        }
-        
-        if (btnOpenOrder) {
-            btnOpenOrder.addEventListener('click', function() {
-                console.log('Кнопка "Открыть список" нажата');
-                navigateTo('sPage');
-            });
-        } else {
-            console.warn('btnOpenOrder не найден');
-        }
-        
-        if (btnLoadLibrary) {
-            btnLoadLibrary.addEventListener('click', loadLibrary);
-        } else {
-            console.warn('btnLoadLibrary не найден');
-        }
-        
-        if (btnResetAll) {
-            btnResetAll.addEventListener('click', resetAll);
-        } else {
-            console.warn('btnResetAll не найден');
-        }
-        
-        if (btnEditor) {
-            btnEditor.addEventListener('click', function() {
-                console.log('Кнопка "Редактор склада" нажата');
-                navigateTo('editorPage');
-            });
-        } else {
-            console.warn('btnEditor не найден');
-        }
-        
-        btnBackToMenu.forEach(btn => {
-            btn.addEventListener('click', function() {
-                console.log('Кнопка "В меню" нажата');
-                navigateTo('menu');
-            });
+        document.getElementById('btnCreateOrder').addEventListener('click', () => navigateTo('mPage'));
+        document.getElementById('btnOpenOrder').addEventListener('click', () => navigateTo('sPage'));
+        document.getElementById('btnLoadLibrary').addEventListener('click', loadLibrary);
+        document.getElementById('btnResetAll').addEventListener('click', resetAll);
+        document.getElementById('btnEditor').addEventListener('click', () => navigateTo('editorPage'));
+        document.querySelectorAll('#btnBackToMenu, #btnBackToMenu2, #btnBackToMenu3').forEach(btn => {
+            btn.addEventListener('click', () => navigateTo('menu'));
         });
         
-        // === СТРАНИЦА ЗАКАЗА ===
-        const togglePropsBtn = document.getElementById('togglePropsBtn');
-        if (togglePropsBtn) {
-            togglePropsBtn.addEventListener('click', function() {
-                showToast('Переключение свойств (заглушка)');
-            });
-        }
+        // === МОДАЛКИ (ввод текста) ===
+        initModalHandlers();
         
-        const openMatrixModalBtn = document.getElementById('openMatrixModal');
-        if (openMatrixModalBtn) {
-            openMatrixModalBtn.addEventListener('click', openMatrixModal);
-        }
-        
-        const openCommonCasesManagerBtn = document.getElementById('openCommonCasesManager');
-        if (openCommonCasesManagerBtn) {
-            openCommonCasesManagerBtn.addEventListener('click', openCasesManagerModal);
-        }
-        
-        const saveOrderPresetBtn = document.getElementById('saveOrderPreset');
-        if (saveOrderPresetBtn) {
-            saveOrderPresetBtn.addEventListener('click', saveOrderPreset);
-        }
-        
-        const loadOrderPresetBtn = document.getElementById('loadOrderPreset');
-        if (loadOrderPresetBtn) {
-            loadOrderPresetBtn.addEventListener('click', loadOrderPreset);
-        }
-        
-        const exportOrderPresetsBtn = document.getElementById('exportOrderPresets');
-        if (exportOrderPresetsBtn) {
-            exportOrderPresetsBtn.addEventListener('click', exportOrderPresets);
-        }
-        
-        const importOrderPresetsBtn = document.getElementById('importOrderPresetsBtn');
-        if (importOrderPresetsBtn) {
-            importOrderPresetsBtn.addEventListener('click', importOrderPresets);
-        }
-        
-        const orderPresetFileInput = document.getElementById('orderPresetFileInput');
-        if (orderPresetFileInput) {
-            orderPresetFileInput.addEventListener('change', function(e) {
-                if (e.target.files[0]) {
-                    showToast('Импорт пресета (заглушка)');
-                    this.value = '';
-                }
-            });
-        }
-        
-        const deleteOrderPresetBtn = document.getElementById('deleteOrderPreset');
-        if (deleteOrderPresetBtn) {
-            deleteOrderPresetBtn.addEventListener('click', deleteOrderPreset);
-        }
-        
-        const saveJBtn = document.getElementById('saveJ');
-        if (saveJBtn) {
-            saveJBtn.addEventListener('click', saveJ);
-        }
-        
-        const savePdfBtn = document.getElementById('savePdf');
-        if (savePdfBtn) {
-            savePdfBtn.addEventListener('click', savePdf);
-        }
-        
-        const clearOrderBtn = document.getElementById('clearOrder');
-        if (clearOrderBtn) {
-            clearOrderBtn.addEventListener('click', clearOrder);
-        }
-        
-        const searchInput = document.getElementById('searchInput');
-        if (searchInput) {
-            searchInput.addEventListener('input', applySearch);
-        }
-        
-        const clearSearchBtn = document.getElementById('clearSearchBtn');
-        if (clearSearchBtn) {
-            clearSearchBtn.addEventListener('click', clearSearch);
-        }
-        
-        // === СТРАНИЦА ОТКРЫТИЯ СПИСКА ===
-        const resetCheckboxesBtn = document.getElementById('resetCheckboxes');
-        if (resetCheckboxesBtn) {
-            resetCheckboxesBtn.addEventListener('click', resetCheckboxes);
-        }
-        
-        const checkMissingItemsBtn = document.getElementById('checkMissingItems');
-        if (checkMissingItemsBtn) {
-            checkMissingItemsBtn.addEventListener('click', checkMissingItems);
-        }
-        
-        const fSel = document.getElementById('fSel');
-        if (fSel) {
-            fSel.addEventListener('change', function(e) {
-                const file = e.target.files[0];
-                if (!file) return;
-                document.getElementById('loadStatus').textContent = '✅ Загружено: ' + file.name;
-                showToast('Загрузка списка (заглушка)');
-            });
-        }
+        // === КОФРЫ ===
+        initCases(); // теперь это инициализирует все обработчики свойств и общих кофров
         
         // === РЕДАКТОР ===
-        const addCategoryBtn = document.getElementById('addCategoryBtn');
-        if (addCategoryBtn) {
-            addCategoryBtn.addEventListener('click', addCategory);
-        }
+        initRenderHandlers();
+        document.getElementById('addCategoryBtn').addEventListener('click', addCategory);
+        document.getElementById('addIndividualCaseVariantBtn').addEventListener('click', addIndividualCaseVariantBtn);
+        document.getElementById('addCommonCaseVariantBtn').addEventListener('click', addCommonCaseVariantBtn);
         
-        const addIndividualCaseVariantBtnEl = document.getElementById('addIndividualCaseVariantBtn');
-        if (addIndividualCaseVariantBtnEl) {
-            addIndividualCaseVariantBtnEl.addEventListener('click', addIndividualCaseVariantBtn);
-        }
+        // === СТРАНИЦА ЗАКАЗА ===
+        document.getElementById('togglePropsBtn').addEventListener('click', function() {
+            // пока заглушка
+            showToast('Переключение свойств (заглушка)');
+        });
+        document.getElementById('detailToggle').addEventListener('click', function() {
+            const details = document.getElementById('globalDetails');
+            details.classList.toggle('open');
+            localStorage.setItem('detailsOpen', JSON.stringify(details.classList.contains('open')));
+            this.textContent = details.classList.contains('open') ? '📊 Скрыть' : '📊 Подробно';
+        });
+        document.getElementById('openMatrixModal').addEventListener('click', openMatrixModal);
+        document.getElementById('openCommonCasesManager').addEventListener('click', openCasesManagerModal);
+        document.getElementById('saveOrderPreset').addEventListener('click', saveOrderPreset);
+        document.getElementById('loadOrderPreset').addEventListener('click', loadOrderPreset);
+        document.getElementById('exportOrderPresets').addEventListener('click', exportOrderPresets);
+        document.getElementById('importOrderPresetsBtn').addEventListener('click', importOrderPresets);
+        document.getElementById('orderPresetFileInput').addEventListener('change', function(e) {
+            if (e.target.files[0]) {
+                showToast('Импорт пресета (заглушка)');
+                this.value = '';
+            }
+        });
+        document.getElementById('deleteOrderPreset').addEventListener('click', deleteOrderPreset);
+        document.getElementById('saveJ').addEventListener('click', saveJ);
+        document.getElementById('savePdf').addEventListener('click', savePdf);
+        document.getElementById('clearOrder').addEventListener('click', clearOrder);
+        document.getElementById('searchInput').addEventListener('input', applySearch);
+        document.getElementById('clearSearchBtn').addEventListener('click', clearSearch);
         
-        const addCommonCaseVariantBtnEl = document.getElementById('addCommonCaseVariantBtn');
-        if (addCommonCaseVariantBtnEl) {
-            addCommonCaseVariantBtnEl.addEventListener('click', addCommonCaseVariantBtn);
-        }
+        // === СТРАНИЦА ОТКРЫТИЯ СПИСКА ===
+        document.getElementById('resetCheckboxes').addEventListener('click', resetCheckboxes);
+        document.getElementById('checkMissingItems').addEventListener('click', checkMissingItems);
+        document.getElementById('fSel').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            document.getElementById('loadStatus').textContent = '✅ Загружено: ' + file.name;
+            showToast('Загрузка списка (заглушка)');
+        });
         
-        // === ПОКАЗЫВАЕМ МЕНЮ ===
         navigateTo('menu');
         showToast('Прокатошная загружена (модульная версия)');
     } catch(e) {
