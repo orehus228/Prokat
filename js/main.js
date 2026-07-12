@@ -109,10 +109,11 @@ async function resetLibrary() {
     location.reload();
 }
 
+// Заглушки для пресетов (можно будет реализовать позже)
 function savePreset() { showToast('Сохранение пресета (заглушка)', 'neutral'); }
 function loadPreset() { showToast('Загрузка пресета (заглушка)', 'neutral'); }
 function exportPresets() { showToast('Экспорт пресетов (заглушка)', 'neutral'); }
-function importPresets() { document.getElementById('presetFileInput').click(); }
+function importPresets() { document.getElementById('orderPresetFileInput').click(); }
 function deletePreset() { showToast('Удаление пресета (заглушка)', 'neutral'); }
 
 function initApp() {

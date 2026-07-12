@@ -85,6 +85,9 @@ export function renderOpenOrder(d) {
         }
     }
 
+    // Загружаем спецификации, если они есть в данных заказа
+    const specs = d.specs || {};
+
     function buildTreeHTML(node, level, parentPath) {
         let html = '';
         const keys = Object.keys(node).filter(k => k !== '_items');
@@ -104,7 +107,7 @@ export function renderOpenOrder(d) {
             if (child._items) {
                 for (let item of child._items) {
                     const checked = openChecked[item.path] || false;
-                    const desc = loadedOrder?.specs?.[item.path] || '';
+                    const desc = specs[item.path] || '';
                     const hasDesc = !!desc;
                     const descOpen = openDescState[item.path] || false;
                     const weight = calcItemWeightWithMode(item.path, item.qty);

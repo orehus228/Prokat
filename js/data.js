@@ -109,6 +109,15 @@ export function saveEditorData() {
 export function resetAllData() {
     resetToEmpty();
     saveEditorData();
+    // Очищаем все ключи мульти-режима из localStorage
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('multi_')) {
+            keysToRemove.push(key);
+        }
+    }
+    keysToRemove.forEach(key => localStorage.removeItem(key));
 }
 
 export function cleanupInventory(inventory, stock, specs, itemProps) {

@@ -18,6 +18,7 @@ import {
     getCaseMode,
     getCaseOptions,
     getSelectedOption,
+    getIndividualCaseValues,
     calcItemWeightWithMode,
     calcItemVolumeWithMode,
     loadOrderData
@@ -192,7 +193,7 @@ function getItemDimensions(path, qty) {
 }
 
 // ============================================================
-// ЭВРИСТИЧЕСКИЙ АЛГОРИТМ УПАКОВКИ (Corner-Based)
+// ЭВРИСТИЧЕСКИЙ АЛГОРИТМ УПАКОВКИ (Corner-Based с проверкой веса)
 // ============================================================
 function packItems(truck, items) {
     const sortedItems = [...items].sort((a, b) => {
@@ -203,8 +204,15 @@ function packItems(truck, items) {
 
     const packed = [];
     const points = [{ x: 0, y: 0, z: 0 }];
+    let currentWeight = 0;
+    const maxWeight = truck.maxWeight || Infinity;
 
     for (let item of sortedItems) {
+        // Проверка на превышение веса
+        if (currentWeight + item.weight > maxWeight) {
+            return { success: false, packed, failedItem: item, reason: 'weight' };
+        }
+
         let placed = false;
         for (let i = 0; i < points.length; i++) {
             const pt = points[i];
@@ -229,6 +237,7 @@ function packItems(truck, items) {
                         name: item.name,
                         path: item.path
                     });
+                    currentWeight += item.weight;
                     points.splice(i, 1);
                     points.push({ x: pt.x + item.width, y: pt.y, z: pt.z });
                     points.push({ x: pt.x, y: pt.y + item.height, z: pt.z });
@@ -240,7 +249,7 @@ function packItems(truck, items) {
             }
         }
         if (!placed) {
-            return { success: false, packed, failedItem: item };
+            return { success: false, packed, failedItem: item, reason: 'space' };
         }
     }
     return { success: true, packed };

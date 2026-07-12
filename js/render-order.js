@@ -270,7 +270,7 @@ function buildCategoryHTML(data, path, level) {
 }
 
 // ============================================================
-// ПОСТРОЕНИЕ СТРОКИ С ОТОБРАЖЕНИЕМ ВЕСА/ОБЪЁМА (ИСПРАВЛЕННОЕ)
+// ПОСТРОЕНИЕ СТРОКИ С ОТОБРАЖЕНИЕМ ВЕСА/ОБЪЁМА
 // ============================================================
 function buildItemRow(fullPath, level) {
     const val = getValue(fullPath);
@@ -284,7 +284,7 @@ function buildItemRow(fullPath, level) {
     const isInfoOpen = infoBlocksOpen[fullPath] || false;
     const totalQty = getTotalQty(fullPath);
     
-    // Вычисляем вес и объём (исправлена проверка)
+    // Вычисляем вес и объём
     let weightDisplay = '0 кг', volumeDisplay = '0 м³';
     if (props.weight !== undefined && props.weight !== null && props.weight > 0) {
         const w = calcItemWeightWithMode(fullPath, totalQty);
@@ -333,7 +333,7 @@ function buildItemRow(fullPath, level) {
 }
 
 // ============================================================
-// ПОСТРОЕНИЕ БЛОКА «ИНФО» (С КОФРАМИ) (ИСПРАВЛЕННОЕ)
+// ПОСТРОЕНИЕ БЛОКА «ИНФО» (С КОФРАМИ)
 // ============================================================
 function buildInfoHtml(path, props, mode) {
     let html = `<div style="display:flex;flex-wrap:wrap;gap:12px;">`;
@@ -359,7 +359,6 @@ function buildInfoHtml(path, props, mode) {
             html += `<span><strong>Альтернативный кофр:</strong> вместимость ${alt.qty} шт, габ: ${alt.dims || 'н/д'}, вес пустого: ${alt.weight || 0} кг</span>`;
         } else if (opt) {
             html += `<span><strong>Выбранный кофр:</strong> вместимость ${opt.qty} шт, габ: ${opt.dims || 'н/д'}, вес пустого: ${opt.weight || 0} кг</span>`;
-            // Объём кофра (если есть габариты)
             if (opt.dims) {
                 const dimsArr = opt.dims.split('x').map(s => parseFloat(s.trim()));
                 if (dimsArr.length === 3 && dimsArr.every(d => !isNaN(d) && d > 0)) {
@@ -390,7 +389,6 @@ function buildInfoHtml(path, props, mode) {
     const packing = getOrderPacking(path);
     if (packing.length > 0) {
         html += `<span><strong>Привязка к общим кофрам:</strong> ${packing.length} кофров</span>`;
-        // Покажем названия кофров
         const commonCases = getCommonCases();
         const caseNames = packing.map(p => {
             const found = commonCases.find(c => c.id === p.caseId);
@@ -815,9 +813,10 @@ export function exportOrderJSON() {
         comment: document.getElementById('pComment').value.trim() || "",
         items: order,
         splits: orderSplits,
-        packing: orderPacking,
-        individual_cases: individualCaseValues,
-        routes: commonRoutes,
+        specs: editorData.specs || {},
+        packing: getOrderPacking(),
+        individual_cases: getIndividualCaseValues(),
+        routes: getCommonRoutes(),
         links: links,
         notes: notes,
         exclude: orderExclude
@@ -844,27 +843,35 @@ export function exportOrderPDF() {
     const items = getActiveItemsOrder();
     if (items.length === 0) { showToast('Нет позиций для экспорта', 'warning'); return; }
     const catItems = {};
-    items.forEach(({ path, qty, isSplit, segData }) => {
+    items.forEach(({ path, qty }) => {
         const parts = path.split('|');
         const cat = parts[0];
         const name = parts.slice(1).join(' → ');
         if (!catItems[cat]) catItems[cat] = [];
-        let detail = '';
-        if (isSplit && segData) {
-            if (segData.type === 'common') {
-                const c = getCommonCases().find(c => c.id === segData.caseId);
-                detail = c ? 'кофр: ' + c.name : 'кофр: удалён';
-            } else if (segData.type === 'multi') {
-                const opts = getCaseOptions(path);
-                const opt = opts[segData.variantIdx];
-                detail = 'вар.' + (segData.variantIdx+1) + (opt ? ' ('+opt.qty+' шт/кофр), кофров: '+(segData.cases||0) : '');
-            }
-        } else {
-            detail = 'без кофра';
-        }
         const weight = calcItemWeightWithMode(path, qty);
         const volume = calcItemVolumeWithMode(path, qty);
         const dims = getItemProps(path).dimensions || 'н/д';
+        // Определяем детали упаковки
+        const packing = getOrderPacking(path);
+        const mode = getCaseMode(path);
+        let detail = 'без кофра';
+        if (packing.length > 0) {
+            const commonCases = getCommonCases();
+            const names = packing.map(p => {
+                const c = commonCases.find(c => c.id === p.caseId);
+                return c ? c.name : 'удалённый кофр';
+            }).join(', ');
+            detail = 'общие кофры: ' + names;
+        } else if (mode.enabled) {
+            const opt = getSelectedOption(path);
+            const alt = mode.alt;
+            if (alt) {
+                detail = 'альт. кофр, ' + alt.qty + ' шт/кофр';
+            } else if (opt) {
+                const cases = calcItemCases(path, qty);
+                detail = 'кофр ' + opt.qty + ' шт/кофр, всего ' + cases + ' кофр' + (cases > 1 ? 'ов' : '');
+            }
+        }
         catItems[cat].push({ name, qty, weight, volume, dims, detail });
     });
 
@@ -973,7 +980,8 @@ export function initOrderUI() {
         localStorage.setItem('last_comment', this.value);
     });
 
-    document.getElementById('btnSaveJSON')?.addEventListener('click', exportOrderJSON);
-    document.getElementById('btnSavePDF')?.addEventListener('click', exportOrderPDF);
-    document.getElementById('btnClearOrder')?.addEventListener('click', clearOrderData);
+    // Исправленные ID кнопок
+    document.getElementById('saveJ')?.addEventListener('click', exportOrderJSON);
+    document.getElementById('savePdf')?.addEventListener('click', exportOrderPDF);
+    document.getElementById('clearOrder')?.addEventListener('click', clearOrderData);
 }
