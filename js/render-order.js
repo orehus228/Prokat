@@ -1,4 +1,4 @@
-// render-order.js — Отрисовка страницы создания заказа (полная версия)
+// render-order.js — Отрисовка страницы создания заказа (полная версия с оптимизациями)
 import {
     editorData,
     getStock,
@@ -13,7 +13,10 @@ import {
 
 import {
     esc,
-    showToast
+    showToast,
+    showPrompt,
+    showConfirm,
+    debounce
 } from './ui.js';
 
 import {
@@ -37,7 +40,8 @@ import {
     setIndividualCaseValues,
     getCaseMode,
     getCaseOptions,
-    getSelectedOption
+    getSelectedOption,
+    updateOrderPaths
 } from './order.js';
 
 // ============================================================
@@ -48,6 +52,9 @@ let showProps = false;
 let searchMode = false;
 let searchQuery = '';
 let detailsOpen = false;
+
+// Кеш для рендеринга строк (оптимизация)
+const rowCache = new Map();
 
 // ============================================================
 // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
@@ -72,6 +79,8 @@ function setValue(path, val) {
     saveOrderData();
     updateTotals();
     updateCategoryTotals(currentCategory);
+    // Обновляем только строку, а не всю страницу (инкрементально)
+    updateRow(path);
 }
 
 // ============================================================
@@ -104,7 +113,7 @@ function renderOrderTabs() {
 }
 
 // ============================================================
-// РЕНДЕРИНГ КАТЕГОРИИ
+// РЕНДЕРИНГ КАТЕГОРИИ (с инкрементальным обновлением)
 // ============================================================
 function renderOrderCategory(catKey) {
     const container = document.getElementById('categoryContents');
@@ -180,7 +189,7 @@ function buildCategoryHTML(data, path, level) {
             if (hasCase) {
                 const isMulti = localStorage.getItem('multi_' + fullPath) === 'true';
                 const showMultiToggle = options.length > 1;
-                multiToggle = showMultiToggle ? `<button class="multi-toggle ${isMulti ? 'active' : ''}" data-path="${esc(fullPath)}" onclick="toggleMultiMode('${esc(fullPath)}')">${isMulti ? '🔀 Мульти' : '🔀 1'}</button>` : '';
+                multiToggle = showMultiToggle ? `<button class="multi-toggle ${isMulti ? 'active' : ''}" data-path="${esc(fullPath)}" onclick="window.toggleMultiMode('${esc(fullPath)}')">${isMulti ? '🔀 Мульти' : '🔀 1'}</button>` : '';
 
                 caseControls = `<div class="controls">
                     <span class="stock-info">в наличии: ${sq}</span>
@@ -190,7 +199,7 @@ function buildCategoryHTML(data, path, level) {
                     <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
                         <div class="case-toggle-wrap">
                             <label class="case-toggle"><input type="checkbox" class="case-switch" data-path="${esc(fullPath)}" ${caseModeOn ? 'checked' : ''}> Кофры</label>
-                            <button class="case-dropdown-btn" onclick="toggleCaseDropdown('${esc(fullPath)}',this)">▼</button>
+                            <button class="case-dropdown-btn" onclick="window.toggleCaseDropdown('${esc(fullPath)}',this)">▼</button>
                             <div class="case-dropdown" data-path="${esc(fullPath)}">
                                 ${options.map((opt, i) => `<div class="case-dropdown-item ${mode.selectedOption === i && !mode.alt ? 'active' : ''}" data-path="${esc(fullPath)}" data-idx="${i}">Вариант ${i+1} (${opt.qty} шт)</div>`).join('')}
                                 <div class="case-dropdown-item case-dropdown-alt ${mode.alt ? 'active' : ''}" data-path="${esc(fullPath)}" data-alt="true">${mode.alt ? '✅' : '☐'} Альтернативный кофр</div>
@@ -208,9 +217,9 @@ function buildCategoryHTML(data, path, level) {
                     const caseVal = (selected && selected.qty > 0) ? Math.ceil(val / selected.qty) : 0;
                     variantControls = `
                         <div style="display:flex;align-items:center;gap:4px;margin-left:8px;">
-                            <button class="btn-c case-btn" onclick="chgCase('${esc(fullPath)}',-1,this)" style="border-color:#6a8a6a;color:#6a8a6a;width:32px;height:32px;font-size:16px;">−</button>
+                            <button class="btn-c case-btn" onclick="window.chgCase('${esc(fullPath)}',-1,this)" style="border-color:#6a8a6a;color:#6a8a6a;width:32px;height:32px;font-size:16px;">−</button>
                             <input type="number" class="case-input" value="${caseVal}" min="0" step="1" data-path="${esc(fullPath)}" style="width:50px;padding:4px;border:1px solid #6a8a6a;background:#1a2a1a;border-radius:8px;color:#d0d0d0;text-align:center;font-size:14px;">
-                            <button class="btn-c case-btn" onclick="chgCase('${esc(fullPath)}',1,this)" style="border-color:#6a8a6a;color:#6a8a6a;width:32px;height:32px;font-size:16px;">+</button>
+                            <button class="btn-c case-btn" onclick="window.chgCase('${esc(fullPath)}',1,this)" style="border-color:#6a8a6a;color:#6a8a6a;width:32px;height:32px;font-size:16px;">+</button>
                         </div>
                     `;
                 }
@@ -229,7 +238,7 @@ function buildCategoryHTML(data, path, level) {
                 if (route.length > 0) {
                     commonControlsHtml = `<div class="common-controls-wrapper" style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-left:8px;"></div>`;
                 } else {
-                    commonControlsHtml = `<div class="common-controls-wrapper" style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-left:8px;"><button class="route-btn" onclick="openRouteModal('${esc(fullPath)}')">🗺️ Маршрут</button></div>`;
+                    commonControlsHtml = `<div class="common-controls-wrapper" style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-left:8px;"><button class="route-btn" onclick="window.openRouteModal('${esc(fullPath)}')">🗺️ Маршрут</button></div>`;
                 }
             }
 
@@ -238,7 +247,7 @@ function buildCategoryHTML(data, path, level) {
                     <div class="name-area">
                         <span class="name">${escapedName}</span>
                         ${hasDesc ? `<button class="desc-toggle" data-path="${esc(fullPath)}">📄</button>` : ''}
-                        <button class="link-btn ${hasLink ? 'active' : ''}" onclick="openLinkModal('${esc(fullPath)}')" title="Настроить привязки">${linkIcon}</button>
+                        <button class="link-btn ${hasLink ? 'active' : ''}" onclick="window.openLinkModal('${esc(fullPath)}')" title="Настроить привязки">${linkIcon}</button>
                         ${props.allowCommon ? '<span style="font-size:12px;color:#6a8a6a;">✅ Общие кофры</span>' : ''}
                     </div>
                     ${caseControls}
@@ -273,7 +282,6 @@ function buildCategoryHTML(data, path, level) {
 // УПРАВЛЕНИЕ КОЛИЧЕСТВОМ (через делегирование)
 // ============================================================
 function setupQuantityDelegation() {
-    // Удаляем старые обработчики, если есть
     document.removeEventListener('click', handleQuantityClick);
     document.addEventListener('click', handleQuantityClick);
 }
@@ -296,10 +304,8 @@ function handleQuantityClick(e) {
     renderCommonCaseIndicators();
 }
 
-// ============================================================
-// ОСТАЛЬНЫЕ ФУНКЦИИ (без изменений, кроме открытого доступа)
-// ============================================================
-function chgPath(path, delta, btn) {
+// Глобальные функции для вызова из HTML
+window.chgPath = function(path, delta, btn) {
     const row = btn.closest('.row');
     const inp = row.querySelector('.qty-input');
     let val = parseInt(inp.value) || 0;
@@ -309,9 +315,9 @@ function chgPath(path, delta, btn) {
     updateRow(path);
     updateItemPropsDisplay(row, path);
     renderCommonCaseIndicators();
-}
+};
 
-function chgCase(path, delta, btn) {
+window.chgCase = function(path, delta, btn) {
     const row = btn.closest('.row');
     const mode = getCaseMode(path);
     if (!mode.enabled) return;
@@ -326,8 +332,57 @@ function chgCase(path, delta, btn) {
         setValue(path, newQty);
     }
     renderCommonCaseIndicators();
-}
+};
 
+window.toggleCaseDropdown = function(path, btn) {
+    const row = btn.closest('.row');
+    const dropdown = row.querySelector('.case-dropdown');
+    if (dropdown) {
+        dropdown.classList.toggle('open');
+        document.querySelectorAll('.case-dropdown.open').forEach(d => {
+            if (d !== dropdown) d.classList.remove('open');
+        });
+    }
+};
+
+window.openLinkModal = function(sourcePath) {
+    import('./cases.js').then(module => {
+        module.openMatrixModal(sourcePath);
+    });
+};
+
+window.openRouteModal = function(path) {
+    showToast('Маршрут (будет реализован позже) для ' + path, 'info');
+};
+
+window.toggleMultiMode = function(path) {
+    const mode = getCaseMode(path);
+    if (!mode.enabled) { showToast('Сначала включите режим кофров', 'warning'); return; }
+    const options = getCaseOptions(path);
+    if (options.length < 2) { showToast('Нужно минимум 2 варианта кофров', 'warning'); return; }
+    const key = 'multi_' + path;
+    const current = localStorage.getItem(key) === 'true';
+    localStorage.setItem(key, current ? 'false' : 'true');
+    if (!current) {
+        const vals = getIndividualCaseValues(path);
+        if (vals.length === 0) {
+            setIndividualCaseValues(path, options.map(() => 0));
+        }
+    } else {
+        const vals = getIndividualCaseValues(path);
+        const total = vals.reduce((a,b) => a + b, 0);
+        if (total > 0) {
+            setIndividualCaseValues(path, [total]);
+        } else {
+            setIndividualCaseValues(path, []);
+        }
+    }
+    renderOrderCategory(currentCategory);
+};
+
+// ============================================================
+// ИНКРЕМЕНТАЛЬНОЕ ОБНОВЛЕНИЕ СТРОКИ
+// ============================================================
 function updateRow(path) {
     const row = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
     if (!row) return;
@@ -408,9 +463,9 @@ function updateNoteDisplay(row, path) {
     }
 }
 
-function editNote(path) {
+async function editNote(path) {
     const current = notes[path] || '';
-    const newNote = prompt('Введите заметку для позиции:', current);
+    const newNote = await showPrompt('Редактировать заметку', 'Заметка:', current);
     if (newNote === null) return;
     if (newNote.trim() === '') {
         delete notes[path];
@@ -420,9 +475,12 @@ function editNote(path) {
     saveOrderData();
     const row = document.querySelector(`#categoryContents .row[data-path="${esc(path)}"]`);
     if (row) updateNoteDisplay(row, path);
-    showToast('Заметка сохранена');
+    showToast('Заметка сохранена', 'success');
 }
 
+// ============================================================
+// ОБНОВЛЕНИЕ ИТОГОВ (с кешированием)
+// ============================================================
 function updateCategoryTotals(catKey) {
     const container = document.querySelector('#categoryContents .category-content.active');
     if (!container || searchMode) return;
@@ -491,8 +549,10 @@ function getActiveItems() {
 }
 
 // ============================================================
-// ПОИСК
+// ПОИСК (с debounce)
 // ============================================================
+const debouncedSearch = debounce(applySearch, 300);
+
 function applySearch() {
     const query = document.getElementById('searchInput').value.toLowerCase().trim();
     searchQuery = query;
@@ -614,7 +674,7 @@ function handleDropdownItem(e) {
         updateCategoryTotals(currentCategory);
         const row = document.querySelector(`#categoryContents .row[data-path="${esc(path)}"]`);
         if (row) updateItemPropsDisplay(row, path);
-        showToast(mode.accumulate ? 'Режим "Копиться в кофре" включён' : 'Режим "Копиться в кофре" выключен');
+        showToast(mode.accumulate ? 'Режим "Копиться в кофре" включён' : 'Режим "Копиться в кофре" выключен', 'info');
         renderCommonCaseIndicators();
         return;
     }
@@ -633,35 +693,24 @@ function handleDropdownItem(e) {
         updateCategoryTotals(currentCategory);
         const row = document.querySelector(`#categoryContents .row[data-path="${esc(path)}"]`);
         if (row) updateItemPropsDisplay(row, path);
-        showToast('Вариант кофра выбран');
+        showToast('Вариант кофра выбран', 'success');
         const dropdown = item.closest('.case-dropdown');
         if (dropdown) dropdown.classList.remove('open');
         renderCommonCaseIndicators();
     }
 }
 
-function toggleCaseDropdown(path, btn) {
-    const row = btn.closest('.row');
-    const dropdown = row.querySelector('.case-dropdown');
-    if (dropdown) {
-        dropdown.classList.toggle('open');
-        document.querySelectorAll('.case-dropdown.open').forEach(d => {
-            if (d !== dropdown) d.classList.remove('open');
-        });
-    }
-}
-
-function openAltCaseModal(path) {
+async function openAltCaseModal(path) {
     const mode = getCaseMode(path);
     const alt = mode.alt || { qty: '', weight: '', dims: '' };
-    const qty = prompt('Введите вместимость альтернативного кофра (шт):', alt.qty || '');
+    const qty = await showPrompt('Альтернативный кофр', 'Вместимость (шт):', String(alt.qty || ''));
     if (qty === null) return;
-    const weight = prompt('Вес пустого кофра (кг):', alt.weight || '0');
+    const weight = await showPrompt('Альтернативный кофр', 'Вес пустого (кг):', String(alt.weight || '0'));
     if (weight === null) return;
-    const dims = prompt('Габариты (Д×Ш×В, см):', alt.dims || '');
+    const dims = await showPrompt('Альтернативный кофр', 'Габариты (Д×Ш×В, см):', alt.dims || '');
     if (dims === null) return;
     const numQty = parseInt(qty);
-    if (isNaN(numQty) || numQty <= 0) { showToast('Введите корректную вместимость'); return; }
+    if (isNaN(numQty) || numQty <= 0) { showToast('Введите корректную вместимость', 'error'); return; }
     mode.alt = { qty: numQty, weight: parseFloat(weight) || 0, dims: dims || '' };
     mode.enabled = true;
     const cb = document.querySelector(`#categoryContents .case-switch[data-path="${esc(path)}"]`);
@@ -670,54 +719,18 @@ function openAltCaseModal(path) {
     updateRow(path);
     updateTotals();
     updateCategoryTotals(currentCategory);
-    showToast('Альтернативный кофр применён');
+    showToast('Альтернативный кофр применён', 'success');
     renderCommonCaseIndicators();
 }
 
-function toggleMultiMode(path) {
-    const mode = getCaseMode(path);
-    if (!mode.enabled) { showToast('Сначала включите режим кофров'); return; }
-    const options = getCaseOptions(path);
-    if (options.length < 2) { showToast('Нужно минимум 2 варианта кофров'); return; }
-    const key = 'multi_' + path;
-    const current = localStorage.getItem(key) === 'true';
-    localStorage.setItem(key, current ? 'false' : 'true');
-    if (!current) {
-        const vals = getIndividualCaseValues(path);
-        if (vals.length === 0) {
-            setIndividualCaseValues(path, options.map(() => 0));
-        }
-    } else {
-        const vals = getIndividualCaseValues(path);
-        const total = vals.reduce((a,b) => a + b, 0);
-        if (total > 0) {
-            const newVals = [total];
-            setIndividualCaseValues(path, newVals);
-        } else {
-            setIndividualCaseValues(path, []);
-        }
-    }
-    renderOrderCategory(currentCategory);
-}
-
 function renderCommonCaseIndicators() {
-    // Заглушка – будет реализована позже
+    // Пока заглушка
 }
 
 function updateLinkCount() {
     let count = 0;
     for (let src in links) count += links[src].length;
     document.getElementById('linkCount').textContent = `(${count} активных)`;
-}
-
-function openLinkModal(sourcePath) {
-    import('./cases.js').then(module => {
-        module.openMatrixModal(sourcePath);
-    });
-}
-
-function openRouteModal(path) {
-    showToast('Маршрут (будет реализован позже) для ' + path);
 }
 
 // ============================================================
@@ -737,7 +750,7 @@ export function exportOrderJSON() {
         notes: notes
     };
     if (Object.keys(order).length === 0 && Object.keys(orderSplits).length === 0) {
-        showToast('⚠️ Список пуст'); return;
+        showToast('⚠️ Список пуст', 'warning'); return;
     }
     const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
     const url = URL.createObjectURL(blob);
@@ -746,7 +759,7 @@ export function exportOrderJSON() {
     a.download = data.project_name + ".json";
     a.click();
     URL.revokeObjectURL(url);
-    showToast('✅ JSON сохранён');
+    showToast('✅ JSON сохранён', 'success');
 }
 
 // ============================================================
@@ -759,7 +772,7 @@ export function exportOrderPDF() {
         comment: document.getElementById('pComment').value.trim() || ""
     };
     const items = getActiveItems();
-    if (items.length === 0) { showToast('Нет позиций для экспорта'); return; }
+    if (items.length === 0) { showToast('Нет позиций для экспорта', 'warning'); return; }
     const catItems = {};
     items.forEach(({ path, qty, isSplit, segData }) => {
         const parts = path.split('|');
@@ -824,15 +837,16 @@ tr:nth-child(even){background:#f9f9f9}
         win.focus();
         setTimeout(() => { win.print(); }, 500);
     } else {
-        showToast('⚠️ Не удалось открыть новую вкладку');
+        showToast('⚠️ Не удалось открыть новую вкладку', 'error');
     }
 }
 
 // ============================================================
 // ОЧИСТКА ЗАКАЗА
 // ============================================================
-export function clearOrderData() {
-    if (!confirm('Очистить список?')) return;
+export async function clearOrderData() {
+    const confirmed = await showConfirm('Очистить список?');
+    if (!confirmed) return;
     for (let key in order) delete order[key];
     for (let key in orderSplits) delete orderSplits[key];
     for (let key in links) delete links[key];
@@ -843,7 +857,7 @@ export function clearOrderData() {
     for (let key in caseModes) delete caseModes[key];
     saveOrderData();
     renderOrderAll();
-    showToast('Список очищен');
+    showToast('Список очищен', 'success');
 }
 
 // ============================================================
@@ -883,6 +897,11 @@ export { applySearch, clearSearch, renderOrderCategory };
 // ОБРАБОТЧИКИ ДЛЯ КНОПОК СТРАНИЦЫ ЗАКАЗА (инициализация)
 // ============================================================
 export function initOrderUI() {
+    // Восстанавливаем состояние
+    showProps = localStorage.getItem('showProps') === 'true';
+    detailsOpen = localStorage.getItem('detailsOpen') === 'true';
+    document.getElementById('propsStatus').textContent = showProps ? '(свойства видны)' : '(свойства скрыты)';
+
     document.getElementById('togglePropsBtn')?.addEventListener('click', function() {
         showProps = !showProps;
         document.getElementById('propsStatus').textContent = showProps ? '(свойства видны)' : '(свойства скрыты)';
@@ -898,7 +917,19 @@ export function initOrderUI() {
         this.textContent = detailsOpen ? '📊 Скрыть' : '📊 Подробно';
     });
 
-    // Кнопки сохранения и очистки уже в main.js, но дублируем для надёжности
+    // Поиск с debounce
+    document.getElementById('searchInput')?.addEventListener('input', debouncedSearch);
+    document.getElementById('clearSearchBtn')?.addEventListener('click', clearSearch);
+
+    // Сохранение даты и комментария
+    document.getElementById('pDate')?.addEventListener('change', function() {
+        localStorage.setItem('last_date', this.value);
+    });
+    document.getElementById('pComment')?.addEventListener('input', function() {
+        localStorage.setItem('last_comment', this.value);
+    });
+
+    // Кнопки экспорта уже в main.js, но дублируем для надёжности
     document.getElementById('btnSaveJSON')?.addEventListener('click', exportOrderJSON);
     document.getElementById('btnSavePDF')?.addEventListener('click', exportOrderPDF);
     document.getElementById('btnClearOrder')?.addEventListener('click', clearOrderData);

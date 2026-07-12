@@ -118,98 +118,110 @@
         </div>
     </div>
 
- <!-- Модалка свойств позиции -->
-<div class="modal-overlay" id="propsModal">
-    <div class="modal" style="max-width:700px;">
-        <h3 id="propsTitle">Свойства позиции</h3>
-        <label>Вес 1 шт (кг):</label>
-        <input type="number" id="propWeight" step="0.1" min="0" placeholder="0.0">
-        <label>Габариты 1 шт (Д×Ш×В, см):</label>
-        <input type="text" id="propDimensions" placeholder="50x40x30">
-        <label>Объём 1 шт (м³) – опционально:</label>
-        <input type="number" id="propVolume" step="0.001" min="0" placeholder="0.000">
-        <hr>
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-            <strong style="color:#d0d0d0;">🧩 Индивидуальные кофры (свои параметры)</strong>
-            <button class="btn btn-green" style="width:auto;padding:4px 12px;font-size:13px;" id="addIndividualCaseVariantBtn">➕ Добавить вариант</button>
-        </div>
-        <div id="individualCasesContainer"></div>
-        <hr>
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-            <input type="checkbox" id="propAllowCommon"> Разрешено использование общих кофров
-        </label>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
-            <strong style="color:#d0d0d0;">📦 Привязка к общим кофрам</strong>
-            <button class="btn btn-green" style="width:auto;padding:4px 12px;font-size:13px;" id="addCommonCaseVariantBtn">➕ Добавить связь</button>
-        </div>
-        <div id="commonCasesContainer"></div>
-        <div class="buttons">
-            <button class="cancel" id="propsCancel">Отмена</button>
-            <button class="confirm" id="propsConfirm">Сохранить</button>
-        </div>
-    </div>
-</div>
-
-<!-- Модалка управления общими кофрами -->
-<div class="modal-overlay" id="casesManagerModal">
-    <div class="modal" style="max-width:700px;">
-        <h3>📦 Общие кофры (для режима создания заказа)</h3>
-        <div id="casesList" style="margin-bottom:15px;max-height:300px;overflow-y:auto;"></div>
-        <div style="border-top:1px solid #333;padding-top:15px;">
-            <h4 style="color:#aaa;">Добавить / редактировать кофр</h4>
-            <label>Название:</label>
-            <input type="text" id="newCaseName" placeholder="Например: Ящик 120x80x60">
-            <label>Вместимость (шт):</label>
-            <input type="number" id="newCaseQty" placeholder="0">
-            <label>Габариты (Д×Ш×В, см):</label>
-            <input type="text" id="newCaseDim" placeholder="120x80x60">
-            <label>Вес пустого (кг):</label>
-            <input type="number" id="newCaseWeight" step="0.1" placeholder="0.0">
-            <label>Максимальный вес груза (кг):</label>
-            <input type="number" id="newCaseMaxWeight" step="0.1" placeholder="0.0">
-            <label>Максимальный объём (м³):</label>
-            <input type="number" id="newCaseMaxVolume" step="0.001" placeholder="0.000">
+    <!-- Модалка свойств позиции -->
+    <div class="modal-overlay" id="propsModal">
+        <div class="modal" style="max-width:700px;">
+            <h3 id="propsTitle">Свойства позиции</h3>
+            <label>Вес 1 шт (кг):</label>
+            <input type="number" id="propWeight" step="0.1" min="0" placeholder="0.0">
+            <label>Габариты 1 шт (Д×Ш×В, см):</label>
+            <input type="text" id="propDimensions" placeholder="50x40x30">
+            <label>Объём 1 шт (м³) – опционально:</label>
+            <input type="number" id="propVolume" step="0.001" min="0" placeholder="0.000">
+            <hr>
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <strong style="color:#d0d0d0;">🧩 Индивидуальные кофры (свои параметры)</strong>
+                <button class="btn btn-green" style="width:auto;padding:4px 12px;font-size:13px;" id="addIndividualCaseVariantBtn">➕ Добавить вариант</button>
+            </div>
+            <div id="individualCasesContainer"></div>
+            <hr>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                <input type="checkbox" id="propAllowCommon"> Разрешено использование общих кофров
+            </label>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
+                <strong style="color:#d0d0d0;">📦 Привязка к общим кофрам</strong>
+                <button class="btn btn-green" style="width:auto;padding:4px 12px;font-size:13px;" id="addCommonCaseVariantBtn">➕ Добавить связь</button>
+            </div>
+            <div id="commonCasesContainer"></div>
             <div class="buttons">
-                <button class="cancel" id="casesManagerClose">Закрыть</button>
-                <button class="confirm" id="casesManagerAdd">➕ Добавить</button>
+                <button class="cancel" id="propsCancel">Отмена</button>
+                <button class="confirm" id="propsConfirm">Сохранить</button>
             </div>
         </div>
     </div>
-</div>
 
-<!-- Модалка матрицы привязок -->
-<div class="modal-overlay" id="matrixModal">
-    <div class="modal" style="max-width:95vw;max-height:85vh;overflow:hidden;">
-        <h3>📊 Матрица привязок</h3>
-        <div class="filter-row" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
-            <input type="text" id="matrixSearchSource" placeholder="🔍 Фильтр источников" style="flex:1;padding:6px 10px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:4px;color:#d0d0d0;">
-            <input type="text" id="matrixSearchTarget" placeholder="🔍 Фильтр целей" style="flex:1;padding:6px 10px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:4px;color:#d0d0d0;">
-        </div>
-        <div class="table-wrap" id="matrixContainer" style="overflow:auto;max-height:60vh;"></div>
-        <div class="buttons" style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
-            <button class="cancel" id="matrixClearAll">Удалить все привязки</button>
-            <button class="cancel" id="matrixClose">Закрыть</button>
-        </div>
-    </div>
-</div>
-
-<!-- Модалка ввода текста -->
-<div class="modal-overlay" id="modalOverlay">
-    <div class="modal">
-        <h3 id="modalTitle">Новая позиция</h3>
-        <label for="modalInput">Название:</label>
-        <input type="text" id="modalInput" placeholder="Введите название...">
-        <div class="buttons">
-            <button class="cancel" id="modalCancel">Отмена</button>
-            <button class="confirm" id="modalConfirm">Добавить</button>
+    <!-- Модалка управления общими кофрами -->
+    <div class="modal-overlay" id="casesManagerModal">
+        <div class="modal" style="max-width:700px;">
+            <h3>📦 Общие кофры (для режима создания заказа)</h3>
+            <div id="casesList" style="margin-bottom:15px;max-height:300px;overflow-y:auto;"></div>
+            <div style="border-top:1px solid #333;padding-top:15px;">
+                <h4 style="color:#aaa;">Добавить / редактировать кофр</h4>
+                <label>Название:</label>
+                <input type="text" id="newCaseName" placeholder="Например: Ящик 120x80x60">
+                <label>Вместимость (шт):</label>
+                <input type="number" id="newCaseQty" placeholder="0">
+                <label>Габариты (Д×Ш×В, см):</label>
+                <input type="text" id="newCaseDim" placeholder="120x80x60">
+                <label>Вес пустого (кг):</label>
+                <input type="number" id="newCaseWeight" step="0.1" placeholder="0.0">
+                <label>Максимальный вес груза (кг):</label>
+                <input type="number" id="newCaseMaxWeight" step="0.1" placeholder="0.0">
+                <label>Максимальный объём (м³):</label>
+                <input type="number" id="newCaseMaxVolume" step="0.001" placeholder="0.000">
+                <div class="buttons">
+                    <button class="cancel" id="casesManagerClose">Закрыть</button>
+                    <button class="confirm" id="casesManagerAdd">➕ Добавить</button>
+                </div>
+            </div>
         </div>
     </div>
-</div>
 
-<!-- Тосты -->
-<div class="toast" id="toast"></div>
+    <!-- Модалка матрицы привязок -->
+    <div class="modal-overlay" id="matrixModal">
+        <div class="modal" style="max-width:95vw;max-height:85vh;overflow:hidden;">
+            <h3>📊 Матрица привязок</h3>
+            <div class="filter-row" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+                <input type="text" id="matrixSearchSource" placeholder="🔍 Фильтр источников" style="flex:1;padding:6px 10px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:4px;color:#d0d0d0;">
+                <input type="text" id="matrixSearchTarget" placeholder="🔍 Фильтр целей" style="flex:1;padding:6px 10px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:4px;color:#d0d0d0;">
+            </div>
+            <div class="table-wrap" id="matrixContainer" style="overflow:auto;max-height:60vh;"></div>
+            <div class="buttons" style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
+                <button class="cancel" id="matrixClearAll">Удалить все привязки</button>
+                <button class="cancel" id="matrixClose">Закрыть</button>
+            </div>
+        </div>
+    </div>
 
-<!-- Подключаем главный модуль -->
-<script type="module" src="js/main.js"></script>
+    <!-- Модалка ввода текста (prompt) -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal">
+            <h3 id="modalTitle">Новая позиция</h3>
+            <label id="modalLabel" for="modalInput">Название:</label>
+            <input type="text" id="modalInput" placeholder="Введите название...">
+            <div class="buttons">
+                <button class="cancel" id="modalCancel">Отмена</button>
+                <button class="confirm" id="modalConfirm">Добавить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модалка подтверждения (кастомный confirm) -->
+    <div class="modal-overlay confirm-modal" id="confirmOverlay">
+        <div class="modal">
+            <h3 id="confirmTitle">Подтверждение</h3>
+            <div class="message" id="confirmMessage">Вы уверены?</div>
+            <div class="buttons">
+                <button class="cancel" id="confirmNo">Отмена</button>
+                <button class="confirm" id="confirmYes">Да</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Тосты -->
+    <div class="toast" id="toast"></div>
+
+    <!-- Подключаем главный модуль -->
+    <script type="module" src="js/main.js"></script>
 </body>
 </html>

@@ -1,7 +1,9 @@
 // render-open.js — Отрисовка страницы открытия заказа (чек-лист)
 import {
     editorData,
-    getItemProps
+    getItemProps,
+    getCachedCalculation,
+    setCachedCalculation
 } from './data.js';
 
 import {
@@ -10,7 +12,8 @@ import {
 
 import {
     esc,
-    showToast
+    showToast,
+    showConfirm
 } from './ui.js';
 
 import {
@@ -29,28 +32,28 @@ let openChecked = {};
 let openCategoryState = {};
 let openDescState = {};
 
+const OPEN_STORAGE_KEY = 'open_state';
+
 // ============================================================
 // ЗАГРУЗКА / СОХРАНЕНИЕ СОСТОЯНИЯ ЧЕК-ЛИСТА
 // ============================================================
 function loadOpenState() {
-    try { 
-        const s = localStorage.getItem('openChecked'); 
-        if (s) openChecked = JSON.parse(s); 
-    } catch(e) {}
-    try { 
-        const s = localStorage.getItem('openCategoryState'); 
-        if (s) openCategoryState = JSON.parse(s); 
-    } catch(e) {}
-    try { 
-        const s = localStorage.getItem('openDescState'); 
-        if (s) openDescState = JSON.parse(s); 
-    } catch(e) {}
+    try {
+        const raw = localStorage.getItem(OPEN_STORAGE_KEY);
+        if (raw) {
+            const data = JSON.parse(raw);
+            openChecked = data.openChecked || {};
+            openCategoryState = data.openCategoryState || {};
+            openDescState = data.openDescState || {};
+        }
+    } catch(e) {
+        console.warn('Ошибка загрузки состояния открытия', e);
+    }
 }
 
 function saveOpenState() {
-    localStorage.setItem('openChecked', JSON.stringify(openChecked));
-    localStorage.setItem('openCategoryState', JSON.stringify(openCategoryState));
-    localStorage.setItem('openDescState', JSON.stringify(openDescState));
+    const data = { openChecked, openCategoryState, openDescState };
+    localStorage.setItem(OPEN_STORAGE_KEY, JSON.stringify(data));
 }
 
 // ============================================================
@@ -94,9 +97,9 @@ export function renderOpenOrder(d) {
             const isOpen = !openCategoryState[fullPath];
             const toggleIcon = isOpen ? '▼' : '▶';
             if (level === 0) {
-                html += `<div class="sub-cat-t" style="cursor:pointer;border-left:3px solid #8a7a6a;padding-left:12px;" onclick="toggleOpenCategory('${esc(fullPath)}')">${toggleIcon} ${key} (${child._items ? child._items.length : 0})</div>`;
+                html += `<div class="sub-cat-t" style="cursor:pointer;border-left:3px solid #8a7a6a;padding-left:12px;" onclick="window.toggleOpenCategory('${esc(fullPath)}')">${toggleIcon} ${key} (${child._items ? child._items.length : 0})</div>`;
             } else {
-                html += `<div class="sub-sub-cat-t" style="cursor:pointer;border-left-color:#5a5a5a;padding-left:${12 + level*16}px;" onclick="toggleOpenCategory('${esc(fullPath)}')">${toggleIcon} ${key} (${child._items ? child._items.length : 0})</div>`;
+                html += `<div class="sub-sub-cat-t" style="cursor:pointer;border-left-color:#5a5a5a;padding-left:${12 + level*16}px;" onclick="window.toggleOpenCategory('${esc(fullPath)}')">${toggleIcon} ${key} (${child._items ? child._items.length : 0})</div>`;
             }
             const contentStyle = isOpen ? '' : 'display:none;';
             html += `<div class="category-content-open" style="${contentStyle}padding-left:${level*20+10}px;">`;
@@ -116,11 +119,11 @@ export function renderOpenOrder(d) {
                     html += `<div class="main-line">`;
                     html += `<div class="name-area">`;
                     html += `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;">`;
-                    html += `<input type="checkbox" class="open-check" data-path="${esc(item.path)}" ${checked ? 'checked' : ''} onchange="toggleOpenChecked('${esc(item.path)}', this)">`;
+                    html += `<input type="checkbox" class="open-check" data-path="${esc(item.path)}" ${checked ? 'checked' : ''} onchange="window.toggleOpenChecked('${esc(item.path)}', this)">`;
                     html += `<span class="name">${esc(item.name)}</span>`;
                     html += `</label>`;
                     if (hasDesc) {
-                        html += `<button class="desc-toggle" onclick="toggleOpenDesc('${esc(item.path)}')">${descOpen ? '📕' : '📄'}</button>`;
+                        html += `<button class="desc-toggle" onclick="window.toggleOpenDesc('${esc(item.path)}')">${descOpen ? '📕' : '📄'}</button>`;
                     }
                     html += `</div>`;
                     html += `<div style="display:flex;gap:12px;flex-wrap:wrap;font-size:14px;color:#888;">`;
@@ -148,13 +151,14 @@ export function renderOpenOrder(d) {
     updateOpenProgress();
 }
 
-function toggleOpenCategory(fullPath) {
+// Глобальные функции для вызова из HTML
+window.toggleOpenCategory = function(fullPath) {
     openCategoryState[fullPath] = !openCategoryState[fullPath];
     saveOpenState();
     if (loadedOrder) renderOpenOrder(loadedOrder);
-}
+};
 
-function toggleOpenDesc(path) {
+window.toggleOpenDesc = function(path) {
     openDescState[path] = !openDescState[path];
     saveOpenState();
     const block = document.querySelector(`.desc-block[data-path="${esc(path)}"]`);
@@ -163,9 +167,9 @@ function toggleOpenDesc(path) {
         const btn = block.parentElement.querySelector('.desc-toggle');
         if (btn) btn.textContent = openDescState[path] ? '📕' : '📄';
     }
-}
+};
 
-function toggleOpenChecked(path, checkbox) {
+window.toggleOpenChecked = function(path, checkbox) {
     openChecked[path] = checkbox.checked;
     saveOpenState();
     updateOpenProgress();
@@ -173,7 +177,7 @@ function toggleOpenChecked(path, checkbox) {
     if (row) {
         row.style.background = checkbox.checked ? '#1a2a22' : '';
     }
-}
+};
 
 function updateOpenProgress() {
     if (!loadedOrder) return;
@@ -200,13 +204,14 @@ function updateOpenProgress() {
     document.getElementById('totalVolumeOpen').textContent = totalVolume.toFixed(3);
 }
 
-export function resetCheckboxes() {
+export async function resetCheckboxes() {
     if (!loadedOrder) return;
-    if (!confirm('Сбросить все отметки?')) return;
+    const confirmed = await showConfirm('Сбросить все отметки?');
+    if (!confirmed) return;
     openChecked = {};
     saveOpenState();
     renderOpenOrder(loadedOrder);
-    showToast('Отметки сброшены');
+    showToast('Отметки сброшены', 'success');
 }
 
 export function checkMissingItems() {
@@ -219,10 +224,10 @@ export function checkMissingItems() {
         }
     }
     if (missing.length === 0) {
-        showToast('✅ Все позиции отмечены!');
+        showToast('✅ Все позиции отмечены!', 'success');
     } else {
         const msg = '⚠️ Не отмечены: ' + missing.join(', ');
-        showToast(msg);
+        showToast(msg, 'warning');
         document.querySelectorAll('.open-check').forEach(cb => {
             const path = cb.dataset.path;
             if (loadedOrder.items[path] > 0 && !cb.checked) {
@@ -242,7 +247,10 @@ export function initOpenUI() {
     
     document.getElementById('fSel').addEventListener('change', function(e) {
         const file = e.target.files[0];
-        if (!file) { document.getElementById('loadStatus').textContent = 'Файл не выбран'; return; }
+        if (!file) { 
+            document.getElementById('loadStatus').textContent = 'Файл не выбран'; 
+            return; 
+        }
         const reader = new FileReader();
         reader.onload = function(ev) {
             try {
@@ -254,7 +262,7 @@ export function initOpenUI() {
                 renderOpenOrder(data);
             } catch(err) {
                 document.getElementById('loadStatus').textContent = '❌ Ошибка: ' + err.message;
-                showToast('❌ Ошибка загрузки: ' + err.message);
+                showToast('❌ Ошибка загрузки: ' + err.message, 'error');
             }
         };
         reader.readAsText(file);

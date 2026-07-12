@@ -1,11 +1,12 @@
-// main.js — Точка входа, навигация, инициализация (исправленная версия)
+// main.js — Точка входа, навигация, инициализация
 import { initData, saveEditorData, editorData } from './data.js';
 import { renderEditorAll, addCategory, initRenderHandlers } from './render-editor.js';
 import { renderOrderAll, initOrderUI, exportOrderJSON, exportOrderPDF, clearOrderData } from './render-order.js';
 import { renderOpenOrder, initOpenUI } from './render-open.js';
-import { initModalHandlers, showToast } from './ui.js';
+import { initModalHandlers, showToast, showConfirm } from './ui.js';
 import { initCases, openCasesManagerModal, openMatrixModal } from './cases.js';
-import { loadOrderData } from './order.js';
+import { loadOrderData, saveOrderData } from './order.js';
+import { STORAGE_KEYS } from './config.js';
 
 console.log('main.js загружен');
 
@@ -62,11 +63,11 @@ function loadLibrary() {
                 if (data._categoryOrder) editorData._categoryOrder = data._categoryOrder;
                 if (data.commonCases) editorData.commonCases = data.commonCases;
                 saveEditorData();
-                showToast('✅ Библиотека загружена');
+                showToast('✅ Библиотека загружена', 'success');
                 if (currentMode === 'editor') renderEditorAll();
                 if (currentMode === 'order') renderOrderAll();
             } catch(err) {
-                showToast('❌ Ошибка: ' + err.message);
+                showToast('❌ Ошибка: ' + err.message, 'error');
             }
             document.body.removeChild(input);
         };
@@ -75,30 +76,59 @@ function loadLibrary() {
 }
 
 // ============================================================
-// СБРОС ДАННЫХ
+// СБРОС ВСЕХ ДАННЫХ
 // ============================================================
-function resetAll() {
-    if (!confirm('⚠️ Удалить все данные?')) return;
-    localStorage.clear();
+async function resetAll() {
+    const confirmed = await showConfirm('⚠️ Удалить все данные? Это действие необратимо.');
+    if (!confirmed) return;
+    // Очищаем все ключи localStorage
+    for (let key in STORAGE_KEYS) {
+        localStorage.removeItem(STORAGE_KEYS[key]);
+    }
+    // Также удаляем старые ключи для совместимости
+    const oldKeys = [
+        'inventoryEditorData',
+        'order_data',
+        'order_splits',
+        'order_links',
+        'item_notes',
+        'order_packing',
+        'individualCaseValues',
+        'commonRoutes',
+        'caseModes',
+        'openChecked',
+        'openCategoryState',
+        'openDescState',
+        'showProps',
+        'detailsOpen',
+        'last_comment',
+        'last_date'
+    ];
+    oldKeys.forEach(k => localStorage.removeItem(k));
+    // Перезагружаем страницу
     location.reload();
 }
 
 // ============================================================
-// ПРЕСЕТЫ (ЗАГЛУШКИ)
+// ПРЕСЕТЫ (ЗАГЛУШКИ) — пока не реализованы
 // ============================================================
-function savePreset() { showToast('Сохранение пресета (заглушка)'); }
-function loadPreset() { showToast('Загрузка пресета (заглушка)'); }
-function exportPresets() { showToast('Экспорт пресетов (заглушка)'); }
+function savePreset() { showToast('Сохранение пресета (заглушка)', 'info'); }
+function loadPreset() { showToast('Загрузка пресета (заглушка)', 'info'); }
+function exportPresets() { showToast('Экспорт пресетов (заглушка)', 'info'); }
 function importPresets() { document.getElementById('presetFileInput').click(); }
-function deletePreset() { showToast('Удаление пресета (заглушка)'); }
+function deletePreset() { showToast('Удаление пресета (заглушка)', 'info'); }
 
 // ============================================================
 // ИНИЦИАЛИЗАЦИЯ
 // ============================================================
 function initApp() {
     console.log('Инициализация...');
+    
+    // Загружаем данные
     initData();
     loadOrderData();
+    
+    // Инициализируем UI модули
     initModalHandlers();
     initCases();
     initRenderHandlers();
@@ -152,7 +182,7 @@ function initApp() {
     if (presetFileInput) {
         presetFileInput.addEventListener('change', function(e) {
             if (e.target.files[0]) {
-                showToast('Импорт пресета (заглушка)');
+                showToast('Импорт пресета (заглушка)', 'info');
                 this.value = '';
             }
         });
@@ -168,9 +198,10 @@ function initApp() {
 
     // Показываем меню по умолчанию
     switchMode('menu');
-    showToast('Прокатошная загружена (исправленная версия)');
+    showToast('📦 Прокатошная загружена (обновлённая версия)', 'success');
 }
 
+// Запуск приложения после загрузки DOM
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initApp);
 } else {

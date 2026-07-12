@@ -10,13 +10,19 @@ import {
     getCommonCases,
     saveEditorData,
     cleanupInventory,
-    convertOldItemProps
+    convertOldItemProps,
+    renameCategory,
+    renameSubgroup,
+    renameItem,
+    moveItem,
+    getStockKey
 } from './data.js';
 
 import {
     esc,
     showToast,
-    showModalEditor
+    showPrompt,
+    showConfirm
 } from './ui.js';
 
 import { openPropsModalEditor } from './cases.js';
@@ -30,22 +36,17 @@ let currentCategory = 'sound';
 // ============================================================
 // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 // ============================================================
-function getStockKey(catKey, subKey, itemName) {
-    if (subKey) return catKey + '|' + subKey + '|' + itemName;
-    return catKey + '|' + itemName;
-}
-
 function moveItemWithinGroup(catKey, subKey, itemName, direction) {
     let targetArray = subKey ? editorData.inventory[catKey][subKey] : editorData.inventory[catKey];
-    if (!Array.isArray(targetArray)) { showToast('Ошибка: не массив'); return; }
+    if (!Array.isArray(targetArray)) { showToast('Ошибка: не массив', 'error'); return; }
     const idx = targetArray.indexOf(itemName);
-    if (idx === -1) { showToast('Позиция не найдена'); return; }
+    if (idx === -1) { showToast('Позиция не найдена', 'error'); return; }
     const newIdx = idx + direction;
-    if (newIdx < 0 || newIdx >= targetArray.length) { showToast('Край списка'); return; }
+    if (newIdx < 0 || newIdx >= targetArray.length) { showToast('Край списка', 'warning'); return; }
     [targetArray[idx], targetArray[newIdx]] = [targetArray[newIdx], targetArray[idx]];
     saveEditorData();
     renderEditorCategory(catKey);
-    showToast('Позиция перемещена');
+    showToast('Позиция перемещена', 'success');
 }
 
 // ============================================================
@@ -75,7 +76,7 @@ function renderEditorTabs() {
         actions.appendChild(downBtn);
         const renameBtn = document.createElement('button');
         renameBtn.textContent = '✏️';
-        renameBtn.addEventListener('click', (e) => { e.stopPropagation(); renameCategory(key); });
+        renameBtn.addEventListener('click', (e) => { e.stopPropagation(); renameCategoryHandler(key); });
         actions.appendChild(renameBtn);
         const delBtn = document.createElement('button');
         delBtn.textContent = '✕';
@@ -109,41 +110,22 @@ function moveCategory(key, dir) {
     renderEditorAll();
 }
 
-function renameCategory(key) {
-    const newName = prompt('Новое название:', key);
+async function renameCategoryHandler(key) {
+    const newName = await showPrompt('Переименовать категорию', 'Новое название:', key);
     if (!newName || newName === key) return;
-    if (editorData.inventory[newName]) { showToast('Уже существует'); return; }
-    editorData.inventory[newName] = editorData.inventory[key];
-    delete editorData.inventory[key];
-    const idx = editorData._categoryOrder.indexOf(key);
-    if (idx !== -1) editorData._categoryOrder[idx] = newName;
-    const oldPrefix = key + '|';
-    const newPrefix = newName + '|';
-    for (let k in editorData.stock) {
-        if (k.startsWith(oldPrefix)) {
-            editorData.stock[k.replace(oldPrefix, newPrefix)] = editorData.stock[k];
-            delete editorData.stock[k];
-        }
+    try {
+        renameCategory(key, newName);
+        if (currentCategory === key) currentCategory = newName;
+        renderEditorAll();
+        showToast('Категория переименована', 'success');
+    } catch(e) {
+        showToast(e.message, 'error');
     }
-    for (let k in editorData.specs) {
-        if (k.startsWith(oldPrefix)) {
-            editorData.specs[k.replace(oldPrefix, newPrefix)] = editorData.specs[k];
-            delete editorData.specs[k];
-        }
-    }
-    for (let k in editorData.itemProps) {
-        if (k.startsWith(oldPrefix)) {
-            editorData.itemProps[k.replace(oldPrefix, newPrefix)] = editorData.itemProps[k];
-            delete editorData.itemProps[k];
-        }
-    }
-    if (currentCategory === key) currentCategory = newName;
-    saveEditorData();
-    renderEditorAll();
 }
 
-function deleteCategory(key) {
-    if (!confirm(`Удалить категорию "${key}"?`)) return;
+async function deleteCategory(key) {
+    const confirmed = await showConfirm(`Удалить категорию "${key}"? Все позиции будут удалены.`);
+    if (!confirmed) return;
     delete editorData.inventory[key];
     const idx = editorData._categoryOrder.indexOf(key);
     if (idx !== -1) editorData._categoryOrder.splice(idx, 1);
@@ -156,6 +138,7 @@ function deleteCategory(key) {
     }
     saveEditorData();
     renderEditorAll();
+    showToast('Категория удалена', 'success');
 }
 
 // ============================================================
@@ -180,15 +163,14 @@ function renderEditorCategory(catKey) {
         const addBtn = document.createElement('button');
         addBtn.className = 'add-item';
         addBtn.textContent = '+ Добавить позицию';
-        addBtn.addEventListener('click', () => {
-            showModalEditor('Введите название новой позиции', (val) => {
-                if (val && val.trim()) {
-                    catData.push(val.trim());
-                    saveEditorData();
-                    renderEditorCategory(catKey);
-                    showToast('Позиция добавлена');
-                }
-            });
+        addBtn.addEventListener('click', async () => {
+            const val = await showPrompt('Введите название новой позиции', 'Название:', '', 'Введите название...');
+            if (val && val.trim()) {
+                catData.push(val.trim());
+                saveEditorData();
+                renderEditorCategory(catKey);
+                showToast('Позиция добавлена', 'success');
+            }
         });
         listDiv.appendChild(header);
         const itemsDiv = document.createElement('div');
@@ -235,13 +217,13 @@ function renderEditorCategory(catKey) {
         nameSpan.className = 'name';
         nameSpan.textContent = subKey;
         nameSpan.title = 'Двойной клик для переименования';
-        nameSpan.addEventListener('dblclick', (e) => { e.stopPropagation(); renameSubgroup(catKey, subKey); });
+        nameSpan.addEventListener('dblclick', (e) => { e.stopPropagation(); renameSubgroupHandler(catKey, subKey); });
         header.appendChild(nameSpan);
         const controls = document.createElement('div');
         controls.className = 'controls';
         const renameBtn = document.createElement('button');
         renameBtn.textContent = '✏️';
-        renameBtn.addEventListener('click', (e) => { e.stopPropagation(); renameSubgroup(catKey, subKey); });
+        renameBtn.addEventListener('click', (e) => { e.stopPropagation(); renameSubgroupHandler(catKey, subKey); });
         controls.appendChild(renameBtn);
         const upBtn = document.createElement('button');
         upBtn.textContent = '▲';
@@ -254,20 +236,20 @@ function renderEditorCategory(catKey) {
         const delBtn = document.createElement('button');
         delBtn.textContent = '✕';
         delBtn.className = 'danger';
-        delBtn.addEventListener('click', (e) => {
+        delBtn.addEventListener('click', async (e) => {
             e.stopPropagation();
-            if (confirm(`Удалить подгруппу "${subKey}"?`)) {
-                delete catData[subKey];
-                const idx = catData._subOrder.indexOf(subKey);
-                if (idx !== -1) catData._subOrder.splice(idx, 1);
-                const prefix = catKey + '|' + subKey + '|';
-                for (let k in editorData.stock) if (k.startsWith(prefix)) delete editorData.stock[k];
-                for (let k in editorData.specs) if (k.startsWith(prefix)) delete editorData.specs[k];
-                for (let k in editorData.itemProps) if (k.startsWith(prefix)) delete editorData.itemProps[k];
-                saveEditorData();
-                renderEditorCategory(catKey);
-                showToast('Подгруппа удалена');
-            }
+            const confirmed = await showConfirm(`Удалить подгруппу "${subKey}"?`);
+            if (!confirmed) return;
+            delete catData[subKey];
+            const idx = catData._subOrder.indexOf(subKey);
+            if (idx !== -1) catData._subOrder.splice(idx, 1);
+            const prefix = catKey + '|' + subKey + '|';
+            for (let k in editorData.stock) if (k.startsWith(prefix)) delete editorData.stock[k];
+            for (let k in editorData.specs) if (k.startsWith(prefix)) delete editorData.specs[k];
+            for (let k in editorData.itemProps) if (k.startsWith(prefix)) delete editorData.itemProps[k];
+            saveEditorData();
+            renderEditorCategory(catKey);
+            showToast('Подгруппа удалена', 'success');
         });
         controls.appendChild(delBtn);
         header.appendChild(controls);
@@ -285,15 +267,14 @@ function renderEditorCategory(catKey) {
         const addBtn = document.createElement('button');
         addBtn.className = 'add-item';
         addBtn.textContent = '+ Добавить позицию';
-        addBtn.addEventListener('click', () => {
-            showModalEditor('Введите название новой позиции', (val) => {
-                if (val && val.trim()) {
-                    subItems.push(val.trim());
-                    saveEditorData();
-                    renderEditorCategory(catKey);
-                    showToast('Позиция добавлена');
-                }
-            });
+        addBtn.addEventListener('click', async () => {
+            const val = await showPrompt('Введите название новой позиции', 'Название:', '', 'Введите название...');
+            if (val && val.trim()) {
+                subItems.push(val.trim());
+                saveEditorData();
+                renderEditorCategory(catKey);
+                showToast('Позиция добавлена', 'success');
+            }
         });
         subgroup.appendChild(addBtn);
         wrapper.appendChild(subgroup);
@@ -302,19 +283,18 @@ function renderEditorCategory(catKey) {
     const addSubBtn = document.createElement('button');
     addSubBtn.className = 'add-subgroup';
     addSubBtn.textContent = '+ Добавить подгруппу';
-    addSubBtn.addEventListener('click', () => {
-        showModalEditor('Введите название новой подгруппы', (val) => {
-            if (val && val.trim()) {
-                const newKey = val.trim();
-                if (catData[newKey]) { showToast('Уже существует'); return; }
-                catData[newKey] = [];
-                if (!catData._subOrder) catData._subOrder = [];
-                catData._subOrder.push(newKey);
-                saveEditorData();
-                renderEditorCategory(catKey);
-                showToast('Подгруппа добавлена');
-            }
-        });
+    addSubBtn.addEventListener('click', async () => {
+        const val = await showPrompt('Введите название новой подгруппы', 'Название:', '', 'Введите название...');
+        if (val && val.trim()) {
+            const newKey = val.trim();
+            if (catData[newKey]) { showToast('Уже существует', 'warning'); return; }
+            catData[newKey] = [];
+            if (!catData._subOrder) catData._subOrder = [];
+            catData._subOrder.push(newKey);
+            saveEditorData();
+            renderEditorCategory(catKey);
+            showToast('Подгруппа добавлена', 'success');
+        }
     });
     wrapper.appendChild(addSubBtn);
     container.appendChild(wrapper);
@@ -332,7 +312,7 @@ function createItemRowEditor(catKey, subKey, itemName) {
     nameDiv.className = 'name';
     nameDiv.textContent = itemName;
     nameDiv.title = 'Двойной клик для переименования';
-    nameDiv.addEventListener('dblclick', () => { renameItem(catKey, subKey, itemName); });
+    nameDiv.addEventListener('dblclick', () => { renameItemHandler(catKey, subKey, itemName); });
     mainLine.appendChild(nameDiv);
 
     const qtyInput = document.createElement('input');
@@ -383,28 +363,28 @@ function createItemRowEditor(catKey, subKey, itemName) {
     moveBtn.className = 'move';
     moveBtn.textContent = '↗';
     moveBtn.title = 'Переместить';
-    moveBtn.addEventListener('click', () => { moveItem(catKey, subKey, itemName); });
+    moveBtn.addEventListener('click', () => { moveItemHandler(catKey, subKey, itemName); });
     actions.appendChild(moveBtn);
     const renameBtn = document.createElement('button');
     renameBtn.textContent = '✏️';
-    renameBtn.addEventListener('click', () => { renameItem(catKey, subKey, itemName); });
+    renameBtn.addEventListener('click', () => { renameItemHandler(catKey, subKey, itemName); });
     actions.appendChild(renameBtn);
     const delBtn = document.createElement('button');
     delBtn.textContent = '✕';
-    delBtn.addEventListener('click', () => {
-        if (confirm(`Удалить позицию "${itemName}"?`)) {
-            let targetArray = subKey ? editorData.inventory[catKey][subKey] : editorData.inventory[catKey];
-            const idx = targetArray.indexOf(itemName);
-            if (idx !== -1) {
-                targetArray.splice(idx, 1);
-                const key = getStockKey(catKey, subKey, itemName);
-                delete editorData.stock[key];
-                delete editorData.specs[key];
-                delete editorData.itemProps[key];
-                saveEditorData();
-                renderEditorCategory(catKey);
-                showToast('Позиция удалена');
-            }
+    delBtn.addEventListener('click', async () => {
+        const confirmed = await showConfirm(`Удалить позицию "${itemName}"?`);
+        if (!confirmed) return;
+        let targetArray = subKey ? editorData.inventory[catKey][subKey] : editorData.inventory[catKey];
+        const idx = targetArray.indexOf(itemName);
+        if (idx !== -1) {
+            targetArray.splice(idx, 1);
+            const key = getStockKey(catKey, subKey, itemName);
+            delete editorData.stock[key];
+            delete editorData.specs[key];
+            delete editorData.itemProps[key];
+            saveEditorData();
+            renderEditorCategory(catKey);
+            showToast('Позиция удалена', 'success');
         }
     });
     actions.appendChild(delBtn);
@@ -433,110 +413,54 @@ function createItemRowEditor(catKey, subKey, itemName) {
 // ============================================================
 // ФУНКЦИИ РЕДАКТИРОВАНИЯ (перемещение, переименование)
 // ============================================================
-function renameItem(catKey, subKey, oldName) {
-    const newName = prompt('Новое название:', oldName);
+async function renameItemHandler(catKey, subKey, oldName) {
+    const newName = await showPrompt('Переименовать позицию', 'Новое название:', oldName);
     if (!newName || newName === oldName) return;
-    let targetArray = subKey ? editorData.inventory[catKey][subKey] : editorData.inventory[catKey];
-    const idx = targetArray.indexOf(oldName);
-    if (idx === -1) return;
-    if (targetArray.includes(newName)) { showToast('Такое имя уже существует'); return; }
-    targetArray[idx] = newName;
-    const oldKey = getStockKey(catKey, subKey, oldName);
-    const newKey = getStockKey(catKey, subKey, newName);
-    if (editorData.stock[oldKey] !== undefined) {
-        editorData.stock[newKey] = editorData.stock[oldKey];
-        delete editorData.stock[oldKey];
+    try {
+        renameItem(catKey, subKey, oldName, newName);
+        renderEditorCategory(catKey);
+        showToast('Позиция переименована', 'success');
+    } catch(e) {
+        showToast(e.message, 'error');
     }
-    if (editorData.specs[oldKey] !== undefined) {
-        editorData.specs[newKey] = editorData.specs[oldKey];
-        delete editorData.specs[oldKey];
-    }
-    if (editorData.itemProps[oldKey] !== undefined) {
-        editorData.itemProps[newKey] = editorData.itemProps[oldKey];
-        delete editorData.itemProps[oldKey];
-    }
-    saveEditorData();
-    renderEditorCategory(catKey);
-    showToast('Переименовано');
 }
 
-function moveItem(catKey, subKey, itemName) {
-    // Простой диалог для выбора новой категории/подгруппы
-    const targetPath = prompt('Введите путь (категория|подгруппа) или "категория" для корневого списка:');
+async function moveItemHandler(catKey, subKey, itemName) {
+    const targetPath = await showPrompt(
+        'Переместить позицию',
+        'Введите путь (категория|подгруппа) или "категория" для корневого списка:',
+        '',
+        'Например: light|Приборы'
+    );
     if (!targetPath) return;
     const parts = targetPath.split('|');
     let targetCat = parts[0];
     let targetSub = parts[1] || null;
-    if (!editorData.inventory[targetCat]) { showToast('Категория не существует'); return; }
-    if (targetSub && !editorData.inventory[targetCat][targetSub]) { showToast('Подгруппа не существует'); return; }
+    if (!editorData.inventory[targetCat]) { showToast('Категория не существует', 'error'); return; }
+    if (targetSub && !editorData.inventory[targetCat][targetSub]) { showToast('Подгруппа не существует', 'error'); return; }
     if (!targetSub && typeof editorData.inventory[targetCat] === 'object' && !Array.isArray(editorData.inventory[targetCat])) {
-        showToast('Укажите подгруппу для этой категории');
+        showToast('Укажите подгруппу для этой категории', 'warning');
         return;
     }
-    let sourceArray = subKey ? editorData.inventory[catKey][subKey] : editorData.inventory[catKey];
-    if (!Array.isArray(sourceArray)) { showToast('Ошибка источника'); return; }
-    const idx = sourceArray.indexOf(itemName);
-    if (idx === -1) { showToast('Позиция не найдена'); return; }
-    sourceArray.splice(idx, 1);
-    let targetArray = targetSub ? editorData.inventory[targetCat][targetSub] : editorData.inventory[targetCat];
-    if (!Array.isArray(targetArray)) { showToast('Ошибка цели'); return; }
-    if (targetArray.includes(itemName)) { sourceArray.splice(idx, 0, itemName); showToast('Цель уже содержит этот элемент'); return; }
-    targetArray.push(itemName);
-    const oldKey = getStockKey(catKey, subKey, itemName);
-    const newKey = getStockKey(targetCat, targetSub, itemName);
-    if (editorData.stock[oldKey] !== undefined) {
-        editorData.stock[newKey] = editorData.stock[oldKey];
-        delete editorData.stock[oldKey];
+    try {
+        moveItem(catKey, subKey, itemName, targetCat, targetSub);
+        renderEditorAll();
+        showToast(`"${itemName}" перемещён`, 'success');
+    } catch(e) {
+        showToast(e.message, 'error');
     }
-    if (editorData.specs[oldKey] !== undefined) {
-        editorData.specs[newKey] = editorData.specs[oldKey];
-        delete editorData.specs[oldKey];
-    }
-    if (editorData.itemProps[oldKey] !== undefined) {
-        editorData.itemProps[newKey] = editorData.itemProps[oldKey];
-        delete editorData.itemProps[oldKey];
-    }
-    saveEditorData();
-    renderEditorAll();
-    showToast(`"${itemName}" перемещён`);
 }
 
-function renameSubgroup(catKey, oldKey) {
-    const newKey = prompt('Новое название подгруппы:', oldKey);
+async function renameSubgroupHandler(catKey, oldKey) {
+    const newKey = await showPrompt('Переименовать подгруппу', 'Новое название:', oldKey);
     if (!newKey || newKey === oldKey) return;
-    const catData = editorData.inventory[catKey];
-    if (!catData) return;
-    if (catData[newKey]) { showToast('Уже существует'); return; }
-    catData[newKey] = catData[oldKey];
-    delete catData[oldKey];
-    const order = catData._subOrder;
-    if (order) {
-        const idx = order.indexOf(oldKey);
-        if (idx !== -1) order[idx] = newKey;
+    try {
+        renameSubgroup(catKey, oldKey, newKey);
+        renderEditorCategory(catKey);
+        showToast('Подгруппа переименована', 'success');
+    } catch(e) {
+        showToast(e.message, 'error');
     }
-    const oldPrefix = catKey + '|' + oldKey + '|';
-    const newPrefix = catKey + '|' + newKey + '|';
-    for (let k in editorData.stock) {
-        if (k.startsWith(oldPrefix)) {
-            editorData.stock[k.replace(oldPrefix, newPrefix)] = editorData.stock[k];
-            delete editorData.stock[k];
-        }
-    }
-    for (let k in editorData.specs) {
-        if (k.startsWith(oldPrefix)) {
-            editorData.specs[k.replace(oldPrefix, newPrefix)] = editorData.specs[k];
-            delete editorData.specs[k];
-        }
-    }
-    for (let k in editorData.itemProps) {
-        if (k.startsWith(oldPrefix)) {
-            editorData.itemProps[k.replace(oldPrefix, newPrefix)] = editorData.itemProps[k];
-            delete editorData.itemProps[k];
-        }
-    }
-    saveEditorData();
-    renderEditorCategory(catKey);
-    showToast('Подгруппа переименована');
 }
 
 function moveSubgroup(catKey, subKey, dir) {
@@ -556,11 +480,11 @@ function moveSubgroup(catKey, subKey, dir) {
 // ============================================================
 // ДОБАВЛЕНИЕ НОВОЙ КАТЕГОРИИ
 // ============================================================
-export function addCategory() {
+export async function addCategory() {
     const input = document.getElementById('newCategoryName');
     const name = input.value.trim();
-    if (!name) { showToast('Введите название'); return; }
-    if (editorData.inventory[name]) { showToast('Уже существует'); return; }
+    if (!name) { showToast('Введите название', 'warning'); return; }
+    if (editorData.inventory[name]) { showToast('Уже существует', 'warning'); return; }
     editorData.inventory[name] = {};
     if (!editorData._categoryOrder) editorData._categoryOrder = [];
     editorData._categoryOrder.push(name);
@@ -569,7 +493,7 @@ export function addCategory() {
     saveEditorData();
     renderEditorAll();
     input.value = '';
-    showToast('Категория добавлена');
+    showToast('Категория добавлена', 'success');
 }
 
 // ============================================================
@@ -601,7 +525,7 @@ export function initRenderHandlers() {
         a.download = 'inventory_editor_data.json';
         a.click();
         URL.revokeObjectURL(url);
-        showToast('JSON экспортирован');
+        showToast('JSON экспортирован', 'success');
     });
 
     // Импорт
@@ -633,30 +557,54 @@ export function initRenderHandlers() {
                     }
                 }
                 cleanupInventory(imported.inventory, imported.stock, imported.specs, imported.itemProps);
-                editorData = imported;
+                // Применяем импорт
+                for (let key in imported) {
+                    editorData[key] = imported[key];
+                }
                 saveEditorData();
                 renderEditorAll();
-                showToast('✅ Импорт выполнен');
+                showToast('✅ Импорт выполнен', 'success');
             } catch(err) {
-                showToast('Ошибка: ' + err.message);
+                showToast('Ошибка: ' + err.message, 'error');
             }
         };
         reader.readAsText(file);
         this.value = '';
     });
 
-    // Сброс
-    document.getElementById('resetBtn').addEventListener('click', () => {
-        if (confirm('Сбросить все изменения?')) {
-            loadEditorData();
+    // Сброс (к дефолтам)
+    document.getElementById('resetBtn').addEventListener('click', async () => {
+        const confirmed = await showConfirm('Сбросить все изменения в редакторе?');
+        if (!confirmed) return;
+        // Перезагружаем дефолты из config
+        import('./config.js').then(({ 
+            DEFAULT_INVENTORY, DEFAULT_STOCK, DEFAULT_SPECS, 
+            DEFAULT_PROPS, CAT_NAMES, DEFAULT_CATEGORY_ORDER, DEFAULT_COMMON_CASES 
+        }) => {
+            editorData.inventory = JSON.parse(JSON.stringify(DEFAULT_INVENTORY));
+            editorData.stock = JSON.parse(JSON.stringify(DEFAULT_STOCK));
+            editorData.specs = JSON.parse(JSON.stringify(DEFAULT_SPECS));
+            editorData.itemProps = JSON.parse(JSON.stringify(DEFAULT_PROPS));
+            editorData.catNames = JSON.parse(JSON.stringify(CAT_NAMES));
+            editorData._categoryOrder = JSON.parse(JSON.stringify(DEFAULT_CATEGORY_ORDER));
+            editorData.commonCases = JSON.parse(JSON.stringify(DEFAULT_COMMON_CASES));
+            // Нормализация
+            for (let cat in editorData.inventory) {
+                const catData = editorData.inventory[cat];
+                if (typeof catData === 'object' && !Array.isArray(catData)) {
+                    if (!catData._subOrder) {
+                        catData._subOrder = Object.keys(catData).filter(k => k !== '_subOrder');
+                    }
+                }
+            }
+            saveEditorData();
             renderEditorAll();
-            showToast('Сброшено');
-        }
+            showToast('Данные сброшены к дефолтным', 'success');
+        });
     });
 
     // Общие кофры
     document.getElementById('manageCasesBtn').addEventListener('click', () => {
-        // Открываем менеджер общих кофров (из cases.js)
         import('./cases.js').then(module => {
             module.openCasesManagerModal(() => {
                 renderEditorAll();

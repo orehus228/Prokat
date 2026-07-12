@@ -1,4 +1,4 @@
-/* ===== CSS для Прокатошной (новая версия) ===== */
+/* ===== CSS для Прокатошной (обновлённая версия) ===== */
 /* Общие */
 * {
     box-sizing: border-box;
@@ -36,14 +36,22 @@ body {
     font-size: 15px;
     transition: 0.2s;
     min-height: 44px;
+    user-select: none;
 }
 .btn:hover {
     background: #3a3a3a;
+    border-color: #555;
+}
+.btn:active {
+    transform: scale(0.97);
 }
 .btn-green {
     background: #2a4a3a;
     border-color: #3a6a4a;
     color: #d0e8d0;
+}
+.btn-green:hover {
+    background: #3a5a4a;
 }
 .btn-sec {
     background: #333;
@@ -54,15 +62,24 @@ body {
     border-color: #6a3a3a;
     color: #e8d0d0;
 }
+.btn-red:hover {
+    background: #5a3a3a;
+}
 .btn-orange {
     background: #4a3a2a;
     border-color: #6a4a3a;
     color: #e8ddd0;
 }
+.btn-orange:hover {
+    background: #5a4a3a;
+}
 .btn-purple {
     background: #3a2a4a;
     border-color: #5a3a6a;
     color: #ddd0e8;
+}
+.btn-purple:hover {
+    background: #4a3a5a;
 }
 .btn-sm {
     padding: 6px 12px;
@@ -83,6 +100,10 @@ body {
     outline: none;
     border-color: #6a6a6a;
 }
+textarea.input-field {
+    resize: vertical;
+    font-family: inherit;
+}
 .toast {
     position: fixed;
     bottom: 30px;
@@ -98,9 +119,32 @@ body {
     transition: 0.3s;
     pointer-events: none;
     z-index: 999;
+    max-width: 90%;
+    text-align: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
 }
 .toast.show {
     opacity: 1;
+}
+.toast.success {
+    border-color: #4a8a4a;
+    background: #1a3a1a;
+    color: #a0d0a0;
+}
+.toast.warning {
+    border-color: #8a7a3a;
+    background: #3a3a1a;
+    color: #d0c080;
+}
+.toast.error {
+    border-color: #8a3a3a;
+    background: #3a1a1a;
+    color: #d0a0a0;
+}
+.toast.info {
+    border-color: #3a6a8a;
+    background: #1a2a3a;
+    color: #a0c0d0;
 }
 .header {
     display: flex;
@@ -170,10 +214,14 @@ body {
     align-items: center;
     gap: 6px;
     font-size: 14px;
+    transition: 0.2s;
 }
 .category-tab.active {
     background: #3a3a3a;
     color: #e8e8e8;
+}
+.category-tab:hover:not(.active) {
+    background: #333;
 }
 .category-tab .tab-actions {
     display: flex;
@@ -187,6 +235,7 @@ body {
     cursor: pointer;
     font-size: 11px;
     padding: 0 2px;
+    line-height: 1;
 }
 .category-tab .tab-actions button:hover {
     color: #ddd;
@@ -374,6 +423,7 @@ body {
     color: #666;
     font-size: 20px;
     cursor: pointer;
+    padding: 0 8px;
 }
 .preset-bar {
     display: flex;
@@ -574,6 +624,13 @@ body {
     padding: 8px;
     font-style: italic;
 }
+.hidden {
+    display: none !important;
+}
+.stock-info {
+    font-size: 13px;
+    color: #888;
+}
 /* Модалки */
 .modal-overlay {
     position: fixed;
@@ -612,7 +669,8 @@ body {
     font-size: 14px;
 }
 .modal input[type="text"],
-.modal input[type="number"] {
+.modal input[type="number"],
+.modal textarea {
     width: 100%;
     padding: 6px 10px;
     background: #1a1a1a;
@@ -647,6 +705,223 @@ body {
 }
 .modal .buttons .confirm:hover {
     background: #3a7a4a;
+}
+/* Модалка подтверждения (кастомный confirm) */
+.confirm-modal .modal {
+    max-width: 450px;
+    text-align: center;
+}
+.confirm-modal .modal .message {
+    padding: 12px 0;
+    font-size: 16px;
+    color: #d0d0d0;
+}
+.confirm-modal .modal .buttons {
+    justify-content: center;
+}
+.confirm-modal .modal .buttons .confirm {
+    background: #6a3a3a;
+}
+.confirm-modal .modal .buttons .confirm:hover {
+    background: #7a4a4a;
+}
+/* Кофры в заказе */
+.case-toggle-wrap {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    position: relative;
+}
+.case-toggle {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #aaa;
+}
+.case-toggle input[type="checkbox"] {
+    accent-color: #6a8a6a;
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+.case-dropdown-btn {
+    background: none;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 0 2px;
+}
+.case-dropdown-btn:hover {
+    color: #ddd;
+}
+.case-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 6px;
+    padding: 4px 0;
+    min-width: 180px;
+    z-index: 50;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+}
+.case-dropdown.open {
+    display: block;
+}
+.case-dropdown-item {
+    padding: 6px 12px;
+    cursor: pointer;
+    color: #ccc;
+    font-size: 13px;
+    transition: 0.15s;
+}
+.case-dropdown-item:hover {
+    background: #3a3a3a;
+    color: #fff;
+}
+.case-dropdown-item.active {
+    background: #2a4a3a;
+    color: #a0d0a0;
+}
+.case-dropdown-item.case-dropdown-alt.active {
+    background: #4a3a2a;
+    color: #d0c080;
+}
+.case-dropdown-item.case-dropdown-accumulate.active {
+    background: #2a3a4a;
+    color: #80a0d0;
+}
+.case-status {
+    font-size: 12px;
+    color: #888;
+}
+.multi-toggle {
+    background: none;
+    border: 1px solid #444;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 11px;
+    color: #888;
+    cursor: pointer;
+}
+.multi-toggle.active {
+    border-color: #6a8a6a;
+    color: #a0d0a0;
+    background: #1a2a1a;
+}
+.multi-toggle:hover {
+    background: #2a2a2a;
+}
+.case-variant-group {
+    background: #1e1e1e;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 10px;
+    margin-bottom: 8px;
+    position: relative;
+}
+.case-variant-group .remove-variant {
+    position: absolute;
+    top: 4px;
+    right: 6px;
+    background: none;
+    border: none;
+    color: #666;
+    font-size: 16px;
+    cursor: pointer;
+}
+.case-variant-group .remove-variant:hover {
+    color: #c66;
+}
+.case-variant-group label {
+    font-size: 13px;
+    color: #aaa;
+    margin: 4px 0 2px;
+}
+.case-variant-group input {
+    width: 100%;
+    padding: 4px 8px;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 4px;
+    color: #d0d0d0;
+    margin-bottom: 4px;
+}
+/* Кнопки в модалке свойств */
+#propsModal .modal {
+    max-width: 700px;
+}
+#propsModal .modal hr {
+    border: none;
+    border-top: 1px solid #333;
+    margin: 12px 0;
+}
+/* Матрица привязок */
+#matrixModal .modal {
+    max-width: 95vw;
+    max-height: 85vh;
+}
+#matrixModal .table-wrap {
+    overflow: auto;
+    max-height: 60vh;
+}
+#matrixModal table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 13px;
+}
+#matrixModal table th,
+#matrixModal table td {
+    border: 1px solid #333;
+    padding: 4px 6px;
+    text-align: center;
+    white-space: nowrap;
+}
+#matrixModal table th {
+    background: #222;
+    color: #aaa;
+}
+#matrixModal table .row-even {
+    background: #1e1e1e;
+}
+#matrixModal table .row-odd {
+    background: #252525;
+}
+#matrixModal table .matrix-category td {
+    background: #222;
+    text-align: left;
+    padding: 6px 10px;
+    font-weight: 600;
+    cursor: pointer;
+}
+#matrixModal table .matrix-category .toggle {
+    display: inline-block;
+    width: 20px;
+}
+#matrixModal .filter-row input {
+    padding: 6px 10px;
+    background: #1a1a1a;
+    border: 1px solid #3a3a3a;
+    border-radius: 4px;
+    color: #d0d0d0;
+}
+/* Общие кофры */
+#casesList {
+    max-height: 300px;
+    overflow-y: auto;
+}
+#casesList > div {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 8px;
+    border-bottom: 1px solid #333;
+    gap: 10px;
 }
 /* Адаптив */
 @media (max-width: 600px) {
@@ -683,6 +958,18 @@ body {
         max-width: 100%;
         padding: 16px;
     }
+    .row .main-line {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .row .controls {
+        justify-content: center;
+    }
+    .case-dropdown {
+        left: auto;
+        right: 0;
+        min-width: 160px;
+    }
 }
 @media (max-width: 400px) {
     .btn {
@@ -693,5 +980,31 @@ body {
     .input-field {
         font-size: 14px;
         padding: 8px 10px;
+    }
+    .modal {
+        padding: 12px;
+    }
+}
+/* Скрытие элементов при печати (для PDF) */
+@media print {
+    .btn,
+    .header,
+    .preset-bar,
+    .search-box,
+    .category-tabs,
+    .modal-overlay,
+    .toast {
+        display: none !important;
+    }
+    body {
+        background: #fff;
+        color: #000;
+    }
+    .card {
+        border: 1px solid #ccc;
+        background: #fff;
+    }
+    .row {
+        border-bottom: 1px solid #ddd;
     }
 }

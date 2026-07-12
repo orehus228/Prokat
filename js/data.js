@@ -1,4 +1,6 @@
 // data.js — Работа с данными (загрузка, сохранение, доступ)
+// Версия с объединённым хранилищем и улучшенной нормализацией
+
 import {
     CAT_NAMES,
     DEFAULT_INVENTORY,
@@ -13,21 +15,131 @@ import {
 // ============================================================
 // ГЛОБАЛЬНОЕ СОСТОЯНИЕ
 // ============================================================
-export let editorData = {
-    inventory: JSON.parse(JSON.stringify(DEFAULT_INVENTORY)),
-    stock: JSON.parse(JSON.stringify(DEFAULT_STOCK)),
-    specs: JSON.parse(JSON.stringify(DEFAULT_SPECS)),
-    itemProps: JSON.parse(JSON.stringify(DEFAULT_PROPS)),
-    catNames: JSON.parse(JSON.stringify(CAT_NAMES)),
-    _categoryOrder: JSON.parse(JSON.stringify(DEFAULT_CATEGORY_ORDER)),
-    commonCases: JSON.parse(JSON.stringify(DEFAULT_COMMON_CASES))
-};
+export let editorData = {};
+
+// Кеш для расчётов (мемоизация)
+const calculationCache = new Map();
 
 // ============================================================
-// ОЧИСТКА ОТ ДУБЛЕЙ (ЭКРАНЫ/КАБИНЕТЫ) — функция для импорта
+// ЗАГРУЗКА / СОХРАНЕНИЕ (единое хранилище)
+// ============================================================
+const STORAGE_KEY = 'app_data';
+
+export function loadEditorData() {
+    try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            // Глубокое слияние с дефолтами
+            editorData = mergeDefaults(parsed);
+            normalizeAllData();
+            return;
+        }
+    } catch (e) {
+        console.warn('Ошибка загрузки данных, используем дефолтные', e);
+    }
+    // Если нет сохранённых или ошибка — берём дефолт
+    resetToDefaults();
+    saveEditorData();
+}
+
+function resetToDefaults() {
+    editorData = {
+        inventory: JSON.parse(JSON.stringify(DEFAULT_INVENTORY)),
+        stock: JSON.parse(JSON.stringify(DEFAULT_STOCK)),
+        specs: JSON.parse(JSON.stringify(DEFAULT_SPECS)),
+        itemProps: JSON.parse(JSON.stringify(DEFAULT_PROPS)),
+        catNames: JSON.parse(JSON.stringify(CAT_NAMES)),
+        _categoryOrder: JSON.parse(JSON.stringify(DEFAULT_CATEGORY_ORDER)),
+        commonCases: JSON.parse(JSON.stringify(DEFAULT_COMMON_CASES))
+    };
+    // Добавляем _subOrder для категорий с объектами
+    for (let cat in editorData.inventory) {
+        const catData = editorData.inventory[cat];
+        if (typeof catData === 'object' && !Array.isArray(catData)) {
+            if (!catData._subOrder) {
+                catData._subOrder = Object.keys(catData).filter(k => k !== '_subOrder');
+            }
+        }
+    }
+}
+
+function mergeDefaults(parsed) {
+    const result = {
+        inventory: { ...DEFAULT_INVENTORY, ...parsed.inventory },
+        stock: { ...DEFAULT_STOCK, ...parsed.stock },
+        specs: { ...DEFAULT_SPECS, ...parsed.specs },
+        itemProps: { ...DEFAULT_PROPS, ...parsed.itemProps },
+        catNames: { ...CAT_NAMES, ...parsed.catNames },
+        _categoryOrder: parsed._categoryOrder || DEFAULT_CATEGORY_ORDER,
+        commonCases: parsed.commonCases || DEFAULT_COMMON_CASES
+    };
+    // Дополнительная очистка
+    if (result.itemProps) {
+        for (let key in result.itemProps) {
+            const props = result.itemProps[key];
+            if (props.individualCases === undefined) props.individualCases = [];
+            if (!Array.isArray(props.individualCases)) props.individualCases = [];
+            if (props.allowCommon === undefined) props.allowCommon = false;
+            if (props.commonCases === undefined) props.commonCases = [];
+            if (!Array.isArray(props.commonCases)) props.commonCases = [];
+            props.individualCases = props.individualCases.map(c => {
+                if (c.maxCases === undefined) c.maxCases = 0;
+                return c;
+            });
+        }
+    }
+    return result;
+}
+
+function normalizeAllData() {
+    // Удаляем дубли видео-групп
+    cleanupInventory(editorData.inventory, editorData.stock, editorData.specs, editorData.itemProps);
+    // Приводим _subOrder к валидному виду
+    for (let cat in editorData.inventory) {
+        const catData = editorData.inventory[cat];
+        if (typeof catData === 'object' && !Array.isArray(catData)) {
+            if (!catData._subOrder) {
+                catData._subOrder = Object.keys(catData).filter(k => k !== '_subOrder');
+            } else {
+                // Удаляем несуществующие ключи
+                catData._subOrder = catData._subOrder.filter(k => catData[k] !== undefined);
+                // Добавляем отсутствующие
+                Object.keys(catData).forEach(k => {
+                    if (k !== '_subOrder' && !catData._subOrder.includes(k)) {
+                        catData._subOrder.push(k);
+                    }
+                });
+            }
+        }
+    }
+    // Чистим itemProps от мусора
+    for (let key in editorData.itemProps) {
+        const props = editorData.itemProps[key];
+        if (props.individualCases && !Array.isArray(props.individualCases)) {
+            props.individualCases = [];
+        }
+        if (props.commonCases && !Array.isArray(props.commonCases)) {
+            props.commonCases = [];
+        }
+        if (props.allowCommon === undefined) props.allowCommon = false;
+        // Конвертация старых полей
+        if (props.case_qty !== undefined) {
+            // уже обработано в mergeDefaults
+        }
+    }
+}
+
+export function saveEditorData() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(editorData));
+    calculationCache.clear(); // сбрасываем кеш при сохранении
+}
+
+// ============================================================
+// ОЧИСТКА ОТ ДУБЛЕЙ (ЭКРАНЫ/КАБИНЕТЫ)
 // ============================================================
 export function cleanupInventory(inventory, stock, specs, itemProps) {
-    if (!inventory || !inventory.video) return inventory;
+    if (!inventory || !inventory.video) return;
     let changed = false;
     DUPLICATE_VIDEO_GROUPS.forEach(name => {
         if (inventory.video[name] !== undefined) {
@@ -60,7 +172,6 @@ export function cleanupInventory(inventory, stock, specs, itemProps) {
             }
         }
     }
-    return inventory;
 }
 
 // ============================================================
@@ -93,7 +204,7 @@ export function convertOldItemProps(itemProps) {
                 const d = dimArr[i] !== undefined ? String(dimArr[i]) : '';
                 const w = weightArr[i] !== undefined ? Number(weightArr[i]) : 0;
                 if (q > 0 || d || w > 0) {
-                    cases.push({ qty: q, dimensions: d, weight: w });
+                    cases.push({ qty: q, dimensions: d, weight: w, maxCases: 0 });
                 }
             }
             if (cases.length > 0) {
@@ -120,55 +231,6 @@ export function convertOldItemProps(itemProps) {
         converted[key] = newProps;
     }
     return converted;
-}
-
-// ============================================================
-// ЗАГРУЗКА / СОХРАНЕНИЕ
-// ============================================================
-export function loadEditorData() {
-    const saved = localStorage.getItem('inventoryEditorData');
-    if (saved) {
-        try {
-            const parsed = JSON.parse(saved);
-            // Объединяем с дефолтами на случай отсутствия полей
-            for (let key in editorData) {
-                if (parsed[key] !== undefined) editorData[key] = parsed[key];
-            }
-            // Приводим к корректной структуре
-            if (editorData.itemProps) {
-                for (let key in editorData.itemProps) {
-                    const props = editorData.itemProps[key];
-                    if (props.individualCases === undefined) props.individualCases = [];
-                    if (!Array.isArray(props.individualCases)) props.individualCases = [];
-                    if (props.allowCommon === undefined) props.allowCommon = false;
-                    if (props.commonCases === undefined) props.commonCases = [];
-                    if (!Array.isArray(props.commonCases)) props.commonCases = [];
-                    props.individualCases = props.individualCases.map(c => {
-                        if (c.maxCases === undefined) c.maxCases = 0;
-                        return c;
-                    });
-                }
-            }
-            // _subOrder для категорий
-            for (let cat in editorData.inventory) {
-                const catData = editorData.inventory[cat];
-                if (typeof catData === 'object' && !Array.isArray(catData)) {
-                    if (!catData._subOrder) {
-                        catData._subOrder = Object.keys(catData).filter(k => k !== '_subOrder');
-                    }
-                }
-            }
-            return;
-        } catch(e) {
-            console.warn('Ошибка загрузки данных, используем дефолтные', e);
-        }
-    }
-    // Если нет сохранённых данных, уже есть дефолтные, просто сохраняем
-    saveEditorData();
-}
-
-export function saveEditorData() {
-    localStorage.setItem('inventoryEditorData', JSON.stringify(editorData));
 }
 
 // ============================================================
@@ -215,6 +277,141 @@ export function setItemProps(catKey, subKey, itemName, props) {
 }
 
 // ============================================================
+// ФУНКЦИИ ДЛЯ БЕЗОПАСНОГО ПЕРЕИМЕНОВАНИЯ / ПЕРЕМЕЩЕНИЯ
+// ============================================================
+function updateAllKeys(oldPath, newPath) {
+    // Обновление stock
+    if (editorData.stock[oldPath] !== undefined) {
+        editorData.stock[newPath] = editorData.stock[oldPath];
+        delete editorData.stock[oldPath];
+    }
+    // specs
+    if (editorData.specs[oldPath] !== undefined) {
+        editorData.specs[newPath] = editorData.specs[oldPath];
+        delete editorData.specs[oldPath];
+    }
+    // itemProps
+    if (editorData.itemProps[oldPath] !== undefined) {
+        editorData.itemProps[newPath] = editorData.itemProps[oldPath];
+        delete editorData.itemProps[oldPath];
+    }
+    // Также нужно обновить ссылки в order и других местах? Это делается в order.js отдельно.
+}
+
+export function renameCategory(oldName, newName) {
+    if (oldName === newName) return;
+    if (editorData.inventory[newName]) throw new Error('Категория с таким именем уже существует');
+    editorData.inventory[newName] = editorData.inventory[oldName];
+    delete editorData.inventory[oldName];
+    // Обновляем _categoryOrder
+    const idx = editorData._categoryOrder.indexOf(oldName);
+    if (idx !== -1) editorData._categoryOrder[idx] = newName;
+    // Обновляем catNames
+    if (editorData.catNames[oldName]) {
+        editorData.catNames[newName] = editorData.catNames[oldName];
+        delete editorData.catNames[oldName];
+    }
+    // Обновляем все ключи в stock, specs, itemProps
+    const oldPrefix = oldName + '|';
+    const newPrefix = newName + '|';
+    const keysToUpdate = Object.keys(editorData.stock).filter(k => k.startsWith(oldPrefix));
+    keysToUpdate.forEach(k => {
+        const newK = k.replace(oldPrefix, newPrefix);
+        editorData.stock[newK] = editorData.stock[k];
+        delete editorData.stock[k];
+    });
+    const specKeys = Object.keys(editorData.specs).filter(k => k.startsWith(oldPrefix));
+    specKeys.forEach(k => {
+        const newK = k.replace(oldPrefix, newPrefix);
+        editorData.specs[newK] = editorData.specs[k];
+        delete editorData.specs[k];
+    });
+    const propsKeys = Object.keys(editorData.itemProps).filter(k => k.startsWith(oldPrefix));
+    propsKeys.forEach(k => {
+        const newK = k.replace(oldPrefix, newPrefix);
+        editorData.itemProps[newK] = editorData.itemProps[k];
+        delete editorData.itemProps[k];
+    });
+    saveEditorData();
+}
+
+export function renameSubgroup(catKey, oldSub, newSub) {
+    if (oldSub === newSub) return;
+    const catData = editorData.inventory[catKey];
+    if (!catData || typeof catData !== 'object' || Array.isArray(catData)) return;
+    if (catData[newSub]) throw new Error('Подгруппа с таким именем уже существует');
+    catData[newSub] = catData[oldSub];
+    delete catData[oldSub];
+    // Обновляем _subOrder
+    const order = catData._subOrder;
+    if (order) {
+        const idx = order.indexOf(oldSub);
+        if (idx !== -1) order[idx] = newSub;
+    }
+    // Обновляем пути
+    const oldPrefix = catKey + '|' + oldSub + '|';
+    const newPrefix = catKey + '|' + newSub + '|';
+    const keysToUpdate = Object.keys(editorData.stock).filter(k => k.startsWith(oldPrefix));
+    keysToUpdate.forEach(k => {
+        const newK = k.replace(oldPrefix, newPrefix);
+        editorData.stock[newK] = editorData.stock[k];
+        delete editorData.stock[k];
+    });
+    const specKeys = Object.keys(editorData.specs).filter(k => k.startsWith(oldPrefix));
+    specKeys.forEach(k => {
+        const newK = k.replace(oldPrefix, newPrefix);
+        editorData.specs[newK] = editorData.specs[k];
+        delete editorData.specs[k];
+    });
+    const propsKeys = Object.keys(editorData.itemProps).filter(k => k.startsWith(oldPrefix));
+    propsKeys.forEach(k => {
+        const newK = k.replace(oldPrefix, newPrefix);
+        editorData.itemProps[newK] = editorData.itemProps[k];
+        delete editorData.itemProps[k];
+    });
+    saveEditorData();
+}
+
+export function renameItem(catKey, subKey, oldName, newName) {
+    if (oldName === newName) return;
+    const targetArray = subKey ? editorData.inventory[catKey][subKey] : editorData.inventory[catKey];
+    if (!Array.isArray(targetArray)) return;
+    const idx = targetArray.indexOf(oldName);
+    if (idx === -1) throw new Error('Позиция не найдена');
+    if (targetArray.includes(newName)) throw new Error('Позиция с таким именем уже существует');
+    targetArray[idx] = newName;
+    const oldPath = getStockKey(catKey, subKey, oldName);
+    const newPath = getStockKey(catKey, subKey, newName);
+    updateAllKeys(oldPath, newPath);
+    saveEditorData();
+}
+
+export function moveItem(catKey, subKey, itemName, targetCat, targetSub) {
+    // Удаляем из источника
+    const sourceArray = subKey ? editorData.inventory[catKey][subKey] : editorData.inventory[catKey];
+    if (!Array.isArray(sourceArray)) throw new Error('Источник не массив');
+    const idx = sourceArray.indexOf(itemName);
+    if (idx === -1) throw new Error('Позиция не найдена');
+    sourceArray.splice(idx, 1);
+
+    // Добавляем в цель
+    const targetArray = targetSub ? editorData.inventory[targetCat][targetSub] : editorData.inventory[targetCat];
+    if (!Array.isArray(targetArray)) throw new Error('Цель не массив');
+    if (targetArray.includes(itemName)) {
+        // Откат
+        sourceArray.splice(idx, 0, itemName);
+        throw new Error('Цель уже содержит этот элемент');
+    }
+    targetArray.push(itemName);
+
+    // Обновляем ключи
+    const oldPath = getStockKey(catKey, subKey, itemName);
+    const newPath = getStockKey(targetCat, targetSub, itemName);
+    updateAllKeys(oldPath, newPath);
+    saveEditorData();
+}
+
+// ============================================================
 // РАБОТА С ОБЩИМИ КОФРАМИ
 // ============================================================
 export function getCommonCases() {
@@ -245,6 +442,21 @@ export function deleteCommonCase(id) {
         }
     }
     saveEditorData();
+}
+
+// ============================================================
+// КЕШИРОВАНИЕ РАСЧЁТОВ (для оптимизации)
+// ============================================================
+export function getCachedCalculation(key) {
+    return calculationCache.get(key);
+}
+
+export function setCachedCalculation(key, value) {
+    calculationCache.set(key, value);
+}
+
+export function clearCache() {
+    calculationCache.clear();
 }
 
 // ============================================================

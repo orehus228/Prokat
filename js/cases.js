@@ -8,16 +8,22 @@ import {
     deleteCommonCase,
     saveEditorData,
     editorData,
-    getStockKey
+    getStockKey,
+    renameCategory,
+    renameSubgroup,
+    renameItem,
+    moveItem
 } from './data.js';
 
 import {
     esc,
-    showToast
+    showToast,
+    showPrompt,
+    showConfirm
 } from './ui.js';
 
 import { CAT_NAMES } from './config.js';
-import { links, saveOrderData } from './order.js';
+import { links, saveOrderData, updateOrderPaths } from './order.js';
 
 // ============================================================
 // ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
@@ -77,17 +83,23 @@ function addIndividualCaseVariant(qty, dim, weight, maxCases) {
     const removeBtn = document.createElement('button');
     removeBtn.className = 'remove-variant';
     removeBtn.textContent = '✕';
-    removeBtn.addEventListener('click', () => { group.remove(); });
+    removeBtn.addEventListener('click', () => { 
+        if (container.children.length <= 1) {
+            showToast('Нельзя удалить последний вариант', 'warning');
+            return;
+        }
+        group.remove(); 
+    });
     group.appendChild(removeBtn);
     
     const id = 'ind_' + Date.now() + '_' + (variantCounter++);
     group.innerHTML += `
         <label>Кол-во в кофре (шт):</label>
-        <input type="number" class="ind-qty" data-id="${id}" value="${qty !== undefined ? qty : ''}" placeholder="0">
+        <input type="number" class="ind-qty" data-id="${id}" value="${qty !== undefined ? qty : ''}" placeholder="0" min="1">
         <label>Габариты кофра (Д×Ш×В, см):</label>
         <input type="text" class="ind-dim" data-id="${id}" value="${dim !== undefined ? dim : ''}" placeholder="120x80x60">
         <label>Вес пустого кофра (кг):</label>
-        <input type="number" class="ind-weight" data-id="${id}" step="0.1" value="${weight !== undefined ? weight : ''}" placeholder="0.0">
+        <input type="number" class="ind-weight" data-id="${id}" step="0.1" value="${weight !== undefined ? weight : ''}" placeholder="0.0" min="0">
         <label>Максимум кофров (0 = без ограничений):</label>
         <input type="number" class="ind-max-cases" data-id="${id}" step="1" min="0" value="${maxCases !== undefined ? maxCases : 0}" placeholder="0">
     `;
@@ -125,7 +137,7 @@ function addCommonCaseVariant(caseId, qty) {
         <label>Выберите общий кофр:</label>
         ${selectHtml}
         <label>Количество единиц позиции в кофре (шт):</label>
-        <input type="number" class="com-qty" data-id="${id}" value="${qty !== undefined ? qty : ''}" placeholder="0">
+        <input type="number" class="com-qty" data-id="${id}" value="${qty !== undefined ? qty : ''}" placeholder="0" min="1">
         <button class="btn btn-green" style="width:auto;padding:2px 8px;font-size:12px;margin-top:4px;" onclick="addNewCaseFromProps(this)">➕ Новый кофр</button>
     `;
     container.appendChild(group);
@@ -139,6 +151,7 @@ export function addNewCaseFromProps(btn) {
     const group = btn.closest('.case-variant-group');
     const select = group.querySelector('.com-case-select');
     openCasesManagerModal(() => {
+        // Обновляем все select'ы
         document.querySelectorAll('.com-case-select').forEach(sel => {
             const currentVal = sel.value;
             const commonCases = getCommonCases();
@@ -158,7 +171,7 @@ export function addNewCaseFromProps(btn) {
 export function initPropsSaveHandler() {
     const confirmBtn = document.getElementById('propsConfirm');
     if (confirmBtn) {
-        confirmBtn.addEventListener('click', () => {
+        confirmBtn.addEventListener('click', async () => {
             if (!currentPropsPath) return;
             const { catKey, subKey, itemName, onSaveCallback } = currentPropsPath;
             const weight = parseFloat(document.getElementById('propWeight').value);
@@ -171,6 +184,7 @@ export function initPropsSaveHandler() {
             if (!isNaN(volume) && volume > 0) props.volume = volume;
             props.allowCommon = allowCommon;
             
+            // Собираем индивидуальные кофры
             const individualCases = [];
             document.querySelectorAll('#individualCasesContainer .case-variant-group').forEach(group => {
                 const qtyInput = group.querySelector('.ind-qty');
@@ -193,6 +207,7 @@ export function initPropsSaveHandler() {
             if (individualCases.length > 0) props.individualCases = individualCases;
             else delete props.individualCases;
             
+            // Собираем привязки к общим кофрам
             const commonCases = [];
             document.querySelectorAll('#commonCasesContainer .case-variant-group').forEach(group => {
                 const select = group.querySelector('.com-case-select');
@@ -210,7 +225,7 @@ export function initPropsSaveHandler() {
             document.getElementById('propsModal').classList.remove('open');
             currentPropsPath = null;
             if (onSaveCallback) onSaveCallback();
-            showToast('Свойства сохранены');
+            showToast('Свойства сохранены', 'success');
         });
     }
 }
@@ -270,8 +285,9 @@ function editCase(id) {
     addBtn.dataset.editId = id;
 }
 
-function deleteCase(id) {
-    if (!confirm('Удалить этот кофр?')) return;
+async function deleteCase(id) {
+    const confirmed = await showConfirm('Удалить этот кофр?');
+    if (!confirmed) return;
     deleteCommonCase(id);
     renderCasesList();
     showToast('Кофр удалён');
@@ -287,8 +303,8 @@ export function initCasesManagerHandlers() {
             const emptyWeight = parseFloat(document.getElementById('newCaseWeight').value);
             const maxWeight = parseFloat(document.getElementById('newCaseMaxWeight').value);
             const maxVolume = parseFloat(document.getElementById('newCaseMaxVolume').value);
-            if (!name) { showToast('Введите название кофра'); return; }
-            if (isNaN(qty) || qty <= 0) { showToast('Вместимость должна быть положительным числом'); return; }
+            if (!name) { showToast('Введите название кофра', 'warning'); return; }
+            if (isNaN(qty) || qty <= 0) { showToast('Вместимость должна быть положительным числом', 'warning'); return; }
             const editId = this.dataset.editId;
             if (editId) {
                 updateCommonCase(editId, { 
@@ -299,7 +315,7 @@ export function initCasesManagerHandlers() {
                     maxWeight: isNaN(maxWeight)?0:maxWeight, 
                     maxVolume: isNaN(maxVolume)?0:maxVolume 
                 });
-                showToast('Кофр обновлён');
+                showToast('Кофр обновлён', 'success');
             } else {
                 const newCase = {
                     id: 'case_' + Date.now(),
@@ -311,7 +327,7 @@ export function initCasesManagerHandlers() {
                     maxVolume: isNaN(maxVolume)?0:maxVolume
                 };
                 addCommonCase(newCase);
-                showToast('Кофр добавлен');
+                showToast('Кофр добавлен', 'success');
             }
             document.getElementById('newCaseName').value = '';
             document.getElementById('newCaseQty').value = '';
@@ -355,7 +371,7 @@ export function initCasesManagerOverlayClose() {
 export function openMatrixModal(sourcePath) {
     const modal = document.getElementById('matrixModal');
     if (!modal) {
-        showToast('Матрица привязок (модалка не найдена)');
+        showToast('Матрица привязок (модалка не найдена)', 'error');
         return;
     }
     if (sourcePath) {
@@ -467,10 +483,14 @@ function toggleMatrixCategory(catId) {
     }
 }
 
-function editMatrixCell(td, src, target) {
+async function editMatrixCell(td, src, target) {
     const existing = links[src] ? links[src].find(l => l.target === target) : null;
     const currentVal = existing ? existing.multiplier : '';
-    const val = prompt(currentVal !== '' ? `Изменить множитель (текущий: ${currentVal})` : 'Введите множитель', currentVal !== '' ? currentVal : '1');
+    const val = await showPrompt(
+        currentVal !== '' ? 'Изменить множитель' : 'Введите множитель',
+        'Множитель (0 для удаления):',
+        currentVal !== '' ? currentVal : '1'
+    );
     if (val === null) return;
     const num = parseFloat(val);
     if (isNaN(num) || num === 0) {
@@ -487,7 +507,7 @@ function editMatrixCell(td, src, target) {
     saveOrderData();
     renderMatrix();
     updateLinkCount();
-    showToast('Привязка обновлена');
+    showToast('Привязка обновлена', 'success');
 }
 
 function updateLinkCount() {
@@ -506,14 +526,14 @@ export function initMatrixHandlers() {
     }
     const clearBtn = document.getElementById('matrixClearAll');
     if (clearBtn) {
-        clearBtn.addEventListener('click', () => {
-            if (confirm('Удалить все привязки?')) {
-                for (let key in links) delete links[key];
-                saveOrderData();
-                renderMatrix();
-                updateLinkCount();
-                showToast('Все привязки удалены');
-            }
+        clearBtn.addEventListener('click', async () => {
+            const confirmed = await showConfirm('Удалить все привязки?');
+            if (!confirmed) return;
+            for (let key in links) delete links[key];
+            saveOrderData();
+            renderMatrix();
+            updateLinkCount();
+            showToast('Все привязки удалены', 'success');
         });
     }
     const srcInput = document.getElementById('matrixSearchSource');
@@ -523,7 +543,7 @@ export function initMatrixHandlers() {
 }
 
 // ============================================================
-// ИНИЦИАЛИЗАЦИЯ ВСЕХ ОБРАБОТЧИКОВ (вызывается из main.js)
+// ИНИЦИАЛИЗАЦИЯ ВСЕХ ОБРАБОТЧИКОВ
 // ============================================================
 export function initCases() {
     initPropsSaveHandler();
@@ -538,4 +558,6 @@ export function initCases() {
     window.addNewCaseFromProps = addNewCaseFromProps;
     window.editCase = editCase;
     window.deleteCase = deleteCase;
+    window.toggleMatrixCategory = toggleMatrixCategory;
+    window.editMatrixCell = editMatrixCell;
 }
