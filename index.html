@@ -15,7 +15,7 @@
             <h1>Прокатошная</h1>
         </div>
         <div class="header-right">
-            <button class="theme-toggle" id="themeToggle" title="Переключить тему">Тёмная</button>
+            <button class="theme-toggle" id="themeToggle" title="Переключить тему"></button>
         </div>
     </div>
 
@@ -23,11 +23,11 @@
     <div id="mMenu" class="card">
         <h2 style="color:var(--text-secondary);font-weight:500;margin-bottom:12px;">Выберите действие:</h2>
         <div class="menu-grid">
-            <button class="btn" id="btnMenuOrder">Создать список</button>
-            <button class="btn btn-sec" id="btnMenuOpen">Открыть список</button>
-            <button class="btn btn-orange" id="btnMenuEditor">Редактор склада</button>
-            <button class="btn btn-purple" id="btnMenuLoadLibrary">Загрузить библиотеку</button>
-            <button class="btn btn-red" id="btnMenuResetLibrary">Сбросить библиотеку</button>
+            <button class="btn btn-neutral" id="btnMenuOrder">Создать список</button>
+            <button class="btn btn-neutral" id="btnMenuOpen">Открыть список</button>
+            <button class="btn btn-neutral" id="btnMenuEditor">Редактор склада</button>
+            <button class="btn btn-import" id="btnMenuLoadLibrary">Загрузить библиотеку</button>
+            <button class="btn btn-reset" id="btnMenuResetLibrary">Сбросить библиотеку</button>
         </div>
     </div>
 
@@ -39,9 +39,9 @@
         <input type="date" id="pDate" class="input-field">
         <textarea id="pComment" class="input-field" style="min-height:60px;" placeholder="Комментарий"></textarea>
         <div style="margin-bottom:15px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
-            <button class="btn btn-purple" id="btnMatrix">Матрица привязок</button>
+            <button class="btn btn-neutral" id="btnMatrix">Матрица привязок</button>
             <span style="font-size:14px;color:var(--text-secondary);" id="linkCount">(0 активных)</span>
-            <button class="btn btn-purple" id="btnCommonCases">Общие кофры</button>
+            <button class="btn btn-neutral" id="btnCommonCases">Общие кофры</button>
         </div>
         <div class="preset-bar">
             <select id="orderPresetSelect"><option value="">— Выберите пресет —</option></select>
@@ -176,6 +176,41 @@
                     <button class="cancel" id="casesManagerClose">Закрыть</button>
                     <button class="confirm" id="casesManagerAdd">+ Добавить</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модалка настройки кофров для позиции -->
+    <div class="modal-overlay" id="caseSettingsModal">
+        <div class="modal" style="max-width:600px;">
+            <h3 id="caseSettingsTitle">Настройка кофров</h3>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                <input type="checkbox" id="caseSettingsEnable"> Включить режим кофров
+            </label>
+            <hr>
+            <div>
+                <strong style="color:var(--text-primary);">Варианты кофров</strong>
+                <div id="caseSettingsOptions" style="margin-top:6px;"></div>
+            </div>
+            <div id="caseSettingsMulti" style="margin-top:8px;display:none;">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                    <input type="checkbox" id="caseSettingsMultiCheck"> Мульти-режим (использовать несколько вариантов одновременно)
+                </label>
+            </div>
+            <hr>
+            <div>
+                <strong style="color:var(--text-primary);">Альтернативный кофр</strong>
+                <div id="caseSettingsAlt" style="margin-top:6px;"></div>
+            </div>
+            <hr>
+            <div id="caseSettingsCommon" style="display:none;">
+                <strong style="color:var(--text-primary);">Привязка к общим кофрам</strong>
+                <div id="caseSettingsCommonList" style="margin-top:6px;"></div>
+                <button class="btn btn-sm" id="caseSettingsCommonAdd" style="margin-top:6px;">+ Добавить общий кофр</button>
+            </div>
+            <div class="buttons" style="margin-top:16px;">
+                <button class="cancel" id="caseSettingsCancel">Отмена</button>
+                <button class="confirm" id="caseSettingsSave">Сохранить</button>
             </div>
         </div>
     </div>

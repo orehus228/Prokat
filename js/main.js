@@ -4,7 +4,7 @@ import { renderEditorAll, addCategory, initRenderHandlers } from './render-edito
 import { renderOrderAll, initOrderUI, exportOrderJSON, exportOrderPDF, clearOrderData } from './render-order.js';
 import { renderOpenOrder, initOpenUI } from './render-open.js';
 import { initModalHandlers, showToast, showConfirm } from './ui.js';
-import { initCases, openCasesManagerModal, openMatrixModal } from './cases.js';
+import { initCases, openCasesManagerModal, openMatrixModal, openCaseSettingsModal } from './cases.js';
 import { loadOrderData, saveOrderData } from './order.js';
 import { STORAGE_KEYS } from './config.js';
 
@@ -40,8 +40,7 @@ function toggleTheme() {
     currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
     document.body.setAttribute('data-theme', currentTheme);
     localStorage.setItem('theme', currentTheme);
-    const toggle = document.getElementById('themeToggle');
-    if (toggle) toggle.textContent = currentTheme === 'dark' ? 'Тёмная' : 'Светлая';
+    // Кнопка уже обновляется через CSS, текст не нужен
     showToast('Тема: ' + (currentTheme === 'dark' ? 'тёмная' : 'светлая'), 'info');
 }
 
@@ -53,8 +52,6 @@ function loadTheme() {
         currentTheme = 'dark';
     }
     document.body.setAttribute('data-theme', currentTheme);
-    const toggle = document.getElementById('themeToggle');
-    if (toggle) toggle.textContent = currentTheme === 'dark' ? 'Тёмная' : 'Светлая';
 }
 
 function loadLibrary() {
