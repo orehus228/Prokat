@@ -1,27 +1,14 @@
 // data.js — Работа с данными (загрузка, сохранение, доступ)
 import {
     CAT_NAMES,
-    DEFAULT_INVENTORY,
-    DEFAULT_STOCK,
-    DEFAULT_SPECS,
-    DEFAULT_PROPS,
-    DEFAULT_COMMON_CASES,
-    DEFAULT_CATEGORY_ORDER,
     DUPLICATE_VIDEO_GROUPS,
     STORAGE_KEYS
 } from './config.js';
 
-// ============================================================
-// ГЛОБАЛЬНОЕ СОСТОЯНИЕ
-// ============================================================
 export let editorData = {};
 
-// Кеш для расчётов (мемоизация) — пока не используется, но оставлю
 const calculationCache = new Map();
 
-// ============================================================
-// ЗАГРУЗКА / СОХРАНЕНИЕ (единое хранилище)
-// ============================================================
 export function loadEditorData() {
     try {
         const saved = localStorage.getItem(STORAGE_KEYS.APP_DATA);
@@ -32,9 +19,8 @@ export function loadEditorData() {
             return;
         }
     } catch (e) {
-        console.warn('Ошибка загрузки данных, используем пустую структуру', e);
+        console.warn('Ошибка загрузки данных', e);
     }
-    // Если нет сохранённых или ошибка — полностью пустая структура
     resetToEmpty();
     saveEditorData();
 }
@@ -52,10 +38,9 @@ function resetToEmpty() {
 }
 
 function normalizeAllData() {
-    // 1. Удаляем дублирующиеся группы видео (оставляем только "Экран")
+    // Удаляем дублирующиеся группы видео (оставляем только "Экран")
     if (editorData.inventory && editorData.inventory.video) {
         const video = editorData.inventory.video;
-        // Удаляем группы из DUPLICATE_VIDEO_GROUPS (все, кроме "Экран")
         DUPLICATE_VIDEO_GROUPS.forEach(name => {
             if (video[name] !== undefined) {
                 delete video[name];
@@ -65,13 +50,11 @@ function normalizeAllData() {
                 }
             }
         });
-        // Если "Экран" отсутствует, но есть другие группы – оставляем как есть
         if (video._subOrder) {
             video._subOrder = video._subOrder.filter(k => video[k] !== undefined);
         }
     }
 
-    // 2. Приводим itemProps к корректному виду
     for (let key in editorData.itemProps) {
         const props = editorData.itemProps[key];
         if (props.individualCases === undefined) props.individualCases = [];
@@ -83,11 +66,9 @@ function normalizeAllData() {
             if (c.maxCases === undefined) c.maxCases = 0;
             return c;
         });
-        // Удаляем устаревшее поле caseOptions, если есть
         if (props.caseOptions !== undefined) delete props.caseOptions;
     }
 
-    // 3. Категории с подгруппами: проверяем _subOrder
     for (let cat in editorData.inventory) {
         const catData = editorData.inventory[cat];
         if (typeof catData === 'object' && !Array.isArray(catData)) {
@@ -103,24 +84,55 @@ function normalizeAllData() {
             }
         }
     }
-
-    // 4. Удаляем из stock, specs, itemProps ключи, которые не соответствуют существующим позициям
-    // (очистка от мусора) — для простоты не делаем, так как это может удалить данные при импорте
 }
 
 export function saveEditorData() {
     localStorage.setItem(STORAGE_KEYS.APP_DATA, JSON.stringify(editorData));
-    calculationCache.clear(); // сбрасываем кеш при сохранении
+    calculationCache.clear();
 }
 
-// ============================================================
-// ПОЛНЫЙ СБРОС ДАННЫХ (для кнопки сброса)
-// ============================================================
 export function resetAllData() {
     resetToEmpty();
     saveEditorData();
-    // Также очищаем данные заказа (если есть) — вызов из main.js
-    // Но здесь только сброс редактора
+}
+
+// ============================================================
+// ОЧИСТКА ОТ ДУБЛЕЙ (ЭКРАНЫ/КАБИНЕТЫ) — для импорта
+// ============================================================
+export function cleanupInventory(inventory, stock, specs, itemProps) {
+    if (!inventory || !inventory.video) return;
+    let changed = false;
+    DUPLICATE_VIDEO_GROUPS.forEach(name => {
+        if (inventory.video[name] !== undefined) {
+            delete inventory.video[name];
+            changed = true;
+            if (inventory.video._subOrder) {
+                const idx = inventory.video._subOrder.indexOf(name);
+                if (idx !== -1) inventory.video._subOrder.splice(idx, 1);
+            }
+        }
+    });
+    const prefixes = ['video|Экран|', 'video|Экраны|'];
+    const keysToDeleteStock = Object.keys(stock || {}).filter(k => prefixes.some(p => k.startsWith(p)));
+    keysToDeleteStock.forEach(k => delete stock[k]);
+    const keysToDeleteSpecs = Object.keys(specs || {}).filter(k => prefixes.some(p => k.startsWith(p)));
+    keysToDeleteSpecs.forEach(k => delete specs[k]);
+    const keysToDeleteProps = Object.keys(itemProps || {}).filter(k => prefixes.some(p => k.startsWith(p)));
+    keysToDeleteProps.forEach(k => delete itemProps[k]);
+
+    if (changed) {
+        const keys = Object.keys(inventory.video).filter(k => k !== '_subOrder');
+        if (keys.length === 0) {
+            inventory.video = { "Телевизоры": [] };
+            inventory.video._subOrder = ["Телевизоры"];
+        }
+        if (inventory.video._subOrder) {
+            inventory.video._subOrder = inventory.video._subOrder.filter(k => inventory.video[k] !== undefined);
+            if (inventory.video._subOrder.length === 0) {
+                inventory.video._subOrder = Object.keys(inventory.video).filter(k => k !== '_subOrder');
+            }
+        }
+    }
 }
 
 // ============================================================
@@ -177,7 +189,6 @@ export function convertOldItemProps(itemProps) {
                 return c;
             });
         }
-        // Удаляем caseOptions
         if (newProps.caseOptions !== undefined) delete newProps.caseOptions;
         converted[key] = newProps;
     }
@@ -379,9 +390,6 @@ export function deleteCommonCase(id) {
     saveEditorData();
 }
 
-// ============================================================
-// КЕШИРОВАНИЕ (для оптимизации)
-// ============================================================
 export function getCachedCalculation(key) {
     return calculationCache.get(key);
 }
@@ -394,9 +402,6 @@ export function clearCache() {
     calculationCache.clear();
 }
 
-// ============================================================
-// ИНИЦИАЛИЗАЦИЯ
-// ============================================================
 export function initData() {
     loadEditorData();
 }

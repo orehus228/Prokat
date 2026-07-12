@@ -5,16 +5,13 @@ import { renderOrderAll, initOrderUI, exportOrderJSON, exportOrderPDF, clearOrde
 import { renderOpenOrder, initOpenUI } from './render-open.js';
 import { initModalHandlers, showToast, showConfirm } from './ui.js';
 import { initCases, openCasesManagerModal, openMatrixModal } from './cases.js';
-import { loadOrderData, saveOrderData, clearOrderData as clearOrder } from './order.js';
+import { loadOrderData, saveOrderData } from './order.js';
 import { STORAGE_KEYS } from './config.js';
 
 console.log('main.js загружен');
 
-// ============================================================
-// НАВИГАЦИЯ
-// ============================================================
-let currentMode = 'menu'; // menu | editor | order | open
-let currentTheme = 'dark'; // dark | light
+let currentMode = 'menu';
+let currentTheme = 'dark';
 
 function switchMode(mode) {
     console.log('switchMode:', mode);
@@ -39,14 +36,12 @@ function switchMode(mode) {
     }
 }
 
-// ============================================================
-// ПЕРЕКЛЮЧЕНИЕ ТЕМЫ
-// ============================================================
 function toggleTheme() {
     currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
     document.body.setAttribute('data-theme', currentTheme);
     localStorage.setItem('theme', currentTheme);
-    document.getElementById('themeToggle').textContent = currentTheme === 'dark' ? '☀️' : '🌙';
+    const toggle = document.getElementById('themeToggle');
+    if (toggle) toggle.textContent = currentTheme === 'dark' ? 'Тёмная' : 'Светлая';
     showToast('Тема: ' + (currentTheme === 'dark' ? 'тёмная' : 'светлая'), 'info');
 }
 
@@ -55,16 +50,13 @@ function loadTheme() {
     if (saved) {
         currentTheme = saved;
     } else {
-        currentTheme = 'dark'; // по умолчанию тёмная
+        currentTheme = 'dark';
     }
     document.body.setAttribute('data-theme', currentTheme);
     const toggle = document.getElementById('themeToggle');
-    if (toggle) toggle.textContent = currentTheme === 'dark' ? '☀️' : '🌙';
+    if (toggle) toggle.textContent = currentTheme === 'dark' ? 'Тёмная' : 'Светлая';
 }
 
-// ============================================================
-// ЗАГРУЗКА БИБЛИОТЕКИ (из файла)
-// ============================================================
 function loadLibrary() {
     const input = document.createElement('input');
     input.type = 'file';
@@ -99,53 +91,36 @@ function loadLibrary() {
     };
 }
 
-// ============================================================
-// СБРОС БИБЛИОТЕКИ (удаление всех данных из корня)
-// ============================================================
 async function resetLibrary() {
     const confirmed = await showConfirm('Удалить всю библиотеку? Все данные будут потеряны.');
     if (!confirmed) return;
     resetAllData();
-    // Также очищаем данные заказа
     for (let key in STORAGE_KEYS) {
         localStorage.removeItem(STORAGE_KEYS[key]);
     }
-    // Перезагружаем страницу
     location.reload();
 }
 
-// ============================================================
-// ПРЕСЕТЫ (ЗАГЛУШКИ)
-// ============================================================
 function savePreset() { showToast('Сохранение пресета (заглушка)', 'info'); }
 function loadPreset() { showToast('Загрузка пресета (заглушка)', 'info'); }
 function exportPresets() { showToast('Экспорт пресетов (заглушка)', 'info'); }
 function importPresets() { document.getElementById('presetFileInput').click(); }
 function deletePreset() { showToast('Удаление пресета (заглушка)', 'info'); }
 
-// ============================================================
-// ИНИЦИАЛИЗАЦИЯ
-// ============================================================
 function initApp() {
     console.log('Инициализация...');
-    
-    // Загружаем данные
     initData();
     loadOrderData();
     loadTheme();
-    
-    // Инициализируем UI модули
     initModalHandlers();
     initCases();
     initRenderHandlers();
     initOrderUI();
     initOpenUI();
 
-    // === КНОПКА ПЕРЕКЛЮЧЕНИЯ ТЕМЫ ===
     const themeToggle = document.getElementById('themeToggle');
     if (themeToggle) themeToggle.addEventListener('click', toggleTheme);
 
-    // === НАВИГАЦИЯ ПО КНОПКАМ МЕНЮ ===
     const btnMenuOrder = document.getElementById('btnMenuOrder');
     const btnMenuOpen = document.getElementById('btnMenuOpen');
     const btnMenuEditor = document.getElementById('btnMenuEditor');
@@ -158,7 +133,6 @@ function initApp() {
     if (btnMenuLoadLibrary) btnMenuLoadLibrary.addEventListener('click', loadLibrary);
     if (btnMenuResetLibrary) btnMenuResetLibrary.addEventListener('click', resetLibrary);
 
-    // === КНОПКИ "В МЕНЮ" ===
     const backBtns = document.querySelectorAll('#btnBackToMenu, #btnBackToMenu2, #btnBackToMenu3');
     backBtns.forEach(btn => {
         if (btn) {
@@ -170,7 +144,6 @@ function initApp() {
         }
     });
 
-    // === КНОПКИ НА СТРАНИЦЕ ЗАКАЗА ===
     const btnMatrix = document.getElementById('btnMatrix');
     const btnCommonCases = document.getElementById('btnCommonCases');
     const btnSavePreset = document.getElementById('btnSavePreset');
@@ -202,16 +175,13 @@ function initApp() {
     if (btnSavePDF) btnSavePDF.addEventListener('click', exportOrderPDF);
     if (btnClearOrder) btnClearOrder.addEventListener('click', clearOrderData);
 
-    // === РЕДАКТОР ===
     const addCategoryBtn = document.getElementById('addCategoryBtn');
     if (addCategoryBtn) addCategoryBtn.addEventListener('click', addCategory);
 
-    // Показываем меню по умолчанию
     switchMode('menu');
     showToast('Прокатошная загружена', 'success');
 }
 
-// Запуск приложения после загрузки DOM
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initApp);
 } else {
