@@ -1,3 +1,4 @@
+// cases.js — Модалки для работы с кофрами
 import {
     getItemProps,
     setItemProps,
@@ -9,31 +10,54 @@ import {
 } from './data.js';
 import { esc, showToast } from './ui.js';
 
+// ============================================================
+// ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
+// ============================================================
 let currentPropsPath = null;
 let variantCounter = 0;
 let casesManagerCallback = null;
 
+// ============================================================
+// МОДАЛКА СВОЙСТВ ПОЗИЦИИ
+// ============================================================
 export function openPropsModalEditor(catKey, subKey, itemName, onSaveCallback) {
     currentPropsPath = { catKey, subKey, itemName, onSaveCallback };
     const props = getItemProps(catKey, subKey, itemName);
+    
     document.getElementById('propsTitle').textContent = 'Свойства: ' + itemName;
     document.getElementById('propWeight').value = props.weight || '';
     document.getElementById('propDimensions').value = props.dimensions || '';
     document.getElementById('propVolume').value = props.volume || '';
     document.getElementById('propAllowCommon').checked = !!props.allowCommon;
+    
     const containerInd = document.getElementById('individualCasesContainer');
     containerInd.innerHTML = '';
     const individualCases = props.individualCases || [];
-    if (individualCases.length === 0) addIndividualCaseVariant();
-    else individualCases.forEach(c => addIndividualCaseVariant(c.qty, c.dimensions, c.weight, c.maxCases || 0));
+    if (individualCases.length === 0) {
+        addIndividualCaseVariant();
+    } else {
+        individualCases.forEach(c => {
+            addIndividualCaseVariant(c.qty, c.dimensions, c.weight, c.maxCases || 0);
+        });
+    }
+    
     const containerCom = document.getElementById('commonCasesContainer');
     containerCom.innerHTML = '';
     const commonCases = props.commonCases || [];
-    if (commonCases.length === 0) addCommonCaseVariant();
-    else commonCases.forEach(opt => addCommonCaseVariant(opt.caseId, opt.qty));
+    if (commonCases.length === 0) {
+        addCommonCaseVariant();
+    } else {
+        commonCases.forEach(opt => {
+            addCommonCaseVariant(opt.caseId, opt.qty);
+        });
+    }
+    
     document.getElementById('propsModal').classList.add('open');
 }
 
+// ============================================================
+// ИНДИВИДУАЛЬНЫЕ КОФРЫ
+// ============================================================
 function addIndividualCaseVariant(qty, dim, weight, maxCases) {
     const container = document.getElementById('individualCasesContainer');
     const group = document.createElement('div');
@@ -61,6 +85,9 @@ export function addIndividualCaseVariantBtn() {
     addIndividualCaseVariant();
 }
 
+// ============================================================
+// ОБЩИЕ КОФРЫ (привязка)
+// ============================================================
 function addCommonCaseVariant(caseId, qty) {
     const container = document.getElementById('commonCasesContainer');
     const group = document.createElement('div');
@@ -72,7 +99,8 @@ function addCommonCaseVariant(caseId, qty) {
     group.appendChild(removeBtn);
     const id = 'com_' + Date.now() + '_' + (variantCounter++);
     const commonCases = getCommonCases();
-    let selectHtml = `<select class="com-case-select" data-id="${id}"><option value="">— Выберите общий кофр —</option>`;
+    let selectHtml = `<select class="com-case-select" data-id="${id}" style="width:100%;padding:6px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:6px;color:#d0d0d0;margin-bottom:6px;">`;
+    selectHtml += `<option value="">— Выберите общий кофр —</option>`;
     commonCases.forEach(c => {
         const selected = (c.id === caseId) ? 'selected' : '';
         selectHtml += `<option value="${c.id}" ${selected}>${c.name} (вместимость: ${c.qty} шт, макс. вес: ${c.maxWeight || 0} кг)</option>`;
@@ -94,7 +122,6 @@ export function addCommonCaseVariantBtn() {
 
 export function addNewCaseFromProps(btn) {
     const group = btn.closest('.case-variant-group');
-    const select = group.querySelector('.com-case-select');
     openCasesManagerModal(() => {
         document.querySelectorAll('.com-case-select').forEach(sel => {
             const currentVal = sel.value;
@@ -109,6 +136,9 @@ export function addNewCaseFromProps(btn) {
     });
 }
 
+// ============================================================
+// СОХРАНЕНИЕ СВОЙСТВ
+// ============================================================
 export function initPropsSaveHandler() {
     document.getElementById('propsConfirm').addEventListener('click', () => {
         if (!currentPropsPath) return;
@@ -122,6 +152,7 @@ export function initPropsSaveHandler() {
         if (dimensions) props.dimensions = dimensions;
         if (!isNaN(volume) && volume > 0) props.volume = volume;
         props.allowCommon = allowCommon;
+        
         const individualCases = [];
         document.querySelectorAll('#individualCasesContainer .case-variant-group').forEach(group => {
             const qtyInput = group.querySelector('.ind-qty');
@@ -138,6 +169,7 @@ export function initPropsSaveHandler() {
         });
         if (individualCases.length > 0) props.individualCases = individualCases;
         else delete props.individualCases;
+        
         const commonCases = [];
         document.querySelectorAll('#commonCasesContainer .case-variant-group').forEach(group => {
             const select = group.querySelector('.com-case-select');
@@ -150,6 +182,7 @@ export function initPropsSaveHandler() {
         });
         if (commonCases.length > 0) props.commonCases = commonCases;
         else delete props.commonCases;
+        
         setItemProps(catKey, subKey, itemName, props);
         document.getElementById('propsModal').classList.remove('open');
         currentPropsPath = null;
@@ -165,6 +198,9 @@ export function initPropsCancelHandler() {
     });
 }
 
+// ============================================================
+// МОДАЛКА УПРАВЛЕНИЯ ОБЩИМИ КОФРАМИ
+// ============================================================
 export function openCasesManagerModal(callback) {
     casesManagerCallback = callback || null;
     renderCasesList();
@@ -184,8 +220,8 @@ function renderCasesList() {
             <div><strong>${esc(c.name)}</strong><br>
             <span style="font-size:13px;color:#888;">Вместимость: ${c.qty} шт, Габ: ${c.dimensions || 'n/a'}, Вес пустого: ${c.emptyWeight || 0} кг, Макс. вес: ${c.maxWeight || 0} кг, Макс. объём: ${c.maxVolume || 0} м³</span></div>
             <div>
-                <button class="btn btn-sm" onclick="editCase('${c.id}')">✏️</button>
-                <button class="btn btn-sm" style="background:#6a2a2a;color:#f0e0e0;" onclick="deleteCase('${c.id}')">✕</button>
+                <button class="btn btn-sm" style="width:auto;padding:2px 8px;font-size:12px;" onclick="editCase('${c.id}')">✏️</button>
+                <button class="btn btn-sm" style="width:auto;padding:2px 8px;font-size:12px;background:#6a2a2a;color:#f0e0e0;" onclick="deleteCase('${c.id}')">✕</button>
             </div>
         </div>`;
     });
@@ -230,7 +266,10 @@ export function initCasesManagerHandlers() {
             updateCommonCase(editId, { name, qty, dimensions, emptyWeight: isNaN(emptyWeight)?0:emptyWeight, maxWeight: isNaN(maxWeight)?0:maxWeight, maxVolume: isNaN(maxVolume)?0:maxVolume });
             showToast('Кофр обновлён');
         } else {
-            const newCase = { id: 'case_' + Date.now(), name, qty, dimensions, emptyWeight: isNaN(emptyWeight)?0:emptyWeight, maxWeight: isNaN(maxWeight)?0:maxWeight, maxVolume: isNaN(maxVolume)?0:maxVolume };
+            const newCase = {
+                id: 'case_' + Date.now(),
+                name, qty, dimensions, emptyWeight: isNaN(emptyWeight)?0:emptyWeight, maxWeight: isNaN(maxWeight)?0:maxWeight, maxVolume: isNaN(maxVolume)?0:maxVolume
+            };
             addCommonCase(newCase);
             showToast('Кофр добавлен');
         }
@@ -266,12 +305,16 @@ export function initCasesManagerOverlayClose() {
     }
 }
 
+// ============================================================
+// ИНИЦИАЛИЗАЦИЯ
+// ============================================================
 export function initCases() {
     initPropsSaveHandler();
     initPropsCancelHandler();
     initCasesManagerHandlers();
     initCasesManagerCloseHandler();
     initCasesManagerOverlayClose();
+    
     window.addIndividualCaseVariant = addIndividualCaseVariantBtn;
     window.addCommonCaseVariant = addCommonCaseVariantBtn;
     window.addNewCaseFromProps = addNewCaseFromProps;
