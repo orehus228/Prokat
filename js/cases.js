@@ -1,4 +1,4 @@
-// cases.js — Модалки для работы с кофрами (индивидуальные и общие)
+// cases.js — Модалки: свойства позиции, общие кофры, матрица привязок
 import {
     getItemProps,
     setItemProps,
@@ -7,20 +7,26 @@ import {
     updateCommonCase,
     deleteCommonCase,
     saveEditorData,
-    editorData
+    editorData,
+    getStockKey
 } from './data.js';
-import { esc, showToast } from './ui.js';
+
+import {
+    esc,
+    showToast
+} from './ui.js';
+
 import { CAT_NAMES } from './config.js';
 
 // ============================================================
-// СОСТОЯНИЕ МОДУЛЯ
+// ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
 // ============================================================
-let currentPropsPath = null;        // { catKey, subKey, itemName, onSaveCallback }
+let currentPropsPath = null;
 let variantCounter = 0;
 let casesManagerCallback = null;
 
 // ============================================================
-// МОДАЛКА СВОЙСТВ ПОЗИЦИИ
+// МОДАЛКА СВОЙСТВ ПОЗИЦИИ (с кофрами)
 // ============================================================
 export function openPropsModalEditor(catKey, subKey, itemName, onSaveCallback) {
     currentPropsPath = { catKey, subKey, itemName, onSaveCallback };
@@ -66,13 +72,15 @@ function addIndividualCaseVariant(qty, dim, weight, maxCases) {
     const container = document.getElementById('individualCasesContainer');
     const group = document.createElement('div');
     group.className = 'case-variant-group';
+    
     const removeBtn = document.createElement('button');
     removeBtn.className = 'remove-variant';
     removeBtn.textContent = '✕';
-    removeBtn.addEventListener('click', () => group.remove());
+    removeBtn.addEventListener('click', () => { group.remove(); });
     group.appendChild(removeBtn);
+    
     const id = 'ind_' + Date.now() + '_' + (variantCounter++);
-    group.innerHTML = `
+    group.innerHTML += `
         <label>Кол-во в кофре (шт):</label>
         <input type="number" class="ind-qty" data-id="${id}" value="${qty !== undefined ? qty : ''}" placeholder="0">
         <label>Габариты кофра (Д×Ш×В, см):</label>
@@ -85,7 +93,6 @@ function addIndividualCaseVariant(qty, dim, weight, maxCases) {
     container.appendChild(group);
 }
 
-// Добавление варианта по кнопке "+ Добавить вариант"
 export function addIndividualCaseVariantBtn() {
     addIndividualCaseVariant();
 }
@@ -97,11 +104,13 @@ function addCommonCaseVariant(caseId, qty) {
     const container = document.getElementById('commonCasesContainer');
     const group = document.createElement('div');
     group.className = 'case-variant-group';
+    
     const removeBtn = document.createElement('button');
     removeBtn.className = 'remove-variant';
     removeBtn.textContent = '✕';
-    removeBtn.addEventListener('click', () => group.remove());
+    removeBtn.addEventListener('click', () => { group.remove(); });
     group.appendChild(removeBtn);
+    
     const id = 'com_' + Date.now() + '_' + (variantCounter++);
     const commonCases = getCommonCases();
     let selectHtml = `<select class="com-case-select" data-id="${id}" style="width:100%;padding:6px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:6px;color:#d0d0d0;margin-bottom:6px;">`;
@@ -111,7 +120,7 @@ function addCommonCaseVariant(caseId, qty) {
         selectHtml += `<option value="${c.id}" ${selected}>${c.name} (вместимость: ${c.qty} шт, макс. вес: ${c.maxWeight || 0} кг)</option>`;
     });
     selectHtml += `</select>`;
-    group.innerHTML = `
+    group.innerHTML += `
         <label>Выберите общий кофр:</label>
         ${selectHtml}
         <label>Количество единиц позиции в кофре (шт):</label>
@@ -121,17 +130,14 @@ function addCommonCaseVariant(caseId, qty) {
     container.appendChild(group);
 }
 
-// Добавление связи с общим кофром по кнопке
 export function addCommonCaseVariantBtn() {
     addCommonCaseVariant();
 }
 
-// Кнопка "Новый кофр" внутри группы
 export function addNewCaseFromProps(btn) {
     const group = btn.closest('.case-variant-group');
     const select = group.querySelector('.com-case-select');
     openCasesManagerModal(() => {
-        // Обновляем селекты во всех группах
         document.querySelectorAll('.com-case-select').forEach(sel => {
             const currentVal = sel.value;
             const commonCases = getCommonCases();
@@ -162,7 +168,6 @@ export function initPropsSaveHandler() {
         if (!isNaN(volume) && volume > 0) props.volume = volume;
         props.allowCommon = allowCommon;
         
-        // Индивидуальные кофры
         const individualCases = [];
         document.querySelectorAll('#individualCasesContainer .case-variant-group').forEach(group => {
             const qtyInput = group.querySelector('.ind-qty');
@@ -174,13 +179,17 @@ export function initPropsSaveHandler() {
             const w = parseFloat(weightInput ? weightInput.value : 0);
             const maxCases = parseInt(maxCasesInput ? maxCasesInput.value : 0);
             if (qty > 0 || dim || w > 0) {
-                individualCases.push({ qty, dimensions: dim, weight: isNaN(w) ? 0 : w, maxCases: isNaN(maxCases) ? 0 : maxCases });
+                individualCases.push({ 
+                    qty, 
+                    dimensions: dim, 
+                    weight: isNaN(w) ? 0 : w, 
+                    maxCases: isNaN(maxCases) ? 0 : maxCases 
+                });
             }
         });
         if (individualCases.length > 0) props.individualCases = individualCases;
         else delete props.individualCases;
         
-        // Общие кофры (привязка)
         const commonCases = [];
         document.querySelectorAll('#commonCasesContainer .case-variant-group').forEach(group => {
             const select = group.querySelector('.com-case-select');
@@ -239,7 +248,6 @@ function renderCasesList() {
     container.innerHTML = html;
 }
 
-// Редактирование кофра (заполнение формы)
 function editCase(id) {
     const cases = getCommonCases();
     const c = cases.find(c => c.id === id);
@@ -255,7 +263,6 @@ function editCase(id) {
     addBtn.dataset.editId = id;
 }
 
-// Удаление кофра
 function deleteCase(id) {
     if (!confirm('Удалить этот кофр?')) return;
     deleteCommonCase(id);
@@ -263,7 +270,6 @@ function deleteCase(id) {
     showToast('Кофр удалён');
 }
 
-// Сохранение нового/обновлённого кофра
 export function initCasesManagerHandlers() {
     const addBtn = document.getElementById('casesManagerAdd');
     addBtn.addEventListener('click', function() {
@@ -277,12 +283,24 @@ export function initCasesManagerHandlers() {
         if (isNaN(qty) || qty <= 0) { showToast('Вместимость должна быть положительным числом'); return; }
         const editId = this.dataset.editId;
         if (editId) {
-            updateCommonCase(editId, { name, qty, dimensions, emptyWeight: isNaN(emptyWeight)?0:emptyWeight, maxWeight: isNaN(maxWeight)?0:maxWeight, maxVolume: isNaN(maxVolume)?0:maxVolume });
+            updateCommonCase(editId, { 
+                name, 
+                qty, 
+                dimensions, 
+                emptyWeight: isNaN(emptyWeight)?0:emptyWeight, 
+                maxWeight: isNaN(maxWeight)?0:maxWeight, 
+                maxVolume: isNaN(maxVolume)?0:maxVolume 
+            });
             showToast('Кофр обновлён');
         } else {
             const newCase = {
                 id: 'case_' + Date.now(),
-                name, qty, dimensions, emptyWeight: isNaN(emptyWeight)?0:emptyWeight, maxWeight: isNaN(maxWeight)?0:maxWeight, maxVolume: isNaN(maxVolume)?0:maxVolume
+                name, 
+                qty, 
+                dimensions, 
+                emptyWeight: isNaN(emptyWeight)?0:emptyWeight, 
+                maxWeight: isNaN(maxWeight)?0:maxWeight, 
+                maxVolume: isNaN(maxVolume)?0:maxVolume
             };
             addCommonCase(newCase);
             showToast('Кофр добавлен');
@@ -320,7 +338,180 @@ export function initCasesManagerOverlayClose() {
 }
 
 // ============================================================
-// ИНИЦИАЛИЗАЦИЯ (вызывается из main.js)
+// МАТРИЦА ПРИВЯЗОК
+// ============================================================
+export function openMatrixModal(sourcePath) {
+    const modal = document.getElementById('matrixModal');
+    if (!modal) {
+        showToast('Матрица привязок (модалка не найдена)');
+        return;
+    }
+    // Если передан sourcePath, фильтруем по нему
+    if (sourcePath) {
+        document.getElementById('matrixSearchSource').value = sourcePath.split('|').pop();
+    } else {
+        document.getElementById('matrixSearchSource').value = '';
+    }
+    document.getElementById('matrixSearchTarget').value = '';
+    renderMatrix();
+    modal.classList.add('open');
+}
+
+function renderMatrix() {
+    const container = document.getElementById('matrixContainer');
+    // Получаем все позиции из инвентаря
+    const allPaths = getAllItemPaths();
+    if (allPaths.length === 0) {
+        container.innerHTML = '<p style="color:#666;">Нет позиций</p>';
+        return;
+    }
+    const srcFilter = document.getElementById('matrixSearchSource').value.toLowerCase();
+    const tgtFilter = document.getElementById('matrixSearchTarget').value.toLowerCase();
+
+    // Группируем по категориям
+    const catMap = {};
+    allPaths.forEach(p => {
+        const parts = p.split('|');
+        const cat = parts[0];
+        if (!catMap[cat]) catMap[cat] = [];
+        catMap[cat].push({ full: p, name: parts[parts.length-1] });
+    });
+
+    // Список всех целей (уникальные)
+    let allTargets = [];
+    allPaths.forEach(p => {
+        const parts = p.split('|');
+        allTargets.push({ full: p, name: parts[parts.length-1], cat: parts[0] });
+    });
+    // Убираем дубли
+    const unique = [];
+    const seen = new Set();
+    allTargets.forEach(t => { if (!seen.has(t.full)) { seen.add(t.full); unique.push(t); } });
+    allTargets = unique;
+    if (tgtFilter) allTargets = allTargets.filter(t => t.name.toLowerCase().includes(tgtFilter));
+
+    let html = `<table><thead><tr><th>Источник \\ Цель</th>`;
+    allTargets.forEach(target => {
+        html += `<th class="target-label">${target.name}<br><span style="font-weight:normal;font-size:10px;color:#888;">${CAT_NAMES[target.cat]||target.cat}</span></th>`;
+    });
+    html += '</tr></thead><tbody>';
+
+    const orderKeys = editorData._categoryOrder || Object.keys(editorData.inventory);
+    orderKeys.forEach(cat => {
+        const items = catMap[cat] || [];
+        let filtered = items;
+        if (srcFilter) filtered = items.filter(item => item.name.toLowerCase().includes(srcFilter));
+        if (filtered.length === 0) return;
+
+        const catId = 'cat_' + cat + '_' + Date.now();
+        html += `<tr class="matrix-category" onclick="toggleMatrixCategory('${catId}')"><td colspan="${allTargets.length+1}" style="text-align:left;padding:6px 10px;background:#222;border:1px solid #333;"><span class="toggle" id="toggle_${catId}">▶</span> ${CAT_NAMES[cat]||cat} (${filtered.length})</td></tr>`;
+        html += `<tbody id="${catId}" class="matrix-category-items" style="display:none;">`;
+        filtered.forEach((source, idx) => {
+            const rowClass = idx % 2 === 0 ? 'row-even' : 'row-odd';
+            html += `<tr class="${rowClass}"><td class="source-label">${source.name}</td>`;
+            allTargets.forEach(target => {
+                if (source.full === target.full) {
+                    html += `<td class="empty-cell">—</td>`;
+                } else {
+                    const link = links[source.full] ? links[source.full].find(l => l.target === target.full) : null;
+                    const value = link ? link.multiplier : '';
+                    if (value !== '') {
+                        html += `<td data-src="${source.full}" data-target="${target.full}" onclick="editMatrixCell(this,'${source.full}','${target.full}')"><span class="cell-value">${value}</span></td>`;
+                    } else {
+                        html += `<td class="empty-cell" data-src="${source.full}" data-target="${target.full}" onclick="editMatrixCell(this,'${source.full}','${target.full}')">+</td>`;
+                    }
+                }
+            });
+            html += '</tr>';
+        });
+        html += '</tbody>';
+    });
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+function getAllItemPaths() {
+    const res = [];
+    function traverse(obj, path) {
+        if (Array.isArray(obj)) {
+            obj.forEach(item => res.push(path.length ? path.join('|') + '|' + item : item));
+        } else if (typeof obj === 'object' && obj !== null) {
+            for (let key in obj) {
+                if (key.startsWith('_')) continue;
+                traverse(obj[key], [...path, key]);
+            }
+        }
+    }
+    traverse(editorData.inventory, []);
+    return res;
+}
+
+function toggleMatrixCategory(catId) {
+    const tbody = document.getElementById(catId);
+    const toggle = document.getElementById('toggle_' + catId);
+    if (!tbody || !toggle) return;
+    if (tbody.style.display === 'none') {
+        tbody.style.display = 'table-row-group';
+        toggle.textContent = '▼';
+    } else {
+        tbody.style.display = 'none';
+        toggle.textContent = '▶';
+    }
+}
+
+function editMatrixCell(td, src, target) {
+    const existing = links[src] ? links[src].find(l => l.target === target) : null;
+    const currentVal = existing ? existing.multiplier : '';
+    const val = prompt(currentVal !== '' ? `Изменить множитель (текущий: ${currentVal})` : 'Введите множитель', currentVal !== '' ? currentVal : '1');
+    if (val === null) return;
+    const num = parseFloat(val);
+    if (isNaN(num) || num === 0) {
+        if (links[src]) {
+            links[src] = links[src].filter(l => l.target !== target);
+            if (links[src].length === 0) delete links[src];
+        }
+    } else {
+        if (!links[src]) links[src] = [];
+        const existingLink = links[src].find(l => l.target === target);
+        if (existingLink) existingLink.multiplier = num;
+        else links[src].push({ target, multiplier: num });
+    }
+    saveOrderData();
+    renderMatrix();
+    updateLinkCount();
+    showToast('Привязка обновлена');
+}
+
+function updateLinkCount() {
+    let count = 0;
+    for (let src in links) count += links[src].length;
+    const el = document.getElementById('linkCount');
+    if (el) el.textContent = `(${count} активных)`;
+}
+
+// Импортируем order и links, чтобы сохранять
+import { order, links, saveOrderData } from './order.js';
+
+// Инициализация обработчиков матрицы
+export function initMatrixHandlers() {
+    document.getElementById('matrixClose')?.addEventListener('click', () => {
+        document.getElementById('matrixModal').classList.remove('open');
+    });
+    document.getElementById('matrixClearAll')?.addEventListener('click', () => {
+        if (confirm('Удалить все привязки?')) {
+            for (let key in links) delete links[key];
+            saveOrderData();
+            renderMatrix();
+            updateLinkCount();
+            showToast('Все привязки удалены');
+        }
+    });
+    document.getElementById('matrixSearchSource')?.addEventListener('input', renderMatrix);
+    document.getElementById('matrixSearchTarget')?.addEventListener('input', renderMatrix);
+}
+
+// ============================================================
+// ИНИЦИАЛИЗАЦИЯ ВСЕХ ОБРАБОТЧИКОВ (вызывается из main.js)
 // ============================================================
 export function initCases() {
     initPropsSaveHandler();
@@ -328,8 +519,8 @@ export function initCases() {
     initCasesManagerHandlers();
     initCasesManagerCloseHandler();
     initCasesManagerOverlayClose();
+    initMatrixHandlers();
     
-    // Делаем функции глобально доступными для onclick в HTML (для кнопок "➕ Новый кофр" и т.п.)
     window.addIndividualCaseVariant = addIndividualCaseVariantBtn;
     window.addCommonCaseVariant = addCommonCaseVariantBtn;
     window.addNewCaseFromProps = addNewCaseFromProps;

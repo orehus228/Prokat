@@ -1,4 +1,4 @@
-// render-order.js — Отрисовка страницы создания заказа
+// render-order.js — Отрисовка страницы создания заказа (полная версия, без заглушек)
 import {
     editorData,
     getStock,
@@ -624,7 +624,27 @@ function toggleCaseDropdown(path, btn) {
 }
 
 function openAltCaseModal(path) {
-    showToast('Альтернативный кофр (будет реализован позже)');
+    const mode = getCaseMode(path);
+    const alt = mode.alt || { qty: '', weight: '', dims: '' };
+    // Показываем простую модалку для альтернативного кофра
+    const qty = prompt('Введите вместимость альтернативного кофра (шт):', alt.qty || '');
+    if (qty === null) return;
+    const weight = prompt('Вес пустого кофра (кг):', alt.weight || '0');
+    if (weight === null) return;
+    const dims = prompt('Габариты (Д×Ш×В, см):', alt.dims || '');
+    if (dims === null) return;
+    const numQty = parseInt(qty);
+    if (isNaN(numQty) || numQty <= 0) { showToast('Введите корректную вместимость'); return; }
+    mode.alt = { qty: numQty, weight: parseFloat(weight) || 0, dims: dims || '' };
+    mode.enabled = true;
+    const cb = document.querySelector(`#categoryContents .case-switch[data-path="${esc(path)}"]`);
+    if (cb) cb.checked = true;
+    saveOrderData();
+    updateRow(path);
+    updateTotals();
+    updateCategoryTotals(currentCategory);
+    showToast('Альтернативный кофр применён');
+    renderCommonCaseIndicators();
 }
 
 function toggleMultiMode(path) {
@@ -664,11 +684,144 @@ function updateLinkCount() {
 }
 
 function openLinkModal(sourcePath) {
-    showToast('Матрица привязок (будет реализована позже)');
+    // Вместо заглушки открываем матрицу
+    import('./cases.js').then(module => {
+        module.openMatrixModal(sourcePath);
+    });
 }
 
 function openRouteModal(path) {
+    // Заглушка – будет реализована позже
     showToast('Маршрут (будет реализован позже) для ' + path);
+}
+
+// ============================================================
+// ЭКСПОРТ ЗАКАЗА В JSON
+// ============================================================
+export function exportOrderJSON() {
+    const data = {
+        project_name: document.getElementById('pName').value.trim() || "Мероприятие",
+        date: document.getElementById('pDate').value || new Date().toLocaleDateString('ru-RU'),
+        comment: document.getElementById('pComment').value.trim() || "",
+        items: order,
+        splits: orderSplits,
+        packing: orderPacking,
+        individual_cases: individualCaseValues,
+        routes: commonRoutes,
+        links: links,
+        notes: notes
+    };
+    if (Object.keys(order).length === 0 && Object.keys(orderSplits).length === 0) {
+        showToast('⚠️ Список пуст'); return;
+    }
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = data.project_name + ".json";
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('✅ JSON сохранён');
+}
+
+// ============================================================
+// ЭКСПОРТ ЗАКАЗА В PDF
+// ============================================================
+export function exportOrderPDF() {
+    const data = {
+        project_name: document.getElementById('pName').value.trim() || "Мероприятие",
+        date: document.getElementById('pDate').value || new Date().toLocaleDateString('ru-RU'),
+        comment: document.getElementById('pComment').value.trim() || ""
+    };
+    const items = getActiveItems();
+    if (items.length === 0) { showToast('Нет позиций для экспорта'); return; }
+    // Группируем по категориям
+    const catItems = {};
+    items.forEach(({ path, qty, isSplit, segData }) => {
+        const parts = path.split('|');
+        const cat = parts[0];
+        const name = parts.slice(1).join(' → ');
+        if (!catItems[cat]) catItems[cat] = [];
+        let detail = '';
+        if (isSplit && segData) {
+            if (segData.type === 'common') {
+                const c = getCommonCases().find(c => c.id === segData.caseId);
+                detail = c ? 'кофр: ' + c.name : 'кофр: удалён';
+            } else if (segData.type === 'multi') {
+                const opts = getCaseOptions(path);
+                const opt = opts[segData.variantIdx];
+                detail = 'вар.' + (segData.variantIdx+1) + (opt ? ' ('+opt.qty+' шт/кофр), кофров: '+(segData.cases||0) : '');
+            }
+        } else {
+            detail = 'без кофра';
+        }
+        const weight = calcItemWeightWithMode(path, qty);
+        const volume = calcItemVolumeWithMode(path, qty);
+        const dims = getItemProps(path).dimensions || 'n/a';
+        catItems[cat].push({ name, qty, weight, volume, dims, detail });
+    });
+    let html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Чек-лист</title>
+<style>
+body{font-family:'Segoe UI',Arial,sans-serif;margin:40px;color:#222;background:#fff}
+h1{color:#2c3e50;border-bottom:2px solid #3498db;padding-bottom:10px}
+.meta{margin:20px 0;color:#555}
+table{width:100%;border-collapse:collapse;margin-top:20px;font-size:14px}
+th{background:#2c3e50;color:#fff;padding:8px;text-align:left}
+td{padding:6px 8px;border-bottom:1px solid #ddd}
+tr:nth-child(even){background:#f9f9f9}
+.total-row{font-weight:bold;background:#e6f2ff!important;border-top:2px solid #3498db}
+.grand-total{font-weight:bold;background:#d4e6ff!important;border-top:3px solid #1a3a5a;font-size:16px}
+</style></head><body>
+<h1>📋 Чек-лист: ${esc(data.project_name)}</h1>
+<div class="meta"><strong>Дата:</strong> ${esc(data.date)}<br><strong>Комментарий:</strong> ${esc(data.comment||'—')}</div>
+<table><thead><tr><th>Категория</th><th>Позиция</th><th>Кол-во (шт)</th><th>Вес (кг)</th><th>Объём (м³)</th><th>Габариты (см)</th><th>Детали</th></tr></thead><tbody>`;
+    let grandQty=0,grandWeight=0,grandVolume=0;
+    const orderKeys = editorData._categoryOrder || Object.keys(editorData.inventory);
+    orderKeys.forEach(cat => {
+        if (!catItems[cat]) return;
+        let first=true, catQty=0,catWeight=0,catVolume=0;
+        for (let item of catItems[cat]) {
+            catQty += item.qty;
+            catWeight += item.weight;
+            catVolume += item.volume;
+            html += `<tr><td>${first ? CAT_NAMES[cat]||cat : ''}</td><td>${esc(item.name)}</td><td>${item.qty}</td><td>${item.weight.toFixed(1)}</td><td>${item.volume.toFixed(3)}</td><td>${esc(item.dims)}</td><td>${esc(item.detail)}</td></tr>`;
+            first = false;
+        }
+        grandQty += catQty; grandWeight += catWeight; grandVolume += catVolume;
+        html += `<tr class="total-row"><td colspan="2"><strong>Итого в категории</strong></td><td><strong>${catQty} шт</strong></td><td><strong>${catWeight.toFixed(1)} кг</strong></td><td><strong>${catVolume.toFixed(3)} м³</strong></td><td></td><td></td></tr>`;
+    });
+    html += `<tr class="grand-total"><td colspan="2"><strong>Общий итог</strong></td><td><strong>${grandQty} шт</strong></td><td><strong>${grandWeight.toFixed(1)} кг</strong></td><td><strong>${grandVolume.toFixed(3)} м³</strong></td><td></td><td></td></tr>`;
+    html += `</tbody></table></body></html>`;
+    const win = window.open('', '_blank');
+    if (win) {
+        win.document.write(html);
+        win.document.close();
+        win.focus();
+        // Автоматическая печать для сохранения PDF
+        setTimeout(() => { win.print(); }, 500);
+    } else {
+        showToast('⚠️ Не удалось открыть новую вкладку');
+    }
+}
+
+// ============================================================
+// ОЧИСТКА ЗАКАЗА
+// ============================================================
+export function clearOrderData() {
+    if (!confirm('Очистить список?')) return;
+    // Обнуляем все данные заказа
+    for (let key in order) delete order[key];
+    for (let key in orderSplits) delete orderSplits[key];
+    for (let key in links) delete links[key];
+    for (let key in notes) delete notes[key];
+    for (let key in orderPacking) delete orderPacking[key];
+    for (let key in individualCaseValues) delete individualCaseValues[key];
+    for (let key in commonRoutes) delete commonRoutes[key];
+    for (let key in caseModes) delete caseModes[key];
+    saveOrderData();
+    renderOrderAll();
+    showToast('Список очищен');
 }
 
 // ============================================================
@@ -721,4 +874,9 @@ export function initOrderUI() {
         localStorage.setItem('detailsOpen', JSON.stringify(detailsOpen));
         this.textContent = detailsOpen ? '📊 Скрыть' : '📊 Подробно';
     });
+
+    // Кнопки сохранения и очистки
+    document.getElementById('btnSaveJSON')?.addEventListener('click', exportOrderJSON);
+    document.getElementById('btnSavePDF')?.addEventListener('click', exportOrderPDF);
+    document.getElementById('btnClearOrder')?.addEventListener('click', clearOrderData);
 }

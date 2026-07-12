@@ -17,7 +17,8 @@ import {
     calcItemWeightWithMode,
     calcItemVolumeWithMode,
     calcItemCases,
-    loadOrderData
+    loadOrderData,
+    getCaseMode
 } from './order.js';
 
 // ============================================================
