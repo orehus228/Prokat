@@ -6,8 +6,7 @@ import {
     addCommonCase,
     updateCommonCase,
     deleteCommonCase,
-    saveEditorData,
-    editorData
+    saveEditorData
 } from './data.js';
 
 import {
@@ -15,10 +14,8 @@ import {
     showToast
 } from './ui.js';
 
-import { CAT_NAMES } from './config.js';
-
 // ============================================================
-// ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ (для модалки свойств)
+// ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
 // ============================================================
 let currentPropsPath = null;
 let variantCounter = 0;
@@ -224,7 +221,7 @@ export function initPropsCancelHandler() {
 }
 
 // ============================================================
-// МОДАЛКА УПРАВЛЕНИЯ ОБЩИМИ КОФРАМИ
+// МОДАЛКА УПРАВЛЕНИЯ ОБЩИМИ КОФРАМИ (ГЛАВНАЯ ФУНКЦИЯ)
 // ============================================================
 export function openCasesManagerModal(callback) {
     casesManagerCallback = callback || null;
@@ -313,7 +310,6 @@ export function initCasesManagerHandlers() {
             addCommonCase(newCase);
             showToast('Кофр добавлен');
         }
-        // Очистка формы
         document.getElementById('newCaseName').value = '';
         document.getElementById('newCaseQty').value = '';
         document.getElementById('newCaseDim').value = '';
@@ -347,7 +343,7 @@ export function initCasesManagerOverlayClose() {
 }
 
 // ============================================================
-// ИНИЦИАЛИЗАЦИЯ ВСЕХ ОБРАБОТЧИКОВ (вызывается из main.js)
+// ИНИЦИАЛИЗАЦИЯ ВСЕХ ОБРАБОТЧИКОВ
 // ============================================================
 export function initCases() {
     initPropsSaveHandler();
@@ -356,7 +352,7 @@ export function initCases() {
     initCasesManagerCloseHandler();
     initCasesManagerOverlayClose();
     
-    // Делаем функции глобально доступными для onclick в HTML (для кнопок "➕ Новый кофр" и т.п.)
+    // Делаем функции глобально доступными для onclick в HTML
     window.addIndividualCaseVariant = addIndividualCaseVariantBtn;
     window.addCommonCaseVariant = addCommonCaseVariantBtn;
     window.addNewCaseFromProps = addNewCaseFromProps;
