@@ -1,4 +1,4 @@
-// render-order.js — Отрисовка страницы создания заказа (исправленная версия)
+// render-order.js — Отрисовка страницы создания заказа (исправленный с защитой)
 import {
     editorData,
     getStock,
@@ -87,9 +87,16 @@ function setValue(path, val) {
 function renderOrderTabs() {
     const container = document.getElementById('categoryTabs');
     container.innerHTML = '';
-    const orderKeys = editorData._categoryOrder || Object.keys(editorData.inventory);
+    // Безопасно получаем список категорий
+    let orderKeys = editorData._categoryOrder || Object.keys(editorData.inventory);
+    // Фильтруем только существующие категории
+    orderKeys = orderKeys.filter(key => editorData.inventory && editorData.inventory[key] !== undefined);
+    if (orderKeys.length === 0) {
+        // Если нет категорий, показываем сообщение
+        container.innerHTML = '<div class="empty-message">Нет категорий</div>';
+        return;
+    }
     orderKeys.forEach(key => {
-        if (!editorData.inventory[key]) return;
         const tab = document.createElement('div');
         tab.className = 'category-tab' + (key === currentCategory ? ' active' : '');
         tab.textContent = CAT_NAMES[key] || key;
@@ -106,6 +113,10 @@ function renderOrderTabs() {
         });
         container.appendChild(tab);
     });
+    // Если текущая категория невалидна, устанавливаем первую
+    if (!orderKeys.includes(currentCategory)) {
+        currentCategory = orderKeys[0];
+    }
 }
 
 // ============================================================
@@ -119,9 +130,14 @@ function renderOrderCategory(catKey) {
     if (catKey === 'all' || searchMode) {
         wrapper.innerHTML = buildAllCategoriesHTML();
     } else {
-        const catData = editorData.inventory[catKey];
-        if (!catData) { wrapper.innerHTML = '<div class="empty-message">Категория пуста</div>'; container.appendChild(wrapper); return; }
-        wrapper.innerHTML = buildCategoryHTML(catData, [catKey], 0);
+        const catData = editorData.inventory && editorData.inventory[catKey];
+        if (!catData) {
+            wrapper.innerHTML = '<div class="empty-message">Категория пуста</div>';
+            container.appendChild(wrapper);
+            return;
+        }
+        // Защита от бесконечной рекурсии: передаём глубину и ограничиваем
+        wrapper.innerHTML = buildCategoryHTML(catData, [catKey], 0, 10);
     }
     container.appendChild(wrapper);
     setupInputListeners();
@@ -145,18 +161,18 @@ function renderOrderCategory(catKey) {
 
 function buildAllCategoriesHTML() {
     let html = '';
-    const orderKeys = editorData._categoryOrder || Object.keys(editorData.inventory);
+    const orderKeys = (editorData._categoryOrder || Object.keys(editorData.inventory))
+        .filter(key => editorData.inventory && editorData.inventory[key] !== undefined);
     const searchQueryLower = searchQuery.toLowerCase();
     let hasMatches = false;
     orderKeys.forEach(cat => {
         const catData = editorData.inventory[cat];
         if (!catData) return;
-        // Проверяем, есть ли совпадения в этой категории
         const catHasMatch = hasMatchesInCategory(catData, [cat], searchQueryLower);
         if (searchQuery && !catHasMatch) return;
         hasMatches = true;
         html += `<div class="sub-cat-t">${CAT_NAMES[cat]||cat}</div>`;
-        html += buildCategoryHTML(catData, [cat], 0);
+        html += buildCategoryHTML(catData, [cat], 0, 10);
     });
     if (searchQuery && !hasMatches) {
         return '<div class="empty-message">Ничего не найдено</div>';
@@ -169,7 +185,7 @@ function hasMatchesInCategory(data, path, query) {
     if (Array.isArray(data)) {
         return data.some(item => {
             const fullPath = path.length ? path.join('|') + '|' + item : item;
-            const searchText = item + ' ' + (editorData.specs[fullPath] || '');
+            const searchText = item + ' ' + (editorData.specs && editorData.specs[fullPath] || '');
             return searchText.toLowerCase().includes(query);
         });
     } else if (typeof data === 'object' && data !== null) {
@@ -182,22 +198,25 @@ function hasMatchesInCategory(data, path, query) {
     return false;
 }
 
-function buildCategoryHTML(data, path, level) {
+function buildCategoryHTML(data, path, level, maxDepth) {
+    if (level > maxDepth) {
+        console.warn('Превышена максимальная глубина рекурсии', path);
+        return '<div class="empty-message">Слишком глубокий уровень</div>';
+    }
     let html = '';
     const searchQueryLower = searchQuery.toLowerCase();
     if (Array.isArray(data)) {
         data.forEach((item, idx) => {
             const fullPath = path.length ? path.join('|') + '|' + item : item;
-            // Проверка на совпадение для поиска
             if (searchQueryLower) {
-                const searchText = item + ' ' + (editorData.specs[fullPath] || '');
+                const searchText = item + ' ' + (editorData.specs && editorData.specs[fullPath] || '');
                 if (!searchText.toLowerCase().includes(searchQueryLower)) {
                     return;
                 }
             }
             const val = getValue(fullPath);
             const sq = getStockValue(fullPath);
-            const hasDesc = !!editorData.specs[fullPath];
+            const hasDesc = !!(editorData.specs && editorData.specs[fullPath]);
             const hasLink = links[fullPath] && links[fullPath].length > 0;
             const props = getItemProps(fullPath);
             const hasCase = (props.individualCases && props.individualCases.length > 0) || props.allowCommon;
@@ -206,7 +225,6 @@ function buildCategoryHTML(data, path, level) {
             const overstock = getTotalQty(fullPath) > sq;
             const isInfoOpen = infoBlocksOpen[fullPath] || false;
 
-            // Расчёт веса и объёма для отображения в строке
             const totalQty = getTotalQty(fullPath);
             let weightDisplay = '0 кг', volumeDisplay = '0 м³';
             if (props.weight) {
@@ -218,14 +236,11 @@ function buildCategoryHTML(data, path, level) {
                 volumeDisplay = v.toFixed(3) + ' м³';
             }
 
-            // Информация для блока "Инфо"
             const infoHtml = buildInfoHtml(fullPath, props, mode);
 
             const escapedName = esc(item);
             const isAdded = totalQty > 0;
             const isOverstock = overstock;
-
-            // Классы для индикации и наведения
             const rowClass = (isAdded ? 'added' : '') + (isOverstock ? ' overstock' : '');
 
             html += `<div class="row ${rowClass}" data-path="${esc(fullPath)}" data-search="${item}">
@@ -262,14 +277,13 @@ function buildCategoryHTML(data, path, level) {
         const keys = Object.keys(data).filter(k => !k.startsWith('_'));
         keys.forEach(key => {
             const childPath = [...path, key];
-            // Проверяем, есть ли совпадения в этой подгруппе
             if (searchQueryLower && !hasMatchesInCategory(data[key], childPath, searchQueryLower)) {
                 return;
             }
             const isSubSub = level >= 2;
             if (isSubSub) html += `<div class="sub-sub-cat-t">${key}</div>`;
             else html += `<div class="sub-cat-t">${key}</div>`;
-            html += buildCategoryHTML(data[key], childPath, level + 1);
+            html += buildCategoryHTML(data[key], childPath, level + 1, maxDepth);
         });
         return html;
     }
@@ -429,7 +443,6 @@ function updateRow(path) {
     const isOverstock = totalQty > sq;
     row.classList.toggle('added', isAdded);
     row.classList.toggle('overstock', isOverstock);
-    // Удаляем старые предупреждения
     const oldWarn = row.querySelector('.overstock-warning');
     if (oldWarn) oldWarn.remove();
     if (isOverstock) {
@@ -439,7 +452,6 @@ function updateRow(path) {
         warn.title = 'Больше нет (в наличии ' + sq + ')';
         row.querySelector('.qty-controls').appendChild(warn);
     }
-    // Обновляем вес/объём
     const weightVolDisplay = row.querySelector('.weight-vol-display');
     if (weightVolDisplay) {
         const props = getItemProps(path);
@@ -454,7 +466,6 @@ function updateRow(path) {
         }
         weightVolDisplay.textContent = weightDisplay + ' / ' + volumeDisplay;
     }
-    // Обновляем инфо-блок, если открыт
     if (infoBlocksOpen[path]) {
         const infoBlock = row.querySelector('.row-info');
         if (infoBlock) {
@@ -510,7 +521,8 @@ function updateTotals() {
     document.getElementById('totalVolume').textContent = totalVolume.toFixed(3);
     const detailsDiv = document.getElementById('globalDetails');
     let detailsHtml = '';
-    const orderKeys = editorData._categoryOrder || Object.keys(editorData.inventory);
+    const orderKeys = (editorData._categoryOrder || Object.keys(editorData.inventory))
+        .filter(key => editorData.inventory && editorData.inventory[key] !== undefined);
     orderKeys.forEach(cat => {
         if (!catTotals[cat]) return;
         const d = catTotals[cat];
@@ -547,16 +559,24 @@ function applySearch() {
         if (!searchMode) { searchMode = true; currentCategory = 'all'; renderOrderCategory('all'); return; }
         renderOrderCategory('all');
     } else {
-        if (searchMode) { searchMode = false; currentCategory = editorData._categoryOrder[0] || 'sound'; renderOrderCategory(currentCategory); }
-        else { renderOrderCategory(currentCategory); }
+        if (searchMode) { searchMode = false; 
+            const orderKeys = (editorData._categoryOrder || Object.keys(editorData.inventory))
+                .filter(key => editorData.inventory && editorData.inventory[key] !== undefined);
+            currentCategory = orderKeys[0] || 'sound'; 
+        }
+        renderOrderCategory(currentCategory);
     }
 }
 
 function clearSearch() {
     document.getElementById('searchInput').value = '';
     searchQuery = '';
-    if (searchMode) { searchMode = false; currentCategory = editorData._categoryOrder[0] || 'sound'; renderOrderCategory(currentCategory); }
-    else { renderOrderCategory(currentCategory); }
+    if (searchMode) { searchMode = false; 
+        const orderKeys = (editorData._categoryOrder || Object.keys(editorData.inventory))
+            .filter(key => editorData.inventory && editorData.inventory[key] !== undefined);
+        currentCategory = orderKeys[0] || 'sound';
+    }
+    renderOrderCategory(currentCategory);
 }
 
 // ============================================================
@@ -675,7 +695,8 @@ tr:nth-child(even){background:#f9f9f9}
 <div class="meta"><strong>Дата:</strong> ${esc(data.date)}<br><strong>Комментарий:</strong> ${esc(data.comment||'—')}</div>
 <table><thead><tr><th>Категория</th><th>Позиция</th><th>Кол-во (шт)</th><th>Вес (кг)</th><th>Объём (м³)</th><th>Габариты (см)</th><th>Детали</th></tr></thead><tbody>`;
     let grandQty=0,grandWeight=0,grandVolume=0;
-    const orderKeys = editorData._categoryOrder || Object.keys(editorData.inventory);
+    const orderKeys = (editorData._categoryOrder || Object.keys(editorData.inventory))
+        .filter(key => editorData.inventory && editorData.inventory[key] !== undefined);
     orderKeys.forEach(cat => {
         if (!catItems[cat]) return;
         let first=true, catQty=0,catWeight=0,catVolume=0;

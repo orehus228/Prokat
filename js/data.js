@@ -34,12 +34,21 @@ function resetToEmpty() {
         catNames: { ...CAT_NAMES },
         _categoryOrder: [],
         commonCases: [],
-        truckPresets: [] // Новое поле для пресетов грузовиков
+        truckPresets: []
     };
 }
 
 function normalizeAllData() {
-    // Удаляем дублирующиеся группы видео (оставляем только "Экран")
+    // 1. Фильтруем _categoryOrder — оставляем только существующие категории
+    if (editorData._categoryOrder) {
+        editorData._categoryOrder = editorData._categoryOrder.filter(cat => 
+            editorData.inventory && editorData.inventory[cat] !== undefined
+        );
+    } else {
+        editorData._categoryOrder = Object.keys(editorData.inventory);
+    }
+
+    // 2. Удаляем дублирующиеся группы видео (оставляем только "Экран")
     if (editorData.inventory && editorData.inventory.video) {
         const video = editorData.inventory.video;
         DUPLICATE_VIDEO_GROUPS.forEach(name => {
@@ -56,7 +65,7 @@ function normalizeAllData() {
         }
     }
 
-    // Приводим itemProps к корректному виду
+    // 3. Приводим itemProps к корректному виду
     for (let key in editorData.itemProps) {
         const props = editorData.itemProps[key];
         if (props.individualCases === undefined) props.individualCases = [];
@@ -68,22 +77,22 @@ function normalizeAllData() {
             if (c.maxCases === undefined) c.maxCases = 0;
             return c;
         });
-        // Удаляем устаревшее поле caseOptions
         if (props.caseOptions !== undefined) delete props.caseOptions;
-        // Убедимся, что есть weight, dimensions, volume (хотя бы пустые)
         if (props.weight === undefined) props.weight = 0;
         if (props.dimensions === undefined) props.dimensions = '';
         if (props.volume === undefined) props.volume = 0;
     }
 
-    // Категории с подгруппами: проверяем _subOrder
+    // 4. Категории с подгруппами: проверяем _subOrder
     for (let cat in editorData.inventory) {
         const catData = editorData.inventory[cat];
         if (typeof catData === 'object' && !Array.isArray(catData)) {
             if (!catData._subOrder) {
                 catData._subOrder = Object.keys(catData).filter(k => k !== '_subOrder');
             } else {
+                // Фильтруем только существующие подгруппы
                 catData._subOrder = catData._subOrder.filter(k => catData[k] !== undefined);
+                // Добавляем недостающие подгруппы
                 Object.keys(catData).forEach(k => {
                     if (k !== '_subOrder' && !catData._subOrder.includes(k)) {
                         catData._subOrder.push(k);
@@ -93,10 +102,13 @@ function normalizeAllData() {
         }
     }
 
-    // Если нет truckPresets, инициализируем пустым массивом
+    // 5. Инициализируем truckPresets, если отсутствуют
     if (!editorData.truckPresets) {
         editorData.truckPresets = [];
     }
+
+    // 6. Удаляем мусор из stock, specs, itemProps (ключи, которые не соответствуют существующим позициям)
+    // Для простоты пока не делаем, чтобы не потерять данные при импорте
 }
 
 export function saveEditorData() {
@@ -202,7 +214,6 @@ export function convertOldItemProps(itemProps) {
                 return c;
             });
         }
-        // Убедимся, что есть weight, dimensions, volume
         if (newProps.weight === undefined) newProps.weight = 0;
         if (newProps.dimensions === undefined) newProps.dimensions = '';
         if (newProps.volume === undefined) newProps.volume = 0;
@@ -247,7 +258,6 @@ export function getItemProps(catKey, subKey, itemName) {
     const key = getStockKey(catKey, subKey, itemName);
     const props = editorData.itemProps[key];
     if (props) {
-        // Нормализуем на всякий случай
         if (props.weight === undefined) props.weight = 0;
         if (props.dimensions === undefined) props.dimensions = '';
         if (props.volume === undefined) props.volume = 0;
@@ -259,7 +269,6 @@ export function getItemProps(catKey, subKey, itemName) {
 export function setItemProps(catKey, subKey, itemName, props) {
     const key = getStockKey(catKey, subKey, itemName);
     if (props && Object.keys(props).length > 0) {
-        // Нормализуем перед сохранением
         if (props.weight === undefined) props.weight = 0;
         if (props.dimensions === undefined) props.dimensions = '';
         if (props.volume === undefined) props.volume = 0;
@@ -279,7 +288,6 @@ export function getTruckPresets() {
 
 export function addTruckPreset(preset) {
     if (!editorData.truckPresets) editorData.truckPresets = [];
-    // Проверяем уникальность id
     if (!preset.id) preset.id = 'truck_' + Date.now();
     editorData.truckPresets.push(preset);
     saveEditorData();
