@@ -863,6 +863,43 @@ body {
     display: none !important;
 }
 
+/* ===== ДОЧЕРНИЕ СТРОКИ ДЛЯ КОФРОВ ===== */
+.child-row {
+    padding-left: 40px;
+    border-left: 2px solid var(--color-case);
+    margin: 4px 0 4px 20px;
+    background: var(--bg-secondary);
+    border-radius: 4px;
+}
+.child-row .child-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    flex-wrap: wrap;
+}
+.child-row .child-controls label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    min-width: 120px;
+}
+.child-row .child-controls input[type="number"] {
+    width: 60px;
+    padding: 2px 4px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    color: var(--text-primary);
+    text-align: center;
+    font-size: 13px;
+}
+.child-row .child-controls .child-info {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-left: 8px;
+}
+
+/* ===== МОДАЛКИ ===== */
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -873,7 +910,7 @@ body {
     display: none;
     align-items: center;
     justify-content: center;
-    z-index: 1100; /* Повышен, чтобы быть поверх матрицы */
+    z-index: 1200; /* Повышен, чтобы быть поверх матрицы */
     padding: 16px;
 }
 .modal-overlay.open {
@@ -996,14 +1033,17 @@ body {
     font-size: 16px;
 }
 
+/* ===== МАТРИЦА ===== */
 #matrixModal .modal {
     max-width: 95vw;
     max-height: 85vh;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }
 #matrixModal .table-wrap {
     overflow: auto;
-    max-height: 60vh;
+    flex: 1;
     width: 100%;
     position: relative;
 }
@@ -1016,7 +1056,7 @@ body {
     border-collapse: collapse;
     width: 100%;
     font-size: 13px;
-    table-layout: fixed; /* Фиксированная ширина */
+    table-layout: fixed;
 }
 .matrix-table th,
 .matrix-table td {
@@ -1027,7 +1067,7 @@ body {
     height: 32px;
     overflow: hidden;
     text-overflow: ellipsis;
-    width: 90px; /* Фиксированная ширина для всех ячеек */
+    width: 90px;
     min-width: 90px;
     max-width: 90px;
 }
@@ -1161,6 +1201,20 @@ body {
     color: var(--text-secondary);
     font-size: 14px;
 }
+/* Фиксированные кнопки внизу матрицы */
+#matrixModal .modal .buttons.matrix-footer {
+    position: sticky;
+    bottom: 0;
+    background: var(--bg-card);
+    padding: 12px 0 0 0;
+    margin-top: 12px;
+    border-top: 1px solid var(--border-color);
+    z-index: 20;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-shrink: 0;
+}
 
 #casesList {
     max-height: 300px;
@@ -1253,6 +1307,9 @@ body {
     .matrix-zoom-controls {
         flex-wrap: wrap;
         justify-content: center;
+    }
+    .child-row {
+        padding-left: 20px;
     }
 }
 @media (max-width: 400px) {

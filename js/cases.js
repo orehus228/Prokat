@@ -634,13 +634,23 @@ function renderMatrix() {
     allTargets = unique;
     if (tgtFilter) allTargets = allTargets.filter(t => t.name.toLowerCase().includes(tgtFilter));
 
-    // Фиксированная ширина ячеек
-    const colWidth = 90;
-    let html = `<div class="matrix-table-wrapper"><table class="matrix-table" style="font-size:${13 * matrixZoomLevel}px;">`;
-    html += `<thead><tr><th class="matrix-header" style="width:${colWidth}px; min-width:${colWidth}px; max-width:${colWidth}px;">Источник \\ Цель</th>`;
+    // Базовый размер ячейки (при зуме 1)
+    const baseColWidth = 90;
+    const baseFontSize = 13;
+    const basePadding = 4;
+    const baseHeight = 32;
+
+    // Масштабируем всё пропорционально matrixZoomLevel
+    const colWidth = Math.round(baseColWidth * matrixZoomLevel);
+    const fontSize = baseFontSize * matrixZoomLevel;
+    const padding = Math.round(basePadding * matrixZoomLevel);
+    const height = Math.round(baseHeight * matrixZoomLevel);
+
+    let html = `<div class="matrix-table-wrapper"><table class="matrix-table" style="font-size:${fontSize}px; table-layout:fixed; width:100%;">`;
+    html += `<thead><tr><th class="matrix-header" style="width:${colWidth}px; min-width:${colWidth}px; max-width:${colWidth}px; padding:${padding}px; height:${height}px; font-size:${fontSize}px;">Источник \\ Цель</th>`;
     allTargets.forEach(target => {
         const displayName = truncateName(target.name);
-        html += `<th class="matrix-header" style="width:${colWidth}px; min-width:${colWidth}px; max-width:${colWidth}px;" title="${esc(target.name)}">${displayName}</th>`;
+        html += `<th class="matrix-header" style="width:${colWidth}px; min-width:${colWidth}px; max-width:${colWidth}px; padding:${padding}px; height:${height}px; font-size:${fontSize}px;" title="${esc(target.name)}">${displayName}</th>`;
     });
     html += '</tr></thead><tbody>';
 
@@ -652,15 +662,15 @@ function renderMatrix() {
         if (filtered.length === 0) return;
 
         const catId = 'cat_' + cat + '_' + Date.now();
-        html += `<tr class="matrix-category" onclick="window.toggleMatrixCategory('${catId}')"><td colspan="${allTargets.length+1}" style="text-align:left;padding:6px 10px;background:var(--bg-secondary);border:1px solid var(--border-color);"><span class="toggle" id="toggle_${catId}">▶</span> ${CAT_NAMES[cat]||cat} (${filtered.length})</td></tr>`;
+        html += `<tr class="matrix-category" onclick="window.toggleMatrixCategory('${catId}')"><td colspan="${allTargets.length+1}" style="text-align:left;padding:${padding}px 10px;background:var(--bg-secondary);border:1px solid var(--border-color);font-size:${fontSize}px;"><span class="toggle" id="toggle_${catId}">▶</span> ${CAT_NAMES[cat]||cat} (${filtered.length})</td></tr>`;
         html += `<tbody id="${catId}" class="matrix-category-items" style="display:none;">`;
         filtered.forEach((source, idx) => {
             const rowClass = idx % 2 === 0 ? 'row-even' : 'row-odd';
             html += `<tr class="${rowClass}">`;
-            html += `<td class="matrix-cell matrix-source" style="width:${colWidth}px; min-width:${colWidth}px; max-width:${colWidth}px; overflow:hidden; text-overflow:ellipsis;" title="${esc(source.name)}">${truncateName(source.name)}</td>`;
+            html += `<td class="matrix-cell matrix-source" style="width:${colWidth}px; min-width:${colWidth}px; max-width:${colWidth}px; padding:${padding}px; height:${height}px; overflow:hidden; text-overflow:ellipsis; font-size:${fontSize}px;" title="${esc(source.name)}">${truncateName(source.name)}</td>`;
             allTargets.forEach(target => {
                 if (source.full === target.full) {
-                    html += `<td class="matrix-cell matrix-diagonal" style="width:${colWidth}px; min-width:${colWidth}px; max-width:${colWidth}px;">—</td>`;
+                    html += `<td class="matrix-cell matrix-diagonal" style="width:${colWidth}px; min-width:${colWidth}px; max-width:${colWidth}px; padding:${padding}px; height:${height}px; font-size:${fontSize}px;">—</td>`;
                 } else {
                     // Собираем все привязки от всех источников к этой цели
                     const allLinks = [];
@@ -676,17 +686,17 @@ function renderMatrix() {
                     const hasConflict = conflictLinks.length > 0;
 
                     if (totalMultiplier > 0 || hasConflict) {
-                        let cellContent = `<span class="matrix-value">${totalMultiplier.toFixed(2)}</span>`;
+                        let cellContent = `<span class="matrix-value" style="font-size:${fontSize}px;">${totalMultiplier.toFixed(2)}</span>`;
                         if (hasConflict) {
                             const conflictInfo = conflictLinks.map(c => {
                                 const srcName = c.source.split('|').pop();
                                 return `${srcName} (×${c.multiplier})`;
                             }).join(', ');
-                            cellContent += `<span class="matrix-conflict" title="Конфликт! Также ссылаются: ${conflictInfo}">!</span>`;
+                            cellContent += `<span class="matrix-conflict" style="font-size:${fontSize}px;" title="Конфликт! Также ссылаются: ${conflictInfo}">!</span>`;
                         }
-                        html += `<td class="matrix-cell matrix-value-cell" style="width:${colWidth}px; min-width:${colWidth}px; max-width:${colWidth}px; overflow:hidden; text-overflow:ellipsis;" data-src="${source.full}" data-target="${target.full}" onclick="window.editMatrixCell(this,'${source.full}','${target.full}')">${cellContent}</td>`;
+                        html += `<td class="matrix-cell matrix-value-cell" style="width:${colWidth}px; min-width:${colWidth}px; max-width:${colWidth}px; padding:${padding}px; height:${height}px; overflow:hidden; text-overflow:ellipsis; font-size:${fontSize}px;" data-src="${source.full}" data-target="${target.full}" onclick="window.editMatrixCell(this,'${source.full}','${target.full}')">${cellContent}</td>`;
                     } else {
-                        html += `<td class="matrix-cell matrix-empty" style="width:${colWidth}px; min-width:${colWidth}px; max-width:${colWidth}px;" data-src="${source.full}" data-target="${target.full}" onclick="window.editMatrixCell(this,'${source.full}','${target.full}')">+</td>`;
+                        html += `<td class="matrix-cell matrix-empty" style="width:${colWidth}px; min-width:${colWidth}px; max-width:${colWidth}px; padding:${padding}px; height:${height}px; font-size:${fontSize}px;" data-src="${source.full}" data-target="${target.full}" onclick="window.editMatrixCell(this,'${source.full}','${target.full}')">+</td>`;
                     }
                 }
             });
@@ -727,21 +737,13 @@ function getAllItemPaths() {
 }
 
 function updateMatrixZoom() {
-    const table = document.querySelector('.matrix-table');
-    if (table) {
-        table.style.fontSize = (13 * matrixZoomLevel) + 'px';
-        const cells = table.querySelectorAll('th, td');
-        cells.forEach(cell => {
-            const currentWidth = parseFloat(cell.style.width) || 90;
-            cell.style.minWidth = currentWidth + 'px';
-            cell.style.maxWidth = currentWidth + 'px';
-            cell.style.padding = (4 * matrixZoomLevel) + 'px ' + (6 * matrixZoomLevel) + 'px';
-        });
-    }
+    // Обновляем слайдер и метку
     const slider = document.getElementById('matrixZoomSlider');
     if (slider) slider.value = matrixZoomLevel;
     const label = document.getElementById('matrixZoomLevelLabel');
     if (label) label.textContent = Math.round(matrixZoomLevel * 100) + '%';
+    // Перерисовываем таблицу с новым масштабом
+    renderMatrix();
 }
 
 function setupMatrixZoomSlider() {
@@ -963,7 +965,12 @@ export function initMatrixHandlers() {
     if (savePresetBtn) savePresetBtn.addEventListener('click', saveMatrixPreset);
 
     const loadPresetBtn = document.getElementById('matrixLoadPreset');
-    if (loadPresetBtn) loadPresetBtn.addEventListener('click', () => loadMatrixPreset(true));
+    if (loadPresetBtn) {
+        loadPresetBtn.addEventListener('click', async () => {
+            const overlay = document.getElementById('matrixOverlayToggle')?.checked || false;
+            await loadMatrixPreset(overlay);
+        });
+    }
 
     const deletePresetBtn = document.getElementById('matrixDeletePreset');
     if (deletePresetBtn) deletePresetBtn.addEventListener('click', deleteMatrixPreset);
