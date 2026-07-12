@@ -270,7 +270,7 @@ function buildCategoryHTML(data, path, level) {
 }
 
 // ============================================================
-// ПОСТРОЕНИЕ СТРОКИ С ОТОБРАЖЕНИЕМ ВЕСА/ОБЪЁМА
+// ПОСТРОЕНИЕ СТРОКИ С ОТОБРАЖЕНИЕМ ВЕСА/ОБЪЁМА И ИНДИКАЦИЕЙ СТАТУСОВ
 // ============================================================
 function buildItemRow(fullPath, level) {
     const val = getValue(fullPath);
@@ -283,6 +283,8 @@ function buildItemRow(fullPath, level) {
     const overstock = getTotalQty(fullPath) > sq;
     const isInfoOpen = infoBlocksOpen[fullPath] || false;
     const totalQty = getTotalQty(fullPath);
+    const hasNote = !!(notes[fullPath] && notes[fullPath].trim());
+    const isCaseModeOn = mode.enabled || false;
     
     // Вычисляем вес и объём
     let weightDisplay = '0 кг', volumeDisplay = '0 м³';
@@ -301,15 +303,20 @@ function buildItemRow(fullPath, level) {
     const isOverstock = overstock;
     const rowClass = (isAdded ? 'added' : '') + (isOverstock ? ' overstock' : '');
 
+    // Индикация статусов для кнопок
+    const linkClass = hasLink ? 'active' : '';
+    const noteClass = hasNote ? 'has-note' : '';
+    const caseClass = isCaseModeOn ? 'active' : '';
+
     let html = `<div class="row ${rowClass}" data-path="${esc(fullPath)}" data-search="${fullPath}">
         <div class="main-line">
             <div class="name-area">
                 <span class="name">${escapedName}</span>
                 <button class="action-btn info-btn" data-path="${esc(fullPath)}" title="Информация">Инфо</button>
                 ${hasDesc ? `<button class="action-btn desc-btn" data-path="${esc(fullPath)}">Описание</button>` : ''}
-                <button class="action-btn link-btn ${hasLink ? 'active' : ''}" data-path="${esc(fullPath)}" title="Линк">Линк</button>
-                ${hasCase ? `<button class="action-btn case-btn" data-path="${esc(fullPath)}" title="Настройка кофров">Кофры</button>` : ''}
-                <button class="action-btn note-btn" data-path="${esc(fullPath)}" title="Заметка">Заметка</button>
+                <button class="action-btn link-btn ${linkClass}" data-path="${esc(fullPath)}" title="Линк">Линк${hasLink ? ' ✓' : ''}</button>
+                ${hasCase ? `<button class="action-btn case-btn ${caseClass}" data-path="${esc(fullPath)}" title="Настройка кофров">Кофры${isCaseModeOn ? ' ✓' : ''}</button>` : ''}
+                <button class="action-btn note-btn ${noteClass}" data-path="${esc(fullPath)}" title="Заметка">Заметка${hasNote ? ' ✓' : ''}</button>
             </div>
             <div class="qty-controls">
                 <span class="weight-vol-display">${weightDisplay} / ${volumeDisplay}</span>
@@ -577,6 +584,16 @@ async function openNoteEditorOrder(btn) {
         notes[path] = newNote.trim();
     }
     saveOrderData();
+    // Обновляем индикацию кнопки заметки
+    const row = btn.closest('.row');
+    if (row) {
+        const noteBtn = row.querySelector('.note-btn');
+        if (noteBtn) {
+            const hasNote = !!(notes[path] && notes[path].trim());
+            noteBtn.textContent = 'Заметка' + (hasNote ? ' ✓' : '');
+            noteBtn.classList.toggle('has-note', hasNote);
+        }
+    }
     showToast('Заметка сохранена', 'neutral');
 }
 
@@ -646,7 +663,7 @@ function toggleMultiModeOrder(path) {
 }
 
 // ============================================================
-// ОБНОВЛЕНИЕ СТРОКИ
+// ОБНОВЛЕНИЕ СТРОКИ (с обновлением индикации кнопок)
 // ============================================================
 function updateRowOrder(path) {
     const row = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
@@ -690,6 +707,26 @@ function updateRowOrder(path) {
             infoBlock.innerHTML = buildInfoHtml(path, props, mode);
             infoBlock.style.display = 'block';
         }
+    }
+    // Обновляем индикацию кнопок
+    const linkBtn = row.querySelector('.link-btn');
+    if (linkBtn) {
+        const hasLink = links[path] && links[path].length > 0;
+        linkBtn.textContent = 'Линк' + (hasLink ? ' ✓' : '');
+        linkBtn.classList.toggle('active', hasLink);
+    }
+    const noteBtn = row.querySelector('.note-btn');
+    if (noteBtn) {
+        const hasNote = !!(notes[path] && notes[path].trim());
+        noteBtn.textContent = 'Заметка' + (hasNote ? ' ✓' : '');
+        noteBtn.classList.toggle('has-note', hasNote);
+    }
+    const caseBtn = row.querySelector('.case-btn');
+    if (caseBtn) {
+        const mode = getCaseMode(path);
+        const isOn = mode.enabled || false;
+        caseBtn.textContent = 'Кофры' + (isOn ? ' ✓' : '');
+        caseBtn.classList.toggle('active', isOn);
     }
     renderCommonCaseIndicatorsOrder();
 }
@@ -851,7 +888,6 @@ export function exportOrderPDF() {
         const weight = calcItemWeightWithMode(path, qty);
         const volume = calcItemVolumeWithMode(path, qty);
         const dims = getItemProps(path).dimensions || 'н/д';
-        // Определяем детали упаковки
         const packing = getOrderPacking(path);
         const mode = getCaseMode(path);
         let detail = 'без кофра';
@@ -944,6 +980,7 @@ export async function clearOrderData() {
     for (let key in caseModes) delete caseModes[key];
     for (let key in orderExclude) delete orderExclude[key];
     saveOrderData();
+    // Принудительно обновляем интерфейс
     renderOrderAll();
     showToast('Список очищен', 'success');
 }
@@ -980,7 +1017,6 @@ export function initOrderUI() {
         localStorage.setItem('last_comment', this.value);
     });
 
-    // Исправленные ID кнопок
     document.getElementById('saveJ')?.addEventListener('click', exportOrderJSON);
     document.getElementById('savePdf')?.addEventListener('click', exportOrderPDF);
     document.getElementById('clearOrder')?.addEventListener('click', clearOrderData);

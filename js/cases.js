@@ -23,7 +23,7 @@ import {
     showConfirm
 } from './ui.js';
 
-import { CAT_NAMES } from './config.js';
+import { CAT_NAMES, STORAGE_KEYS } from './config.js';
 import {
     links,
     saveOrderData,
@@ -244,7 +244,7 @@ export function initPropsCancelHandler() {
 }
 
 // ============================================================
-// МОДАЛКА НАСТРОЙКИ КОФРОВ ДЛЯ ПОЗИЦИИ (ПОЛНАЯ РЕАЛИЗАЦИЯ)
+// МОДАЛКА НАСТРОЙКИ КОФРОВ ДЛЯ ПОЗИЦИИ
 // ============================================================
 export function openCaseSettingsModal(path, callback) {
     currentCaseSettingsPath = path;
@@ -266,7 +266,6 @@ export function openCaseSettingsModal(path, callback) {
     document.getElementById('caseSettingsTitle').textContent = 'Настройка кофров: ' + path.split('|').pop();
     document.getElementById('caseSettingsEnable').checked = mode.enabled;
 
-    // Варианты кофров
     const optionsContainer = document.getElementById('caseSettingsOptions');
     optionsContainer.innerHTML = '';
     if (options.length > 0) {
@@ -301,7 +300,6 @@ export function openCaseSettingsModal(path, callback) {
         document.getElementById('caseSettingsMulti').style.display = 'none';
     }
 
-    // Альтернативный кофр
     const altContainer = document.getElementById('caseSettingsAlt');
     if (mode.alt) {
         altContainer.innerHTML = `
@@ -316,7 +314,6 @@ export function openCaseSettingsModal(path, callback) {
         `;
     }
 
-    // Привязка к общим кофрам
     const commonContainer = document.getElementById('caseSettingsCommon');
     if (props.allowCommon) {
         commonContainer.style.display = 'block';
@@ -417,7 +414,6 @@ export function openCaseSettingsModal(path, callback) {
     };
 }
 
-// Глобальные функции для модалки кофров
 window.addAltCase = function() {
     const path = currentCaseSettingsPath;
     if (!path) return;
@@ -571,8 +567,21 @@ export function initCasesManagerOverlayClose() {
 }
 
 // ============================================================
-// МАТРИЦА ПРИВЯЗОК (С ПОЛЗУНКОМ ЗУМА И ФИКСИРОВАННЫМИ ЯЧЕЙКАМИ)
+// МАТРИЦА ПРИВЯЗОК (с пресетами, фиксированной шириной, суммированием)
 // ============================================================
+const MATRIX_PRESETS_KEY = STORAGE_KEYS.MATRIX_PRESETS || 'matrix_presets';
+
+function getMatrixPresets() {
+    try {
+        const raw = localStorage.getItem(MATRIX_PRESETS_KEY);
+        return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+}
+
+function saveMatrixPresets(presets) {
+    localStorage.setItem(MATRIX_PRESETS_KEY, JSON.stringify(presets));
+}
+
 export function openMatrixModal(sourcePath) {
     const modal = document.getElementById('matrixModal');
     if (!modal) {
@@ -588,6 +597,7 @@ export function openMatrixModal(sourcePath) {
     matrixZoomLevel = 1;
     updateMatrixZoom();
     renderMatrix();
+    populateMatrixPresetSelect();
     modal.classList.add('open');
 }
 
@@ -621,11 +631,13 @@ function renderMatrix() {
     allTargets = unique;
     if (tgtFilter) allTargets = allTargets.filter(t => t.name.toLowerCase().includes(tgtFilter));
 
-    let html = `<div class="matrix-table-wrapper"><table class="matrix-table" style="font-size:${13 * matrixZoomLevel}px;">`;
-    html += `<thead><tr><th class="matrix-header">Источник \\ Цель</th>`;
+    // Фиксированная ширина ячеек (кроме первой колонки)
+    const colWidth = 90; // пикселей
+    let html = `<div class="matrix-table-wrapper"><table class="matrix-table" style="font-size:${13 * matrixZoomLevel}px; table-layout:fixed; width:auto;">`;
+    html += `<thead><tr><th class="matrix-header" style="width:${Math.max(120, colWidth)}px;">Источник \\ Цель</th>`;
     allTargets.forEach(target => {
         const displayName = truncateName(target.name);
-        html += `<th class="matrix-header" title="${esc(target.name)}">${displayName}</th>`;
+        html += `<th class="matrix-header" style="width:${colWidth}px;" title="${esc(target.name)}">${displayName}</th>`;
     });
     html += '</tr></thead><tbody>';
 
@@ -642,33 +654,37 @@ function renderMatrix() {
         filtered.forEach((source, idx) => {
             const rowClass = idx % 2 === 0 ? 'row-even' : 'row-odd';
             html += `<tr class="${rowClass}">`;
-            html += `<td class="matrix-cell matrix-source" title="${esc(source.name)}">${truncateName(source.name)}</td>`;
+            html += `<td class="matrix-cell matrix-source" style="width:${Math.max(120, colWidth)}px;" title="${esc(source.name)}">${truncateName(source.name)}</td>`;
             allTargets.forEach(target => {
                 if (source.full === target.full) {
-                    html += `<td class="matrix-cell matrix-diagonal">—</td>`;
+                    html += `<td class="matrix-cell matrix-diagonal" style="width:${colWidth}px;">—</td>`;
                 } else {
-                    const link = links[source.full] ? links[source.full].find(l => l.target === target.full) : null;
-                    const value = link ? link.multiplier : '';
-                    const conflicts = [];
+                    // Собираем все привязки от всех источников к этой цели
+                    const allLinks = [];
                     for (let src in links) {
-                        if (src === source.full) continue;
                         const lnk = links[src].find(l => l.target === target.full);
                         if (lnk) {
-                            conflicts.push({ source: src, multiplier: lnk.multiplier });
+                            allLinks.push({ source: src, multiplier: lnk.multiplier });
                         }
                     }
-                    if (value !== '') {
-                        let cellContent = `<span class="matrix-value">${value}</span>`;
-                        if (conflicts.length > 0) {
-                            const conflictInfo = conflicts.map(c => {
+                    // Фильтруем только те, где source = текущий (для отображения в ячейке)
+                    const currentLinks = allLinks.filter(l => l.source === source.full);
+                    const conflictLinks = allLinks.filter(l => l.source !== source.full);
+                    const totalMultiplier = currentLinks.reduce((sum, l) => sum + l.multiplier, 0);
+                    const hasConflict = conflictLinks.length > 0;
+
+                    if (totalMultiplier > 0 || hasConflict) {
+                        let cellContent = `<span class="matrix-value">${totalMultiplier.toFixed(2)}</span>`;
+                        if (hasConflict) {
+                            const conflictInfo = conflictLinks.map(c => {
                                 const srcName = c.source.split('|').pop();
                                 return `${srcName} (×${c.multiplier})`;
                             }).join(', ');
                             cellContent += `<span class="matrix-conflict" title="Конфликт! Также ссылаются: ${conflictInfo}">!</span>`;
                         }
-                        html += `<td class="matrix-cell matrix-value-cell" data-src="${source.full}" data-target="${target.full}" onclick="window.editMatrixCell(this,'${source.full}','${target.full}')">${cellContent}</td>`;
+                        html += `<td class="matrix-cell matrix-value-cell" style="width:${colWidth}px;" data-src="${source.full}" data-target="${target.full}" onclick="window.editMatrixCell(this,'${source.full}','${target.full}')">${cellContent}</td>`;
                     } else {
-                        html += `<td class="matrix-cell matrix-empty" data-src="${source.full}" data-target="${target.full}" onclick="window.editMatrixCell(this,'${source.full}','${target.full}')">+</td>`;
+                        html += `<td class="matrix-cell matrix-empty" style="width:${colWidth}px;" data-src="${source.full}" data-target="${target.full}" onclick="window.editMatrixCell(this,'${source.full}','${target.full}')">+</td>`;
                     }
                 }
             });
@@ -714,8 +730,9 @@ function updateMatrixZoom() {
         table.style.fontSize = (13 * matrixZoomLevel) + 'px';
         const cells = table.querySelectorAll('th, td');
         cells.forEach(cell => {
-            cell.style.minWidth = (70 * matrixZoomLevel) + 'px';
-            cell.style.maxWidth = (120 * matrixZoomLevel) + 'px';
+            const currentWidth = parseFloat(cell.style.width) || 90;
+            cell.style.minWidth = currentWidth + 'px';
+            cell.style.maxWidth = currentWidth + 'px';
             cell.style.padding = (4 * matrixZoomLevel) + 'px ' + (6 * matrixZoomLevel) + 'px';
         });
     }
@@ -782,6 +799,146 @@ function updateLinkCount() {
     if (el) el.textContent = `(${count} активных)`;
 }
 
+// ============================================================
+// ПРЕСЕТЫ МАТРИЦЫ
+// ============================================================
+function populateMatrixPresetSelect() {
+    const select = document.getElementById('matrixPresetSelect');
+    if (!select) return;
+    const presets = getMatrixPresets();
+    select.innerHTML = '<option value="">— Выберите пресет —</option>';
+    presets.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.name;
+        opt.textContent = p.name;
+        select.appendChild(opt);
+    });
+}
+
+async function saveMatrixPreset() {
+    const name = await showPrompt('Сохранить пресет матрицы', 'Введите имя пресета:', '', '');
+    if (!name || !name.trim()) return;
+    const presets = getMatrixPresets();
+    // Проверяем, есть ли уже такой пресет
+    const existing = presets.find(p => p.name === name.trim());
+    if (existing) {
+        const overwrite = await showConfirm(`Пресет "${name.trim()}" уже существует. Перезаписать?`);
+        if (!overwrite) return;
+        // Удаляем старый
+        const idx = presets.indexOf(existing);
+        presets.splice(idx, 1);
+    }
+    // Сохраняем копию текущих привязок
+    const snapshot = {};
+    for (let src in links) {
+        snapshot[src] = links[src].map(l => ({ ...l }));
+    }
+    presets.push({ name: name.trim(), links: snapshot });
+    saveMatrixPresets(presets);
+    populateMatrixPresetSelect();
+    showToast('Пресет сохранён', 'success');
+}
+
+async function loadMatrixPreset(overlay = true) {
+    const select = document.getElementById('matrixPresetSelect');
+    const name = select.value;
+    if (!name) {
+        showToast('Выберите пресет', 'warning');
+        return;
+    }
+    const presets = getMatrixPresets();
+    const preset = presets.find(p => p.name === name);
+    if (!preset) {
+        showToast('Пресет не найден', 'error');
+        return;
+    }
+    if (!overlay) {
+        // Замена: очищаем текущие привязки
+        for (let key in links) delete links[key];
+    }
+    // Загружаем привязки из пресета
+    for (let src in preset.links) {
+        preset.links[src].forEach(pl => {
+            if (!links[src]) links[src] = [];
+            // Проверяем, есть ли уже привязка к той же цели
+            const existing = links[src].find(l => l.target === pl.target);
+            if (existing) {
+                // Суммируем (overlay)
+                existing.multiplier += pl.multiplier;
+            } else {
+                links[src].push({ target: pl.target, multiplier: pl.multiplier });
+            }
+        });
+    }
+    saveOrderData();
+    renderMatrix();
+    updateLinkCount();
+    showToast(`Пресет "${name}" загружен ${overlay ? '(наложение)' : '(замена)'}`, 'success');
+}
+
+async function deleteMatrixPreset() {
+    const select = document.getElementById('matrixPresetSelect');
+    const name = select.value;
+    if (!name) {
+        showToast('Выберите пресет', 'warning');
+        return;
+    }
+    const confirmed = await showConfirm(`Удалить пресет "${name}"?`);
+    if (!confirmed) return;
+    let presets = getMatrixPresets();
+    presets = presets.filter(p => p.name !== name);
+    saveMatrixPresets(presets);
+    populateMatrixPresetSelect();
+    showToast('Пресет удалён', 'neutral');
+}
+
+function exportMatrixPresets() {
+    const presets = getMatrixPresets();
+    if (presets.length === 0) {
+        showToast('Нет пресетов для экспорта', 'warning');
+        return;
+    }
+    const blob = new Blob([JSON.stringify(presets, null, 2)], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'matrix_presets.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Пресеты экспортированы', 'success');
+}
+
+function importMatrixPresets(file) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (!Array.isArray(data)) throw new Error('Неверный формат: ожидается массив');
+            // Проверяем структуру
+            data.forEach(p => {
+                if (!p.name || typeof p.name !== 'string') throw new Error('У пресета отсутствует имя');
+                if (!p.links || typeof p.links !== 'object') throw new Error('У пресета отсутствуют привязки');
+            });
+            let presets = getMatrixPresets();
+            // Объединяем, перезаписывая существующие с тем же именем
+            data.forEach(newP => {
+                const idx = presets.findIndex(p => p.name === newP.name);
+                if (idx !== -1) presets[idx] = newP;
+                else presets.push(newP);
+            });
+            saveMatrixPresets(presets);
+            populateMatrixPresetSelect();
+            showToast('Пресеты импортированы', 'success');
+        } catch(err) {
+            showToast('Ошибка импорта: ' + err.message, 'error');
+        }
+    };
+    reader.readAsText(file);
+}
+
+// ============================================================
+// ИНИЦИАЛИЗАЦИЯ ОБРАБОТЧИКОВ МАТРИЦЫ
+// ============================================================
 export function initMatrixHandlers() {
     const closeBtn = document.getElementById('matrixClose');
     if (closeBtn) {
@@ -807,6 +964,42 @@ export function initMatrixHandlers() {
     if (tgtInput) tgtInput.addEventListener('input', renderMatrix);
 
     setupMatrixZoomSlider();
+
+    // Пресеты
+    const savePresetBtn = document.getElementById('matrixSavePreset');
+    if (savePresetBtn) savePresetBtn.addEventListener('click', saveMatrixPreset);
+
+    const loadPresetBtn = document.getElementById('matrixLoadPreset');
+    if (loadPresetBtn) loadPresetBtn.addEventListener('click', () => loadMatrixPreset(true));
+
+    const deletePresetBtn = document.getElementById('matrixDeletePreset');
+    if (deletePresetBtn) deletePresetBtn.addEventListener('click', deleteMatrixPreset);
+
+    const exportPresetsBtn = document.getElementById('matrixExportPresets');
+    if (exportPresetsBtn) exportPresetsBtn.addEventListener('click', exportMatrixPresets);
+
+    const importPresetsBtn = document.getElementById('matrixImportPresets');
+    const fileInput = document.getElementById('matrixPresetFileInput');
+    if (importPresetsBtn && fileInput) {
+        importPresetsBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', function(e) {
+            if (this.files[0]) {
+                importMatrixPresets(this.files[0]);
+                this.value = '';
+            }
+        });
+    }
+
+    // Заполняем select при открытии матрицы
+    const modal = document.getElementById('matrixModal');
+    if (modal) {
+        const observer = new MutationObserver(() => {
+            if (modal.classList.contains('open')) {
+                populateMatrixPresetSelect();
+            }
+        });
+        observer.observe(modal, { attributes: true, attributeFilter: ['class'] });
+    }
 }
 
 // ============================================================
