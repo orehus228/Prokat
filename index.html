@@ -2,1708 +2,339 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Прокатошная">
-<meta name="theme-color" content="#1a1a1a">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Прокатошная</title>
 <style>
-/* ===== СТРОГИЙ, КОНТРАСТНЫЙ ДИЗАЙН ===== */
-*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-body{font-family:'Segoe UI',Roboto,system-ui,-apple-system,sans-serif;background:#1a1a1a;padding:16px;color:#d0d0d0;min-height:100vh;touch-action:manipulation}
+/* ===== ПОЛНЫЙ НАБОР СТИЛЕЙ ===== */
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Roboto,sans-serif;background:#1a1a1a;padding:16px;color:#d0d0d0;min-height:100vh}
 .app{max-width:1400px;margin:0 auto}
 .card{background:#252525;padding:18px;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,0.6);margin-bottom:16px;border:1px solid #3a3a3a}
-.btn{background:#333;color:#d0d0d0;border:1px solid #4a4a4a;padding:14px 12px;border-radius:12px;font-weight:600;cursor:pointer;width:100%;display:block;text-align:center;font-size:16px;margin-bottom:10px;transition:all .2s;touch-action:manipulation;min-height:48px}
-.btn:hover{background:#3a3a3a;transform:translateY(-1px)}
-.btn:active{transform:scale(.98)}
+.btn{background:#333;color:#d0d0d0;border:1px solid #4a4a4a;padding:14px 12px;border-radius:12px;font-weight:600;cursor:pointer;width:100%;display:block;text-align:center;font-size:16px;margin-bottom:10px;transition:all .2s}
+.btn:hover{background:#3a3a3a}
 .btn-green{background:#2a4a3a;border-color:#3a6a4a;color:#d0e8d0}
-.btn-green:hover{background:#325a42}
 .btn-sec{background:#333;border-color:#4a4a4a}
 .btn-red{background:#4a2a2a;border-color:#6a3a3a;color:#e8d0d0}
-.btn-red:hover{background:#5a3232}
 .btn-orange{background:#4a3a2a;border-color:#6a4a3a;color:#e8ddd0}
-.btn-orange:hover{background:#5a4232}
-.btn-sm{padding:8px 16px;font-size:14px;width:auto;display:inline-block;margin:0;min-height:40px}
 .btn-purple{background:#3a2a4a;border-color:#5a3a6a;color:#ddd0e8}
-.btn-purple:hover{background:#42325a}
-.input-field,.input-textarea{width:100%;padding:12px 16px;border:1px solid #3a3a3a;border-radius:12px;margin-bottom:10px;font-size:16px;background:#1e1e1e;color:#d0d0d0;font-family:inherit;-webkit-appearance:none}
+.btn-sm{padding:8px 16px;font-size:14px;width:auto;display:inline-block;margin:0}
+.input-field,.input-textarea{width:100%;padding:12px 16px;border:1px solid #3a3a3a;border-radius:12px;margin-bottom:10px;font-size:16px;background:#1e1e1e;color:#d0d0d0;font-family:inherit}
 .input-field::placeholder,.input-textarea::placeholder{color:#666}
-.input-field:focus,.input-textarea:focus{outline:none;border-color:#6a6a6a;box-shadow:0 0 0 3px rgba(100,100,100,0.2)}
-.input-textarea{min-height:60px;resize:vertical}
-.category-tabs{display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap;border-bottom:2px solid #333;padding-bottom:8px;overflow-x:auto;-webkit-overflow-scrolling:touch}
-.category-tab{padding:10px 18px;border-radius:12px 12px 0 0;background:#2a2a2a;cursor:pointer;font-weight:500;transition:all .2s;color:#888;white-space:nowrap;touch-action:manipulation;min-height:44px;display:flex;align-items:center;border:1px solid transparent;border-bottom:none}
+.input-field:focus,.input-textarea:focus{outline:none;border-color:#6a6a6a}
+.category-tabs{display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap;border-bottom:2px solid #333;padding-bottom:8px;overflow-x:auto}
+.category-tab{padding:10px 18px;border-radius:12px 12px 0 0;background:#2a2a2a;cursor:pointer;font-weight:500;transition:all .2s;color:#888;white-space:nowrap}
 .category-tab.active{background:#3a3a3a;color:#d0d0d0;border-color:#4a4a4a}
-.category-tab:hover:not(.active){background:#333}
-.category-content{display:none;animation:fadeIn .25s}
-.category-content.active{display:block}
+.category-content{display:block;animation:fadeIn .25s}
 @keyframes fadeIn{from{opacity:.4}to{opacity:1}}
-.category-container{margin-bottom:16px;border:1px solid #333;border-radius:14px;overflow:hidden;background:#2a2a2a}
-.category-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;cursor:pointer;user-select:none;background:#2e2e2e;border-left:5px solid #8a7a6a;min-height:52px}
-.category-header:hover{background:#333}
-.category-header .cat-title{font-size:18px;font-weight:600;color:#d0d0d0}
-.category-header .cat-toggle{font-size:20px;transition:transform .3s;margin-left:10px;color:#888}
-.category-header .cat-toggle.collapsed{transform:rotate(-90deg)}
-.category-body{padding:12px 16px;background:#1e1e1e}
-.category-body.collapsed{display:none}
 .row{display:flex;flex-direction:column;padding:8px 0;border-bottom:1px solid #2a2a2a}
-.row-even{background:#1e1e1e}
-.row-odd{background:#252525}
-.row.hidden{display:none}
 .row .main-line{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
-.row .name-area{display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:1 1 160px}
-.row .name{font-size:15px;color:#d0d0d0;word-break:break-word;font-weight:500}
-.row .controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.controls input[type="number"]{width:56px;padding:8px 4px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:8px;color:#d0d0d0;text-align:center;font-size:16px;min-height:44px}
-.controls input[type="number"]:focus{outline:none;border-color:#6a6a6a;box-shadow:0 0 0 3px rgba(100,100,100,0.15)}
-.btn-c{width:44px;height:44px;border-radius:50%;border:1px solid #4a4a4a;background:#1a1a1a;color:#aaa;font-size:22px;font-weight:bold;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s;flex-shrink:0}
-.btn-c:hover{background:#2a2a2a;border-color:#6a6a6a}
-.btn-c:active{background:#333}
-.case-input{border-color:#4a6a4a!important;background:#1a2a1a!important}
-.selected-item{background:#1a2a22!important;border-left:3px solid #6a8a6a;padding-left:8px}
-.overstock{background:#2a1a1a!important;border-left:3px solid #8a5a4a;padding-left:8px}
-.overstock .controls input[type="number"]{border-color:#8a5a4a}
-.overstock-warning{color:#8a5a4a;font-size:13px;margin-left:10px;font-weight:500}
-.stock-info{font-size:13px;color:#666;margin-left:6px}
-.dynamic-info{font-size:13px;color:#aaa;padding:4px 0 4px 12px;margin-left:10px;display:flex;gap:16px;flex-wrap:wrap;border-left:2px solid #3a3a3a}
-.dynamic-info .hl{color:#d4a040;font-weight:500}
-.props-compact{font-size:13px;color:#888;padding:4px 0 4px 12px;border-left:2px solid #4a4a4a;margin-left:10px;display:none;gap:16px;flex-wrap:wrap}
-.props-compact.visible{display:flex}
-.props-compact span{white-space:nowrap}
-.props-compact .na{color:#555}
-.case-toggle{display:inline-flex;align-items:center;gap:6px;font-size:14px;color:#aaa;cursor:pointer;user-select:none;padding:4px 12px 4px 8px;border-radius:20px;border:1px solid #3a3a3a;background:#1e1e1e}
-.case-toggle input[type="checkbox"]{width:18px;height:18px;accent-color:#6a8a6a;cursor:pointer}
-.desc-toggle{cursor:pointer;margin-left:6px;font-size:16px;opacity:.7;transition:.2s;background:0;border:0;color:#6a8a6a;padding:4px}
-.desc-toggle:hover{opacity:1;color:#8aaa8a}
+.row .name{font-size:15px;font-weight:500}
+.row .controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.controls input[type="number"]{width:56px;padding:6px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:8px;color:#d0d0d0;text-align:center;font-size:16px}
+.btn-c{width:40px;height:40px;border-radius:50%;border:1px solid #4a4a4a;background:#1a1a1a;color:#aaa;font-size:20px;font-weight:bold;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+.global-totals{margin-top:20px;padding:14px 18px;background:#222;border-radius:14px;border:1px solid #333;display:flex;flex-wrap:wrap;gap:16px;font-size:16px}
+.global-totals strong{color:#e0e0e0}
+.modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.75);display:none;align-items:center;justify-content:center;z-index:1000;padding:16px}
+.modal-overlay.open{display:flex}
+.modal{background:#252525;padding:20px;border-radius:20px;border:1px solid #3a3a3a;width:100%;max-width:700px;max-height:90vh;overflow:hidden;display:flex;flex-direction:column}
+.modal h3{color:#d0d0d0;margin-bottom:16px;flex-shrink:0}
+.modal .buttons{display:flex;justify-content:flex-end;gap:8px;margin-top:12px;flex-shrink:0}
+.modal .buttons button{padding:8px 18px;border:0;border-radius:12px;cursor:pointer;font-size:14px}
+.modal .buttons .cancel{background:#2a2a2a;color:#aaa}
+.modal .buttons .cancel:hover{background:#333}
+.modal .buttons .confirm{background:#2d6a3d;color:#e8f0e8}
+.modal .buttons .confirm:hover{background:#3a7a4a}
+.modal .buttons .danger{background:#6a2a2a;color:#f0e0e0}
+.modal .buttons .danger:hover{background:#7a3a3a}
+.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#2a2a2a;color:#d0d0d0;padding:12px 24px;border-radius:10px;font-size:14px;opacity:0;transition:opacity .3s;pointer-events:none;border:1px solid #3a3a3a;z-index:2000}
+.toast.show{opacity:1}
+.header{display:flex;align-items:center;gap:15px;margin-bottom:15px;padding:10px 15px;background:#1e1e1e;border-radius:14px;border:1px solid #333}
+.header h1{margin:0;font-size:24px;color:#d0d0d0}
+.header .logo{width:48px;height:48px;border-radius:12px;background:#2a2a2a;display:flex;align-items:center;justify-content:center;font-size:24px;color:#777}
+.sub-cat-t{font-weight:600;margin:10px 0 6px;padding-left:12px;border-left:3px solid #8a7a6a;color:#d0d0d0}
 .desc-block{display:none;padding:6px 14px;background:#1a221a;border-radius:8px;font-size:14px;color:#8a9a7a;margin:4px 0 4px 20px;border-left:3px solid #6a8a6a;font-style:italic}
 .desc-block.open{display:block}
-.link-btn{background:0;border:0;color:#6a8a8a;cursor:pointer;font-size:18px;padding:4px;transition:.2s}
-.link-btn:hover{color:#8aaaaa}
-.link-btn.active{color:#d4a040}
-.category-totals{margin-top:12px;padding:10px 14px;background:#222;border-radius:10px;font-size:14px;color:#aaa;border:1px solid #333;display:flex;flex-wrap:wrap;gap:16px}
-.category-totals strong{color:#d0d0d0}
-.global-totals{margin-top:20px;padding:14px 18px;background:#222;border-radius:14px;border:1px solid #333;display:flex;flex-wrap:wrap;gap:16px;font-size:16px;color:#d0d0d0}
-.global-totals strong{color:#e0e0e0}
-.global-totals .detail-btn{background:0;border:1px solid #4a4a4a;color:#aaa;padding:6px 14px;border-radius:20px;cursor:pointer;font-size:14px;margin-left:auto;min-height:40px;transition:all .2s}
-.global-totals .detail-btn:hover{background:#2a2a2a;color:#d0d0d0}
+.desc-toggle{cursor:pointer;background:0;border:0;color:#6a8a6a;font-size:16px;padding:0 4px}
+.search-box{display:flex;gap:8px;margin-bottom:16px}
+.search-box input{flex:1;padding:10px;border:1px solid #3a3a3a;border-radius:12px;background:#1a1a1a;color:#d0d0d0;font-size:16px}
+.search-box .clear-btn{background:0;border:0;color:#666;font-size:24px;cursor:pointer}
+.preset-bar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;padding:12px;background:#222;border-radius:14px;border:1px solid #333;align-items:center}
+.preset-bar select{padding:8px 12px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:8px;color:#d0d0d0;flex:1;min-width:120px;min-height:44px;font-size:14px}
+.preset-bar button{padding:6px 14px;background:#2a2a2a;border:1px solid #3a3a3a;border-radius:20px;color:#ccc;cursor:pointer;font-size:13px;min-height:40px}
+.preset-bar button:hover{background:#333}
+.matrix-btn{background:#222;color:#d0d0d0;border:1px solid #3a3a3a;padding:10px 18px;border-radius:12px;cursor:pointer;font-size:14px;display:inline-block;margin-bottom:10px;font-weight:500}
+.matrix-btn:hover{background:#2a2a2a}
+.empty-message{color:#666;padding:12px;font-style:italic}
+.item-row{display:flex;flex-direction:column;padding:6px 0;border-bottom:1px solid #2a2a2a}
+.item-row .main-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.item-row .name{flex:1 1 200px;font-size:14px;color:#ccc}
+.item-row .qty{width:70px;padding:4px 6px;border:1px solid #3a3a3a;border-radius:6px;font-size:14px;text-align:center;background:#1a1a1a;color:#d0d0d0}
+.item-row .spec{flex:2 1 250px;padding:4px 6px;border:1px solid #3a3a3a;border-radius:6px;font-size:13px;min-width:120px;background:#1a1a1a;color:#ccc}
+.item-row .actions{display:flex;gap:4px}
+.item-row .actions button{background:0;border:0;cursor:pointer;font-size:16px;padding:0 4px;color:#888}
+.item-row .actions button:hover{color:#c66}
+.item-row .actions button.move{color:#5a8aaa}
+.item-row .actions button.move:hover{color:#7aaaca}
+.item-row .actions button.props{color:#d4a040}
+.item-row .actions button.props:hover{color:#e0b060}
+.item-row .props-info{font-size:12px;color:#888;padding:2px 0 2px 10px;border-left:2px solid #5a8aaa;margin-left:10px;display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.item-row .props-info span{white-space:nowrap}
+.item-row .props-info .na{color:#555}
+.item-row .props-info .case-variant{margin-left:10px;padding-left:10px;border-left:1px solid #444;display:flex;flex-wrap:wrap;gap:6px}
+.add-item{margin:6px 0 10px 12px;padding:4px 12px;background:#2a2a2a;border:1px solid #3a3a3a;border-radius:6px;cursor:pointer;font-size:13px;color:#ccc}
+.add-item:hover{background:#333}
+.add-subgroup{margin:6px 0 16px 0;padding:6px 18px;background:#2a2a2a;color:#d0d0d0;border:1px solid #3a3a3a;border-radius:8px;cursor:pointer;font-size:14px}
+.add-subgroup:hover{background:#333}
+.editor-add{display:flex;gap:8px;margin:8px 0;flex-wrap:wrap;align-items:center}
+.editor-add input{flex:1;min-width:120px;padding:6px 10px;border:1px solid #3a3a3a;border-radius:6px;background:#1a1a1a;color:#d0d0d0}
+.editor-add input:focus{outline:none;border-color:#5a8aaa}
+.editor-add button{padding:6px 14px}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.toolbar button{padding:6px 16px;background:#2a2a2a;color:#d0d0d0;border:1px solid #3a3a3a;border-radius:8px;cursor:pointer;font-size:14px;flex:1}
+.toolbar button:hover{background:#333}
+.subgroup{background:#252525;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.3);margin-bottom:16px;border:1px solid #333;overflow:hidden}
+.subgroup-header{display:flex;align-items:center;background:#2a2a2a;padding:8px 16px;border-bottom:1px solid #333;gap:8px;flex-wrap:wrap}
+.subgroup-header .name{font-weight:600;font-size:16px;flex:1;color:#d0d0d0;cursor:pointer}
+.subgroup-header .name:hover{color:#7aaaca}
+.subgroup-header .controls{display:flex;gap:4px}
+.subgroup-header .controls button{background:0;border:1px solid #3a3a3a;border-radius:6px;padding:2px 8px;cursor:pointer;font-size:14px;color:#aaa}
+.subgroup-header .controls button:hover{background:#333;color:#e0e0e0}
+.subgroup-header .controls button.danger{color:#c66}
+.subgroup-header .controls button.danger:hover{background:#3a1a1a;border-color:#c66}
+.case-variant-group{border:1px solid #3a3a3a;border-radius:8px;padding:10px;margin-bottom:10px;background:#1e1e1e;position:relative}
+.case-variant-group .remove-variant{position:absolute;top:4px;right:8px;background:0;border:0;color:#c66;cursor:pointer;font-size:16px}
+.case-variant-group .remove-variant:hover{color:#f88}
+.progress-container{margin-top:20px;padding:16px;background:#1e1e1e;border-radius:14px}
+.progress-bar-bg{width:100%;background:#2a2a2a;height:14px;border-radius:10px;margin-top:8px;overflow:hidden}
+.progress-bar-fill{width:0;background:#8a7a6a;height:14px;border-radius:10px;transition:width .4s}
+.progress-bar-fill.complete{background:#6a8a6a}
+.check-missing-btn{background:#222;color:#d0d0d0;border:1px solid #3a3a3a;padding:12px 20px;border-radius:12px;cursor:pointer;font-size:16px;transition:.2s;width:100%;margin-top:16px}
+.check-missing-btn:hover{background:#2a2a2a}
 .global-details{display:none;width:100%;margin-top:12px;padding:12px;background:#1e1e1e;border-radius:10px;font-size:14px;color:#aaa;border:1px solid #333;flex-wrap:wrap;gap:16px}
 .global-details.open{display:flex}
 .global-details .cat-detail{flex:1 1 160px;padding:6px 10px;border-left:3px solid #8a7a6a}
 .global-details .cat-detail strong{color:#d0d0d0}
-.search-box{margin-bottom:16px;display:flex;gap:8px;align-items:center}
-.search-box input{flex:1;padding:12px 16px;border:1px solid #3a3a3a;border-radius:12px;background:#1a1a1a;color:#d0d0d0;font-size:16px;min-height:48px;-webkit-appearance:none}
-.search-box input:focus{outline:none;border-color:#6a6a6a;box-shadow:0 0 0 3px rgba(100,100,100,0.15)}
-.search-box .clear-btn{background:0;border:0;color:#666;cursor:pointer;font-size:24px;padding:8px}
-.search-box .clear-btn:hover{color:#aaa}
-.preset-bar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;padding:12px;background:#222;border-radius:14px;border:1px solid #333;align-items:center}
-.preset-bar select{padding:8px 12px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:8px;color:#d0d0d0;flex:1;min-width:120px;min-height:44px;font-size:14px}
-.preset-bar button{padding:6px 14px;background:#2a2a2a;border:1px solid #3a3a3a;border-radius:20px;color:#ccc;cursor:pointer;font-size:13px;min-height:40px;transition:all .2s}
-.preset-bar button:hover{background:#333}
-.preset-bar .overlay-toggle{display:flex;align-items:center;gap:6px;font-size:14px;color:#aaa;cursor:pointer}
-.preset-bar .overlay-toggle input{width:18px;height:18px;accent-color:#6a8a6a;cursor:pointer}
-.sub-cat-t,.sub-sub-cat-t{font-weight:600;margin:10px 0 6px 0;padding-left:12px;border-left:3px solid #8a7a6a}
-.sub-cat-t{font-size:16px;color:#d0d0d0}
-.sub-sub-cat-t{font-size:15px;color:#aaa;padding-left:28px;border-left-color:#5a5a5a}
-.sub-qty{color:#888;font-size:14px;font-weight:500}
-.cat-progress-text{font-size:14px;color:#888}
-.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#333;color:#e0e0e0;padding:12px 24px;border-radius:20px;font-size:14px;opacity:0;transition:opacity .3s;pointer-events:none;border:1px solid #4a4a4a;z-index:2000;box-shadow:0 4px 20px rgba(0,0,0,0.5)}
-.toast.show{opacity:1}
-.header{display:flex;align-items:center;gap:12px;margin-bottom:16px;padding:12px 16px;background:#252525;border-radius:16px;border:1px solid #333;box-shadow:0 2px 8px rgba(0,0,0,0.3)}
-.header h1{margin:0;font-size:24px;color:#d0d0d0;font-weight:600;letter-spacing:-0.5px}
-.header .logo{width:48px;height:48px;border-radius:14px;background:#1e1e1e;display:flex;align-items:center;justify-content:center;font-size:26px;color:#888;flex-shrink:0}
-.modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.75);display:none;align-items:center;justify-content:center;z-index:1000;padding:16px}
-.modal-overlay.open{display:flex}
-.modal{background:#252525;padding:20px;border-radius:20px;border:1px solid #3a3a3a;width:100%;max-width:95vw;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.6)}
-.modal h3{color:#d0d0d0;margin-bottom:16px;flex-shrink:0;font-size:20px;font-weight:600}
-.modal .filter-row{display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;flex-shrink:0}
-.modal .filter-row input{flex:1;padding:10px 14px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:10px;color:#d0d0d0;min-height:44px;font-size:14px}
-.modal .filter-row input:focus{outline:none;border-color:#6a6a6a;box-shadow:0 0 0 3px rgba(100,100,100,0.15)}
-.modal .preset-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;flex-shrink:0;align-items:center}
-.modal .preset-row select{padding:8px 12px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:8px;color:#d0d0d0;flex:1;min-width:100px;min-height:44px;font-size:13px}
-.modal .preset-row button{padding:6px 12px;background:#2a2a2a;border:1px solid #3a3a3a;border-radius:20px;color:#ccc;cursor:pointer;font-size:12px;min-height:36px}
-.modal .preset-row button:hover{background:#333}
-.modal .preset-row .overlay-toggle{display:flex;align-items:center;gap:6px;font-size:13px;color:#aaa;cursor:pointer}
-.modal .preset-row .overlay-toggle input{width:16px;height:16px;accent-color:#6a8a6a;cursor:pointer}
-.modal .table-wrap{flex:1;overflow:auto;border:1px solid #333;border-radius:10px;-webkit-overflow-scrolling:touch}
-.modal .table-wrap table{width:100%;border-collapse:collapse;font-size:13px;min-width:600px}
-.modal .table-wrap th,.modal .table-wrap td{border:1px solid #333;padding:6px 8px;text-align:center;min-width:50px;word-break:break-word}
-.modal .table-wrap th{background:#222;color:#aaa;font-weight:600;position:sticky;top:0;z-index:2}
-.modal .table-wrap .source-label{text-align:left;font-weight:500;color:#ccc;white-space:nowrap}
-.modal .table-wrap .empty-cell{color:#555;cursor:pointer;font-size:18px}
-.modal .table-wrap .empty-cell:hover{color:#aaa;background:#2a2a2a}
-.modal .table-wrap .cell-value{font-weight:600;color:#d4a040;cursor:pointer}
-.modal .table-wrap .cell-value:hover{color:#e0b060}
-.modal .table-wrap .matrix-category td{background:#222;padding:8px 12px;text-align:left;font-weight:600;color:#ccc;cursor:pointer;border:1px solid #333}
-.modal .table-wrap .matrix-category-items{display:none}
-.modal .table-wrap .matrix-category-items.open{display:table-row-group}
-.modal .table-wrap .toggle{display:inline-block;transition:transform .2s;margin-right:6px}
-.modal .table-wrap .toggle.collapsed{transform:rotate(-90deg)}
-.modal .buttons{display:flex;justify-content:flex-end;gap:8px;margin-top:12px;flex-shrink:0}
-.modal .buttons button{padding:8px 18px;border:0;border-radius:12px;cursor:pointer;font-size:14px;min-height:44px;transition:all .2s}
-.modal .buttons .cancel{background:#2a2a2a;color:#aaa}
-.modal .buttons .cancel:hover{background:#333}
-.modal .buttons .danger{background:#3a1a1a;color:#d0b0b0}
-.modal .buttons .danger:hover{background:#4a2222}
-.progress-container{margin-top:20px;padding:16px;background:#1e1e1e;border-radius:14px;border:1px solid #333}
-.progress-container strong{font-size:16px;color:#d0d0d0}
-.progress-bar-bg{width:100%;background:#2a2a2a;height:14px;border-radius:10px;margin-top:10px;overflow:hidden}
-.progress-bar-fill{width:0;background:#8a7a6a;height:14px;border-radius:10px;transition:width .4s ease}
-.progress-bar-fill.complete{background:#6a8a6a}
-.check-missing-btn{background:#222;color:#d0d0d0;border:1px solid #3a3a3a;padding:12px 20px;border-radius:12px;cursor:pointer;font-size:16px;transition:.2s;width:100%;margin-top:16px;min-height:50px;font-weight:500}
-.check-missing-btn:hover{background:#2a2a2a}
-.matrix-btn{background:#222;color:#d0d0d0;border:1px solid #3a3a3a;padding:10px 18px;border-radius:12px;cursor:pointer;font-size:14px;display:inline-block;margin-bottom:10px;min-height:46px;font-weight:500}
-.matrix-btn:hover{background:#2a2a2a}
-.item-info{font-size:13px;color:#aaa;padding:4px 0 4px 12px;margin-left:10px;display:flex;flex-wrap:wrap;gap:12px;border-left:2px solid #3a3a3a}
-.item-info .label{color:#666}
-.item-info .value{color:#d4a040;font-weight:500}
-.empty-message{color:#666;padding:12px;font-style:italic}
-.add-item{margin:8px 0 12px 12px;padding:8px 18px;background:#222;border:1px solid #3a3a3a;border-radius:20px;cursor:pointer;font-size:14px;transition:.2s;color:#ccc;min-height:40px;display:inline-flex;align-items:center;font-weight:500}
-.add-item:hover{background:#2a2a2a}
-.add-subgroup{margin:8px 0 16px 0;padding:8px 20px;background:#222;color:#ccc;border:1px solid #3a3a3a;border-radius:20px;cursor:pointer;font-size:14px;transition:.2s;min-height:44px;display:inline-flex;align-items:center;font-weight:500}
-.add-subgroup:hover{background:#2a2a2a}
-.editor-add{display:flex;gap:10px;margin:12px 0;flex-wrap:wrap;align-items:center}
-.editor-add input{flex:1;min-width:120px;padding:10px 14px;border:1px solid #3a3a3a;border-radius:10px;background:#1a1a1a;color:#d0d0d0;min-height:44px}
-.editor-add input:focus{outline:none;border-color:#6a6a6a;box-shadow:0 0 0 3px rgba(100,100,100,0.15)}
-.editor-add button{padding:10px 20px;min-height:44px;border-radius:12px}
-.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
-.toolbar button{padding:8px 16px;background:#222;color:#d0d0d0;border:1px solid #3a3a3a;border-radius:12px;cursor:pointer;font-size:14px;transition:.2s;flex:1;min-height:46px;font-weight:500}
-.toolbar button:hover{background:#2a2a2a}
-.toolbar .btn-purple{background:#2a2a3a;border-color:#4a4a5a;color:#d0d0e8}
-.toolbar .btn-purple:hover{background:#32324a}
-.subgroup{background:#252525;border-radius:14px;box-shadow:0 2px 8px rgba(0,0,0,0.3);margin-bottom:16px;border:1px solid #333;overflow:hidden}
-.subgroup-header{display:flex;align-items:center;background:#2a2a2a;padding:10px 16px;border-bottom:1px solid #333;gap:10px;flex-wrap:wrap}
-.subgroup-header .name{font-weight:600;font-size:16px;flex:1;color:#d0d0d0;cursor:pointer}
-.subgroup-header .name:hover{color:#aaa}
-.subgroup-header .controls{display:flex;gap:6px;flex-wrap:wrap}
-.subgroup-header .controls button{background:0;border:1px solid #3a3a3a;border-radius:20px;padding:4px 10px;cursor:pointer;font-size:13px;color:#aaa;transition:.2s;min-height:32px}
-.subgroup-header .controls button:hover{background:#333}
-.subgroup-header .controls button.danger{color:#a07070}
-.subgroup-header .controls button.danger:hover{background:#2a1a1a;border-color:#a07070}
-.items-list{padding:8px 12px}
-.item-row{display:flex;flex-direction:column;padding:8px 0;border-bottom:1px solid #2a2a2a}
-.item-row:nth-child(even){background:#1e1e1e}
-.item-row:nth-child(odd){background:#252525}
-.item-row:last-child{border-bottom:none}
-.item-row .main-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.item-row .name{flex:1 1 160px;font-size:15px;word-break:break-word;color:#d0d0d0;cursor:pointer;font-weight:500}
-.item-row .name:hover{color:#aaa}
-.item-row .qty{width:64px;padding:8px;border:1px solid #3a3a3a;border-radius:8px;font-size:14px;text-align:center;background:#1a1a1a;color:#d0d0d0;min-height:40px}
-.item-row .qty:focus{outline:2px solid #4a4a4a}
-.item-row .spec{flex:2 1 200px;padding:8px 12px;border:1px solid #3a3a3a;border-radius:8px;font-size:14px;min-width:100px;background:#1a1a1a;color:#d0d0d0;min-height:40px}
-.item-row .spec:focus{outline:2px solid #4a4a4a}
-.item-row .actions{display:flex;gap:6px;flex-wrap:wrap}
-.item-row .actions button{background:0;border:0;cursor:pointer;font-size:18px;padding:4px;color:#666;transition:.2s;min-width:36px;min-height:36px}
-.item-row .actions button:hover{color:#aaa}
-.item-row .actions button.move{color:#6a8a8a}
-.item-row .actions button.move:hover{color:#8aaaaa}
-.item-row .actions button.props{color:#d4a040}
-.item-row .actions button.props:hover{color:#e0b060}
-.item-row .props-info{font-size:13px;color:#888;padding:4px 0 4px 12px;border-left:2px solid #8a7a6a;margin-left:10px;display:flex;flex-wrap:wrap;gap:12px}
-.item-row .props-info span{white-space:nowrap}
-.item-row .props-info .na{color:#555}
-@media(max-width:600px){
-body{padding:10px}
-.card{padding:14px}
-.btn{padding:12px;font-size:15px;min-height:44px}
-.btn-sm{padding:6px 12px;font-size:13px;min-height:36px}
-.category-tab{padding:8px 14px;font-size:14px}
-.category-header{padding:12px 14px}
-.category-header .cat-title{font-size:17px}
-.row{padding:6px 0}
-.row .main-line{flex-direction:column;align-items:stretch}
-.row .name-area{flex:1 1 auto}
-.row .controls{justify-content:flex-end;flex-wrap:wrap}
-.controls input[type="number"]{width:48px;padding:6px;font-size:15px;min-height:38px}
-.btn-c{width:38px;height:38px;font-size:18px}
-.case-toggle{font-size:13px}
-.desc-toggle{font-size:14px}
-.link-btn{font-size:16px}
-.global-totals{flex-direction:column;gap:12px}
-.global-totals .detail-btn{margin-left:0;align-self:flex-start}
-.global-details .cat-detail{flex:1 1 100%}
-.preset-bar select{font-size:13px;min-height:38px}
-.preset-bar button{font-size:12px;padding:4px 10px;min-height:34px}
-.search-box input{font-size:15px;min-height:44px}
-.modal{padding:14px;max-width:100%;height:100vh;max-height:100vh;border-radius:0}
-.modal .preset-row select{font-size:12px}
-.modal .preset-row button{font-size:11px;padding:4px 8px;min-height:30px}
-.modal .table-wrap table{font-size:11px;min-width:480px}
-.modal .table-wrap th,.modal .table-wrap td{padding:4px}
-.item-row .main-line{flex-direction:column;align-items:stretch}
-.item-row .name{flex:1 1 auto}
-.item-row .qty{width:100%}
-.item-row .spec{width:100%}
-.item-row .actions{justify-content:flex-end}
-.item-row .props-info{flex-direction:column;gap:4px;margin-left:0;padding-left:0;border-left:none}
-.subgroup-header{flex-wrap:wrap}
-.subgroup-header .controls{width:100%;justify-content:flex-start}
-.subgroup-header .controls button{font-size:12px;padding:2px 8px;min-height:28px}
-.editor-add input{min-height:38px}
-.toolbar button{font-size:13px;padding:6px 10px;min-height:38px}
-.toast{font-size:13px;padding:10px 18px;bottom:20px;max-width:90%}
-.header h1{font-size:20px}
-.header .logo{width:42px;height:42px;font-size:22px}
-}
-@media(max-width:400px){
-body{padding:6px}
-.card{padding:10px}
-.btn{font-size:14px;padding:10px;min-height:40px}
-.category-tab{padding:6px 10px;font-size:13px}
-.row .controls{gap:4px}
-.controls input[type="number"]{width:40px;font-size:14px;min-height:34px}
-.btn-c{width:34px;height:34px;font-size:16px}
-.preset-bar select{font-size:12px;min-height:34px}
-.preset-bar button{font-size:11px;padding:4px 8px;min-height:30px}
-.modal .table-wrap table{font-size:10px;min-width:360px}
-.modal .preset-row button{font-size:10px;padding:2px 6px;min-height:26px}
-}
-@media (hover: none){
-.btn:hover,.btn-c:hover,.category-tab:hover,.category-header:hover,.matrix-btn:hover,.preset-bar button:hover,.modal .preset-row button:hover,.check-missing-btn:hover,.add-item:hover,.add-subgroup:hover,.subgroup-header .name:hover,.item-row .name:hover,.search-box .clear-btn:hover,.toolbar button:hover{background:none;transform:none}
-}
+.case-toggle-wrap{display:inline-flex;align-items:center;gap:4px;position:relative;flex-shrink:0}
+.case-toggle{display:inline-flex;align-items:center;gap:6px;font-size:14px;color:#aaa;cursor:pointer;user-select:none;padding:4px 12px 4px 8px;border-radius:20px;border:1px solid #3a3a3a;background:#1e1e1e;white-space:nowrap}
+.case-toggle input[type="checkbox"]{width:18px;height:18px;accent-color:#6a8a6a;cursor:pointer}
+.case-dropdown-btn{background:0;border:0;color:#888;cursor:pointer;font-size:16px;padding:0 4px;line-height:1}
+.case-dropdown-btn:hover{color:#aaa}
+.case-dropdown{display:none;position:absolute;top:100%;left:0;background:#2a2a2a;border:1px solid #3a3a3a;border-radius:8px;padding:6px 0;min-width:200px;z-index:50;box-shadow:0 4px 12px rgba(0,0,0,0.5)}
+.case-dropdown.open{display:block}
+.case-dropdown-item{padding:6px 14px;cursor:pointer;font-size:13px;color:#ccc;transition:background .2s;white-space:nowrap}
+.case-dropdown-item:hover{background:#333}
+.case-dropdown-item.active{color:#d4a040;background:#1a1a1a}
+.case-status{font-size:13px;color:#888;margin-left:6px;white-space:nowrap;flex-shrink:0}
+.multi-toggle{background:0;border:1px solid #5a8aaa;color:#5a8aaa;border-radius:12px;padding:0 6px;font-size:11px;cursor:pointer;min-height:22px}
+.multi-toggle:hover{background:#2a3a4a}
+.multi-toggle.active{background:#5a8aaa;color:#fff}
+.route-btn{background:0;border:1px solid #8a7a6a;color:#8a7a6a;border-radius:12px;padding:0 8px;font-size:11px;cursor:pointer;min-height:24px}
+.route-btn:hover{background:#3a3a2a}
+.common-controls-wrapper{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-left:8px}
+.common-case-control{display:flex;align-items:center;gap:2px;background:#1e1e1e;border:1px solid #3a3a3a;border-radius:6px;padding:2px 4px}
+.common-case-control .label{font-size:11px;color:#888;margin-right:2px}
+.common-case-control input[type="number"]{width:40px;padding:2px;background:transparent;border:none;color:#d0d0d0;text-align:center;font-size:13px}
+.common-case-control .btn-mini{background:0;border:0;color:#aaa;cursor:pointer;font-size:14px;padding:0 2px;line-height:1}
+.common-case-control .btn-mini:hover{color:#fff}
+.common-case-control .btn-mini.danger{color:#c44}
+.common-case-control .btn-mini.danger:hover{color:#f88}
+.common-case-indicator{display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:2px 8px;border-radius:10px;background:#2a2a2a;border:1px solid #3a3a3a}
+.common-case-indicator .fill-bar{width:60px;height:6px;background:#2a2a2a;border-radius:3px;overflow:hidden;position:relative}
+.common-case-indicator .fill-bar .fill{height:100%;border-radius:3px;transition:width .3s}
+.common-case-indicator .fill-bar .fill.green{background:#4a8a4a}
+.common-case-indicator .fill-bar .fill.yellow{background:#d4a040}
+.common-case-indicator .fill-bar .fill.red{background:#c44}
+.common-case-indicator .fill-text{color:#aaa;font-size:11px}
+.common-case-indicator .warning{color:#c44;font-weight:bold}
+.overstock .name{color:#e8a0a0}
+.overstock .controls input[type="number"]{border-color:#c44}
+.overstock .child-row .name{color:#e8a0a0}
+.child-row{padding-left:20px;border-left:2px solid #6a8a6a;margin:4px 0 4px 10px}
+.child-row .name{font-size:14px;color:#aaa}
+.child-row .sub-controls{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.child-row .sub-controls input[type="number"]{width:50px;padding:4px;background:#1a1a1a;border:1px solid #3a3a3a;border-radius:6px;color:#d0d0d0;text-align:center;font-size:14px}
+.error-icon{color:#c44;margin-left:8px;font-size:18px;cursor:help}
+@media(max-width:600px){.modal{width:98vw;padding:12px}.item-row .main-line{flex-direction:column;align-items:stretch}.item-row .actions{justify-content:flex-end}.item-row .props-info{flex-direction:column;gap:4px}}
 </style>
 </head>
 <body>
 <div class="app">
 <div class="header"><div class="logo">📦</div><h1>Прокатошная</h1></div>
+
+<!-- Главное меню -->
 <div class="card" id="mMenu" style="display:block;">
-<h2 style="color:#aaa;font-weight:500;margin-bottom:12px;">Выберите действие:</h2>
-<button class="btn" onclick="sc('mPage')">📝 Создать список</button>
-<button class="btn btn-sec" onclick="sc('sPage')">📂 Открыть список</button>
-<button class="btn btn-orange" onclick="loadLibrary()">📥 Загрузить библиотеку</button>
-<button class="btn btn-red" onclick="resetAll()">🔄 Сбросить данные</button>
+    <h2 style="color:#aaa;font-weight:500;margin-bottom:12px;">Выберите действие:</h2>
+    <button class="btn" id="btnCreateOrder">📝 Создать список</button>
+    <button class="btn btn-sec" id="btnOpenOrder">📂 Открыть список</button>
+    <button class="btn btn-orange" id="btnLoadLibrary">📥 Загрузить библиотеку</button>
+    <button class="btn btn-red" id="btnResetAll">🔄 Сбросить данные</button>
+    <button class="btn btn-purple" id="btnEditor">📦 Редактор склада</button>
 </div>
-<!-- Режим создания списка -->
+
+<!-- Страница создания списка -->
 <div id="mPage" class="card" style="display:none;">
-<button class="btn btn-sec" onclick="sc('menu')">◀ В меню</button>
-<h3 style="color:#d0d0d0;font-weight:600;margin-bottom:12px;">📝 Создание списка</h3>
-<input type="text" id="pName" class="input-field" placeholder="Название мероприятия">
-<input type="date" id="pDate" class="input-field">
-<textarea id="pComment" class="input-textarea" placeholder="Комментарий"></textarea>
-<div style="margin-bottom:15px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
-<button class="btn btn-purple" id="togglePropsBtn">📐 Показать свойства</button>
-<span style="font-size:14px;color:#888;" id="propsStatus">(свойства скрыты)</span>
-<button class="matrix-btn" onclick="openMatrixModal()">📊 Матрица привязок</button>
-<span style="font-size:14px;color:#888;" id="linkCount">(0 активных)</span>
+    <button class="btn btn-sec" id="btnBackToMenu">◀ В меню</button>
+    <h3 style="color:#d0d0d0;font-weight:600;margin-bottom:12px;">📝 Создание списка</h3>
+    <input type="text" id="pName" class="input-field" placeholder="Название мероприятия">
+    <input type="date" id="pDate" class="input-field">
+    <textarea id="pComment" class="input-textarea" placeholder="Комментарий"></textarea>
+    <div style="margin-bottom:15px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+        <button class="btn btn-purple" id="togglePropsBtn">📐 Показать свойства</button>
+        <span style="font-size:14px;color:#888;" id="propsStatus">(свойства скрыты)</span>
+        <button class="matrix-btn" id="openMatrixModal">📊 Матрица привязок</button>
+        <span style="font-size:14px;color:#888;" id="linkCount">(0 активных)</span>
+        <button class="matrix-btn" id="openCommonCasesManager">📦 Общие кофры</button>
+    </div>
+    <div class="preset-bar">
+        <select id="orderPresetSelect"><option value="">— Выберите пресет —</option></select>
+        <button id="saveOrderPreset">💾 Сохранить</button>
+        <button id="loadOrderPreset">📂 Загрузить</button>
+        <button id="exportOrderPresets">📤 Экспорт</button>
+        <button id="importOrderPresetsBtn">📥 Импорт</button>
+        <input type="file" id="orderPresetFileInput" style="display:none" accept=".json">
+        <button id="deleteOrderPreset" style="color:#a07070;">🗑️ Удалить</button>
+        <label class="overlay-toggle"><input type="checkbox" id="orderOverlayToggle"> Наложение</label>
+    </div>
+    <div class="category-tabs" id="categoryTabs"></div>
+    <div class="search-box"><input type="text" id="searchInput" placeholder="🔍 Глобальный поиск..."><button class="clear-btn" id="clearSearchBtn">✕</button></div>
+    <div id="categoryContents"></div>
+    <div id="globalTotals" class="global-totals">
+        <span><strong>Всего:</strong> <span id="totalQty">0</span> шт</span>
+        <span><strong>Вес:</strong> <span id="totalWeight">0</span> кг</span>
+        <span><strong>Объём:</strong> <span id="totalVolume">0</span> м³</span>
+        <button class="detail-btn" id="detailToggle">📊 Подробно</button>
+        <div class="global-details" id="globalDetails"></div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:15px;">
+        <button class="btn btn-green" style="flex:1;" id="saveJ">💾 Сохранить JSON</button>
+        <button class="btn btn-orange" style="flex:1;" id="savePdf">📄 Сохранить PDF</button>
+        <button class="btn btn-red" style="flex:1;" id="clearOrder">🗑️ Очистить</button>
+    </div>
 </div>
-<div class="preset-bar">
-<select id="orderPresetSelect"><option value="">— Выберите пресет —</option></select>
-<button onclick="saveOrderPreset()">💾 Сохранить</button>
-<button onclick="loadOrderPreset()">📂 Загрузить</button>
-<button onclick="exportOrderPresets()">📤 Экспорт</button>
-<button onclick="document.getElementById('orderPresetFileInput').click()">📥 Импорт</button>
-<input type="file" id="orderPresetFileInput" style="display:none" accept=".json" onchange="importOrderPresets(event)">
-<button onclick="deleteOrderPreset()" style="color:#a07070;">🗑️ Удалить</button>
-<label class="overlay-toggle"><input type="checkbox" id="orderOverlayToggle"> Наложение</label>
-</div>
-<div class="category-tabs" id="categoryTabs"></div>
-<div class="search-box"><input type="text" id="searchInput" placeholder="🔍 Глобальный поиск..." oninput="applySearch()"><button class="clear-btn" onclick="clearSearch()">✕</button></div>
-<div id="categoryContents"></div>
-<div id="globalTotals" class="global-totals">
-<span><strong>Всего:</strong> <span id="totalQty">0</span> шт</span>
-<span><strong>Вес:</strong> <span id="totalWeight">0</span> кг</span>
-<span><strong>Объём:</strong> <span id="totalVolume">0</span> м³</span>
-<button class="detail-btn" id="detailToggle">📊 Подробно</button>
-<div class="global-details" id="globalDetails"></div>
-</div>
-<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:15px;">
-<button class="btn btn-green" style="flex:1;min-width:120px;" onclick="saveJ()">💾 Сохранить JSON</button>
-<button class="btn btn-orange" style="flex:1;min-width:120px;" onclick="savePdf()">📄 Сохранить PDF</button>
-<button class="btn btn-red" style="flex:1;min-width:120px;" onclick="clearOrder()">🗑️ Очистить</button>
-</div>
-</div>
-<!-- Режим открытия списка -->
+
+<!-- Страница открытия списка -->
 <div id="sPage" style="display:none;">
-<div class="card">
-<button class="btn btn-sec" onclick="sc('menu')">◀ В меню</button>
-<h3 style="color:#d0d0d0;font-weight:600;margin-bottom:12px;">📂 Открыть список</h3>
-<label class="btn btn-sec" for="fSel">📎 Выберите JSON-файл</label>
-<input type="file" id="fSel" style="display:none" accept=".json">
-<div style="margin-top:12px;font-size:14px;color:#888;"><span id="loadStatus">Файл не выбран</span></div>
+    <div class="card">
+        <button class="btn btn-sec" id="btnBackToMenu2">◀ В меню</button>
+        <h3 style="color:#d0d0d0;font-weight:600;margin-bottom:12px;">📂 Открыть список</h3>
+        <label class="btn btn-sec" for="fSel">📎 Выберите JSON-файл</label>
+        <input type="file" id="fSel" style="display:none" accept=".json">
+        <div style="margin-top:12px;font-size:14px;color:#888;"><span id="loadStatus">Файл не выбран</span></div>
+    </div>
+    <div class="card" id="sRes" style="display:none;">
+        <h2 id="rName">Мероприятие</h2>
+        <div id="rDate" style="color:#888;margin-bottom:10px;">📅 Дата:</div>
+        <div id="rComment" style="color:#aaa;margin-bottom:12px;font-style:italic;padding:10px;background:#1e1e1e;border-radius:10px;"></div>
+        <button class="btn btn-red" style="width:auto;padding:8px 18px;font-size:14px;" id="resetCheckboxes">🔄 Сброс отметок</button>
+        <div id="sCats"></div>
+        <div id="globalTotalsOpen" class="global-totals">
+            <span><strong>Общий вес:</strong> <span id="totalWeightOpen">0</span> кг</span>
+            <span><strong>Общий объём:</strong> <span id="totalVolumeOpen">0</span> м³</span>
+        </div>
+        <div class="progress-container">
+            <strong>Собрано:</strong> <span id="progressCount">0/0</span>
+            <span id="progressPercent" style="margin-left:10px;color:#888;">0%</span>
+            <div class="progress-bar-bg"><div id="progressBar" class="progress-bar-fill" style="width:0%;"></div></div>
+            <button class="check-missing-btn" id="checkMissingItems">🔍 Проверить пропущенное</button>
+        </div>
+    </div>
 </div>
-<div class="card" id="sRes" style="display:none;">
-<h2 id="rName" style="color:#d0d0d0;font-weight:600;">Мероприятие</h2>
-<div id="rDate" style="color:#888;margin-bottom:10px;">📅 Дата:</div>
-<div id="rComment" style="color:#aaa;margin-bottom:12px;font-style:italic;padding:10px;background:#1e1e1e;border-radius:10px;border-left:4px solid #8a7a6a;"></div>
-<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-<button class="btn btn-red" style="width:auto;padding:8px 18px;font-size:14px;min-height:40px;" onclick="resetCheckboxes()">🔄 Сброс отметок</button>
+
+<!-- Страница редактора склада -->
+<div id="editorPage" style="display:none;">
+    <div class="card">
+        <button class="btn btn-sec" id="btnBackToMenu3">◀ В меню</button>
+        <h3 style="color:#d0d0d0;font-weight:600;margin-bottom:12px;">📦 Редактор склада</h3>
+        <div class="toolbar">
+            <button id="exportBtn">📤 Экспорт JSON</button>
+            <button id="importBtn">📥 Импорт JSON</button>
+            <button id="resetBtn">🔄 Сброс</button>
+            <button id="saveHtmlBtn" class="btn-purple">💾 Сохранить в HTML</button>
+            <button id="manageCasesBtn" class="btn-purple">📦 Общие кофры</button>
+        </div>
+        <input type="file" id="importFile" style="display:none" accept=".json">
+        <div class="category-tabs" id="editorTabs"></div>
+        <div id="editorContents"></div>
+        <div class="editor-add">
+            <input type="text" id="newCategoryName" placeholder="Новая категория">
+            <button class="btn btn-green" style="width:auto;" id="addCategoryBtn">➕ Добавить категорию</button>
+        </div>
+    </div>
 </div>
-<div id="sCats"></div>
-<div id="globalTotalsOpen" class="global-totals">
-<span><strong>Общий вес:</strong> <span id="totalWeightOpen">0</span> кг</span>
-<span><strong>Общий объём:</strong> <span id="totalVolumeOpen">0</span> м³</span>
+
+<!-- Модалки -->
+<div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+        <h3 id="modalTitle">Новая позиция</h3>
+        <label for="modalInput">Название:</label>
+        <input type="text" id="modalInput" placeholder="Введите название...">
+        <div class="buttons">
+            <button class="cancel" id="modalCancel">Отмена</button>
+            <button class="confirm" id="modalConfirm">Добавить</button>
+        </div>
+    </div>
 </div>
-<div class="progress-container">
-<strong>Собрано:</strong>
-<span id="progressCount">0/0</span>
-<span id="progressPercent" style="margin-left:10px;color:#888;font-size:14px;">0%</span>
-<div class="progress-bar-bg"><div id="progressBar" class="progress-bar-fill" style="width:0%;"></div></div>
-<button class="check-missing-btn" onclick="checkMissingItems()">🔍 Проверить пропущенное</button>
+
+<div class="modal-overlay" id="propsModal">
+    <div class="modal" style="max-width:700px;">
+        <h3 id="propsTitle">Свойства позиции</h3>
+        <label>Вес 1 шт (кг):</label>
+        <input type="number" id="propWeight" step="0.1" min="0" placeholder="0.0">
+        <label>Габариты 1 шт (Д×Ш×В, см):</label>
+        <input type="text" id="propDimensions" placeholder="50x40x30">
+        <label>Объём 1 шт (м³) – опционально:</label>
+        <input type="number" id="propVolume" step="0.001" min="0" placeholder="0.000">
+        <hr>
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+            <strong style="color:#d0d0d0;">🧩 Индивидуальные кофры (свои параметры)</strong>
+            <button class="btn btn-green" style="width:auto;padding:4px 12px;font-size:13px;" id="addIndividualCaseVariantBtn">➕ Добавить вариант</button>
+        </div>
+        <div id="individualCasesContainer"></div>
+        <hr>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" id="propAllowCommon"> Разрешено использование общих кофров
+        </label>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
+            <strong style="color:#d0d0d0;">📦 Привязка к общим кофрам</strong>
+            <button class="btn btn-green" style="width:auto;padding:4px 12px;font-size:13px;" id="addCommonCaseVariantBtn">➕ Добавить связь</button>
+        </div>
+        <div id="commonCasesContainer"></div>
+        <div class="buttons">
+            <button class="cancel" id="propsCancel">Отмена</button>
+            <button class="confirm" id="propsConfirm">Сохранить</button>
+        </div>
+    </div>
 </div>
+
+<div class="modal-overlay" id="casesManagerModal">
+    <div class="modal" style="max-width:700px;">
+        <h3>📦 Общие кофры (для режима создания заказа)</h3>
+        <div id="casesList" style="margin-bottom:15px;max-height:300px;overflow-y:auto;"></div>
+        <div style="border-top:1px solid #333;padding-top:15px;">
+            <h4 style="color:#aaa;">Добавить / редактировать кофр</h4>
+            <label>Название:</label>
+            <input type="text" id="newCaseName" placeholder="Например: Ящик 120x80x60">
+            <label>Вместимость (шт):</label>
+            <input type="number" id="newCaseQty" placeholder="0">
+            <label>Габариты (Д×Ш×В, см):</label>
+            <input type="text" id="newCaseDim" placeholder="120x80x60">
+            <label>Вес пустого (кг):</label>
+            <input type="number" id="newCaseWeight" step="0.1" placeholder="0.0">
+            <label>Максимальный вес груза (кг):</label>
+            <input type="number" id="newCaseMaxWeight" step="0.1" placeholder="0.0">
+            <label>Максимальный объём (м³):</label>
+            <input type="number" id="newCaseMaxVolume" step="0.001" placeholder="0.000">
+            <div class="buttons">
+                <button class="cancel" id="casesManagerClose">Закрыть</button>
+                <button class="confirm" id="casesManagerAdd">➕ Добавить</button>
+            </div>
+        </div>
+    </div>
 </div>
-</div>
-<!-- Модальные окна -->
-<div class="modal-overlay" id="linkModal"><div class="modal"><h3>🔗 Привязки для <span id="linkSourceLabel"></span></h3><div id="linkList"></div><div style="margin-top:15px;border-top:1px solid #3a3a3a;padding-top:15px;"><label style="font-weight:500;color:#d0d0d0;">Добавить цель:</label><div style="display:flex;gap:8px;flex-wrap:wrap;"><select id="linkAddTarget" style="flex:2;min-width:150px;"></select><input type="number" id="linkAddMultiplier" value="1" step="0.1" style="flex:1;min-width:80px;"><button class="btn btn-green" style="width:auto;padding:6px 16px;min-height:40px;" id="linkAddBtn">➕</button></div></div><div class="buttons"><button class="cancel" id="linkModalClose">Закрыть</button></div></div></div>
-<div class="modal-overlay" id="matrixModal"><div class="modal" style="max-width:95vw;max-height:85vh;overflow:hidden;"><h3>📊 Матрица привязок</h3><div class="filter-row"><input type="text" id="matrixSearchSource" placeholder="🔍 Фильтр источников" oninput="renderMatrix()"><input type="text" id="matrixSearchTarget" placeholder="🔍 Фильтр целей" oninput="renderMatrix()"></div><div class="preset-row"><select id="presetSelect"><option value="">— Выберите пресет —</option></select><button onclick="savePreset()">💾 Сохранить</button><button onclick="loadPreset()">📂 Загрузить</button><button onclick="exportPresets()">📤 Экспорт</button><button onclick="document.getElementById('presetFileInput').click()">📥 Импорт</button><input type="file" id="presetFileInput" style="display:none" accept=".json" onchange="importPresets(event)"><button onclick="deletePreset()" style="color:#a07070;">🗑️ Удалить</button><label class="overlay-toggle"><input type="checkbox" id="overlayToggle" checked> Наложение</label></div><div class="table-wrap" id="matrixContainer"></div><div class="buttons"><button class="danger" id="matrixClearAll">Удалить все привязки</button><button class="cancel" id="matrixClose">Закрыть</button></div></div></div>
+
 <div class="toast" id="toast"></div>
 </div>
 
-<script>
-// ============================================================
-// ОБЩАЯ БАЗА ДАННЫХ (загружается из файла)
-// ============================================================
-let inventory = {};
-let stock = {};
-let specs = {};
-let itemProps = {};
-const CAT_NAMES = {
-    "sound": "🔊 Звук",
-    "light": "💡 Свет",
-    "video": "🎥 Видео",
-    "construct": "🏗️ Конструктив",
-    "cables": "🔌 Коммутация",
-    "extra": "📦 Другое"
-};
-let categoryOrder = [];
-
-function loadCategoryOrder() {
-    try { const s = localStorage.getItem('categoryOrder'); if (s) categoryOrder = JSON.parse(s); } catch(e) {}
-    if (!categoryOrder || categoryOrder.length === 0) categoryOrder = Object.keys(inventory);
-    const invKeys = Object.keys(inventory);
-    categoryOrder = categoryOrder.filter(k => invKeys.includes(k));
-    invKeys.forEach(k => { if (!categoryOrder.includes(k)) categoryOrder.push(k); });
-    localStorage.setItem('categoryOrder', JSON.stringify(categoryOrder));
-}
-function saveCategoryOrder() { localStorage.setItem('categoryOrder', JSON.stringify(categoryOrder)); }
-
-// ============================================================
-// ЗАГРУЗКА БИБЛИОТЕКИ ИЗ ФАЙЛА
-// ============================================================
-function loadLibrary() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json';
-    input.onchange = function(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = function(ev) {
-            try {
-                const data = JSON.parse(ev.target.result);
-                if (data.inventory) inventory = data.inventory;
-                if (data.stock) stock = data.stock;
-                if (data.specs) specs = data.specs;
-                if (data.itemProps) itemProps = data.itemProps;
-                if (data.catNames) Object.assign(CAT_NAMES, data.catNames);
-                if (data._categoryOrder) categoryOrder = data._categoryOrder;
-                else loadCategoryOrder();
-                saveLibraryToLocal();
-                showToast('✅ Библиотека загружена');
-                if (document.getElementById('mPage').style.display === 'block') {
-                    renderOrderAll();
-                }
-            } catch(err) {
-                showToast('❌ Ошибка: ' + err.message);
-            }
-        };
-        reader.readAsText(file);
-    };
-    input.click();
-}
-
-function saveLibraryToLocal() {
-    localStorage.setItem('inventoryData', JSON.stringify(inventory));
-    localStorage.setItem('stockData', JSON.stringify(stock));
-    localStorage.setItem('specsData', JSON.stringify(specs));
-    localStorage.setItem('itemPropsData', JSON.stringify(itemProps));
-    saveCategoryOrder();
-}
-
-function loadLibraryFromLocal() {
-    try { const s = localStorage.getItem('inventoryData'); if (s) inventory = JSON.parse(s); } catch(e) {}
-    try { const s = localStorage.getItem('stockData'); if (s) stock = JSON.parse(s); } catch(e) {}
-    try { const s = localStorage.getItem('specsData'); if (s) specs = JSON.parse(s); } catch(e) {}
-    try { const s = localStorage.getItem('itemPropsData'); if (s) itemProps = JSON.parse(s); } catch(e) {}
-    loadCategoryOrder();
-}
-
-// ============================================================
-// ОБЩИЕ ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-// ============================================================
-function esc(str) { return String(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
-function showToast(msg) {
-    const t = document.getElementById('toast');
-    t.textContent = msg;
-    t.classList.add('show');
-    clearTimeout(t._timeout);
-    t._timeout = setTimeout(() => t.classList.remove('show'), 2500);
-}
-function getItemProps(path) { return itemProps[path] || {}; }
-function getCaseQty(path) { const p = getItemProps(path); return p.case_qty || 0; }
-function calcItemWeight(path, qty) {
-    const props = getItemProps(path);
-    if (!props.weight) return 0;
-    return props.weight * qty;
-}
-function calcItemVolume(path, qty) {
-    const props = getItemProps(path);
-    if (!props.dimensions) return 0;
-    const dims = props.dimensions.split('x').map(s => parseFloat(s.trim()));
-    if (dims.length !== 3 || dims.some(isNaN)) return 0;
-    return (dims[0]*dims[1]*dims[2]) / 1000000 * qty;
-}
-function calcFullCaseWeight(path) {
-    const props = getItemProps(path);
-    if (!props.weight || !props.case_weight || !props.case_qty) return 0;
-    return props.case_weight + (props.weight * props.case_qty);
-}
-function calcFullCaseVolume(path) {
-    const props = getItemProps(path);
-    if (!props.case_dimensions) return 0;
-    const dims = props.case_dimensions.split('x').map(s => parseFloat(s.trim()));
-    if (dims.length !== 3 || dims.some(isNaN)) return 0;
-    return (dims[0]*dims[1]*dims[2]) / 1000000;
-}
-function getAllItemPaths() {
-    const res = [];
-    function traverse(obj, path) {
-        if (Array.isArray(obj)) {
-            obj.forEach(item => res.push(path.length ? path.join('|') + '|' + item : item));
-        } else if (typeof obj === 'object' && obj !== null) {
-            for (let key in obj) {
-                if (key.startsWith('_')) continue;
-                traverse(obj[key], [...path, key]);
-            }
-        }
-    }
-    traverse(inventory, []);
-    return res;
-}
-
-// ============================================================
-// НАВИГАЦИЯ
-// ============================================================
-function sc(page) {
-    document.getElementById('mMenu').style.display = (page === 'menu') ? 'block' : 'none';
-    document.getElementById('mPage').style.display = (page === 'mPage') ? 'block' : 'none';
-    document.getElementById('sPage').style.display = (page === 'sPage') ? 'block' : 'none';
-    if (page === 'mPage') {
-        renderOrderAll();
-    }
-    if (page === 'sPage') {
-        document.getElementById('sRes').style.display = 'none';
-        document.getElementById('loadStatus').textContent = 'Файл не выбран';
-        document.getElementById('fSel').value = '';
-    }
-}
-
-// ============================================================
-// РЕЖИМ СОЗДАНИЯ СПИСКА
-// ============================================================
-let order = {};
-let links = {};
-let currentOrderCategory = 'sound';
-let showProps = false;
-let caseModes = {};
-let matrixCategoryState = {};
-let linkPresets = {};
-let orderPresets = {};
-let detailsOpen = false;
-let searchMode = false;
-let searchQuery = '';
-
-function loadOrderData() {
-    try { const s = localStorage.getItem('order_data'); if (s) order = JSON.parse(s); } catch(e) {}
-    try { const s = localStorage.getItem('order_links'); if (s) { links = JSON.parse(s); for (let src in links) if (!Array.isArray(links[src])) links[src] = [links[src]]; } } catch(e) {}
-    try { const s = localStorage.getItem('caseModes'); if (s) caseModes = JSON.parse(s); } catch(e) {}
-    try { const s = localStorage.getItem('showProps'); if (s) showProps = JSON.parse(s); } catch(e) {}
-    try { const s = localStorage.getItem('matrix_category_state'); if (s) matrixCategoryState = JSON.parse(s); } catch(e) {}
-    try { const s = localStorage.getItem('linkPresets'); if (s) linkPresets = JSON.parse(s); else linkPresets = {}; } catch(e) { linkPresets = {}; }
-    try { const s = localStorage.getItem('orderPresets'); if (s) orderPresets = JSON.parse(s); else orderPresets = {}; } catch(e) { orderPresets = {}; }
-    try { const s = localStorage.getItem('detailsOpen'); if (s !== null) detailsOpen = JSON.parse(s); } catch(e) { detailsOpen = false; }
-}
-function saveOrderData() {
-    localStorage.setItem('order_data', JSON.stringify(order));
-    localStorage.setItem('order_links', JSON.stringify(links));
-    localStorage.setItem('caseModes', JSON.stringify(caseModes));
-    localStorage.setItem('showProps', JSON.stringify(showProps));
-    localStorage.setItem('matrix_category_state', JSON.stringify(matrixCategoryState));
-    localStorage.setItem('linkPresets', JSON.stringify(linkPresets));
-    localStorage.setItem('orderPresets', JSON.stringify(orderPresets));
-    localStorage.setItem('detailsOpen', JSON.stringify(detailsOpen));
-    updateLinkCount();
-}
-function getValue(path) { return order[path] || 0; }
-function setValue(path, val, skipLink) {
-    val = Math.max(0, parseInt(val) || 0);
-    if (order[path] === val) return;
-    order[path] = val;
-    if (!skipLink && links[path]) {
-        links[path].forEach(link => {
-            const targetVal = val * link.multiplier;
-            setValue(link.target, targetVal, true);
-        });
-    }
-    saveOrderData();
-    updateRow(path);
-    updateTotals();
-    updateCategoryTotals(currentOrderCategory);
-}
-function updateRow(path) {
-    const row = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
-    if (!row) return;
-    const inp = row.querySelector('.qty-input');
-    if (!inp) return;
-    const val = getValue(path);
-    inp.value = val;
-    const sq = stock[path] !== undefined ? stock[path] : 9999;
-    row.classList.toggle('selected-item', val > 0);
-    row.classList.toggle('overstock', val > sq);
-    const oldWarn = row.querySelector('.overstock-warning');
-    if (oldWarn) oldWarn.remove();
-    if (val > sq) {
-        const warn = document.createElement('span');
-        warn.className = 'overstock-warning';
-        warn.textContent = `⚠️ Больше нет (в наличии ${sq})`;
-        row.querySelector('.controls').appendChild(warn);
-    }
-    const cb = row.querySelector('.case-switch');
-    const ci = row.querySelector('.case-input');
-    const caseBtns = row.querySelectorAll('.case-btn');
-    if (ci && cb) {
-        const cq = getCaseQty(path);
-        const modeOn = caseModes[path] || false;
-        ci.style.display = modeOn ? 'inline-block' : 'none';
-        caseBtns.forEach(btn => btn.style.display = modeOn ? 'flex' : 'none');
-        cb.checked = modeOn;
-        if (modeOn && cq > 0) ci.value = Math.floor(val / cq);
-    }
-    updateItemPropsDisplay(row, path);
-}
-function updateItemPropsDisplay(row, path) {
-    const dynDiv = row.querySelector('.dynamic-info');
-    if (!dynDiv) return;
-    const props = getItemProps(path);
-    const qty = getValue(path);
-    const modeOn = caseModes[path] || false;
-    const cq = props.case_qty || 0;
-    const cases = modeOn && cq > 0 ? Math.floor(qty / cq) : 0;
-    const remainder = qty - cases * cq;
-    let weightDisplay = 'n/a', weightVal = 0;
-    if (props.weight) {
-        if (modeOn && cq > 0) {
-            const fullCaseWeight = (props.case_weight || 0) + (cq * props.weight);
-            weightVal = fullCaseWeight * cases + remainder * props.weight;
-            weightDisplay = weightVal.toFixed(1) + ' кг' + (cases > 0 ? ` (вкл. ${cases} кофр)` : '');
-        } else {
-            weightVal = qty * props.weight;
-            weightDisplay = weightVal.toFixed(1) + ' кг';
-        }
-    }
-    let volumeDisplay = 'n/a', volumeVal = 0;
-    if (modeOn && cq > 0 && cases > 0 && props.case_dimensions) {
-        const dims = props.case_dimensions.split('x').map(s => parseFloat(s.trim()));
-        if (dims.length === 3 && dims.every(d => !isNaN(d) && d > 0)) {
-            volumeVal = (dims[0]*dims[1]*dims[2]) / 1000000 * cases;
-        }
-        if (props.dimensions) {
-            const dims2 = props.dimensions.split('x').map(s => parseFloat(s.trim()));
-            if (dims2.length === 3 && dims2.every(d => !isNaN(d) && d > 0)) {
-                volumeVal += (dims2[0]*dims2[1]*dims2[2]) / 1000000 * remainder;
-            }
-        }
-        volumeDisplay = volumeVal.toFixed(3) + ' м³';
-    } else if (props.dimensions) {
-        const dims = props.dimensions.split('x').map(s => parseFloat(s.trim()));
-        if (dims.length === 3 && dims.every(d => !isNaN(d) && d > 0)) {
-            volumeVal = (dims[0]*dims[1]*dims[2]) / 1000000 * qty;
-            volumeDisplay = volumeVal.toFixed(3) + ' м³';
-        }
-    }
-    let casesDisplay = '';
-    if (modeOn && cq > 0) casesDisplay = `<span class="hl">📦 ${cases} кофр${cases>1?'а':''} (по ${cq} шт)</span>`;
-    dynDiv.innerHTML = `<span>⚖️ ${weightDisplay}</span><span>📦 ${volumeDisplay}</span>${casesDisplay}`;
-    const propsDiv = row.querySelector('.props-compact');
-    if (propsDiv) {
-        const weightStatic = props.weight ? props.weight + ' кг' : '<span class="na">n/a</span>';
-        const dimsStatic = props.dimensions || '<span class="na">n/a</span>';
-        let caseStatic = '';
-        if (cq > 0) caseStatic = `📦 Кофр: ${cq} шт, вес пустого: ${props.case_weight||'n/a'} кг, габ: ${props.case_dimensions||'n/a'}`;
-        propsDiv.innerHTML = `<span>⚖️ 1 шт: ${weightStatic}</span><span>📐 ${dimsStatic}</span>${caseStatic ? `<span>${caseStatic}</span>` : ''}`;
-        propsDiv.classList.toggle('visible', showProps);
-    }
-}
-function calcItemWeightWithMode(path, qty) {
-    const props = getItemProps(path);
-    if (!props.weight) return 0;
-    const modeOn = caseModes[path] || false;
-    const cq = props.case_qty || 0;
-    if (modeOn && cq > 0) {
-        const cases = Math.floor(qty / cq);
-        const remainder = qty - cases * cq;
-        const fullCaseWeight = (props.case_weight || 0) + (cq * props.weight);
-        return fullCaseWeight * cases + remainder * props.weight;
-    }
-    return qty * props.weight;
-}
-function calcItemVolumeWithMode(path, qty) {
-    const props = getItemProps(path);
-    if (!props.dimensions) return 0;
-    const modeOn = caseModes[path] || false;
-    const cq = props.case_qty || 0;
-    let volume = 0;
-    if (modeOn && cq > 0) {
-        const cases = Math.floor(qty / cq);
-        const remainder = qty - cases * cq;
-        if (props.case_dimensions) {
-            const dims = props.case_dimensions.split('x').map(s => parseFloat(s.trim()));
-            if (dims.length === 3 && dims.every(d => !isNaN(d) && d > 0)) {
-                volume += (dims[0]*dims[1]*dims[2]) / 1000000 * cases;
-            }
-        }
-        const dims = props.dimensions.split('x').map(s => parseFloat(s.trim()));
-        if (dims.length === 3 && dims.every(d => !isNaN(d) && d > 0)) {
-            volume += (dims[0]*dims[1]*dims[2]) / 1000000 * remainder;
-        }
-    } else {
-        const dims = props.dimensions.split('x').map(s => parseFloat(s.trim()));
-        if (dims.length === 3 && dims.every(d => !isNaN(d) && d > 0)) {
-            volume = (dims[0]*dims[1]*dims[2]) / 1000000 * qty;
-        }
-    }
-    return volume;
-}
-function calcItemCases(path, qty) {
-    const cq = getCaseQty(path);
-    if (cq === 0) return 0;
-    const modeOn = caseModes[path] || false;
-    if (!modeOn) return 0;
-    return Math.floor(qty / cq);
-}
-function getActiveItems() {
-    const items = [];
-    for (let path in order) {
-        if (order[path] > 0) items.push({ path, qty: order[path] });
-    }
-    return items;
-}
-
-function renderOrderTabs() {
-    const container = document.getElementById('categoryTabs');
-    container.innerHTML = '';
-    const keys = categoryOrder.filter(k => inventory[k]);
-    keys.forEach(key => {
-        const tab = document.createElement('div');
-        tab.className = 'category-tab' + (key === currentOrderCategory ? ' active' : '');
-        tab.textContent = CAT_NAMES[key] || key;
-        tab.dataset.cat = key;
-        tab.addEventListener('click', () => {
-            if (searchMode) { document.getElementById('searchInput').value = ''; searchMode = false; searchQuery = ''; }
-            currentOrderCategory = key;
-            renderOrderTabs();
-            renderOrderCategory(key);
-            setupDescToggles();
-            setupInputListeners();
-            setupCaseToggles();
-            updateTotals();
-            updateLinkCount();
-        });
-        container.appendChild(tab);
-    });
-}
-function renderOrderCategory(catKey) {
-    const container = document.getElementById('categoryContents');
-    container.innerHTML = '';
-    const wrapper = document.createElement('div');
-    wrapper.className = 'category-content active';
-    if (catKey === 'all' || searchMode) {
-        wrapper.innerHTML = buildAllCategoriesHTML();
-    } else {
-        const catData = inventory[catKey];
-        if (!catData) return;
-        wrapper.innerHTML = buildCategoryHTML(catData, [catKey], 0);
-    }
-    container.appendChild(wrapper);
-    setupDescToggles();
-    setupInputListeners();
-    setupCaseToggles();
-    document.querySelectorAll('#categoryContents .row').forEach(row => {
-        const path = row.dataset.path;
-        if (path) { updateRow(path); updateItemPropsDisplay(row, path); }
-    });
-    if (!searchMode) updateCategoryTotals(catKey);
-    updateTotals();
-    updateLinkCount();
-    applySearch();
-    if (detailsOpen) {
-        document.getElementById('globalDetails').classList.add('open');
-        document.getElementById('detailToggle').textContent = '📊 Скрыть';
-    } else {
-        document.getElementById('globalDetails').classList.remove('open');
-        document.getElementById('detailToggle').textContent = '📊 Подробно';
-    }
-}
-function buildAllCategoriesHTML() {
-    let html = '';
-    categoryOrder.forEach(cat => {
-        const catData = inventory[cat];
-        if (!catData) return;
-        html += `<div class="sub-cat-t">${CAT_NAMES[cat]||cat}</div>`;
-        html += buildCategoryHTML(catData, [cat], 0);
-    });
-    return html;
-}
-function buildCategoryHTML(data, path, level) {
-    let html = '';
-    if (Array.isArray(data)) {
-        data.forEach((item, idx) => {
-            const fullPath = path.length ? path.join('|') + '|' + item : item;
-            const val = getValue(fullPath);
-            const sq = stock[fullPath] !== undefined ? stock[fullPath] : 9999;
-            const evenOdd = idx % 2 === 0 ? 'row-even' : 'row-odd';
-            const desc = specs[fullPath] || '';
-            const hasDesc = !!desc;
-            const hasLink = links[fullPath] && links[fullPath].length > 0;
-            const linkIcon = hasLink ? '🔗' : '⛓️';
-            const props = getItemProps(fullPath);
-            const cq = props.case_qty || 0;
-            const showCase = cq > 0;
-            const caseVal = showCase ? Math.floor(val / cq) : 0;
-            const caseModeOn = caseModes[fullPath] || false;
-            const dynHtml = `<div class="dynamic-info"></div>`;
-            const staticHtml = `<div class="props-compact ${showProps ? 'visible' : ''}"></div>`;
-            const escapedName = esc(item);
-            const searchText = item + ' ' + (desc || '') + ' ' + (CAT_NAMES[path[0]] || '');
-            html += `<div class="row ${evenOdd}" data-path="${esc(fullPath)}" data-search="${searchText.toLowerCase()}">
-                <div class="main-line">
-                    <div class="name-area">
-                        <span class="name">${escapedName}</span>
-                        ${hasDesc ? `<button class="desc-toggle" data-path="${esc(fullPath)}">📄</button>` : ''}
-                        <button class="link-btn ${hasLink ? 'active' : ''}" onclick="openLinkModal('${esc(fullPath)}')" title="Настроить привязки">${linkIcon}</button>
-                        ${showCase ? `<label class="case-toggle"><input type="checkbox" class="case-switch" data-path="${esc(fullPath)}" ${caseModeOn ? 'checked' : ''}> Режим кофров</label>` : ''}
-                    </div>
-                    <div class="controls">
-                        <span class="stock-info">в наличии: ${sq}</span>
-                        <button class="btn-c" onclick="chgPath('${esc(fullPath)}',-1,this)">−</button>
-                        <input type="number" class="qty-input" value="${val}" min="0" step="1" data-path="${esc(fullPath)}">
-                        <button class="btn-c" onclick="chgPath('${esc(fullPath)}',1,this)">+</button>
-                        ${showCase ? `
-                            <button class="btn-c case-btn" onclick="chgCase('${esc(fullPath)}',-1,this)" style="border-color:#6a8a6a;color:#6a8a6a;${caseModeOn ? '' : 'display:none;'}">−</button>
-                            <input type="number" class="case-input" value="${caseVal}" min="0" step="1" data-path="${esc(fullPath)}" style="${caseModeOn ? '' : 'display:none;'}width:50px;padding:4px;border:1px solid #6a8a6a;background:#1a2a1a;border-radius:8px;color:#d0d0d0;text-align:center;font-size:14px;">
-                            <button class="btn-c case-btn" onclick="chgCase('${esc(fullPath)}',1,this)" style="border-color:#6a8a6a;color:#6a8a6a;${caseModeOn ? '' : 'display:none;'}">+</button>
-                        ` : ''}
-                    </div>
-                </div>
-                ${dynHtml}
-                ${staticHtml}
-            </div>`;
-            if (hasDesc) html += `<div class="desc-block" data-path="${esc(fullPath)}">📋 ${desc}</div>`;
-            if (hasLink) {
-                links[fullPath].forEach(link => {
-                    html += `<div style="font-size:13px;color:#888;padding-left:${level*20+20}px;">🔗 → ${link.target} (×${link.multiplier})</div>`;
-                });
-            }
-        });
-        return html;
-    } else if (typeof data === 'object' && data !== null) {
-        const keys = Object.keys(data).filter(k => !k.startsWith('_'));
-        keys.forEach(key => {
-            const isSubSub = level >= 2;
-            if (isSubSub) html += `<div class="sub-sub-cat-t">${key}</div>`;
-            else html += `<div class="sub-cat-t">${key}</div>`;
-            html += buildCategoryHTML(data[key], [...path, key], level + 1);
-        });
-        return html;
-    }
-    return '';
-}
-function updateCategoryTotals(catKey) {
-    const container = document.querySelector('#categoryContents .category-content.active');
-    if (!container || searchMode) return;
-    let totalsDiv = container.querySelector('.category-totals');
-    if (!totalsDiv) {
-        totalsDiv = document.createElement('div');
-        totalsDiv.className = 'category-totals';
-        container.appendChild(totalsDiv);
-    }
-    const items = getActiveItems().filter(({ path }) => path.startsWith(catKey + '|'));
-    let qty = 0, weight = 0, volume = 0, cases = 0;
-    items.forEach(({ path, qty: q }) => {
-        qty += q;
-        weight += calcItemWeightWithMode(path, q);
-        volume += calcItemVolumeWithMode(path, q);
-        cases += calcItemCases(path, q);
-    });
-    totalsDiv.innerHTML = `<span><strong>Итого в категории:</strong> ${qty} шт</span><span><strong>Вес:</strong> ${weight.toFixed(1)} кг</span><span><strong>Объём:</strong> ${volume.toFixed(3)} м³</span>${cases > 0 ? `<span><strong>Кофров:</strong> ${cases} шт</span>` : ''}`;
-}
-function updateTotals() {
-    const items = getActiveItems();
-    let totalQty = 0, totalWeight = 0, totalVolume = 0, totalCases = 0;
-    const catTotals = {};
-    items.forEach(({ path, qty }) => {
-        totalQty += qty;
-        totalWeight += calcItemWeightWithMode(path, qty);
-        totalVolume += calcItemVolumeWithMode(path, qty);
-        totalCases += calcItemCases(path, qty);
-        const cat = path.split('|')[0];
-        if (!catTotals[cat]) catTotals[cat] = { qty: 0, weight: 0, volume: 0, cases: 0 };
-        catTotals[cat].qty += qty;
-        catTotals[cat].weight += calcItemWeightWithMode(path, qty);
-        catTotals[cat].volume += calcItemVolumeWithMode(path, qty);
-        catTotals[cat].cases += calcItemCases(path, qty);
-    });
-    document.getElementById('totalQty').textContent = totalQty;
-    document.getElementById('totalWeight').textContent = totalWeight.toFixed(1);
-    document.getElementById('totalVolume').textContent = totalVolume.toFixed(3);
-    const detailsDiv = document.getElementById('globalDetails');
-    let detailsHtml = '';
-    categoryOrder.forEach(cat => {
-        if (!catTotals[cat]) return;
-        const d = catTotals[cat];
-        detailsHtml += `<div class="cat-detail"><strong>${CAT_NAMES[cat]||cat}</strong><br>${d.qty} шт<br>${d.weight.toFixed(1)} кг<br>${d.volume.toFixed(3)} м³${d.cases > 0 ? `<br>${d.cases} кофров` : ''}</div>`;
-    });
-    detailsDiv.innerHTML = detailsHtml || '';
-}
-document.getElementById('detailToggle').addEventListener('click', function() {
-    const details = document.getElementById('globalDetails');
-    details.classList.toggle('open');
-    detailsOpen = details.classList.contains('open');
-    localStorage.setItem('detailsOpen', JSON.stringify(detailsOpen));
-    this.textContent = detailsOpen ? '📊 Скрыть' : '📊 Подробно';
-});
-
-function applySearch() {
-    const query = document.getElementById('searchInput').value.toLowerCase().trim();
-    searchQuery = query;
-    if (query) {
-        if (!searchMode) { searchMode = true; currentOrderCategory = 'all'; renderOrderCategory('all'); return; }
-        const rows = document.querySelectorAll('#categoryContents .row');
-        rows.forEach(row => {
-            const searchText = row.dataset.search || '';
-            if (searchText.includes(query)) row.classList.remove('hidden');
-            else row.classList.add('hidden');
-        });
-    } else {
-        if (searchMode) { searchMode = false; currentOrderCategory = categoryOrder[0] || 'sound'; renderOrderCategory(currentOrderCategory); }
-        else { document.querySelectorAll('#categoryContents .row').forEach(row => row.classList.remove('hidden')); }
-    }
-}
-function clearSearch() {
-    document.getElementById('searchInput').value = '';
-    if (searchMode) { searchMode = false; currentOrderCategory = categoryOrder[0] || 'sound'; renderOrderCategory(currentOrderCategory); }
-    else { document.querySelectorAll('#categoryContents .row').forEach(row => row.classList.remove('hidden')); }
-}
-
-function chgPath(path, delta, btn) {
-    const row = btn.closest('.row');
-    const inp = row.querySelector('.qty-input');
-    let val = parseInt(inp.value) || 0;
-    val = Math.max(0, val + delta);
-    inp.value = val;
-    setValue(path, val);
-    if (caseModes[path]) {
-        const cq = getCaseQty(path);
-        const ci = row.querySelector('.case-input');
-        if (ci && cq > 0) ci.value = Math.floor(val / cq);
-    }
-    updateItemPropsDisplay(row, path);
-}
-function chgCase(path, delta, btn) {
-    const row = btn.closest('.row');
-    if (!caseModes[path]) return;
-    const ci = row.querySelector('.case-input');
-    if (!ci) return;
-    let caseVal = parseInt(ci.value) || 0;
-    caseVal = Math.max(0, caseVal + delta);
-    ci.value = caseVal;
-    const cq = getCaseQty(path);
-    if (cq > 0) {
-        const newQty = caseVal * cq;
-        const qtyInp = row.querySelector('.qty-input');
-        if (qtyInp) qtyInp.value = newQty;
-        setValue(path, newQty);
-    }
-    updateItemPropsDisplay(row, path);
-}
-function setupInputListeners() {
-    document.querySelectorAll('#categoryContents .qty-input').forEach(inp => {
-        inp.removeEventListener('input', handleQtyInput);
-        inp.addEventListener('input', handleQtyInput);
-    });
-}
-function handleQtyInput(e) {
-    const inp = e.target;
-    const path = inp.dataset.path;
-    let val = parseInt(inp.value);
-    if (isNaN(val) || val < 0) val = 0;
-    inp.value = val;
-    setValue(path, val);
-    if (caseModes[path]) {
-        const cq = getCaseQty(path);
-        const row = inp.closest('.row');
-        const ci = row.querySelector('.case-input');
-        if (ci && cq > 0) ci.value = Math.floor(val / cq);
-    }
-    const row = inp.closest('.row');
-    if (row) updateItemPropsDisplay(row, path);
-}
-function setupCaseToggles() {
-    document.querySelectorAll('#categoryContents .case-switch').forEach(cb => {
-        cb.removeEventListener('change', handleCaseSwitch);
-        cb.addEventListener('change', handleCaseSwitch);
-    });
-    document.querySelectorAll('#categoryContents .case-input').forEach(inp => {
-        inp.removeEventListener('input', handleCaseInput);
-        inp.addEventListener('input', handleCaseInput);
-    });
-    document.querySelectorAll('#categoryContents .row').forEach(row => {
-        const cb = row.querySelector('.case-switch');
-        const ci = row.querySelector('.case-input');
-        const btns = row.querySelectorAll('.case-btn');
-        if (cb && ci) {
-            const path = ci.dataset.path;
-            const modeOn = caseModes[path] || false;
-            ci.style.display = modeOn ? 'inline-block' : 'none';
-            btns.forEach(btn => btn.style.display = modeOn ? 'flex' : 'none');
-            cb.checked = modeOn;
-            if (modeOn) {
-                const cq = getCaseQty(path);
-                if (cq > 0) {
-                    const val = getValue(path);
-                    ci.value = Math.floor(val / cq);
-                }
-            }
-        }
-    });
-}
-function handleCaseSwitch(e) {
-    const cb = e.target;
-    const path = cb.dataset.path;
-    const row = cb.closest('.row');
-    const ci = row.querySelector('.case-input');
-    const btns = row.querySelectorAll('.case-btn');
-    if (ci) {
-        const cq = getCaseQty(path);
-        if (cb.checked) {
-            caseModes[path] = true;
-            ci.style.display = 'inline-block';
-            btns.forEach(btn => btn.style.display = 'flex');
-            const val = getValue(path);
-            const caseVal = cq > 0 ? Math.floor(val / cq) : 0;
-            ci.value = caseVal;
-            const newQty = caseVal * cq;
-            const qtyInp = row.querySelector('.qty-input');
-            if (qtyInp) qtyInp.value = newQty;
-            if (newQty !== val) setValue(path, newQty);
-        } else {
-            caseModes[path] = false;
-            ci.style.display = 'none';
-            btns.forEach(btn => btn.style.display = 'none');
-        }
-        saveOrderData();
-    }
-    updateRow(path);
-    updateTotals();
-    updateCategoryTotals(currentOrderCategory);
-    if (row) updateItemPropsDisplay(row, path);
-}
-function handleCaseInput(e) {
-    const inp = e.target;
-    const path = inp.dataset.path;
-    if (!caseModes[path]) return;
-    const row = inp.closest('.row');
-    let val = parseInt(inp.value) || 0;
-    if (val < 0) val = 0;
-    const cq = getCaseQty(path);
-    if (cq > 0) {
-        const newQty = val * cq;
-        const qtyInp = row.querySelector('.qty-input');
-        if (qtyInp) qtyInp.value = newQty;
-        setValue(path, newQty);
-    }
-    if (row) updateItemPropsDisplay(row, path);
-}
-function setupDescToggles() {
-    document.querySelectorAll('#categoryContents .desc-toggle').forEach(btn => {
-        btn.removeEventListener('click', toggleDescOrder);
-        btn.addEventListener('click', toggleDescOrder);
-    });
-}
-function toggleDescOrder(e) {
-    const btn = e.currentTarget;
-    const path = btn.dataset.path;
-    const block = document.querySelector(`.desc-block[data-path="${path}"]`);
-    if (block) {
-        block.classList.toggle('open');
-        btn.textContent = block.classList.contains('open') ? '📕' : '📄';
-    }
-}
-document.getElementById('togglePropsBtn').addEventListener('click', function() {
-    showProps = !showProps;
-    document.getElementById('propsStatus').textContent = showProps ? '(свойства видны)' : '(свойства скрыты)';
-    localStorage.setItem('showProps', JSON.stringify(showProps));
-    document.querySelectorAll('.props-compact').forEach(el => el.classList.toggle('visible', showProps));
-});
-
-function openLinkModal(sourcePath) {
-    openMatrixModal();
-    const parts = sourcePath.split('|');
-    const name = parts[parts.length-1];
-    document.getElementById('matrixSearchSource').value = name;
-    renderMatrix();
-    showToast('Фильтр по источнику: ' + name);
-}
-function updateLinkCount() {
-    let count = 0;
-    for (let src in links) count += links[src].length;
-    document.getElementById('linkCount').textContent = `(${count} активных)`;
-}
-function saveJ() {
-    const data = getOrderData();
-    if (Object.keys(data.items).length === 0) { showToast('⚠️ Список пуст'); return; }
-    localStorage.setItem('last_comment', data.comment);
-    const a = document.createElement('a');
-    a.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
-    a.download = data.project_name + ".json";
-    a.click();
-    showToast('✅ JSON сохранён');
-}
-function savePdf() {
-    const data = getOrderData();
-    if (Object.keys(data.items).length === 0) { showToast('⚠️ Список пуст'); return; }
-    const catItems = {};
-    for (let path in data.items) {
-        const parts = path.split('|');
-        const cat = parts[0];
-        if (!catItems[cat]) catItems[cat] = [];
-        const qty = data.items[path];
-        const props = getItemProps(path);
-        const modeOn = caseModes[path] || false;
-        const cq = props.case_qty || 0;
-        const cases = modeOn && cq > 0 ? Math.floor(qty / cq) : null;
-        let totalWeight = 0;
-        if (props.weight) {
-            if (modeOn && cq > 0 && cases !== null && cases > 0) {
-                const fullCaseWeight = (props.case_weight || 0) + (cq * props.weight);
-                totalWeight = fullCaseWeight * cases + (qty - cases * cq) * props.weight;
-            } else {
-                totalWeight = qty * props.weight;
-            }
-        }
-        let volume = 0;
-        if (props.dimensions) {
-            if (modeOn && cq > 0 && cases !== null) {
-                if (props.case_dimensions) {
-                    const dims = props.case_dimensions.split('x').map(s => parseFloat(s.trim()));
-                    if (dims.length === 3 && dims.every(d => !isNaN(d) && d > 0)) {
-                        volume += (dims[0]*dims[1]*dims[2]) / 1000000 * cases;
-                    }
-                }
-                const dims = props.dimensions.split('x').map(s => parseFloat(s.trim()));
-                if (dims.length === 3 && dims.every(d => !isNaN(d) && d > 0)) {
-                    volume += (dims[0]*dims[1]*dims[2]) / 1000000 * (qty - cases * cq);
-                }
-            } else {
-                const dims = props.dimensions.split('x').map(s => parseFloat(s.trim()));
-                if (dims.length === 3 && dims.every(d => !isNaN(d) && d > 0)) {
-                    volume = (dims[0]*dims[1]*dims[2]) / 1000000 * qty;
-                }
-            }
-        }
-        const dimensions = (modeOn && cq > 0 && cases !== null && cases > 0 && props.case_dimensions) ? props.case_dimensions + ' (кофр)' : (props.dimensions || 'n/a');
-        const comment = specs[path] || '';
-        catItems[cat].push({ name: parts.slice(1).join(' → '), qty, cases, totalWeight, volume, dimensions, comment });
-    }
-    let html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Чек-лист</title><style>body{font-family:'Segoe UI',Arial,sans-serif;margin:40px;color:#222;background:#fff}h1{color:#2c3e50;border-bottom:2px solid #3498db;padding-bottom:10px}.meta{margin:20px 0;color:#555}table{width:100%;border-collapse:collapse;margin-top:20px;font-size:14px}th{background:#2c3e50;color:#fff;padding:10px;text-align:left}td{padding:8px 10px;border-bottom:1px solid #ddd}tr:nth-child(even){background:#f9f9f9}.total-row{font-weight:bold;background:#e6f2ff!important;border-top:2px solid #3498db}.grand-total{font-weight:bold;background:#d4e6ff!important;border-top:3px solid #1a3a5a;font-size:16px}.comment{color:#666;font-style:italic}.pdf-save-btn{display:block;margin:30px auto 10px;padding:12px 30px;background:#2c3e50;color:#fff;border:none;border-radius:8px;font-size:16px;cursor:pointer;text-align:center}.pdf-save-btn:hover{background:#1a2a3a}</style></head><body><h1>📋 Чек-лист: ${esc(data.project_name)}</h1><div class="meta"><strong>Дата:</strong> ${esc(data.date)}<br><strong>Комментарий:</strong> ${esc(data.comment||'—')}</div><table><thead><tr><th>Категория</th><th>Позиция</th><th>Кол-во (шт)</th><th>Кофры</th><th>Вес (кг)</th><th>Объём (м³)</th><th>Габариты (см)</th><th>Комментарий</th></tr></thead><tbody>`;
-    let grandQty=0,grandWeight=0,grandVolume=0,grandCases=0;
-    categoryOrder.forEach(cat => {
-        if (!catItems[cat]) return;
-        let first=true, catQty=0,catWeight=0,catVolume=0,catCases=0;
-        for (let item of catItems[cat]) {
-            catQty+=item.qty; catWeight+=item.totalWeight; catVolume+=item.volume;
-            if (item.cases!==null) catCases+=item.cases;
-            html += `<tr><td>${first ? CAT_NAMES[cat]||cat : ''}</td><td>${esc(item.name)}</td><td>${item.qty}</td><td>${item.cases!==null?item.cases:'n/a'}</td><td>${item.totalWeight.toFixed(1)}</td><td>${item.volume.toFixed(3)}</td><td>${esc(item.dimensions)}</td><td class="comment">${esc(item.comment)}</td></tr>`;
-            first=false;
-        }
-        grandQty+=catQty; grandWeight+=catWeight; grandVolume+=catVolume; grandCases+=catCases;
-        html += `<tr class="total-row"><td colspan="2"><strong>Итого в категории</strong></td><td><strong>${catQty} шт</strong></td><td><strong>${catCases>0?catCases+' шт':'—'}</strong></td><td><strong>${catWeight.toFixed(1)} кг</strong></td><td><strong>${catVolume.toFixed(3)} м³</strong></td><td></td><td></td></tr>`;
-    });
-    html += `<tr class="grand-total"><td colspan="2"><strong>Общий итог</strong></td><td><strong>${grandQty} шт</strong></td><td><strong>${grandCases>0?grandCases+' шт':'—'}</strong></td><td><strong>${grandWeight.toFixed(1)} кг</strong></td><td><strong>${grandVolume.toFixed(3)} м³</strong></td><td></td><td></td></tr></tbody></table>`;
-    html += `<button class="pdf-save-btn" onclick="window.print()">📥 Скачать как PDF</button>`;
-    html += `</body></html>`;
-    const win = window.open('', '_blank');
-    if (win) { win.document.write(html); win.document.close(); win.focus(); }
-    else showToast('⚠️ Не удалось открыть новую вкладку');
-}
-function getOrderData() {
-    return {
-        project_name: document.getElementById('pName').value.trim() || "Мероприятие",
-        date: document.getElementById('pDate').value || new Date().toLocaleDateString('ru-RU'),
-        comment: document.getElementById('pComment').value.trim() || "",
-        items: order
-    };
-}
-function clearOrder() {
-    if (!confirm('Очистить список?')) return;
-    order = {}; links = {}; caseModes = {};
-    saveOrderData();
-    renderOrderAll();
-    showToast('Список очищен');
-}
-function renderOrderAll() {
-    loadOrderData();
-    document.getElementById('pComment').value = localStorage.getItem('last_comment') || '';
-    const savedDate = localStorage.getItem('last_date');
-    if (savedDate) document.getElementById('pDate').value = savedDate;
-    renderOrderTabs();
-    renderOrderCategory(currentOrderCategory);
-    setupDescToggles();
-    setupInputListeners();
-    setupCaseToggles();
-    updateTotals();
-    document.querySelectorAll('.props-compact').forEach(el => el.classList.toggle('visible', showProps));
-    updateLinkCount();
-    applySearch();
-    if (detailsOpen) {
-        document.getElementById('globalDetails').classList.add('open');
-        document.getElementById('detailToggle').textContent = '📊 Скрыть';
-    } else {
-        document.getElementById('globalDetails').classList.remove('open');
-        document.getElementById('detailToggle').textContent = '📊 Подробно';
-    }
-}
-
-// ============================================================
-// РЕЖИМ ОТКРЫТИЯ СПИСКА
-// ============================================================
-let loadedOrder = null;
-document.getElementById('fSel').addEventListener('change', function(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    document.getElementById('loadStatus').textContent = `📄 ${file.name}`;
-    const reader = new FileReader();
-    reader.onload = function(ev) {
-        try {
-            const data = JSON.parse(ev.target.result);
-            if (!data.items || typeof data.items !== 'object') throw new Error('Неверный формат');
-            loadedOrder = data;
-            renderOpenOrder(data);
-            showToast('✅ Список загружен');
-        } catch(err) {
-            showToast('❌ Ошибка: ' + err.message);
-            document.getElementById('loadStatus').textContent = '❌ Ошибка';
-        }
-    };
-    reader.readAsText(file);
-});
-function renderOpenOrder(d) {
-    document.getElementById('rName').innerText = d.project_name || 'Без названия';
-    document.getElementById('rDate').innerText = "📅 Дата: " + (d.date || '-');
-    document.getElementById('rComment').innerHTML = d.comment ? `💬 ${esc(d.comment)}` : '';
-    let tree = {};
-    for (let path in d.items) {
-        const parts = path.split('|');
-        let current = tree;
-        for (let i = 0; i < parts.length; i++) {
-            const p = parts[i];
-            if (i === parts.length - 1) current[p] = d.items[path];
-            else { if (!current[p]) current[p] = {}; current = current[p]; }
-        }
-    }
-    let h = '';
-    const orderKeys = categoryOrder.filter(k => tree[k]);
-    let grandWeight = 0, grandVolume = 0;
-    orderKeys.forEach(cat => {
-        if (!tree[cat]) return;
-        const catData = tree[cat];
-        let catWeight = 0, catVolume = 0;
-        function collectStats(node, path) {
-            for (let key in node) {
-                const val = node[key];
-                const currentPath = path.length ? path + '|' + key : key;
-                if (typeof val === 'number') {
-                    catWeight += calcItemWeight(currentPath, val);
-                    catVolume += calcItemVolume(currentPath, val);
-                } else if (typeof val === 'object') collectStats(val, currentPath);
-            }
-        }
-        collectStats(catData, cat);
-        grandWeight += catWeight; grandVolume += catVolume;
-        h += `<div class="category-container" data-category="${cat}"><div class="category-header" onclick="toggleCategory(this)"><span class="cat-title">${CAT_NAMES[cat]}</span><span style="display:flex;align-items:center;gap:10px;"><span class="cat-progress-text">0%</span><span class="cat-toggle">▼</span></span></div><div class="category-body">${buildOpenTree(catData,0,cat,[cat])}<div class="category-totals"><span><strong>Итого в категории:</strong> Вес: ${catWeight.toFixed(1)} кг, Объём: ${catVolume.toFixed(3)} м³</span></div></div></div>`;
-    });
-    document.getElementById('sCats').innerHTML = h;
-    document.getElementById('sRes').style.display = 'block';
-    document.getElementById('totalWeightOpen').textContent = grandWeight.toFixed(1);
-    document.getElementById('totalVolumeOpen').textContent = grandVolume.toFixed(3);
-    document.getElementById('globalTotalsOpen').style.display = 'flex';
-    document.querySelectorAll('#sCats .check-item').forEach(cb => {
-        cb.addEventListener('change', function() { updateOpenProgress(); });
-    });
-    updateOpenProgress();
-    restoreCategoryStates();
-}
-function buildOpenTree(node, level, category, pathArr) {
-    let html = '', rowIndex = 0;
-    for (let key in node) {
-        const value = node[key];
-        const currentPath = [...pathArr, key];
-        const fullPath = currentPath.join('|');
-        if (typeof value === 'number') {
-            const rowClass = level === 0 ? '' : (level === 1 ? 'row-sub' : 'row-sub-sub');
-            const evenOdd = rowIndex % 2 === 0 ? 'row-even' : 'row-odd';
-            const description = specs[fullPath] || '';
-            const hasDesc = !!description;
-            const props = getItemProps(fullPath);
-            const cq = getCaseQty(fullPath);
-            const cases = cq > 0 ? Math.floor(value / cq) : 0;
-            const qtyDisplay = `${value} шт${cq > 0 ? ` (${cases} кофр${cases>1?'а':''})` : ' (n/a)'}`;
-            const totalWeight = calcItemWeight(fullPath, value);
-            const totalVolume = calcItemVolume(fullPath, value);
-            const unitWeight = props.weight ? props.weight : 0;
-            const unitVolume = props.dimensions ? calcItemVolume(fullPath, 1) : 0;
-            let caseInfo = '';
-            if (cq > 0) {
-                const fullCaseWeight = calcFullCaseWeight(fullPath);
-                const fullCaseVolume = calcFullCaseVolume(fullPath);
-                if (fullCaseWeight > 0 || fullCaseVolume > 0) {
-                    caseInfo = ` | 1 кофр: ${fullCaseWeight.toFixed(1)} кг, ${fullCaseVolume.toFixed(3)} м³`;
-                }
-            }
-            let infoParts = [];
-            if (totalWeight > 0 || totalVolume > 0) infoParts.push(`всего: ${totalWeight.toFixed(1)} кг, ${totalVolume.toFixed(3)} м³`);
-            if (unitWeight > 0 || unitVolume > 0) infoParts.push(`1 шт: ${unitWeight.toFixed(1)} кг, ${unitVolume.toFixed(3)} м³`);
-            if (caseInfo) infoParts.push(caseInfo);
-            const infoText = infoParts.length > 0 ? infoParts.join(' | ') : '';
-            html += `<div class="row ${rowClass} ${evenOdd}" data-path="${fullPath}"><div class="main-line"><span><input type="checkbox" class="check-item" data-category="${category}">${esc(key)}${hasDesc ? `<span class="desc-toggle" onclick="toggleDescOpen(this)">📄</span>` : ''}</span><span class="sub-qty">${qtyDisplay}</span></div>${infoText ? `<div class="item-info">${infoText}</div>` : ''}</div>`;
-            if (hasDesc) html += `<div class="desc-block" style="padding-left:${level*20+20}px;">📋 ${esc(description)}</div>`;
-            rowIndex++;
-        } else if (typeof value === 'object') {
-            const isSubSub = level >= 2;
-            if (isSubSub) html += `<div class="sub-sub-cat-t">${key}</div>`;
-            else html += `<div class="sub-cat-t">${key}</div>`;
-            html += buildOpenTree(value, level + 1, category, currentPath);
-        }
-    }
-    return html;
-}
-function toggleDescOpen(btn) {
-    const row = btn.closest('.row');
-    if (!row) return;
-    const block = row.nextElementSibling;
-    if (block && block.classList.contains('desc-block')) {
-        block.classList.toggle('open');
-        btn.textContent = block.classList.contains('open') ? '📕' : '📄';
-    }
-}
-function toggleCategory(header) {
-    const body = header.nextElementSibling;
-    const toggle = header.querySelector('.cat-toggle');
-    if (body.classList.contains('collapsed')) {
-        body.classList.remove('collapsed');
-        toggle.classList.remove('collapsed');
-        toggle.textContent = '▼';
-    } else {
-        body.classList.add('collapsed');
-        toggle.classList.add('collapsed');
-        toggle.textContent = '▶';
-    }
-    const container = header.closest('.category-container');
-    if (container) {
-        const cat = container.dataset.category;
-        saveCategoryState(cat, body.classList.contains('collapsed'));
-    }
-}
-function saveCategoryState(cat, collapsed) {
-    try {
-        const states = JSON.parse(localStorage.getItem('category_states') || '{}');
-        states[cat] = collapsed;
-        localStorage.setItem('category_states', JSON.stringify(states));
-    } catch(e) {}
-}
-function restoreCategoryStates() {
-    try {
-        const states = JSON.parse(localStorage.getItem('category_states') || '{}');
-        document.querySelectorAll('.category-container').forEach(container => {
-            const cat = container.dataset.category;
-            if (states[cat] === true) {
-                const body = container.querySelector('.category-body');
-                const toggle = container.querySelector('.cat-toggle');
-                if (body) { body.classList.add('collapsed'); if (toggle) { toggle.classList.add('collapsed'); toggle.textContent = '▶'; } }
-            }
-        });
-    } catch(e) {}
-}
-function updateOpenProgress() {
-    const cbs = document.querySelectorAll('#sCats .check-item');
-    const total = cbs.length;
-    const checked = document.querySelectorAll('#sCats .check-item:checked').length;
-    const pct = total > 0 ? Math.round((checked / total) * 100) : 0;
-    document.getElementById('progressCount').textContent = `${checked}/${total}`;
-    document.getElementById('progressPercent').textContent = `${pct}%`;
-    const bar = document.getElementById('progressBar');
-    bar.style.width = pct + '%';
-    bar.classList.toggle('complete', pct === 100);
-    document.querySelectorAll('.category-container').forEach(container => {
-        const items = container.querySelectorAll('.check-item');
-        const totalCat = items.length;
-        const checkedCat = container.querySelectorAll('.check-item:checked').length;
-        const pctCat = totalCat > 0 ? Math.round((checkedCat / totalCat) * 100) : 0;
-        const progressText = container.querySelector('.cat-progress-text');
-        if (progressText) progressText.textContent = `${pctCat}% (${checkedCat}/${totalCat})`;
-    });
-}
-function resetCheckboxes() {
-    if (!confirm('Сбросить все отметки?')) return;
-    document.querySelectorAll('#sCats .check-item').forEach(cb => cb.checked = false);
-    updateOpenProgress();
-    showToast('Отметки сброшены');
-}
-function checkMissingItems() {
-    const cbs = document.querySelectorAll('#sCats .check-item');
-    let missing = [];
-    cbs.forEach(cb => {
-        const row = cb.closest('.row');
-        if (!row) return;
-        if (!cb.checked) {
-            const label = row.querySelector('span')?.textContent?.trim() || 'Без названия';
-            const catKey = cb.dataset.category || 'unknown';
-            const catName = CAT_NAMES[catKey] || catKey;
-            const block = row.nextElementSibling;
-            let desc = '';
-            if (block && block.classList.contains('desc-block')) desc = block.textContent.replace(/[📋]/g, '').trim();
-            let line = `[${catName}] ${label}`;
-            if (desc) line += ` — ${desc}`;
-            missing.push(line);
-        }
-    });
-    let msg = missing.length === 0 ? '✅ Всё отмечено!' : `⚠️ Пропущены позиции (${missing.length}):\n\n${missing.join('\n')}\n\n📖 Напоминание: внимательно прочитайте все описания!`;
-    alert(msg);
-}
-
-// ============================================================
-// МАТРИЦА ПРИВЯЗОК
-// ============================================================
-function openMatrixModal() {
-    document.getElementById('matrixModal').classList.add('open');
-    document.getElementById('matrixSearchSource').value = '';
-    document.getElementById('matrixSearchTarget').value = '';
-    renderMatrix();
-}
-function renderMatrix() {
-    const container = document.getElementById('matrixContainer');
-    const allPaths = getAllItemPaths();
-    if (allPaths.length === 0) { container.innerHTML = '<p style="color:#666;">Нет позиций</p>'; return; }
-    const srcFilter = document.getElementById('matrixSearchSource').value.toLowerCase();
-    const tgtFilter = document.getElementById('matrixSearchTarget').value.toLowerCase();
-    const catMap = {};
-    allPaths.forEach(p => {
-        const parts = p.split('|');
-        const cat = parts[0];
-        if (!catMap[cat]) catMap[cat] = [];
-        catMap[cat].push({ full: p, name: parts[parts.length-1] });
-    });
-    let allTargets = [];
-    allPaths.forEach(p => {
-        const parts = p.split('|');
-        const cat = parts[0];
-        const name = parts[parts.length-1];
-        allTargets.push({ full: p, name, cat });
-    });
-    const unique = [];
-    const seen = new Set();
-    allTargets.forEach(t => { if (!seen.has(t.full)) { seen.add(t.full); unique.push(t); } });
-    allTargets = unique;
-    if (tgtFilter) allTargets = allTargets.filter(t => t.name.toLowerCase().includes(tgtFilter));
-    let html = '<table><thead><tr><th>Источник \\ Цель</th>';
-    allTargets.forEach(target => {
-        html += `<th class="target-label">${target.name}<br><span style="font-weight:normal;font-size:10px;color:#888;">${CAT_NAMES[target.cat]||target.cat}</span></th>`;
-    });
-    html += '</tr></thead><tbody>';
-    const catKeys = categoryOrder.filter(k => catMap[k]);
-    catKeys.forEach((cat, catIdx) => {
-        const items = catMap[cat];
-        let filtered = items;
-        if (srcFilter) filtered = items.filter(item => item.name.toLowerCase().includes(srcFilter));
-        if (filtered.length === 0) return;
-        const catId = 'cat_' + catIdx + '_' + Date.now() + '_' + Math.random().toString(36).substr(2,4);
-        const isOpen = matrixCategoryState[cat] || false;
-        html += `<tr class="matrix-category" onclick="toggleMatrixCategory('${catId}','${cat}')"><td colspan="${allTargets.length+1}" style="text-align:left;padding:8px 12px;background:#222;border:1px solid #333;"><span class="toggle ${isOpen?'':'collapsed'}" id="toggle_${catId}">${isOpen?'▼':'▶'}</span> ${CAT_NAMES[cat]||cat} (${filtered.length})</td></tr>`;
-        html += `<tbody id="${catId}" class="matrix-category-items ${isOpen?'open':''}">`;
-        filtered.forEach((source, idx) => {
-            const rowClass = idx % 2 === 0 ? 'row-even' : 'row-odd';
-            html += `<tr class="${rowClass}"><td class="source-label">${source.name}</td>`;
-            allTargets.forEach(target => {
-                if (source.full === target.full) { html += `<td class="empty-cell">—</td>`; }
-                else {
-                    const link = links[source.full] ? links[source.full].find(l => l.target === target.full) : null;
-                    const value = link ? link.multiplier : '';
-                    if (value !== '') {
-                        html += `<td data-src="${source.full}" data-target="${target.full}" onclick="editMatrixCell(this,'${source.full}','${target.full}')"><span class="cell-value">${value}</span></td>`;
-                    } else {
-                        html += `<td class="empty-cell" data-src="${source.full}" data-target="${target.full}" onclick="editMatrixCell(this,'${source.full}','${target.full}')">+</td>`;
-                    }
-                }
-            });
-            html += '</tr>';
-        });
-        html += '</tbody>';
-    });
-    html += '</tbody></table>';
-    container.innerHTML = html;
-}
-function toggleMatrixCategory(catId, catKey) {
-    const tbody = document.getElementById(catId);
-    if (!tbody) return;
-    const toggle = document.getElementById('toggle_' + catId);
-    if (tbody.classList.contains('open')) {
-        tbody.classList.remove('open');
-        toggle.classList.add('collapsed');
-        toggle.textContent = '▶';
-        matrixCategoryState[catKey] = false;
-    } else {
-        tbody.classList.add('open');
-        toggle.classList.remove('collapsed');
-        toggle.textContent = '▼';
-        matrixCategoryState[catKey] = true;
-    }
-    localStorage.setItem('matrix_category_state', JSON.stringify(matrixCategoryState));
-}
-function editMatrixCell(td, src, target) {
-    const existing = links[src] ? links[src].find(l => l.target === target) : null;
-    const currentVal = existing ? existing.multiplier : '';
-    const val = prompt(currentVal !== '' ? `Изменить множитель (текущий: ${currentVal})` : 'Введите множитель', currentVal !== '' ? currentVal : '1');
-    if (val === null) return;
-    const num = parseFloat(val);
-    if (isNaN(num) || num === 0) {
-        if (links[src]) { links[src] = links[src].filter(l => l.target !== target); if (links[src].length === 0) delete links[src]; }
-    } else {
-        if (!links[src]) links[src] = [];
-        const existingLink = links[src].find(l => l.target === target);
-        if (existingLink) existingLink.multiplier = num;
-        else links[src].push({ target, multiplier: num });
-    }
-    saveOrderData();
-    renderMatrix();
-    document.querySelectorAll('#categoryContents .row').forEach(row => {
-        const path = row.dataset.path;
-        if (path) updateRow(path);
-    });
-    updateLinkCount();
-    showToast('Привязка обновлена');
-}
-document.getElementById('matrixClearAll').addEventListener('click', () => {
-    if (confirm('Удалить все привязки?')) {
-        links = {};
-        saveOrderData();
-        renderMatrix();
-        document.querySelectorAll('#categoryContents .row').forEach(row => {
-            const path = row.dataset.path;
-            if (path) updateRow(path);
-        });
-        updateLinkCount();
-        showToast('Все привязки удалены');
-    }
-});
-document.getElementById('matrixClose').addEventListener('click', () => {
-    document.getElementById('matrixModal').classList.remove('open');
-});
-
-// Пресеты для матрицы
-function updatePresetSelect() {
-    const select = document.getElementById('presetSelect');
-    select.innerHTML = '<option value="">— Выберите пресет —</option>';
-    for (let name in linkPresets) {
-        const opt = document.createElement('option');
-        opt.value = name;
-        opt.textContent = name;
-        select.appendChild(opt);
-    }
-}
-function savePreset() {
-    const name = prompt('Введите название пресета матрицы:');
-    if (!name || name.trim() === '') return;
-    if (linkPresets[name] && !confirm(`Пресет "${name}" уже существует. Перезаписать?`)) return;
-    linkPresets[name] = JSON.parse(JSON.stringify(links));
-    saveOrderData();
-    updatePresetSelect();
-    showToast(`Пресет матрицы "${name}" сохранён`);
-}
-function loadPreset() {
-    const select = document.getElementById('presetSelect');
-    const name = select.value;
-    if (!name || !linkPresets[name]) { showToast('Выберите пресет'); return; }
-    const overlay = document.getElementById('overlayToggle').checked;
-    if (!overlay) {
-        if (!confirm(`Загрузить пресет "${name}"? Текущие привязки будут заменены.`)) return;
-        links = JSON.parse(JSON.stringify(linkPresets[name]));
-    } else {
-        const preset = linkPresets[name];
-        for (let src in preset) {
-            if (!links[src]) links[src] = [];
-            preset[src].forEach(link => {
-                const existing = links[src].find(l => l.target === link.target);
-                if (existing) existing.multiplier += link.multiplier;
-                else links[src].push(JSON.parse(JSON.stringify(link)));
-            });
-        }
-    }
-    saveOrderData();
-    renderMatrix();
-    document.querySelectorAll('#categoryContents .row').forEach(row => {
-        const path = row.dataset.path;
-        if (path) updateRow(path);
-    });
-    updateLinkCount();
-    showToast(`Пресет матрицы "${name}" загружен${overlay ? ' (наложение, суммирование)' : ''}`);
-}
-function exportPresets() {
-    if (Object.keys(linkPresets).length === 0) { showToast('Нет пресетов'); return; }
-    const data = JSON.stringify(linkPresets, null, 2);
-    const blob = new Blob([data], {type:'application/json'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'link_presets.json';
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast('Пресеты матрицы экспортированы');
-}
-function importPresets(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        try {
-            const imported = JSON.parse(e.target.result);
-            if (typeof imported === 'object' && imported !== null) {
-                for (let name in imported) {
-                    if (linkPresets[name] && !confirm(`Пресет "${name}" уже существует. Заменить?`)) continue;
-                    linkPresets[name] = imported[name];
-                }
-                saveOrderData();
-                updatePresetSelect();
-                renderMatrix();
-                showToast('Пресеты матрицы импортированы');
-            } else showToast('Неверный формат файла');
-        } catch(err) { showToast('Ошибка: '+err.message); }
-    };
-    reader.readAsText(file);
-    event.target.value = '';
-}
-function deletePreset() {
-    const select = document.getElementById('presetSelect');
-    const name = select.value;
-    if (!name || !linkPresets[name]) { showToast('Выберите пресет'); return; }
-    if (!confirm(`Удалить пресет матрицы "${name}"?`)) return;
-    delete linkPresets[name];
-    saveOrderData();
-    updatePresetSelect();
-    renderMatrix();
-    showToast(`Пресет матрицы "${name}" удалён`);
-}
-
-// Глобальные пресеты заказа
-function updateOrderPresetSelect() {
-    const select = document.getElementById('orderPresetSelect');
-    select.innerHTML = '<option value="">— Выберите пресет —</option>';
-    for (let name in orderPresets) {
-        const opt = document.createElement('option');
-        opt.value = name;
-        opt.textContent = name;
-        select.appendChild(opt);
-    }
-}
-function saveOrderPreset() {
-    const name = prompt('Введите название пресета заказа:');
-    if (!name || name.trim() === '') return;
-    if (orderPresets[name] && !confirm(`Пресет "${name}" уже существует. Перезаписать?`)) return;
-    orderPresets[name] = { order: JSON.parse(JSON.stringify(order)), caseModes: JSON.parse(JSON.stringify(caseModes)) };
-    saveOrderData();
-    updateOrderPresetSelect();
-    showToast(`Пресет заказа "${name}" сохранён`);
-}
-function loadOrderPreset() {
-    const select = document.getElementById('orderPresetSelect');
-    const name = select.value;
-    if (!name || !orderPresets[name]) { showToast('Выберите пресет'); return; }
-    const overlay = document.getElementById('orderOverlayToggle').checked;
-    const preset = orderPresets[name];
-    if (!overlay) {
-        if (!confirm(`Загрузить пресет "${name}"? Текущий заказ будет заменён.`)) return;
-        order = JSON.parse(JSON.stringify(preset.order));
-        caseModes = JSON.parse(JSON.stringify(preset.caseModes || {}));
-    } else {
-        for (let path in preset.order) {
-            order[path] = (order[path] || 0) + preset.order[path];
-        }
-        for (let path in preset.caseModes) {
-            caseModes[path] = preset.caseModes[path];
-        }
-    }
-    saveOrderData();
-    renderOrderAll();
-    showToast(`Пресет заказа "${name}" загружен${overlay ? ' (наложение, суммирование)' : ''}`);
-}
-function exportOrderPresets() {
-    if (Object.keys(orderPresets).length === 0) { showToast('Нет пресетов'); return; }
-    const data = JSON.stringify(orderPresets, null, 2);
-    const blob = new Blob([data], {type:'application/json'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'order_presets.json';
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast('Пресеты заказа экспортированы');
-}
-function importOrderPresets(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        try {
-            const imported = JSON.parse(e.target.result);
-            if (typeof imported === 'object' && imported !== null) {
-                for (let name in imported) {
-                    if (orderPresets[name] && !confirm(`Пресет "${name}" уже существует. Заменить?`)) continue;
-                    orderPresets[name] = imported[name];
-                }
-                saveOrderData();
-                updateOrderPresetSelect();
-                showToast('Пресеты заказа импортированы');
-            } else showToast('Неверный формат файла');
-        } catch(err) { showToast('Ошибка: '+err.message); }
-    };
-    reader.readAsText(file);
-    event.target.value = '';
-}
-function deleteOrderPreset() {
-    const select = document.getElementById('orderPresetSelect');
-    const name = select.value;
-    if (!name || !orderPresets[name]) { showToast('Выберите пресет'); return; }
-    if (!confirm(`Удалить пресет заказа "${name}"?`)) return;
-    delete orderPresets[name];
-    saveOrderData();
-    updateOrderPresetSelect();
-    showToast(`Пресет заказа "${name}" удалён`);
-}
-
-// ============================================================
-// СБРОС ВСЕХ ДАННЫХ (кнопка)
-// ============================================================
-function resetAll() {
-    if (!confirm('⚠️ ВНИМАНИЕ! Это удалит все ваши данные:\n- Заказы\n- Привязки\n- Пресеты\n- Библиотеку\n- Все настройки\n\nПродолжить?')) return;
-    localStorage.clear();
-    location.reload();
-}
-
-// ============================================================
-// ИНИЦИАЛИЗАЦИЯ
-// ============================================================
-loadLibraryFromLocal();
-loadOrderData();
-renderOrderAll();
-sc('menu');
-showToast('Прокатошная загружена');
-</script>
+<script type="module" src="main.js"></script>
 </body>
 </html>
