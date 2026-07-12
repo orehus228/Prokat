@@ -1,11 +1,11 @@
-// main.js — Точка входа, навигация, инициализация
+// main.js — Точка входа, навигация, инициализация (исправленный)
 import { initData, saveEditorData, editorData, resetAllData } from './data.js';
 import { renderEditorAll, addCategory, initRenderHandlers } from './render-editor.js';
 import { renderOrderAll, initOrderUI, exportOrderJSON, exportOrderPDF, clearOrderData } from './render-order.js';
 import { renderOpenOrder, initOpenUI } from './render-open.js';
 import { initModalHandlers, showToast, showConfirm } from './ui.js';
-import { initCases, openCasesManagerModal, openMatrixModal, openCaseSettingsModal } from './cases.js';
-import { loadOrderData, saveOrderData, clearOrderData as clearOrder } from './order.js';
+import { initCases, openCasesManagerModal, openMatrixModal } from './cases.js';
+import { loadOrderData, saveOrderData } from './order.js';
 import { STORAGE_KEYS } from './config.js';
 
 console.log('main.js загружен');
@@ -42,7 +42,6 @@ function toggleTheme() {
     localStorage.setItem('theme', currentTheme);
     const toggle = document.getElementById('themeToggle');
     if (toggle) toggle.classList.toggle('light', currentTheme === 'light');
-    // Уведомление о смене темы (нейтральное)
     showToast('Тема: ' + (currentTheme === 'dark' ? 'тёмная' : 'светлая'), 'neutral');
 }
 
@@ -146,7 +145,6 @@ function initApp() {
         }
     });
 
-    // Кнопки на странице заказа
     const btnMatrix = document.getElementById('btnMatrix');
     const btnCommonCases = document.getElementById('btnCommonCases');
     const btnSavePreset = document.getElementById('btnSavePreset');
@@ -178,11 +176,9 @@ function initApp() {
     if (btnSavePDF) btnSavePDF.addEventListener('click', exportOrderPDF);
     if (btnClearOrder) btnClearOrder.addEventListener('click', clearOrderData);
 
-    // Редактор
     const addCategoryBtn = document.getElementById('addCategoryBtn');
     if (addCategoryBtn) addCategoryBtn.addEventListener('click', addCategory);
 
-    // Показываем меню по умолчанию
     switchMode('menu');
     showToast('Прокатошная загружена', 'neutral');
 }
