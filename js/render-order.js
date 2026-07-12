@@ -1,4 +1,4 @@
-// render-order.js — Отрисовка страницы создания заказа (с защитой от циклов)
+// render-order.js — Полностью переработанная версия (плоский список, без рекурсии)
 import {
     editorData,
     getStock,
@@ -56,6 +56,9 @@ let searchQuery = '';
 let detailsOpen = false;
 const infoBlocksOpen = {};
 
+// Кеш плоского списка позиций
+let flatItemsCache = null;
+
 // ============================================================
 // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 // ============================================================
@@ -83,52 +86,47 @@ function setValue(path, val) {
 }
 
 // ============================================================
-// ПОЛУЧЕНИЕ ВСЕХ ПУТЕЙ ПОЗИЦИЙ (с защитой от циклов)
+// ПОСТРОЕНИЕ ПЛОСКОГО СПИСКА (однократно, без рекурсии)
 // ============================================================
-function getAllItemPaths() {
+function buildFlatItemsList() {
+    if (flatItemsCache) return flatItemsCache;
     const result = [];
-    const visited = new Set();
-    const MAX_DEPTH = 20;
+    const inventory = editorData.inventory;
+    if (!inventory) return result;
 
-    function traverse(obj, path, depth) {
-        if (depth > MAX_DEPTH) {
-            console.warn('Превышена глубина обхода', path);
-            return;
+    // Используем стек для обхода без рекурсии
+    const stack = [];
+    // Начинаем с корневых категорий
+    const orderKeys = editorData._categoryOrder || Object.keys(inventory);
+    orderKeys.forEach(cat => {
+        if (inventory[cat] !== undefined) {
+            stack.push({ data: inventory[cat], path: [cat] });
         }
-        if (visited.has(obj)) {
-            console.warn('Обнаружена циклическая ссылка', path);
-            return;
-        }
-        visited.add(obj);
+    });
 
-        if (Array.isArray(obj)) {
-            obj.forEach(item => {
+    while (stack.length > 0) {
+        const { data, path } = stack.pop();
+        if (Array.isArray(data)) {
+            data.forEach(item => {
                 if (typeof item === 'string') {
                     const fullPath = path.length ? path.join('|') + '|' + item : item;
                     result.push(fullPath);
                 }
             });
-        } else if (obj && typeof obj === 'object') {
-            const keys = Object.keys(obj).filter(k => !k.startsWith('_'));
-            keys.forEach(key => {
-                const child = obj[key];
-                const childPath = [...path, key];
-                // Проверяем, не является ли child примитивом
-                if (typeof child === 'string') {
-                    const fullPath = childPath.join('|');
-                    result.push(fullPath);
-                } else {
-                    traverse(child, childPath, depth + 1);
+        } else if (data && typeof data === 'object') {
+            const keys = Object.keys(data).filter(k => !k.startsWith('_'));
+            // Сначала добавляем подгруппы в стек (чтобы сохранить порядок, используем push с обратным порядком)
+            for (let i = keys.length - 1; i >= 0; i--) {
+                const key = keys[i];
+                const child = data[key];
+                if (child !== undefined) {
+                    stack.push({ data: child, path: [...path, key] });
                 }
-            });
+            }
         }
     }
 
-    try {
-        traverse(editorData.inventory, [], 0);
-    } catch (e) {
-        console.error('Ошибка обхода дерева', e);
-    }
+    flatItemsCache = result;
     return result;
 }
 
@@ -175,9 +173,10 @@ function renderOrderCategory(catKey) {
     const wrapper = document.createElement('div');
     wrapper.className = 'category-content active';
 
+    const allPaths = buildFlatItemsList();
+
     if (catKey === 'all' || searchMode) {
-        // Режим поиска — плоский список
-        const allPaths = getAllItemPaths();
+        // Режим поиска
         const query = searchQuery.toLowerCase();
         let filteredPaths = allPaths;
         if (query) {
@@ -209,15 +208,32 @@ function renderOrderCategory(catKey) {
             wrapper.innerHTML = html;
         }
     } else {
-        // Обычный режим — только текущая категория
-        const catData = editorData.inventory && editorData.inventory[catKey];
-        if (!catData) {
+        // Обычный режим — фильтруем позиции по категории
+        const filteredPaths = allPaths.filter(path => path.startsWith(catKey + '|'));
+        if (filteredPaths.length === 0) {
             wrapper.innerHTML = '<div class="empty-message">Категория пуста</div>';
-            container.appendChild(wrapper);
-            return;
+        } else {
+            // Группируем по подкатегориям (второй уровень)
+            const subGroups = {};
+            filteredPaths.forEach(path => {
+                const parts = path.split('|');
+                const sub = parts.length > 2 ? parts.slice(1, -1).join('|') : ''; // подкатегория без имени позиции
+                if (!subGroups[sub]) subGroups[sub] = [];
+                subGroups[sub].push(path);
+            });
+            let html = '';
+            const subKeys = Object.keys(subGroups).sort();
+            subKeys.forEach(sub => {
+                if (sub) {
+                    // Если есть подкатегория, показываем её
+                    html += `<div class="sub-sub-cat-t">${sub}</div>`;
+                }
+                subGroups[sub].forEach(path => {
+                    html += buildItemRow(path, sub ? 2 : 1);
+                });
+            });
+            wrapper.innerHTML = html;
         }
-        // Используем упрощённый обход без глубокой рекурсии
-        wrapper.innerHTML = buildCategoryHTMLFlat(catData, [catKey], 0);
     }
 
     container.appendChild(wrapper);
@@ -238,37 +254,6 @@ function renderOrderCategory(catKey) {
         document.getElementById('globalDetails').classList.remove('open');
         document.getElementById('detailToggle').textContent = 'Подробно';
     }
-}
-
-// ============================================================
-// ПОСТРОЕНИЕ HTML ДЛЯ КАТЕГОРИИ (с защитой от циклов)
-// ============================================================
-function buildCategoryHTMLFlat(data, path, level) {
-    if (level > 15) {
-        console.warn('Превышена глубина в buildCategoryHTMLFlat', path);
-        return '';
-    }
-    let html = '';
-    if (Array.isArray(data)) {
-        data.forEach(item => {
-            if (typeof item === 'string') {
-                const fullPath = path.length ? path.join('|') + '|' + item : item;
-                html += buildItemRow(fullPath, level);
-            }
-        });
-        return html;
-    } else if (data && typeof data === 'object') {
-        const keys = Object.keys(data).filter(k => !k.startsWith('_'));
-        keys.forEach(key => {
-            const childPath = [...path, key];
-            const isSubSub = level >= 2;
-            if (isSubSub) html += `<div class="sub-sub-cat-t">${key}</div>`;
-            else html += `<div class="sub-cat-t">${key}</div>`;
-            html += buildCategoryHTMLFlat(data[key], childPath, level + 1);
-        });
-        return html;
-    }
-    return '';
 }
 
 // ============================================================
@@ -793,6 +778,8 @@ export async function clearOrderData() {
 // ГЛАВНАЯ ФУНКЦИЯ ОТРИСОВКИ
 // ============================================================
 export function renderOrderAll() {
+    // Сбрасываем кеш при загрузке новых данных
+    flatItemsCache = null;
     loadOrderData();
     document.getElementById('pComment').value = localStorage.getItem('last_comment') || '';
     const savedDate = localStorage.getItem('last_date');
