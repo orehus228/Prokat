@@ -17,6 +17,7 @@ import {
 } from './ui.js';
 
 import { CAT_NAMES } from './config.js';
+import { links, saveOrderData } from './order.js';
 
 // ============================================================
 // ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
@@ -338,15 +339,17 @@ export function initCasesManagerOverlayClose() {
 }
 
 // ============================================================
-// МАТРИЦА ПРИВЯЗОК
+// МАТРИЦА ПРИВЯЗОК (с ровными ячейками)
 // ============================================================
+let matrixSourceFilter = '';
+let matrixTargetFilter = '';
+
 export function openMatrixModal(sourcePath) {
     const modal = document.getElementById('matrixModal');
     if (!modal) {
         showToast('Матрица привязок (модалка не найдена)');
         return;
     }
-    // Если передан sourcePath, фильтруем по нему
     if (sourcePath) {
         document.getElementById('matrixSearchSource').value = sourcePath.split('|').pop();
     } else {
@@ -359,7 +362,6 @@ export function openMatrixModal(sourcePath) {
 
 function renderMatrix() {
     const container = document.getElementById('matrixContainer');
-    // Получаем все позиции из инвентаря
     const allPaths = getAllItemPaths();
     if (allPaths.length === 0) {
         container.innerHTML = '<p style="color:#666;">Нет позиций</p>';
@@ -390,35 +392,48 @@ function renderMatrix() {
     allTargets = unique;
     if (tgtFilter) allTargets = allTargets.filter(t => t.name.toLowerCase().includes(tgtFilter));
 
-    let html = `<table><thead><tr><th>Источник \\ Цель</th>`;
+    // Определяем ширину колонок: первая колонка — 180px, остальные равномерно
+    const colCount = allTargets.length + 1;
+    const colWidth = Math.max(80, Math.floor((container.clientWidth - 180) / colCount));
+
+    let html = `<div style="overflow:auto;max-height:60vh;">`;
+    html += `<table style="width:100%;table-layout:fixed;border-collapse:collapse;">`;
+    html += `<thead><tr><th style="width:180px;padding:6px 8px;background:#2a2a2a;border:1px solid #3a3a3a;text-align:left;position:sticky;top:0;z-index:2;">Источник \\ Цель</th>`;
     allTargets.forEach(target => {
-        html += `<th class="target-label">${target.name}<br><span style="font-weight:normal;font-size:10px;color:#888;">${CAT_NAMES[target.cat]||target.cat}</span></th>`;
+        html += `<th style="width:${colWidth}px;padding:6px 4px;background:#2a2a2a;border:1px solid #3a3a3a;text-align:center;font-size:12px;word-wrap:break-word;position:sticky;top:0;z-index:2;">${esc(target.name)}<br><span style="font-weight:normal;font-size:10px;color:#888;">${CAT_NAMES[target.cat]||target.cat}</span></th>`;
     });
     html += '</tr></thead><tbody>';
 
     const orderKeys = editorData._categoryOrder || Object.keys(editorData.inventory);
+    let rowIndex = 0;
     orderKeys.forEach(cat => {
         const items = catMap[cat] || [];
         let filtered = items;
         if (srcFilter) filtered = items.filter(item => item.name.toLowerCase().includes(srcFilter));
         if (filtered.length === 0) return;
 
-        const catId = 'cat_' + cat + '_' + Date.now();
-        html += `<tr class="matrix-category" onclick="toggleMatrixCategory('${catId}')"><td colspan="${allTargets.length+1}" style="text-align:left;padding:6px 10px;background:#222;border:1px solid #333;"><span class="toggle" id="toggle_${catId}">▶</span> ${CAT_NAMES[cat]||cat} (${filtered.length})</td></tr>`;
-        html += `<tbody id="${catId}" class="matrix-category-items" style="display:none;">`;
+        const catId = 'cat_' + cat + '_' + Date.now() + '_' + (rowIndex++);
+        const isOpen = localStorage.getItem('matrix_cat_' + cat) === 'true';
+        html += `<tr class="matrix-category" onclick="toggleMatrixCategory('${catId}','${cat}')" style="cursor:pointer;">
+            <td colspan="${allTargets.length+1}" style="padding:6px 10px;background:#222;border:1px solid #333;text-align:left;">
+                <span class="toggle" id="toggle_${catId}">${isOpen ? '▼' : '▶'}</span> ${CAT_NAMES[cat]||cat} (${filtered.length})
+            </td>
+        </tr>`;
+        html += `<tbody id="${catId}" class="matrix-category-items" style="display:${isOpen ? 'table-row-group' : 'none'};">`;
         filtered.forEach((source, idx) => {
             const rowClass = idx % 2 === 0 ? 'row-even' : 'row-odd';
-            html += `<tr class="${rowClass}"><td class="source-label">${source.name}</td>`;
+            html += `<tr class="${rowClass}">`;
+            html += `<td class="source-label" style="padding:4px 6px;border:1px solid #333;text-align:left;font-weight:500;font-size:13px;word-wrap:break-word;">${esc(source.name)}</td>`;
             allTargets.forEach(target => {
                 if (source.full === target.full) {
-                    html += `<td class="empty-cell">—</td>`;
+                    html += `<td style="padding:4px 2px;border:1px solid #333;text-align:center;color:#555;font-size:18px;cursor:default;">—</td>`;
                 } else {
                     const link = links[source.full] ? links[source.full].find(l => l.target === target.full) : null;
                     const value = link ? link.multiplier : '';
                     if (value !== '') {
-                        html += `<td data-src="${source.full}" data-target="${target.full}" onclick="editMatrixCell(this,'${source.full}','${target.full}')"><span class="cell-value">${value}</span></td>`;
+                        html += `<td style="padding:4px 2px;border:1px solid #333;text-align:center;cursor:pointer;font-weight:600;color:#d4a040;" onclick="editMatrixCell(this,'${esc(source.full)}','${esc(target.full)}')">${value}</td>`;
                     } else {
-                        html += `<td class="empty-cell" data-src="${source.full}" data-target="${target.full}" onclick="editMatrixCell(this,'${source.full}','${target.full}')">+</td>`;
+                        html += `<td style="padding:4px 2px;border:1px solid #333;text-align:center;cursor:pointer;color:#555;font-size:18px;" onclick="editMatrixCell(this,'${esc(source.full)}','${esc(target.full)}')">+</td>`;
                     }
                 }
             });
@@ -426,7 +441,7 @@ function renderMatrix() {
         });
         html += '</tbody>';
     });
-    html += '</tbody></table>';
+    html += '</tbody></table></div>';
     container.innerHTML = html;
 }
 
@@ -446,20 +461,24 @@ function getAllItemPaths() {
     return res;
 }
 
-function toggleMatrixCategory(catId) {
+// Глобальные функции для onclick в матрице
+window.toggleMatrixCategory = function(catId, catKey) {
     const tbody = document.getElementById(catId);
     const toggle = document.getElementById('toggle_' + catId);
     if (!tbody || !toggle) return;
-    if (tbody.style.display === 'none') {
-        tbody.style.display = 'table-row-group';
-        toggle.textContent = '▼';
-    } else {
+    const isOpen = tbody.style.display !== 'none';
+    if (isOpen) {
         tbody.style.display = 'none';
         toggle.textContent = '▶';
+        localStorage.setItem('matrix_cat_' + catKey, 'false');
+    } else {
+        tbody.style.display = 'table-row-group';
+        toggle.textContent = '▼';
+        localStorage.setItem('matrix_cat_' + catKey, 'true');
     }
-}
+};
 
-function editMatrixCell(td, src, target) {
+window.editMatrixCell = function(td, src, target) {
     const existing = links[src] ? links[src].find(l => l.target === target) : null;
     const currentVal = existing ? existing.multiplier : '';
     const val = prompt(currentVal !== '' ? `Изменить множитель (текущий: ${currentVal})` : 'Введите множитель', currentVal !== '' ? currentVal : '1');
@@ -478,21 +497,17 @@ function editMatrixCell(td, src, target) {
     }
     saveOrderData();
     renderMatrix();
-    updateLinkCount();
+    updateLinkCountGlobal();
     showToast('Привязка обновлена');
-}
+};
 
-function updateLinkCount() {
+function updateLinkCountGlobal() {
     let count = 0;
     for (let src in links) count += links[src].length;
     const el = document.getElementById('linkCount');
     if (el) el.textContent = `(${count} активных)`;
 }
 
-// Импортируем order и links, чтобы сохранять
-import { order, links, saveOrderData } from './order.js';
-
-// Инициализация обработчиков матрицы
 export function initMatrixHandlers() {
     document.getElementById('matrixClose')?.addEventListener('click', () => {
         document.getElementById('matrixModal').classList.remove('open');
@@ -502,7 +517,7 @@ export function initMatrixHandlers() {
             for (let key in links) delete links[key];
             saveOrderData();
             renderMatrix();
-            updateLinkCount();
+            updateLinkCountGlobal();
             showToast('Все привязки удалены');
         }
     });

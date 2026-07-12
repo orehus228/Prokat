@@ -1,4 +1,4 @@
-// render-order.js — Отрисовка страницы создания заказа (полная версия, без заглушек)
+// render-order.js — Отрисовка страницы создания заказа (полная версия)
 import {
     editorData,
     getStock,
@@ -122,6 +122,7 @@ function renderOrderCategory(catKey) {
     setupDescToggles();
     setupInputListeners();
     setupCaseToggles();
+    // Обновляем строки после рендера
     document.querySelectorAll('#categoryContents .row').forEach(row => {
         const path = row.dataset.path;
         if (path) { updateRow(path); updateItemPropsDisplay(row, path); updateNoteDisplay(row, path); }
@@ -179,13 +180,13 @@ function buildCategoryHTML(data, path, level) {
             if (hasCase) {
                 const isMulti = localStorage.getItem('multi_' + fullPath) === 'true';
                 const showMultiToggle = options.length > 1;
-                multiToggle = showMultiToggle ? `<button class="multi-toggle ${isMulti ? 'active' : ''}" onclick="toggleMultiMode('${esc(fullPath)}')">${isMulti ? '🔀 Мульти' : '🔀 1'}</button>` : '';
+                multiToggle = showMultiToggle ? `<button class="multi-toggle ${isMulti ? 'active' : ''}" data-path="${esc(fullPath)}" onclick="toggleMultiMode('${esc(fullPath)}')">${isMulti ? '🔀 Мульти' : '🔀 1'}</button>` : '';
 
                 caseControls = `<div class="controls">
                     <span class="stock-info">в наличии: ${sq}</span>
-                    <button class="btn-c" onclick="chgPath('${esc(fullPath)}',-1,this)">−</button>
+                    <button class="btn-c qty-btn" data-path="${esc(fullPath)}" data-delta="-1">−</button>
                     <input type="number" class="qty-input" value="${val}" min="0" step="1" data-path="${esc(fullPath)}">
-                    <button class="btn-c" onclick="chgPath('${esc(fullPath)}',1,this)">+</button>
+                    <button class="btn-c qty-btn" data-path="${esc(fullPath)}" data-delta="1">+</button>
                     <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
                         <div class="case-toggle-wrap">
                             <label class="case-toggle"><input type="checkbox" class="case-switch" data-path="${esc(fullPath)}" ${caseModeOn ? 'checked' : ''}> Кофры</label>
@@ -216,9 +217,9 @@ function buildCategoryHTML(data, path, level) {
             } else {
                 caseControls = `<div class="controls">
                     <span class="stock-info">в наличии: ${sq}</span>
-                    <button class="btn-c" onclick="chgPath('${esc(fullPath)}',-1,this)">−</button>
+                    <button class="btn-c qty-btn" data-path="${esc(fullPath)}" data-delta="-1">−</button>
                     <input type="number" class="qty-input" value="${val}" min="0" step="1" data-path="${esc(fullPath)}">
-                    <button class="btn-c" onclick="chgPath('${esc(fullPath)}',1,this)">+</button>
+                    <button class="btn-c qty-btn" data-path="${esc(fullPath)}" data-delta="1">+</button>
                 </div>`;
             }
 
@@ -269,7 +270,34 @@ function buildCategoryHTML(data, path, level) {
 }
 
 // ============================================================
-// УПРАВЛЕНИЕ КОЛИЧЕСТВОМ
+// УПРАВЛЕНИЕ КОЛИЧЕСТВОМ (через делегирование)
+// ============================================================
+function setupQuantityDelegation() {
+    // Удаляем старые обработчики, если есть
+    document.removeEventListener('click', handleQuantityClick);
+    document.addEventListener('click', handleQuantityClick);
+}
+
+function handleQuantityClick(e) {
+    const target = e.target.closest('.qty-btn');
+    if (!target) return;
+    const path = target.dataset.path;
+    const delta = parseInt(target.dataset.delta);
+    if (!path || isNaN(delta)) return;
+    const row = target.closest('.row');
+    const inp = row.querySelector('.qty-input');
+    if (!inp) return;
+    let val = parseInt(inp.value) || 0;
+    val = Math.max(0, val + delta);
+    inp.value = val;
+    setValue(path, val);
+    updateRow(path);
+    updateItemPropsDisplay(row, path);
+    renderCommonCaseIndicators();
+}
+
+// ============================================================
+// ОСТАЛЬНЫЕ ФУНКЦИИ (без изменений, кроме открытого доступа)
 // ============================================================
 function chgPath(path, delta, btn) {
     const row = btn.closest('.row');
@@ -626,7 +654,6 @@ function toggleCaseDropdown(path, btn) {
 function openAltCaseModal(path) {
     const mode = getCaseMode(path);
     const alt = mode.alt || { qty: '', weight: '', dims: '' };
-    // Показываем простую модалку для альтернативного кофра
     const qty = prompt('Введите вместимость альтернативного кофра (шт):', alt.qty || '');
     if (qty === null) return;
     const weight = prompt('Вес пустого кофра (кг):', alt.weight || '0');
@@ -684,14 +711,12 @@ function updateLinkCount() {
 }
 
 function openLinkModal(sourcePath) {
-    // Вместо заглушки открываем матрицу
     import('./cases.js').then(module => {
         module.openMatrixModal(sourcePath);
     });
 }
 
 function openRouteModal(path) {
-    // Заглушка – будет реализована позже
     showToast('Маршрут (будет реализован позже) для ' + path);
 }
 
@@ -735,7 +760,6 @@ export function exportOrderPDF() {
     };
     const items = getActiveItems();
     if (items.length === 0) { showToast('Нет позиций для экспорта'); return; }
-    // Группируем по категориям
     const catItems = {};
     items.forEach(({ path, qty, isSplit, segData }) => {
         const parts = path.split('|');
@@ -798,7 +822,6 @@ tr:nth-child(even){background:#f9f9f9}
         win.document.write(html);
         win.document.close();
         win.focus();
-        // Автоматическая печать для сохранения PDF
         setTimeout(() => { win.print(); }, 500);
     } else {
         showToast('⚠️ Не удалось открыть новую вкладку');
@@ -810,7 +833,6 @@ tr:nth-child(even){background:#f9f9f9}
 // ============================================================
 export function clearOrderData() {
     if (!confirm('Очистить список?')) return;
-    // Обнуляем все данные заказа
     for (let key in order) delete order[key];
     for (let key in orderSplits) delete orderSplits[key];
     for (let key in links) delete links[key];
@@ -837,6 +859,7 @@ export function renderOrderAll() {
     setupDescToggles();
     setupInputListeners();
     setupCaseToggles();
+    setupQuantityDelegation();
     updateTotals();
     document.querySelectorAll('.props-compact').forEach(el => el.classList.toggle('visible', showProps));
     updateLinkCount();
@@ -875,7 +898,7 @@ export function initOrderUI() {
         this.textContent = detailsOpen ? '📊 Скрыть' : '📊 Подробно';
     });
 
-    // Кнопки сохранения и очистки
+    // Кнопки сохранения и очистки уже в main.js, но дублируем для надёжности
     document.getElementById('btnSaveJSON')?.addEventListener('click', exportOrderJSON);
     document.getElementById('btnSavePDF')?.addEventListener('click', exportOrderPDF);
     document.getElementById('btnClearOrder')?.addEventListener('click', clearOrderData);

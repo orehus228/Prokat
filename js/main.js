@@ -1,10 +1,10 @@
-// main.js — Точка входа, навигация, инициализация
+// main.js — Точка входа, навигация, инициализация (исправленная версия)
 import { initData, saveEditorData, editorData } from './data.js';
 import { renderEditorAll, addCategory, initRenderHandlers } from './render-editor.js';
-import { renderOrderAll, initOrderUI } from './render-order.js';
+import { renderOrderAll, initOrderUI, exportOrderJSON, exportOrderPDF, clearOrderData } from './render-order.js';
 import { renderOpenOrder, initOpenUI } from './render-open.js';
 import { initModalHandlers, showToast } from './ui.js';
-import { initCases, openCasesManagerModal } from './cases.js';
+import { initCases, openCasesManagerModal, openMatrixModal } from './cases.js';
 import { loadOrderData } from './order.js';
 
 console.log('main.js загружен');
@@ -15,6 +15,7 @@ console.log('main.js загружен');
 let currentMode = 'menu'; // menu | editor | order | open
 
 function switchMode(mode) {
+    console.log('switchMode:', mode);
     currentMode = mode;
     const menu = document.getElementById('mMenu');
     const editorPage = document.getElementById('editorPage');
@@ -83,12 +84,13 @@ function resetAll() {
 }
 
 // ============================================================
-// СОХРАНЕНИЕ JSON / PDF (заглушки)
+// ПРЕСЕТЫ (ЗАГЛУШКИ)
 // ============================================================
-function saveOrderJSON() { showToast('Сохранить JSON (заглушка)'); }
-function saveOrderPDF() { showToast('Сохранить PDF (заглушка)'); }
-function clearOrder() { showToast('Очистить список (заглушка)'); }
-function openMatrixModal() { showToast('Матрица привязок (заглушка)'); }
+function savePreset() { showToast('Сохранение пресета (заглушка)'); }
+function loadPreset() { showToast('Загрузка пресета (заглушка)'); }
+function exportPresets() { showToast('Экспорт пресетов (заглушка)'); }
+function importPresets() { document.getElementById('presetFileInput').click(); }
+function deletePreset() { showToast('Удаление пресета (заглушка)'); }
 
 // ============================================================
 // ИНИЦИАЛИЗАЦИЯ
@@ -103,26 +105,70 @@ function initApp() {
     initOrderUI();
     initOpenUI();
 
-    // Назначаем обработчики кнопок навигации
-    document.getElementById('btnMenuEditor')?.addEventListener('click', () => switchMode('editor'));
-    document.getElementById('btnMenuOrder')?.addEventListener('click', () => switchMode('order'));
-    document.getElementById('btnMenuOpen')?.addEventListener('click', () => switchMode('open'));
-    document.getElementById('btnMenuLoadLibrary')?.addEventListener('click', loadLibrary);
-    document.getElementById('btnMenuReset')?.addEventListener('click', resetAll);
+    // === НАВИГАЦИЯ ПО КНОПКАМ МЕНЮ ===
+    const btnMenuOrder = document.getElementById('btnMenuOrder');
+    const btnMenuOpen = document.getElementById('btnMenuOpen');
+    const btnMenuEditor = document.getElementById('btnMenuEditor');
+    const btnMenuLoadLibrary = document.getElementById('btnMenuLoadLibrary');
+    const btnMenuReset = document.getElementById('btnMenuReset');
 
-    // Кнопки на странице заказа (заглушки)
-    document.getElementById('btnSaveJSON')?.addEventListener('click', saveOrderJSON);
-    document.getElementById('btnSavePDF')?.addEventListener('click', saveOrderPDF);
-    document.getElementById('btnClearOrder')?.addEventListener('click', clearOrder);
-    document.getElementById('btnMatrix')?.addEventListener('click', openMatrixModal);
-    document.getElementById('btnCommonCases')?.addEventListener('click', () => openCasesManagerModal());
+    if (btnMenuOrder) btnMenuOrder.addEventListener('click', () => switchMode('order'));
+    if (btnMenuOpen) btnMenuOpen.addEventListener('click', () => switchMode('open'));
+    if (btnMenuEditor) btnMenuEditor.addEventListener('click', () => switchMode('editor'));
+    if (btnMenuLoadLibrary) btnMenuLoadLibrary.addEventListener('click', loadLibrary);
+    if (btnMenuReset) btnMenuReset.addEventListener('click', resetAll);
 
-    // Кнопка добавления категории в редакторе
-    document.getElementById('addCategoryBtn')?.addEventListener('click', addCategory);
+    // === КНОПКИ "В МЕНЮ" ===
+    const backBtns = document.querySelectorAll('#btnBackToMenu, #btnBackToMenu2, #btnBackToMenu3');
+    backBtns.forEach(btn => {
+        if (btn) {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                console.log('Кнопка "В меню" нажата');
+                switchMode('menu');
+            });
+        }
+    });
+
+    // === КНОПКИ НА СТРАНИЦЕ ЗАКАЗА ===
+    const btnMatrix = document.getElementById('btnMatrix');
+    const btnCommonCases = document.getElementById('btnCommonCases');
+    const btnSavePreset = document.getElementById('btnSavePreset');
+    const btnLoadPreset = document.getElementById('btnLoadPreset');
+    const btnExportPresets = document.getElementById('btnExportPresets');
+    const btnImportPresets = document.getElementById('btnImportPresets');
+    const presetFileInput = document.getElementById('presetFileInput');
+    const btnDeletePreset = document.getElementById('btnDeletePreset');
+    const btnSaveJSON = document.getElementById('btnSaveJSON');
+    const btnSavePDF = document.getElementById('btnSavePDF');
+    const btnClearOrder = document.getElementById('btnClearOrder');
+
+    if (btnMatrix) btnMatrix.addEventListener('click', () => openMatrixModal());
+    if (btnCommonCases) btnCommonCases.addEventListener('click', () => openCasesManagerModal());
+    if (btnSavePreset) btnSavePreset.addEventListener('click', savePreset);
+    if (btnLoadPreset) btnLoadPreset.addEventListener('click', loadPreset);
+    if (btnExportPresets) btnExportPresets.addEventListener('click', exportPresets);
+    if (btnImportPresets) btnImportPresets.addEventListener('click', importPresets);
+    if (presetFileInput) {
+        presetFileInput.addEventListener('change', function(e) {
+            if (e.target.files[0]) {
+                showToast('Импорт пресета (заглушка)');
+                this.value = '';
+            }
+        });
+    }
+    if (btnDeletePreset) btnDeletePreset.addEventListener('click', deletePreset);
+    if (btnSaveJSON) btnSaveJSON.addEventListener('click', exportOrderJSON);
+    if (btnSavePDF) btnSavePDF.addEventListener('click', exportOrderPDF);
+    if (btnClearOrder) btnClearOrder.addEventListener('click', clearOrderData);
+
+    // === РЕДАКТОР ===
+    const addCategoryBtn = document.getElementById('addCategoryBtn');
+    if (addCategoryBtn) addCategoryBtn.addEventListener('click', addCategory);
 
     // Показываем меню по умолчанию
     switchMode('menu');
-    showToast('Прокатошная загружена (новая архитектура)');
+    showToast('Прокатошная загружена (исправленная версия)');
 }
 
 if (document.readyState === 'loading') {

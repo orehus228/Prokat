@@ -1,4 +1,4 @@
-// config.js — Константы и дефолтные данные
+// config.js — Константы и дефолтные данные (с тестовыми позициями для кофров)
 
 export const CAT_NAMES = {
     sound: "🔊 Звук",
@@ -25,7 +25,8 @@ export const DEFAULT_INVENTORY = {
     light: {
         "Приборы": [
             "LED Wash 19x40",
-            "Beam 295W"
+            "Beam 295W",
+            "Led Strobe"  // Добавлена тестовая позиция с кофрами
         ]
     },
     extra: [
@@ -48,6 +49,7 @@ export const DEFAULT_STOCK = {
     "sound|Пульты|Цифровые|Midas MR18": 1,
     "light|Приборы|LED Wash 19x40": 4,
     "light|Приборы|Beam 295W": 9999,
+    "light|Приборы|Led Strobe": 20,
     "extra|Кейс с бобышками": 2,
     "extra|Стяжной ремень": 9999,
     "video|Телевизоры|Телевизор 55\"": 0,
@@ -83,6 +85,21 @@ export const DEFAULT_PROPS = {
         individualCases: [],
         allowCommon: false,
         commonCases: []
+    },
+    // Тестовая позиция с индивидуальными кофрами (мультикофры)
+    "light|Приборы|Led Strobe": {
+        weight: 2.5,
+        dimensions: "45x24x8",
+        individualCases: [
+            { qty: 4, dimensions: "50x30x25", weight: 3, maxCases: 2 },
+            { qty: 6, dimensions: "60x35x30", weight: 4, maxCases: 1 },
+            { qty: 8, dimensions: "70x40x35", weight: 5, maxCases: 0 }
+        ],
+        allowCommon: true,
+        commonCases: [
+            { caseId: 'case1', qty: 2 },
+            { caseId: 'case2', qty: 1 }
+        ]
     }
 };
 
