@@ -156,67 +156,73 @@ export function addNewCaseFromProps(btn) {
 // СОХРАНЕНИЕ СВОЙСТВ
 // ============================================================
 export function initPropsSaveHandler() {
-    document.getElementById('propsConfirm').addEventListener('click', () => {
-        if (!currentPropsPath) return;
-        const { catKey, subKey, itemName, onSaveCallback } = currentPropsPath;
-        const weight = parseFloat(document.getElementById('propWeight').value);
-        const dimensions = document.getElementById('propDimensions').value.trim();
-        const volume = parseFloat(document.getElementById('propVolume').value);
-        const allowCommon = document.getElementById('propAllowCommon').checked;
-        const props = {};
-        if (!isNaN(weight) && weight > 0) props.weight = weight;
-        if (dimensions) props.dimensions = dimensions;
-        if (!isNaN(volume) && volume > 0) props.volume = volume;
-        props.allowCommon = allowCommon;
-        
-        const individualCases = [];
-        document.querySelectorAll('#individualCasesContainer .case-variant-group').forEach(group => {
-            const qtyInput = group.querySelector('.ind-qty');
-            const dimInput = group.querySelector('.ind-dim');
-            const weightInput = group.querySelector('.ind-weight');
-            const maxCasesInput = group.querySelector('.ind-max-cases');
-            const qty = parseInt(qtyInput ? qtyInput.value : 0);
-            const dim = dimInput ? dimInput.value.trim() : '';
-            const w = parseFloat(weightInput ? weightInput.value : 0);
-            const maxCases = parseInt(maxCasesInput ? maxCasesInput.value : 0);
-            if (qty > 0 || dim || w > 0) {
-                individualCases.push({ 
-                    qty, 
-                    dimensions: dim, 
-                    weight: isNaN(w) ? 0 : w, 
-                    maxCases: isNaN(maxCases) ? 0 : maxCases 
-                });
-            }
+    const confirmBtn = document.getElementById('propsConfirm');
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', () => {
+            if (!currentPropsPath) return;
+            const { catKey, subKey, itemName, onSaveCallback } = currentPropsPath;
+            const weight = parseFloat(document.getElementById('propWeight').value);
+            const dimensions = document.getElementById('propDimensions').value.trim();
+            const volume = parseFloat(document.getElementById('propVolume').value);
+            const allowCommon = document.getElementById('propAllowCommon').checked;
+            const props = {};
+            if (!isNaN(weight) && weight > 0) props.weight = weight;
+            if (dimensions) props.dimensions = dimensions;
+            if (!isNaN(volume) && volume > 0) props.volume = volume;
+            props.allowCommon = allowCommon;
+            
+            const individualCases = [];
+            document.querySelectorAll('#individualCasesContainer .case-variant-group').forEach(group => {
+                const qtyInput = group.querySelector('.ind-qty');
+                const dimInput = group.querySelector('.ind-dim');
+                const weightInput = group.querySelector('.ind-weight');
+                const maxCasesInput = group.querySelector('.ind-max-cases');
+                const qty = parseInt(qtyInput ? qtyInput.value : 0);
+                const dim = dimInput ? dimInput.value.trim() : '';
+                const w = parseFloat(weightInput ? weightInput.value : 0);
+                const maxCases = parseInt(maxCasesInput ? maxCasesInput.value : 0);
+                if (qty > 0 || dim || w > 0) {
+                    individualCases.push({ 
+                        qty, 
+                        dimensions: dim, 
+                        weight: isNaN(w) ? 0 : w, 
+                        maxCases: isNaN(maxCases) ? 0 : maxCases 
+                    });
+                }
+            });
+            if (individualCases.length > 0) props.individualCases = individualCases;
+            else delete props.individualCases;
+            
+            const commonCases = [];
+            document.querySelectorAll('#commonCasesContainer .case-variant-group').forEach(group => {
+                const select = group.querySelector('.com-case-select');
+                const qtyInput = group.querySelector('.com-qty');
+                const caseId = select ? select.value : '';
+                const qty = parseInt(qtyInput ? qtyInput.value : 0);
+                if (caseId && !isNaN(qty) && qty > 0) {
+                    commonCases.push({ caseId, qty });
+                }
+            });
+            if (commonCases.length > 0) props.commonCases = commonCases;
+            else delete props.commonCases;
+            
+            setItemProps(catKey, subKey, itemName, props);
+            document.getElementById('propsModal').classList.remove('open');
+            currentPropsPath = null;
+            if (onSaveCallback) onSaveCallback();
+            showToast('Свойства сохранены');
         });
-        if (individualCases.length > 0) props.individualCases = individualCases;
-        else delete props.individualCases;
-        
-        const commonCases = [];
-        document.querySelectorAll('#commonCasesContainer .case-variant-group').forEach(group => {
-            const select = group.querySelector('.com-case-select');
-            const qtyInput = group.querySelector('.com-qty');
-            const caseId = select ? select.value : '';
-            const qty = parseInt(qtyInput ? qtyInput.value : 0);
-            if (caseId && !isNaN(qty) && qty > 0) {
-                commonCases.push({ caseId, qty });
-            }
-        });
-        if (commonCases.length > 0) props.commonCases = commonCases;
-        else delete props.commonCases;
-        
-        setItemProps(catKey, subKey, itemName, props);
-        document.getElementById('propsModal').classList.remove('open');
-        currentPropsPath = null;
-        if (onSaveCallback) onSaveCallback();
-        showToast('Свойства сохранены');
-    });
+    }
 }
 
 export function initPropsCancelHandler() {
-    document.getElementById('propsCancel').addEventListener('click', () => {
-        document.getElementById('propsModal').classList.remove('open');
-        currentPropsPath = null;
-    });
+    const cancelBtn = document.getElementById('propsCancel');
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => {
+            document.getElementById('propsModal').classList.remove('open');
+            currentPropsPath = null;
+        });
+    }
 }
 
 // ============================================================
@@ -273,57 +279,62 @@ function deleteCase(id) {
 
 export function initCasesManagerHandlers() {
     const addBtn = document.getElementById('casesManagerAdd');
-    addBtn.addEventListener('click', function() {
-        const name = document.getElementById('newCaseName').value.trim();
-        const qty = parseInt(document.getElementById('newCaseQty').value);
-        const dimensions = document.getElementById('newCaseDim').value.trim();
-        const emptyWeight = parseFloat(document.getElementById('newCaseWeight').value);
-        const maxWeight = parseFloat(document.getElementById('newCaseMaxWeight').value);
-        const maxVolume = parseFloat(document.getElementById('newCaseMaxVolume').value);
-        if (!name) { showToast('Введите название кофра'); return; }
-        if (isNaN(qty) || qty <= 0) { showToast('Вместимость должна быть положительным числом'); return; }
-        const editId = this.dataset.editId;
-        if (editId) {
-            updateCommonCase(editId, { 
-                name, 
-                qty, 
-                dimensions, 
-                emptyWeight: isNaN(emptyWeight)?0:emptyWeight, 
-                maxWeight: isNaN(maxWeight)?0:maxWeight, 
-                maxVolume: isNaN(maxVolume)?0:maxVolume 
-            });
-            showToast('Кофр обновлён');
-        } else {
-            const newCase = {
-                id: 'case_' + Date.now(),
-                name, 
-                qty, 
-                dimensions, 
-                emptyWeight: isNaN(emptyWeight)?0:emptyWeight, 
-                maxWeight: isNaN(maxWeight)?0:maxWeight, 
-                maxVolume: isNaN(maxVolume)?0:maxVolume
-            };
-            addCommonCase(newCase);
-            showToast('Кофр добавлен');
-        }
-        document.getElementById('newCaseName').value = '';
-        document.getElementById('newCaseQty').value = '';
-        document.getElementById('newCaseDim').value = '';
-        document.getElementById('newCaseWeight').value = '';
-        document.getElementById('newCaseMaxWeight').value = '';
-        document.getElementById('newCaseMaxVolume').value = '';
-        this.textContent = '➕ Добавить';
-        delete this.dataset.editId;
-        renderCasesList();
-        if (casesManagerCallback) casesManagerCallback();
-    });
+    if (addBtn) {
+        addBtn.addEventListener('click', function() {
+            const name = document.getElementById('newCaseName').value.trim();
+            const qty = parseInt(document.getElementById('newCaseQty').value);
+            const dimensions = document.getElementById('newCaseDim').value.trim();
+            const emptyWeight = parseFloat(document.getElementById('newCaseWeight').value);
+            const maxWeight = parseFloat(document.getElementById('newCaseMaxWeight').value);
+            const maxVolume = parseFloat(document.getElementById('newCaseMaxVolume').value);
+            if (!name) { showToast('Введите название кофра'); return; }
+            if (isNaN(qty) || qty <= 0) { showToast('Вместимость должна быть положительным числом'); return; }
+            const editId = this.dataset.editId;
+            if (editId) {
+                updateCommonCase(editId, { 
+                    name, 
+                    qty, 
+                    dimensions, 
+                    emptyWeight: isNaN(emptyWeight)?0:emptyWeight, 
+                    maxWeight: isNaN(maxWeight)?0:maxWeight, 
+                    maxVolume: isNaN(maxVolume)?0:maxVolume 
+                });
+                showToast('Кофр обновлён');
+            } else {
+                const newCase = {
+                    id: 'case_' + Date.now(),
+                    name, 
+                    qty, 
+                    dimensions, 
+                    emptyWeight: isNaN(emptyWeight)?0:emptyWeight, 
+                    maxWeight: isNaN(maxWeight)?0:maxWeight, 
+                    maxVolume: isNaN(maxVolume)?0:maxVolume
+                };
+                addCommonCase(newCase);
+                showToast('Кофр добавлен');
+            }
+            document.getElementById('newCaseName').value = '';
+            document.getElementById('newCaseQty').value = '';
+            document.getElementById('newCaseDim').value = '';
+            document.getElementById('newCaseWeight').value = '';
+            document.getElementById('newCaseMaxWeight').value = '';
+            document.getElementById('newCaseMaxVolume').value = '';
+            this.textContent = '➕ Добавить';
+            delete this.dataset.editId;
+            renderCasesList();
+            if (casesManagerCallback) casesManagerCallback();
+        });
+    }
 }
 
 export function initCasesManagerCloseHandler() {
-    document.getElementById('casesManagerClose').addEventListener('click', () => {
-        document.getElementById('casesManagerModal').classList.remove('open');
-        if (casesManagerCallback) casesManagerCallback();
-    });
+    const closeBtn = document.getElementById('casesManagerClose');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            document.getElementById('casesManagerModal').classList.remove('open');
+            if (casesManagerCallback) casesManagerCallback();
+        });
+    }
 }
 
 export function initCasesManagerOverlayClose() {
@@ -339,11 +350,8 @@ export function initCasesManagerOverlayClose() {
 }
 
 // ============================================================
-// МАТРИЦА ПРИВЯЗОК (с ровными ячейками)
+// МАТРИЦА ПРИВЯЗОК
 // ============================================================
-let matrixSourceFilter = '';
-let matrixTargetFilter = '';
-
 export function openMatrixModal(sourcePath) {
     const modal = document.getElementById('matrixModal');
     if (!modal) {
@@ -362,6 +370,7 @@ export function openMatrixModal(sourcePath) {
 
 function renderMatrix() {
     const container = document.getElementById('matrixContainer');
+    if (!container) return;
     const allPaths = getAllItemPaths();
     if (allPaths.length === 0) {
         container.innerHTML = '<p style="color:#666;">Нет позиций</p>';
@@ -370,7 +379,6 @@ function renderMatrix() {
     const srcFilter = document.getElementById('matrixSearchSource').value.toLowerCase();
     const tgtFilter = document.getElementById('matrixSearchTarget').value.toLowerCase();
 
-    // Группируем по категориям
     const catMap = {};
     allPaths.forEach(p => {
         const parts = p.split('|');
@@ -379,61 +387,46 @@ function renderMatrix() {
         catMap[cat].push({ full: p, name: parts[parts.length-1] });
     });
 
-    // Список всех целей (уникальные)
     let allTargets = [];
     allPaths.forEach(p => {
         const parts = p.split('|');
         allTargets.push({ full: p, name: parts[parts.length-1], cat: parts[0] });
     });
-    // Убираем дубли
     const unique = [];
     const seen = new Set();
     allTargets.forEach(t => { if (!seen.has(t.full)) { seen.add(t.full); unique.push(t); } });
     allTargets = unique;
     if (tgtFilter) allTargets = allTargets.filter(t => t.name.toLowerCase().includes(tgtFilter));
 
-    // Определяем ширину колонок: первая колонка — 180px, остальные равномерно
-    const colCount = allTargets.length + 1;
-    const colWidth = Math.max(80, Math.floor((container.clientWidth - 180) / colCount));
-
-    let html = `<div style="overflow:auto;max-height:60vh;">`;
-    html += `<table style="width:100%;table-layout:fixed;border-collapse:collapse;">`;
-    html += `<thead><tr><th style="width:180px;padding:6px 8px;background:#2a2a2a;border:1px solid #3a3a3a;text-align:left;position:sticky;top:0;z-index:2;">Источник \\ Цель</th>`;
+    let html = `<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr><th style="border:1px solid #333;padding:6px;background:#222;color:#aaa;text-align:center;min-width:120px;">Источник \\ Цель</th>`;
     allTargets.forEach(target => {
-        html += `<th style="width:${colWidth}px;padding:6px 4px;background:#2a2a2a;border:1px solid #3a3a3a;text-align:center;font-size:12px;word-wrap:break-word;position:sticky;top:0;z-index:2;">${esc(target.name)}<br><span style="font-weight:normal;font-size:10px;color:#888;">${CAT_NAMES[target.cat]||target.cat}</span></th>`;
+        html += `<th style="border:1px solid #333;padding:6px;background:#222;color:#aaa;text-align:center;min-width:80px;">${target.name}<br><span style="font-weight:normal;font-size:10px;color:#888;">${CAT_NAMES[target.cat]||target.cat}</span></th>`;
     });
     html += '</tr></thead><tbody>';
 
     const orderKeys = editorData._categoryOrder || Object.keys(editorData.inventory);
-    let rowIndex = 0;
     orderKeys.forEach(cat => {
         const items = catMap[cat] || [];
         let filtered = items;
         if (srcFilter) filtered = items.filter(item => item.name.toLowerCase().includes(srcFilter));
         if (filtered.length === 0) return;
 
-        const catId = 'cat_' + cat + '_' + Date.now() + '_' + (rowIndex++);
-        const isOpen = localStorage.getItem('matrix_cat_' + cat) === 'true';
-        html += `<tr class="matrix-category" onclick="toggleMatrixCategory('${catId}','${cat}')" style="cursor:pointer;">
-            <td colspan="${allTargets.length+1}" style="padding:6px 10px;background:#222;border:1px solid #333;text-align:left;">
-                <span class="toggle" id="toggle_${catId}">${isOpen ? '▼' : '▶'}</span> ${CAT_NAMES[cat]||cat} (${filtered.length})
-            </td>
-        </tr>`;
-        html += `<tbody id="${catId}" class="matrix-category-items" style="display:${isOpen ? 'table-row-group' : 'none'};">`;
+        const catId = 'cat_' + cat + '_' + Date.now();
+        html += `<tr class="matrix-category" onclick="toggleMatrixCategory('${catId}')"><td colspan="${allTargets.length+1}" style="text-align:left;padding:6px 10px;background:#222;border:1px solid #333;"><span class="toggle" id="toggle_${catId}">▶</span> ${CAT_NAMES[cat]||cat} (${filtered.length})</td></tr>`;
+        html += `<tbody id="${catId}" class="matrix-category-items" style="display:none;">`;
         filtered.forEach((source, idx) => {
             const rowClass = idx % 2 === 0 ? 'row-even' : 'row-odd';
-            html += `<tr class="${rowClass}">`;
-            html += `<td class="source-label" style="padding:4px 6px;border:1px solid #333;text-align:left;font-weight:500;font-size:13px;word-wrap:break-word;">${esc(source.name)}</td>`;
+            html += `<tr class="${rowClass}"><td style="border:1px solid #333;padding:4px 6px;text-align:left;font-weight:500;color:#ccc;white-space:nowrap;">${source.name}</td>`;
             allTargets.forEach(target => {
                 if (source.full === target.full) {
-                    html += `<td style="padding:4px 2px;border:1px solid #333;text-align:center;color:#555;font-size:18px;cursor:default;">—</td>`;
+                    html += `<td style="border:1px solid #333;padding:4px 6px;text-align:center;color:#555;font-size:18px;cursor:default;">—</td>`;
                 } else {
                     const link = links[source.full] ? links[source.full].find(l => l.target === target.full) : null;
                     const value = link ? link.multiplier : '';
                     if (value !== '') {
-                        html += `<td style="padding:4px 2px;border:1px solid #333;text-align:center;cursor:pointer;font-weight:600;color:#d4a040;" onclick="editMatrixCell(this,'${esc(source.full)}','${esc(target.full)}')">${value}</td>`;
+                        html += `<td style="border:1px solid #333;padding:4px 6px;text-align:center;cursor:pointer;" data-src="${source.full}" data-target="${target.full}" onclick="editMatrixCell(this,'${source.full}','${target.full}')"><span style="font-weight:600;color:#d4a040;">${value}</span></td>`;
                     } else {
-                        html += `<td style="padding:4px 2px;border:1px solid #333;text-align:center;cursor:pointer;color:#555;font-size:18px;" onclick="editMatrixCell(this,'${esc(source.full)}','${esc(target.full)}')">+</td>`;
+                        html += `<td style="border:1px solid #333;padding:4px 6px;text-align:center;color:#555;font-size:18px;cursor:pointer;" data-src="${source.full}" data-target="${target.full}" onclick="editMatrixCell(this,'${source.full}','${target.full}')">+</td>`;
                     }
                 }
             });
@@ -441,7 +434,7 @@ function renderMatrix() {
         });
         html += '</tbody>';
     });
-    html += '</tbody></table></div>';
+    html += '</tbody></table>';
     container.innerHTML = html;
 }
 
@@ -461,24 +454,20 @@ function getAllItemPaths() {
     return res;
 }
 
-// Глобальные функции для onclick в матрице
-window.toggleMatrixCategory = function(catId, catKey) {
+function toggleMatrixCategory(catId) {
     const tbody = document.getElementById(catId);
     const toggle = document.getElementById('toggle_' + catId);
     if (!tbody || !toggle) return;
-    const isOpen = tbody.style.display !== 'none';
-    if (isOpen) {
-        tbody.style.display = 'none';
-        toggle.textContent = '▶';
-        localStorage.setItem('matrix_cat_' + catKey, 'false');
-    } else {
+    if (tbody.style.display === 'none') {
         tbody.style.display = 'table-row-group';
         toggle.textContent = '▼';
-        localStorage.setItem('matrix_cat_' + catKey, 'true');
+    } else {
+        tbody.style.display = 'none';
+        toggle.textContent = '▶';
     }
-};
+}
 
-window.editMatrixCell = function(td, src, target) {
+function editMatrixCell(td, src, target) {
     const existing = links[src] ? links[src].find(l => l.target === target) : null;
     const currentVal = existing ? existing.multiplier : '';
     const val = prompt(currentVal !== '' ? `Изменить множитель (текущий: ${currentVal})` : 'Введите множитель', currentVal !== '' ? currentVal : '1');
@@ -497,11 +486,11 @@ window.editMatrixCell = function(td, src, target) {
     }
     saveOrderData();
     renderMatrix();
-    updateLinkCountGlobal();
+    updateLinkCount();
     showToast('Привязка обновлена');
-};
+}
 
-function updateLinkCountGlobal() {
+function updateLinkCount() {
     let count = 0;
     for (let src in links) count += links[src].length;
     const el = document.getElementById('linkCount');
@@ -509,20 +498,28 @@ function updateLinkCountGlobal() {
 }
 
 export function initMatrixHandlers() {
-    document.getElementById('matrixClose')?.addEventListener('click', () => {
-        document.getElementById('matrixModal').classList.remove('open');
-    });
-    document.getElementById('matrixClearAll')?.addEventListener('click', () => {
-        if (confirm('Удалить все привязки?')) {
-            for (let key in links) delete links[key];
-            saveOrderData();
-            renderMatrix();
-            updateLinkCountGlobal();
-            showToast('Все привязки удалены');
-        }
-    });
-    document.getElementById('matrixSearchSource')?.addEventListener('input', renderMatrix);
-    document.getElementById('matrixSearchTarget')?.addEventListener('input', renderMatrix);
+    const closeBtn = document.getElementById('matrixClose');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            document.getElementById('matrixModal').classList.remove('open');
+        });
+    }
+    const clearBtn = document.getElementById('matrixClearAll');
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+            if (confirm('Удалить все привязки?')) {
+                for (let key in links) delete links[key];
+                saveOrderData();
+                renderMatrix();
+                updateLinkCount();
+                showToast('Все привязки удалены');
+            }
+        });
+    }
+    const srcInput = document.getElementById('matrixSearchSource');
+    if (srcInput) srcInput.addEventListener('input', renderMatrix);
+    const tgtInput = document.getElementById('matrixSearchTarget');
+    if (tgtInput) tgtInput.addEventListener('input', renderMatrix);
 }
 
 // ============================================================
