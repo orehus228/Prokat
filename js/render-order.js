@@ -1,4 +1,4 @@
-// render-order.js — Отрисовка страницы создания заказа (стабильная версия)
+// render-order.js — Отрисовка страницы создания заказа (плоский список, без рекурсии)
 import {
     editorData,
     getStock,
@@ -41,7 +41,9 @@ import {
     getCaseMode,
     getCaseOptions,
     getSelectedOption,
-    updateOrderPaths
+    updateOrderPaths,
+    isExcludedFromLoading,
+    setExcludeFromLoading
 } from './order.js';
 
 // ============================================================
@@ -91,6 +93,7 @@ function buildFlatItemsList() {
     const inventory = editorData.inventory;
     if (!inventory) return result;
 
+    // Используем стек для итеративного обхода (без рекурсии)
     const stack = [];
     const orderKeys = editorData._categoryOrder || Object.keys(inventory);
     orderKeys.forEach(cat => {
@@ -159,7 +162,7 @@ function renderOrderTabs() {
 }
 
 // ============================================================
-// РЕНДЕРИНГ КАТЕГОРИИ (синхронный, без порций)
+// РЕНДЕРИНГ КАТЕГОРИИ (плоский список, без рекурсии)
 // ============================================================
 function renderOrderCategory(catKey) {
     const container = document.getElementById('categoryContents');
@@ -185,7 +188,7 @@ function renderOrderCategory(catKey) {
         return;
     }
 
-    // Генерируем HTML синхронно
+    // Строим HTML синхронно (но без рекурсии)
     let html = '';
     filteredPaths.forEach(path => {
         html += buildItemRow(path, 1);
@@ -602,7 +605,8 @@ export function exportOrderJSON() {
         individual_cases: individualCaseValues,
         routes: commonRoutes,
         links: links,
-        notes: notes
+        notes: notes,
+        exclude: orderExclude
     };
     if (Object.keys(order).length === 0 && Object.keys(orderSplits).length === 0) {
         showToast('Список пуст', 'warning'); return;
@@ -724,6 +728,7 @@ export async function clearOrderData() {
     for (let key in individualCaseValues) delete individualCaseValues[key];
     for (let key in commonRoutes) delete commonRoutes[key];
     for (let key in caseModes) delete caseModes[key];
+    for (let key in orderExclude) delete orderExclude[key];
     saveOrderData();
     renderOrderAll();
     showToast('Список очищен', 'success');
@@ -733,7 +738,8 @@ export async function clearOrderData() {
 // ГЛАВНАЯ ФУНКЦИЯ ОТРИСОВКИ
 // ============================================================
 export function renderOrderAll() {
-    flatItemsCache = null; // сброс кеша при загрузке
+    // Сбрасываем кеш при загрузке (если данные изменились)
+    flatItemsCache = null;
     loadOrderData();
     document.getElementById('pComment').value = localStorage.getItem('last_comment') || '';
     const savedDate = localStorage.getItem('last_date');
