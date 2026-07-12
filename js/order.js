@@ -1,4 +1,4 @@
-// render-order.js — Отрисовка страницы создания заказа (исправлено отображение веса/объёма)
+// render-order.js — Отрисовка страницы создания заказа (финальная версия)
 import {
     editorData,
     getStock,
@@ -239,7 +239,7 @@ function renderOrderCategory(catKey) {
 }
 
 // ============================================================
-// РЕКУРСИВНЫЙ ОБХОД КАТЕГОРИИ
+// РЕКУРСИВНЫЙ ОБХОД КАТЕГОРИИ (с защитой от циклов)
 // ============================================================
 function buildCategoryHTML(data, path, level) {
     if (level > 15) {
@@ -270,7 +270,7 @@ function buildCategoryHTML(data, path, level) {
 }
 
 // ============================================================
-// ПОСТРОЕНИЕ СТРОКИ С ОТОБРАЖЕНИЕМ ВЕСА/ОБЪЁМА
+// ПОСТРОЕНИЕ СТРОКИ ДЛЯ ОДНОЙ ПОЗИЦИИ (С ОТОБРАЖЕНИЕМ ХАРАКТЕРИСТИК)
 // ============================================================
 function buildItemRow(fullPath, level) {
     const val = getValue(fullPath);
@@ -284,7 +284,7 @@ function buildItemRow(fullPath, level) {
     const isInfoOpen = infoBlocksOpen[fullPath] || false;
     const totalQty = getTotalQty(fullPath);
     
-    // ===== ВЫЧИСЛЯЕМ ВЕС И ОБЪЁМ =====
+    // Вычисляем вес и объём для отображения в строке
     let weightDisplay = '0 кг', volumeDisplay = '0 м³';
     if (props.weight) {
         const w = calcItemWeightWithMode(fullPath, totalQty);
@@ -294,7 +294,6 @@ function buildItemRow(fullPath, level) {
         const v = calcItemVolumeWithMode(fullPath, totalQty);
         volumeDisplay = v.toFixed(3) + ' м³';
     }
-    // ====================================
     
     const infoHtml = buildInfoHtml(fullPath, props, mode);
     const escapedName = esc(fullPath.split('|').pop());
@@ -354,7 +353,7 @@ function buildInfoHtml(path, props, mode) {
 }
 
 // ============================================================
-// ОСТАЛЬНЫЕ ФУНКЦИИ (без изменений)
+// ДЕЛЕГИРОВАНИЕ СОБЫТИЙ
 // ============================================================
 function setupEventDelegation() {
     const container = document.getElementById('categoryContents');
@@ -465,6 +464,9 @@ function handleContainerInput(e) {
     }
 }
 
+// ============================================================
+// ОБРАБОТЧИКИ КНОПОК
+// ============================================================
 function toggleInfoOrder(btn) {
     const path = btn.dataset.path;
     const row = btn.closest('.row');
@@ -595,7 +597,7 @@ function toggleMultiModeOrder(path) {
 }
 
 // ============================================================
-// ОБНОВЛЕНИЕ СТРОКИ
+// ОБНОВЛЕНИЕ СТРОКИ (с пересчётом веса/объёма)
 // ============================================================
 function updateRowOrder(path) {
     const row = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
@@ -741,6 +743,9 @@ function clearSearchOrder() {
     else { document.querySelectorAll('#categoryContents .row').forEach(row => row.classList.remove('hidden')); }
 }
 
+// ============================================================
+// ВСПОМОГАТЕЛЬНЫЕ НАСТРОЙКИ
+// ============================================================
 function setupInputListenersOrder() {}
 function setupCaseTogglesOrder() {}
 
