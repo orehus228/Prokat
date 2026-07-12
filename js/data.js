@@ -244,8 +244,15 @@ export function setSpec(catKey, subKey, itemName, val) {
     saveEditorData();
 }
 
+// Универсальная функция: принимает либо 3 аргумента (catKey, subKey, itemName), либо 1 (полный путь)
 export function getItemProps(catKey, subKey, itemName) {
-    const key = getStockKey(catKey, subKey, itemName);
+    let key;
+    if (arguments.length === 1) {
+        // Передан один аргумент — это полный путь
+        key = catKey;
+    } else {
+        key = getStockKey(catKey, subKey, itemName);
+    }
     const props = editorData.itemProps[key];
     if (props) {
         if (props.weight === undefined) props.weight = 0;
