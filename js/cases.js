@@ -595,10 +595,9 @@ export function openMatrixModal(sourcePath, showPresets = true) {
     }
     document.getElementById('matrixSearchTarget').value = '';
     matrixZoomLevel = 1;
-    updateMatrixZoom();
+    applyMatrixZoom();
     renderMatrix();
     populateMatrixPresetSelect();
-    // Показать/скрыть панель пресетов
     const panel = document.getElementById('matrixPresetPanel');
     if (panel) panel.style.display = showPresets ? 'flex' : 'none';
     modal.classList.add('open');
@@ -634,13 +633,13 @@ function renderMatrix() {
     allTargets = unique;
     if (tgtFilter) allTargets = allTargets.filter(t => t.name.toLowerCase().includes(tgtFilter));
 
-    // Базовый размер ячейки (при зуме 1)
+    // Базовые размеры (при зуме 1)
     const baseColWidth = 90;
     const baseFontSize = 13;
     const basePadding = 4;
     const baseHeight = 32;
 
-    // Масштабируем всё пропорционально matrixZoomLevel
+    // Применяем текущий зум
     const colWidth = Math.round(baseColWidth * matrixZoomLevel);
     const fontSize = baseFontSize * matrixZoomLevel;
     const padding = Math.round(basePadding * matrixZoomLevel);
@@ -672,7 +671,6 @@ function renderMatrix() {
                 if (source.full === target.full) {
                     html += `<td class="matrix-cell matrix-diagonal" style="width:${colWidth}px; min-width:${colWidth}px; max-width:${colWidth}px; padding:${padding}px; height:${height}px; font-size:${fontSize}px;">—</td>`;
                 } else {
-                    // Собираем все привязки от всех источников к этой цели
                     const allLinks = [];
                     for (let src in links) {
                         const lnk = links[src].find(l => l.target === target.full);
@@ -706,7 +704,24 @@ function renderMatrix() {
     });
     html += '</tbody></table></div>';
     container.innerHTML = html;
-    updateMatrixZoom();
+}
+
+function applyMatrixZoom() {
+    const slider = document.getElementById('matrixZoomSlider');
+    if (slider) slider.value = matrixZoomLevel;
+    const label = document.getElementById('matrixZoomLevelLabel');
+    if (label) label.textContent = Math.round(matrixZoomLevel * 100) + '%';
+    renderMatrix();
+}
+
+function setupMatrixZoomSlider() {
+    const slider = document.getElementById('matrixZoomSlider');
+    if (slider) {
+        slider.addEventListener('input', function() {
+            matrixZoomLevel = parseFloat(this.value);
+            applyMatrixZoom();
+        });
+    }
 }
 
 function truncateName(name, maxLen = 10) {
@@ -734,26 +749,6 @@ function getAllItemPaths() {
     }
     traverse(editorData.inventory, []);
     return res;
-}
-
-function updateMatrixZoom() {
-    // Обновляем слайдер и метку
-    const slider = document.getElementById('matrixZoomSlider');
-    if (slider) slider.value = matrixZoomLevel;
-    const label = document.getElementById('matrixZoomLevelLabel');
-    if (label) label.textContent = Math.round(matrixZoomLevel * 100) + '%';
-    // Перерисовываем таблицу с новым масштабом
-    renderMatrix();
-}
-
-function setupMatrixZoomSlider() {
-    const slider = document.getElementById('matrixZoomSlider');
-    if (slider) {
-        slider.addEventListener('input', function() {
-            matrixZoomLevel = parseFloat(this.value);
-            updateMatrixZoom();
-        });
-    }
 }
 
 window.toggleMatrixCategory = function(catId) {
@@ -960,7 +955,6 @@ export function initMatrixHandlers() {
 
     setupMatrixZoomSlider();
 
-    // Пресеты
     const savePresetBtn = document.getElementById('matrixSavePreset');
     if (savePresetBtn) savePresetBtn.addEventListener('click', saveMatrixPreset);
 
@@ -990,7 +984,6 @@ export function initMatrixHandlers() {
         });
     }
 
-    // Заполняем select при открытии матрицы
     const modal = document.getElementById('matrixModal');
     if (modal) {
         const observer = new MutationObserver(() => {

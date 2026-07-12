@@ -87,9 +87,11 @@ function loadLibrary() {
                 if (data.truckPresets) editorData.truckPresets = data.truckPresets;
                 saveEditorData();
                 showToast('Библиотека загружена', 'success');
+                // Перерисовываем текущую страницу
                 if (currentMode === 'editor') renderEditorAll();
-                if (currentMode === 'order') renderOrderAll();
-                if (currentMode === 'loading') renderLoadingPage();
+                else if (currentMode === 'order') renderOrderAll();
+                else if (currentMode === 'loading') renderLoadingPage();
+                // На странице открытия и меню ничего не перерисовываем
             } catch(err) {
                 showToast('Ошибка: ' + err.message, 'error');
             }
@@ -109,7 +111,7 @@ async function resetLibrary() {
     location.reload();
 }
 
-// Заглушки для пресетов (можно будет реализовать позже)
+// Заглушки для пресетов (заменены полноценными функциями в render-order.js)
 function savePreset() { showToast('Сохранение пресета (заглушка)', 'neutral'); }
 function loadPreset() { showToast('Загрузка пресета (заглушка)', 'neutral'); }
 function exportPresets() { showToast('Экспорт пресетов (заглушка)', 'neutral'); }

@@ -172,7 +172,6 @@ function renderOrderCategory(catKey, filterQuery = '') {
     container.innerHTML = '';
     container.appendChild(wrapper);
 
-    // Если поиск активен, строим полный список и фильтруем
     const query = (filterQuery || searchQueryOrder || '').toLowerCase().trim();
     const isSearchMode = !!query;
 
@@ -187,7 +186,6 @@ function renderOrderCategory(catKey, filterQuery = '') {
             wrapper.innerHTML = '<div class="empty-message">Ничего не найдено</div>';
             return;
         }
-        // Группируем по категориям
         const grouped = {};
         filteredPaths.forEach(path => {
             const cat = path.split('|')[0];
@@ -204,14 +202,11 @@ function renderOrderCategory(catKey, filterQuery = '') {
             });
         });
         wrapper.innerHTML = html;
-        // Устанавливаем флаг, что мы в режиме поиска
         searchModeOrder = true;
         currentOrderCategory = 'all';
     } else {
-        // Обычный режим — показываем выбранную категорию
         searchModeOrder = false;
         if (catKey === 'all') {
-            // Если вдруг all без поиска — показываем первую категорию
             const first = editorData._categoryOrder?.[0] || Object.keys(editorData.inventory)[0];
             if (first) {
                 currentOrderCategory = first;
@@ -310,7 +305,6 @@ function buildItemRow(fullPath, level) {
     const individualVals = getIndividualCaseValues(fullPath);
     const options = getCaseOptions(fullPath);
 
-    // Определяем статус для кнопки "Кофры"
     let caseStatusText = 'Кофры';
     let caseStatusClass = '';
     if (hasCommonPacking) {
@@ -379,7 +373,7 @@ function buildItemRow(fullPath, level) {
         });
     }
 
-    // === Дочерние строки для мульти-режима ===
+    // Дочерние строки для мульти-режима
     if (isMulti && options.length > 1) {
         html += `<div class="child-row" data-parent="${esc(fullPath)}">`;
         html += `<div style="padding:4px 8px;font-size:13px;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">Распределение по вариантам кофров (сумма: ${individualVals.reduce((a,b)=>a+b,0)} шт)</div>`;
@@ -394,7 +388,7 @@ function buildItemRow(fullPath, level) {
         html += `</div>`;
     }
 
-    // === Дочерние строки для общих кофров ===
+    // Дочерние строки для общих кофров
     if (hasCommonPacking) {
         const commonCases = getCommonCases();
         html += `<div class="child-row" data-parent="${esc(fullPath)}">`;
@@ -422,7 +416,6 @@ function buildItemRow(fullPath, level) {
 function buildInfoHtml(path, props, mode) {
     let html = `<div style="display:flex;flex-wrap:wrap;gap:12px;">`;
     
-    // Вес, габариты, объём позиции
     const weightPerUnit = (props.weight !== undefined && props.weight !== null) ? props.weight + ' кг' : 'н/д';
     html += `<span><strong>Вес 1 шт:</strong> ${weightPerUnit}</span>`;
     const dims = props.dimensions || 'н/д';
@@ -431,7 +424,6 @@ function buildInfoHtml(path, props, mode) {
         html += `<span><strong>Объём 1 шт:</strong> ${props.volume} м³</span>`;
     }
 
-    // Индивидуальные кофры (варианты)
     const options = getCaseOptions(path);
     if (options.length > 0) {
         html += `<div style="width:100%;"><strong>Индивидуальные кофры (варианты):</strong></div>`;
@@ -449,7 +441,6 @@ function buildInfoHtml(path, props, mode) {
         });
     }
 
-    // Статус режимов
     const isMulti = localStorage.getItem('multi_' + path) === 'true';
     const hasAlt = !!mode.alt;
     const packing = getOrderPacking(path);
@@ -463,7 +454,6 @@ function buildInfoHtml(path, props, mode) {
         ${hasCommonPacking ? `<span style="margin-left:12px;">📦 Общие кофры (${packing.length} шт)</span>` : ''}
     </div>`;
 
-    // Привязка к общим кофрам (детали)
     if (hasCommonPacking) {
         const commonCases = getCommonCases();
         html += `<div style="width:100%;padding-left:12px;font-size:13px;color:var(--text-secondary);">
@@ -481,7 +471,7 @@ function buildInfoHtml(path, props, mode) {
 }
 
 // ============================================================
-// ДЕЛЕГИРОВАНИЕ СОБЫТИЙ (добавлена обработка дочерних полей)
+// ДЕЛЕГИРОВАНИЕ СОБЫТИЙ
 // ============================================================
 function setupEventDelegation() {
     const container = document.getElementById('categoryContents');
@@ -550,7 +540,6 @@ function handleContainerClick(e) {
         return;
     }
 
-    // Удаление привязки к общему кофру
     const removeBtn = e.target.closest('.remove-common-pack');
     if (removeBtn) {
         const path = removeBtn.dataset.path;
@@ -597,7 +586,6 @@ function handleContainerInput(e) {
         return;
     }
 
-    // Дочерние поля для мульти-режима
     const childQty = e.target.closest('.child-qty');
     if (childQty) {
         const path = childQty.dataset.path;
@@ -608,14 +596,12 @@ function handleContainerInput(e) {
         const vals = getIndividualCaseValues(path);
         vals[idx] = val;
         setIndividualCaseValues(path, vals);
-        // Пересчитываем общее количество как сумму
         const total = vals.reduce((a,b) => a + b, 0);
         setValueOrder(path, total);
         updateRowOrder(path);
         return;
     }
 
-    // Дочерние поля для общих кофров
     const childCommon = e.target.closest('.child-common-qty');
     if (childCommon) {
         const path = childCommon.dataset.path;
@@ -629,9 +615,6 @@ function handleContainerInput(e) {
             packing[idx].qty = val;
             setOrderPacking(path, packing);
             saveOrderData();
-            // Пересчитываем общее количество как сумму по кофрам
-            // (здесь нужно пересчитать общее количество, но оно может быть не равно сумме, т.к. это количество единиц позиции в кофре)
-            // Пока просто обновляем отображение
             updateRowOrder(path);
         }
         return;
@@ -656,9 +639,7 @@ function handleContainerInput(e) {
     }
 }
 
-function handleContainerChange(e) {
-    // Для select и других элементов, если нужно
-}
+function handleContainerChange(e) {}
 
 // ============================================================
 // ОБРАБОТЧИКИ КНОПОК
@@ -747,7 +728,7 @@ function handleDropdownItemOrder(item) {
 }
 
 // ============================================================
-// ОБНОВЛЕНИЕ СТРОКИ (с обновлением индикации кнопок и дочерних строк)
+// ОБНОВЛЕНИЕ СТРОКИ (с обновлением индикации кнопок и дочерних строк без перерисовки категории)
 // ============================================================
 function updateRowOrder(path) {
     const row = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
@@ -834,26 +815,65 @@ function updateRowOrder(path) {
         caseBtn.textContent = statusText;
         caseBtn.className = 'action-btn case-btn ' + (isOn ? 'active ' : '') + statusClass;
     }
-    // Обновляем дочерние строки (мульти и общие)
-    updateChildRows(path);
-    renderCommonCaseIndicatorsOrder();
+    // Обновляем дочерние строки без перерисовки всей категории
+    updateChildRowsForPath(path);
 }
 
-function updateChildRows(path) {
+function updateChildRowsForPath(path) {
     const parentRow = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
     if (!parentRow) return;
-    // Удаляем старые дочерние строки (они идут сразу после parentRow)
+    // Удаляем старые дочерние строки
     let next = parentRow.nextElementSibling;
     while (next && next.classList.contains('child-row')) {
         const toRemove = next;
         next = next.nextElementSibling;
         toRemove.remove();
     }
-    // Вставляем новые дочерние строки, используя buildItemRow, но без пересоздания всей строки
-    // Вместо этого мы можем пересоздать всю строку через replace
-    // Но проще перерисовать всю категорию (но это дорого). Для простоты перерисуем только эту строку.
-    // Временно перерисуем всю категорию.
-    renderOrderCategory(currentOrderCategory);
+    // Создаём новые дочерние строки на основе текущих данных
+    const mode = getCaseMode(path);
+    const options = getCaseOptions(path);
+    const isMulti = localStorage.getItem('multi_' + path) === 'true';
+    const packing = getOrderPacking(path);
+    const hasCommonPacking = packing.length > 0;
+    const individualVals = getIndividualCaseValues(path);
+
+    if (isMulti && options.length > 1) {
+        const childDiv = document.createElement('div');
+        childDiv.className = 'child-row';
+        childDiv.dataset.parent = path;
+        let html = `<div style="padding:4px 8px;font-size:13px;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">Распределение по вариантам кофров (сумма: ${individualVals.reduce((a,b)=>a+b,0)} шт)</div>`;
+        options.forEach((opt, idx) => {
+            const val = individualVals[idx] || 0;
+            html += `<div class="child-controls">
+                <label>Вариант ${idx+1} (вм. ${opt.qty} шт):</label>
+                <input type="number" class="child-qty" data-path="${path}" data-idx="${idx}" value="${val}" min="0" step="1">
+                <span class="child-info">габ: ${opt.dims || 'н/д'}, вес: ${opt.weight || 0} кг</span>
+            </div>`;
+        });
+        childDiv.innerHTML = html;
+        parentRow.after(childDiv);
+    }
+
+    if (hasCommonPacking) {
+        const commonCases = getCommonCases();
+        const childDiv = document.createElement('div');
+        childDiv.className = 'child-row';
+        childDiv.dataset.parent = path;
+        let html = `<div style="padding:4px 8px;font-size:13px;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">Упаковка в общие кофры</div>`;
+        packing.forEach((p, idx) => {
+            const c = commonCases.find(c => c.id === p.caseId);
+            const name = c ? c.name : 'удалённый кофр';
+            const qty = p.qty || 0;
+            html += `<div class="child-controls">
+                <label>${name} (вм. ${c ? c.qty : '?'} шт):</label>
+                <input type="number" class="child-common-qty" data-path="${path}" data-caseid="${p.caseId}" value="${qty}" min="0" step="1">
+                <span class="child-info">габ: ${c ? c.dimensions || 'н/д' : 'н/д'}, вес: ${c ? c.emptyWeight || 0 : 0} кг</span>
+                <button class="btn btn-sm remove-common-pack" style="background:var(--danger);color:white;padding:0 8px;font-size:12px;" data-path="${path}" data-caseid="${p.caseId}">✕</button>
+            </div>`;
+        });
+        childDiv.innerHTML = html;
+        parentRow.after(childDiv);
+    }
 }
 
 // ============================================================
