@@ -1,4 +1,4 @@
-// render-order.js — Отрисовка страницы создания заказа (полная, стабильная версия)
+// render-order.js — Отрисовка страницы создания заказа (оптимизированная, быстрая)
 import {
     editorData,
     getStock,
@@ -55,6 +55,7 @@ let detailsOpen = false;
 const infoBlocksOpen = {};
 
 let flatItemsCache = null;
+let eventDelegationInitialized = false;
 
 // ============================================================
 // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
@@ -83,7 +84,7 @@ function setValue(path, val) {
 }
 
 // ============================================================
-// ПОСТРОЕНИЕ ПЛОСКОГО СПИСКА (без рекурсии)
+// ПОСТРОЕНИЕ ПЛОСКОГО СПИСКА (без рекурсии, кешируется)
 // ============================================================
 function buildFlatItemsList() {
     if (flatItemsCache) return flatItemsCache;
@@ -146,8 +147,6 @@ function renderOrderTabs() {
             currentCategory = key;
             renderOrderTabs();
             renderOrderCategory(key);
-            setupInputListeners();
-            setupActionButtons();
             updateTotals();
             updateLinkCount();
         });
@@ -159,7 +158,7 @@ function renderOrderTabs() {
 }
 
 // ============================================================
-// РЕНДЕРИНГ КАТЕГОРИИ (плоский список)
+// РЕНДЕРИНГ КАТЕГОРИИ (оптимизированный)
 // ============================================================
 function renderOrderCategory(catKey) {
     const container = document.getElementById('categoryContents');
@@ -185,6 +184,7 @@ function renderOrderCategory(catKey) {
         return;
     }
 
+    // Строим HTML
     let html = '';
     filteredPaths.forEach(path => {
         html += buildItemRow(path, 1);
@@ -192,12 +192,13 @@ function renderOrderCategory(catKey) {
 
     container.innerHTML = html;
 
-    setupInputListeners();
-    setupActionButtons();
-    document.querySelectorAll('#categoryContents .row').forEach(row => {
-        const path = row.dataset.path;
-        if (path) { updateRow(path); }
-    });
+    // Инициализируем делегирование событий (один раз)
+    if (!eventDelegationInitialized) {
+        setupEventDelegation();
+        eventDelegationInitialized = true;
+    }
+
+    // Обновляем итоги
     if (!searchMode) updateCategoryTotals(catKey);
     updateTotals();
     updateLinkCount();
@@ -292,57 +293,82 @@ function buildInfoHtml(path, props, mode) {
 }
 
 // ============================================================
-// УПРАВЛЕНИЕ КОЛИЧЕСТВОМ (через делегирование)
+// ДЕЛЕГИРОВАНИЕ СОБЫТИЙ (вместо навешивания на каждый элемент)
 // ============================================================
-function setupQuantityDelegation() {
-    document.removeEventListener('click', handleQuantityClick);
-    document.addEventListener('click', handleQuantityClick);
+function setupEventDelegation() {
+    const container = document.getElementById('categoryContents');
+    container.removeEventListener('click', handleContainerClick);
+    container.addEventListener('click', handleContainerClick);
+    container.removeEventListener('input', handleContainerInput);
+    container.addEventListener('input', handleContainerInput);
 }
 
-function handleQuantityClick(e) {
+function handleContainerClick(e) {
     const target = e.target.closest('.qty-btn');
-    if (!target) return;
-    const path = target.dataset.path;
-    const delta = parseInt(target.dataset.delta);
-    if (!path || isNaN(delta)) return;
-    const row = target.closest('.row');
-    const inp = row.querySelector('.qty-input');
-    if (!inp) return;
-    let val = parseInt(inp.value) || 0;
-    val = Math.max(0, val + delta);
-    inp.value = val;
-    setValue(path, val);
-    updateRow(path);
+    if (target) {
+        const path = target.dataset.path;
+        const delta = parseInt(target.dataset.delta);
+        if (path && !isNaN(delta)) {
+            const row = target.closest('.row');
+            const inp = row.querySelector('.qty-input');
+            if (inp) {
+                let val = parseInt(inp.value) || 0;
+                val = Math.max(0, val + delta);
+                inp.value = val;
+                setValue(path, val);
+                updateRow(path);
+            }
+        }
+        return;
+    }
+
+    const infoBtn = e.target.closest('.info-btn');
+    if (infoBtn) {
+        toggleInfo(infoBtn);
+        return;
+    }
+
+    const descBtn = e.target.closest('.desc-btn');
+    if (descBtn) {
+        toggleDesc(descBtn);
+        return;
+    }
+
+    const linkBtn = e.target.closest('.link-btn');
+    if (linkBtn) {
+        openLink(linkBtn);
+        return;
+    }
+
+    const caseBtn = e.target.closest('.case-btn');
+    if (caseBtn) {
+        openCaseSettings(caseBtn);
+        return;
+    }
+
+    const noteBtn = e.target.closest('.note-btn');
+    if (noteBtn) {
+        openNoteEditor(noteBtn);
+        return;
+    }
+}
+
+function handleContainerInput(e) {
+    const target = e.target.closest('.qty-input');
+    if (target) {
+        const path = target.dataset.path;
+        let val = parseInt(target.value);
+        if (isNaN(val) || val < 0) val = 0;
+        target.value = val;
+        setValue(path, val);
+        updateRow(path);
+    }
 }
 
 // ============================================================
-// НАСТРОЙКА КНОПОК В СТРОКЕ
+// ФУНКЦИИ-ОБРАБОТЧИКИ (для делегирования)
 // ============================================================
-function setupActionButtons() {
-    document.querySelectorAll('#categoryContents .info-btn').forEach(btn => {
-        btn.removeEventListener('click', toggleInfo);
-        btn.addEventListener('click', toggleInfo);
-    });
-    document.querySelectorAll('#categoryContents .desc-btn').forEach(btn => {
-        btn.removeEventListener('click', toggleDesc);
-        btn.addEventListener('click', toggleDesc);
-    });
-    document.querySelectorAll('#categoryContents .link-btn').forEach(btn => {
-        btn.removeEventListener('click', openLink);
-        btn.addEventListener('click', openLink);
-    });
-    document.querySelectorAll('#categoryContents .case-btn').forEach(btn => {
-        btn.removeEventListener('click', openCaseSettings);
-        btn.addEventListener('click', openCaseSettings);
-    });
-    document.querySelectorAll('#categoryContents .note-btn').forEach(btn => {
-        btn.removeEventListener('click', openNoteEditor);
-        btn.addEventListener('click', openNoteEditor);
-    });
-}
-
-function toggleInfo(e) {
-    const btn = e.currentTarget;
+function toggleInfo(btn) {
     const path = btn.dataset.path;
     const row = btn.closest('.row');
     let infoBlock = row.querySelector('.row-info');
@@ -365,8 +391,7 @@ function toggleInfo(e) {
     }
 }
 
-function toggleDesc(e) {
-    const btn = e.currentTarget;
+function toggleDesc(btn) {
     const path = btn.dataset.path;
     const block = document.querySelector(`.desc-block[data-path="${path}"]`);
     if (block) {
@@ -375,16 +400,14 @@ function toggleDesc(e) {
     }
 }
 
-function openLink(e) {
-    const btn = e.currentTarget;
+function openLink(btn) {
     const path = btn.dataset.path;
     import('./cases.js').then(module => {
         module.openMatrixModal(path);
     });
 }
 
-function openCaseSettings(e) {
-    const btn = e.currentTarget;
+function openCaseSettings(btn) {
     const path = btn.dataset.path;
     import('./cases.js').then(module => {
         module.openCaseSettingsModal(path, () => {
@@ -395,8 +418,7 @@ function openCaseSettings(e) {
     });
 }
 
-async function openNoteEditor(e) {
-    const btn = e.currentTarget;
+async function openNoteEditor(btn) {
     const path = btn.dataset.path;
     const current = notes[path] || '';
     const newNote = await showPrompt('Редактировать заметку', 'Заметка:', current);
@@ -411,7 +433,7 @@ async function openNoteEditor(e) {
 }
 
 // ============================================================
-// ИНКРЕМЕНТАЛЬНОЕ ОБНОВЛЕНИЕ СТРОКИ
+// ИНКРЕМЕНТАЛЬНОЕ ОБНОВЛЕНИЕ СТРОКИ (только для изменённой)
 // ============================================================
 function updateRow(path) {
     const row = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
@@ -459,7 +481,7 @@ function updateRow(path) {
 }
 
 // ============================================================
-// ОБНОВЛЕНИЕ ИТОГОВ
+// ОБНОВЛЕНИЕ ИТОГОВ (без изменений)
 // ============================================================
 function updateCategoryTotals(catKey) {
     const container = document.querySelector('#categoryContents .category-content.active');
@@ -561,25 +583,8 @@ function clearSearch() {
 }
 
 // ============================================================
-// ОБРАБОТЧИКИ ВВОДА
+// ОБНОВЛЕНИЕ СЧЁТЧИКА ССЫЛОК
 // ============================================================
-function setupInputListeners() {
-    document.querySelectorAll('#categoryContents .qty-input').forEach(inp => {
-        inp.removeEventListener('input', handleQtyInput);
-        inp.addEventListener('input', handleQtyInput);
-    });
-}
-
-function handleQtyInput(e) {
-    const inp = e.target;
-    const path = inp.dataset.path;
-    let val = parseInt(inp.value);
-    if (isNaN(val) || val < 0) val = 0;
-    inp.value = val;
-    setValue(path, val);
-    updateRow(path);
-}
-
 function updateLinkCount() {
     let count = 0;
     for (let src in links) count += links[src].length;
@@ -734,13 +739,13 @@ export async function clearOrderData() {
 // ============================================================
 export function renderOrderAll() {
     flatItemsCache = null;
+    eventDelegationInitialized = false; // позволит переинициализировать при необходимости
     loadOrderData();
     document.getElementById('pComment').value = localStorage.getItem('last_comment') || '';
     const savedDate = localStorage.getItem('last_date');
     if (savedDate) document.getElementById('pDate').value = savedDate;
     renderOrderTabs();
     renderOrderCategory(currentCategory);
-    setupQuantityDelegation();
 }
 
 // ============================================================
