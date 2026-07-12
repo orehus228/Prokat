@@ -4,7 +4,8 @@ export const STORAGE_KEYS = {
     ORDER_DATA: 'app_order_data',
     OPEN_STATE: 'open_state',
     UI_STATE: 'app_ui_state',
-    ORDER_PRESETS: 'order_presets'
+    ORDER_PRESETS: 'order_presets',
+    MATRIX_PRESETS: 'matrix_presets'
 };
 
 export const CAT_NAMES = {

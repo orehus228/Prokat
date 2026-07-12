@@ -35,6 +35,10 @@
     --btn-import-hover: #4a5a6a;
     --btn-reset: #5a3a3a;
     --btn-reset-hover: #6a4a4a;
+    --color-info: #4a8a5a;
+    --color-link: #4a6a9a;
+    --color-case: #b57a2a;
+    --color-note: #b55a5a;
 }
 
 [data-theme="light"] {
@@ -73,6 +77,10 @@
     --btn-import-hover: #b0c0d0;
     --btn-reset: #e0c0c0;
     --btn-reset-hover: #d0b0b0;
+    --color-info: #3a8a4a;
+    --color-link: #3a5a8a;
+    --color-case: #b58a2a;
+    --color-note: #b55a5a;
 }
 
 * {
@@ -670,6 +678,7 @@ body {
     cursor: help;
 }
 
+/* ===== Цветные кнопки действий в строках позиций ===== */
 .action-btn {
     background: none;
     border: 1px solid var(--border-light);
@@ -689,12 +698,43 @@ body {
     border-color: var(--accent);
     color: var(--accent);
 }
+/* Инфо — зелёный */
 .action-btn.info-btn {
-    border-color: var(--accent);
+    border-color: var(--color-info);
+    color: var(--color-info);
 }
 .action-btn.info-btn:hover {
-    background: var(--bg-active);
+    background: var(--color-info);
+    color: #fff;
 }
+/* Линк — синий */
+.action-btn.link-btn {
+    border-color: var(--color-link);
+    color: var(--color-link);
+}
+.action-btn.link-btn:hover {
+    background: var(--color-link);
+    color: #fff;
+}
+/* Кофры — оранжевый */
+.action-btn.case-btn {
+    border-color: var(--color-case);
+    color: var(--color-case);
+}
+.action-btn.case-btn:hover {
+    background: var(--color-case);
+    color: #fff;
+}
+/* Заметка — красный */
+.action-btn.note-btn {
+    border-color: var(--color-note);
+    color: var(--color-note);
+}
+.action-btn.note-btn:hover {
+    background: var(--color-note);
+    color: #fff;
+}
+
 .weight-vol-display {
     font-size: 13px;
     color: var(--text-secondary);

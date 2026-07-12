@@ -33,8 +33,6 @@
     <input type="date" id="pDate" class="input-field">
     <textarea id="pComment" class="input-textarea" placeholder="Комментарий"></textarea>
     <div style="margin-bottom:15px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
-        <button class="btn btn-purple" id="togglePropsBtn">Показать свойства</button>
-        <span style="font-size:14px;color:#888;" id="propsStatus">(свойства скрыты)</span>
         <button class="matrix-btn" id="openMatrixModal">Матрица привязок</button>
         <span style="font-size:14px;color:#888;" id="linkCount">(0 активных)</span>
         <button class="matrix-btn" id="openCommonCasesManager">Общие кофры</button>
@@ -240,6 +238,17 @@
             <span style="color:var(--text-secondary);">Масштаб:</span>
             <input type="range" id="matrixZoomSlider" min="0.5" max="2" step="0.05" value="1">
             <span id="matrixZoomLevelLabel" style="min-width:50px;text-align:center;color:var(--text-secondary);">100%</span>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+            <button class="btn btn-sm" id="matrixSavePreset">Сохранить пресет</button>
+            <button class="btn btn-sm" id="matrixLoadPreset">Загрузить пресет</button>
+            <button class="btn btn-sm" id="matrixDeletePreset">Удалить пресет</button>
+            <button class="btn btn-sm" id="matrixExportPresets">Экспорт пресетов</button>
+            <button class="btn btn-sm" id="matrixImportPresets">Импорт пресетов</button>
+            <input type="file" id="matrixPresetFileInput" style="display:none" accept=".json">
+            <select id="matrixPresetSelect" style="flex:1;padding:6px 10px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);">
+                <option value="">— Выберите пресет —</option>
+            </select>
         </div>
         <div class="table-wrap" id="matrixContainer" style="overflow:auto;max-height:60vh;"></div>
         <div class="buttons" style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
