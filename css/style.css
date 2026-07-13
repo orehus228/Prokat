@@ -596,35 +596,37 @@ body {
     font-size: 13px;
 }
 
-/* ===== СТРОКИ ПОЗИЦИЙ (CSS Grid) ===== */
+/* ===== СТРОКИ ПОЗИЦИЙ (горизонтальные строки, наведение только на одну) ===== */
 .row {
-    display: grid;
-    grid-template-columns: 1fr auto auto;
+    display: flex;
+    flex-direction: row;
     align-items: center;
-    gap: 12px;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
     padding: 6px 0;
     border-bottom: 1px solid var(--border-color);
     transition: background 0.2s;
     border-radius: 4px;
+    width: 100%;
 }
-/* Убираем границу у последней строки */
 .row:last-child {
     border-bottom: none;
 }
-/* Наведение только на одну строку */
 .row:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.06);
 }
 [data-theme="light"] .row:hover {
     background: rgba(0, 0, 0, 0.04);
 }
 
-/* Колонка названия (первая) */
+/* Левая часть: название + доп.информация */
 .row .name-area {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    min-width: 0;
+    flex: 1 1 200px;
+    min-width: 150px;
     gap: 2px;
 }
 .row .name {
@@ -643,21 +645,20 @@ body {
     white-space: nowrap;
 }
 
-/* Колонка кнопок (вторая) */
+/* Центральная часть: кнопки действий */
 .row .action-buttons {
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
-    flex-shrink: 0;
-    justify-content: flex-start;
+    flex: 0 1 auto;
 }
 
-/* Колонка контрола количества (третья) */
+/* Правая часть: контрол количества */
 .row .qty-controls {
     display: flex;
     align-items: center;
     gap: 4px;
-    flex-shrink: 0;
+    flex: 0 1 auto;
     justify-content: flex-end;
     flex-wrap: wrap;
 }
@@ -697,7 +698,7 @@ body {
 .row.overstock {
     border-left: 4px solid var(--danger);
 }
-/* При наведении на added/overstock сохраняем индикацию */
+/* При наведении на added/overstock сохраняем индикацию, но не перекрываем */
 .row.added:hover {
     background: var(--added-bg) !important;
 }
@@ -783,7 +784,7 @@ body {
     color: #fff;
 }
 
-/* Блок описания и информации */
+/* Блок описания и информации (занимает всю ширину) */
 .row-info {
     margin-top: 6px;
     padding: 8px 12px;
@@ -792,7 +793,8 @@ body {
     font-size: 13px;
     color: var(--text-secondary);
     border-left: 3px solid var(--accent);
-    grid-column: 1 / -1; /* занимает всю ширину */
+    width: 100%;
+    flex-basis: 100%;
 }
 .row-info > div {
     display: flex;
@@ -811,7 +813,8 @@ body {
     color: var(--text-secondary);
     margin: 4px 0 4px 20px;
     border-left: 3px solid var(--accent);
-    grid-column: 1 / -1;
+    width: 100%;
+    flex-basis: 100%;
 }
 .desc-block.open {
     display: block;
@@ -909,6 +912,8 @@ body {
     margin: 4px 0 4px 20px;
     background: var(--bg-secondary);
     border-radius: 4px;
+    width: 100%;
+    flex-basis: 100%;
 }
 .child-row .child-controls {
     display: flex;
