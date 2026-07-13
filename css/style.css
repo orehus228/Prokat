@@ -910,11 +910,18 @@ body {
     display: none;
     align-items: center;
     justify-content: center;
-    z-index: 1300; /* Повышен, чтобы быть поверх матрицы */
     padding: 16px;
 }
 .modal-overlay.open {
     display: flex;
+}
+/* Модалка ввода множителя поверх матрицы */
+#modalOverlay {
+    z-index: 1400 !important;
+}
+/* Остальные модалки (свойства, настройки, управление) — ниже матрицы, но выше обычного контента */
+.modal-overlay:not(#modalOverlay) {
+    z-index: 1100;
 }
 .modal {
     background: var(--bg-card);
@@ -1040,6 +1047,7 @@ body {
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    z-index: 1200; /* матрица выше обычных модалок, но ниже #modalOverlay */
 }
 #matrixModal .table-wrap {
     overflow: auto;
@@ -1165,7 +1173,6 @@ body {
     border-radius: 4px;
     color: var(--text-primary);
 }
-/* Убрали ползунок, добавили кнопки масштаба */
 .matrix-zoom-controls {
     display: flex;
     gap: 8px;
