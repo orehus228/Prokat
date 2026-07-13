@@ -1047,7 +1047,7 @@ body {
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    z-index: 1200; /* матрица выше обычных модалок, но ниже #modalOverlay */
+    z-index: 1200;
 }
 #matrixModal .table-wrap {
     overflow: auto;
@@ -1095,7 +1095,7 @@ body {
     background: var(--bg-card);
 }
 .matrix-table th:first-child {
-    z-index: 15; /* выше, чем ячейки */
+    z-index: 20; /* выше заголовков целей и ячеек */
 }
 .matrix-table td:first-child {
     z-index: 5;

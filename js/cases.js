@@ -49,7 +49,27 @@ let caseSettingsCallback = null;
 let matrixZoomLevel = 1;
 let openCategories = [];
 let scrollToPath = null;
-let matrixFullNames = false;
+let matrixFullNames = true; // по умолчанию включено
+
+const MATRIX_PRESETS_KEY = STORAGE_KEYS.MATRIX_PRESETS || 'matrix_presets';
+const MATRIX_FULLNAMES_KEY = 'matrix_full_names';
+
+// Загрузка состояния полных названий
+function loadMatrixFullNames() {
+    try {
+        const val = localStorage.getItem(MATRIX_FULLNAMES_KEY);
+        if (val !== null) {
+            matrixFullNames = val === 'true';
+        }
+    } catch (e) {
+        matrixFullNames = true;
+    }
+}
+loadMatrixFullNames();
+
+function saveMatrixFullNames() {
+    localStorage.setItem(MATRIX_FULLNAMES_KEY, String(matrixFullNames));
+}
 
 // ============================================================
 // МОДАЛКА СВОЙСТВ ПОЗИЦИИ
@@ -572,8 +592,6 @@ export function initCasesManagerOverlayClose() {
 // ============================================================
 // МАТРИЦА ПРИВЯЗОК (с пресетами, фиксированной шириной, сохранением категорий, прокруткой)
 // ============================================================
-const MATRIX_PRESETS_KEY = STORAGE_KEYS.MATRIX_PRESETS || 'matrix_presets';
-
 function getMatrixPresets() {
     try {
         const raw = localStorage.getItem(MATRIX_PRESETS_KEY);
@@ -658,7 +676,7 @@ function renderMatrix() {
     const sourceWidth = matrixFullNames ? Math.max(200, colWidth * 2) : colWidth;
 
     let html = `<div class="matrix-table-wrapper"><table class="matrix-table" style="font-size:${fontSize}px; table-layout:fixed; width:100%;">`;
-    html += `<thead><tr><th class="matrix-header" style="width:${sourceWidth}px; min-width:${sourceWidth}px; max-width:${sourceWidth}px; padding:${padding}px; height:${height}px; font-size:${fontSize}px; position:sticky; left:0; z-index:15;">Источник \\ Цель</th>`;
+    html += `<thead><tr><th class="matrix-header" style="width:${sourceWidth}px; min-width:${sourceWidth}px; max-width:${sourceWidth}px; padding:${padding}px; height:${height}px; font-size:${fontSize}px; position:sticky; left:0; z-index:20;">Источник \\ Цель</th>`;
     allTargets.forEach(target => {
         const displayName = matrixFullNames ? target.name : truncateName(target.name);
         html += `<th class="matrix-header" style="width:${colWidth}px; min-width:${colWidth}px; max-width:${colWidth}px; padding:${padding}px; height:${height}px; font-size:${fontSize}px;" title="${esc(target.name)}">${displayName}</th>`;
@@ -712,7 +730,7 @@ function renderMatrix() {
     html += '</tbody></table></div>';
     container.innerHTML = html;
 
-    // Добавляем переключатель полных названий, если его нет
+    // Переключатель полных названий (если его нет, создаём)
     const zoomControls = document.querySelector('.matrix-zoom-controls');
     if (zoomControls && !document.getElementById('matrixNameToggle')) {
         const toggleDiv = document.createElement('div');
@@ -725,6 +743,7 @@ function renderMatrix() {
         `;
         toggleDiv.querySelector('input').addEventListener('change', function() {
             matrixFullNames = this.checked;
+            saveMatrixFullNames();
             renderMatrix();
         });
         zoomControls.after(toggleDiv);
