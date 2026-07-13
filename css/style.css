@@ -596,14 +596,14 @@ body {
     font-size: 13px;
 }
 
-/* ===== СТРОКИ ПОЗИЦИЙ (горизонтальные строки, наведение только на одну) ===== */
+/* ===== СТРОКИ ПОЗИЦИЙ (горизонтальные строки, фиксированная структура) ===== */
 .row {
     display: flex;
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 8px 12px;
     padding: 6px 0;
     border-bottom: 1px solid var(--border-color);
     border-radius: 4px;
@@ -614,7 +614,6 @@ body {
 .row:last-child {
     border-bottom: none;
 }
-/* Наведение только на конкретную строку */
 .row:hover {
     background: rgba(255, 255, 255, 0.06);
 }
@@ -653,14 +652,17 @@ body {
     flex-wrap: wrap;
     gap: 4px;
     flex: 0 1 auto;
+    order: 1; /* чтобы кнопки были между названием и контролом */
 }
 
-/* Правая часть: контрол количества */
+/* Правая часть: контрол количества (всегда прижат к правому краю) */
 .row .qty-controls {
     display: flex;
     align-items: center;
     gap: 4px;
     flex: 0 1 auto;
+    order: 2;
+    margin-left: auto;
     justify-content: flex-end;
     flex-wrap: wrap;
 }
@@ -711,16 +713,13 @@ body {
     background: var(--overstock-bg) !important;
 }
 
-/* Остальные элементы */
-.weight-vol-display {
-    font-size: 13px;
-    color: var(--text-secondary);
-    margin-right: 8px;
+/* Убираем дублирующую информацию из контролов */
+.qty-controls .weight-vol-display,
+.qty-controls .stock-info {
+    display: none !important;
 }
-.stock-info {
-    font-size: 13px;
-    color: var(--text-secondary);
-}
+
+/* Предупреждение о переполнении */
 .overstock-warning {
     color: var(--danger);
     font-weight: bold;

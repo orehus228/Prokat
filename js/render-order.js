@@ -411,27 +411,14 @@ function buildItemRow(fullPath, level) {
             <button class="action-btn note-btn ${noteClass}" data-path="${esc(fullPath)}" title="Заметка">Заметка${hasNote ? ' ✓' : ''}</button>
         </div>
         <div class="qty-controls">
-            <span class="weight-vol-display">${weightDisplay} / ${volumeDisplay}</span>
-            <span class="stock-info">в наличии: ${sq}</span>`;
-
-    // Показываем основное поле только если не мульти и не общие кофры
-    const showMainInput = !(isMulti && mode.enabled) && !hasCommonPacking;
-    if (showMainInput) {
-        html += `<button class="btn-c qty-btn" data-path="${esc(fullPath)}" data-delta="-1">−</button>
-                <input type="number" class="qty-input" value="${totalQty}" min="0" step="1" data-path="${esc(fullPath)}">
-                <button class="btn-c qty-btn" data-path="${esc(fullPath)}" data-delta="1">+</button>`;
-    } else {
-        // Показываем только текст общего количества
-        html += `<span style="font-weight:bold;color:var(--accent);">${totalQty}</span>`;
-        if (isMulti && mode.enabled) {
-            html += ` <span style="font-size:12px;color:var(--text-secondary);">(сумма по кофрам)</span>`;
-        }
-        if (hasCommonPacking) {
-            html += ` <span style="font-size:12px;color:var(--text-secondary);">(вне кофра + в кофрах)</span>`;
-        }
-    }
-
-    html += `</div></div>`;
+            <!-- weight-vol-display и stock-info скрыты через CSS, т.к. дублируются в extra-info -->
+            <span class="weight-vol-display" style="display:none !important;">${weightDisplay} / ${volumeDisplay}</span>
+            <span class="stock-info" style="display:none !important;">в наличии: ${sq}</span>
+            <button class="btn-c qty-btn" data-path="${esc(fullPath)}" data-delta="-1">−</button>
+            <input type="number" class="qty-input" value="${totalQty}" min="0" step="1" data-path="${esc(fullPath)}">
+            <button class="btn-c qty-btn" data-path="${esc(fullPath)}" data-delta="1">+</button>
+        </div>
+    </div>`;
     if (isInfoOpen) {
         html += `<div class="row-info">${infoHtml}</div>`;
     }
@@ -450,7 +437,7 @@ function buildItemRow(fullPath, level) {
         html += `<div style="padding:4px 8px;font-size:13px;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">Распределение по вариантам кофров (сумма: ${individualVals.reduce((a,b)=>a+b,0)} шт)</div>`;
         options.forEach((opt, idx) => {
             const val = individualVals[idx] || 0;
-            const maxPossible = getStockValue(fullPath); // ограничение
+            const maxPossible = getStockValue(fullPath);
             html += `<div class="child-controls">
                 <label>Вариант ${idx+1} (вм. ${opt.qty} шт):</label>
                 <button class="btn-c child-qty-btn" data-path="${esc(fullPath)}" data-idx="${idx}" data-delta="-1">−</button>
@@ -961,7 +948,7 @@ function updateRowOrder(path) {
         totalQty = order[path] || 0;
     }
 
-    // Обновляем классы added и overstock
+    // Обновляем классы added и overstock (всегда видны)
     const isAdded = totalQty > 0;
     const isOverstock = totalQty > sq;
     row.classList.toggle('added', isAdded);
@@ -998,7 +985,7 @@ function updateRowOrder(path) {
         extraInfo.innerHTML = info;
     }
 
-    // Обновляем weight-vol-display
+    // Обновляем weight-vol-display (хотя он скрыт CSS, но на всякий случай обновим)
     const weightVolDisplay = row.querySelector('.weight-vol-display');
     if (weightVolDisplay) {
         const props = getItemProps(path);
