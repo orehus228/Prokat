@@ -1575,6 +1575,11 @@ export async function clearOrderData() {
     for (let key in caseModes) delete caseModes[key];
     for (let key in orderExclude) delete orderExclude[key];
     for (let key in orderExtra) delete orderExtra[key];
+    // Сбрасываем поиск
+    searchModeOrder = false;
+    searchQueryOrder = '';
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) searchInput.value = '';
     saveOrderData();
     renderOrderAll();
     showToast('Список очищен', 'success');
