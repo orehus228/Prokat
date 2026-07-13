@@ -606,13 +606,15 @@ body {
     gap: 8px;
     padding: 6px 0;
     border-bottom: 1px solid var(--border-color);
-    transition: background 0.2s;
     border-radius: 4px;
+    background: transparent;
+    transition: background 0.15s;
     width: 100%;
 }
 .row:last-child {
     border-bottom: none;
 }
+/* Наведение только на конкретную строку */
 .row:hover {
     background: rgba(255, 255, 255, 0.06);
 }
