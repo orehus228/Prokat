@@ -1088,7 +1088,7 @@ body {
     height: 32px;
     overflow: hidden;
     text-overflow: ellipsis;
-    border: 2px solid var(--matrix-border); /* Утолщённая граница для заголовков */
+    border: 2px solid var(--matrix-border);
 }
 .matrix-table thead th:first-child {
     z-index: 20;
@@ -1100,7 +1100,7 @@ body {
     left: 0;
     z-index: 5;
     background: var(--bg-card);
-    border: 2px solid var(--matrix-border); /* Утолщённая граница для первой колонки */
+    border: 2px solid var(--matrix-border);
     padding: 4px 6px;
     text-align: left;
     white-space: nowrap;
@@ -1114,7 +1114,7 @@ body {
 .matrix-table td:first-child {
     z-index: 5;
 }
-/* Обычные ячейки — чёткие границы */
+/* Обычные ячейки */
 .matrix-table td {
     border: 1px solid var(--matrix-border);
     padding: 4px 6px;
@@ -1347,10 +1347,10 @@ body {
         font-size: 13px;
         margin-left: 8px;
     }
-    /* Панель пресетов на мобильных — компактнее */
     #matrixPresetPanel {
         flex-wrap: wrap;
         gap: 4px;
+        padding: 4px;
     }
     #matrixPresetPanel .btn-sm {
         padding: 2px 8px;
@@ -1368,6 +1368,15 @@ body {
     }
     #matrixModal .modal {
         padding: 10px;
+    }
+    #matrixModal .filter-row {
+        flex-direction: column;
+        gap: 4px;
+    }
+    #matrixModal .filter-row input {
+        width: 100%;
+        font-size: 13px;
+        padding: 4px 8px;
     }
 }
 
@@ -1400,7 +1409,12 @@ body {
         font-size: 12px;
         margin-left: 6px;
     }
-    /* Ещё компактнее для очень маленьких экранов */
+    /* Максимально компактная панель пресетов */
+    #matrixPresetPanel {
+        flex-wrap: wrap;
+        gap: 2px;
+        padding: 2px;
+    }
     #matrixPresetPanel .btn-sm {
         padding: 1px 6px;
         font-size: 10px;
@@ -1410,12 +1424,21 @@ body {
         font-size: 10px;
         padding: 1px 4px;
         min-height: 22px;
+        flex: 1 1 100%;
     }
     #matrixPresetPanel label {
         font-size: 10px;
     }
     #matrixModal .modal {
-        padding: 6px;
+        padding: 4px;
+    }
+    #matrixModal .filter-row {
+        flex-direction: column;
+        gap: 2px;
+    }
+    #matrixModal .filter-row input {
+        font-size: 12px;
+        padding: 2px 6px;
     }
     @media (orientation: landscape) {
         .matrix-table {
@@ -1432,6 +1455,22 @@ body {
         .matrix-table td:first-child {
             min-width: 110px;
             max-width: 150px;
+        }
+        #matrixModal .modal {
+            padding: 8px;
+        }
+        #matrixPresetPanel {
+            padding: 2px 4px;
+        }
+        #matrixPresetPanel .btn-sm {
+            padding: 2px 8px;
+            font-size: 11px;
+            min-height: 26px;
+        }
+        #matrixPresetPanel select {
+            font-size: 11px;
+            padding: 2px 6px;
+            min-height: 26px;
         }
     }
 }
