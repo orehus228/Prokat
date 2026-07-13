@@ -10,6 +10,7 @@ export let individualCaseValues = {};
 export let commonRoutes = {};
 export let caseModes = {};
 export let orderExclude = {};
+export let orderExtra = {}; // количество "вне кофра" для общих кофров
 
 const STORAGE_ORDER_KEY = 'app_order_data';
 
@@ -27,6 +28,7 @@ export function loadOrderData() {
         commonRoutes = data.commonRoutes || {};
         caseModes = data.caseModes || {};
         orderExclude = data.orderExclude || {};
+        orderExtra = data.orderExtra || {};
         for (let path in caseModes) {
             const mode = caseModes[path];
             if (mode.enabled === undefined) mode.enabled = false;
@@ -49,7 +51,8 @@ export function saveOrderData() {
         individualCaseValues,
         commonRoutes,
         caseModes,
-        orderExclude
+        orderExclude,
+        orderExtra
     };
     localStorage.setItem(STORAGE_ORDER_KEY, JSON.stringify(data));
     clearCache();
@@ -60,6 +63,11 @@ export function getTotalQty(path) {
     if (orderSplits[path]) {
         total += orderSplits[path].reduce((s, seg) => s + (seg.qty || 0), 0);
     }
+    // Добавляем количество из общих кофров (packing) и "вне кофра"
+    const packing = getOrderPacking(path);
+    const extra = getOrderExtra(path);
+    total += packing.reduce((s, p) => s + (p.qty || 0), 0);
+    total += extra;
     return total;
 }
 
@@ -77,6 +85,20 @@ export function setOrderPacking(path, packing) {
         orderPacking[path] = packing;
     } else {
         delete orderPacking[path];
+    }
+    saveOrderData();
+}
+
+export function getOrderExtra(path) {
+    return orderExtra[path] || 0;
+}
+
+export function setOrderExtra(path, val) {
+    val = Math.max(0, parseInt(val) || 0);
+    if (val > 0) {
+        orderExtra[path] = val;
+    } else {
+        delete orderExtra[path];
     }
     saveOrderData();
 }
@@ -342,6 +364,10 @@ export function updateOrderPaths(oldPath, newPath) {
     if (orderExclude[oldPath] !== undefined) {
         orderExclude[newPath] = orderExclude[oldPath];
         delete orderExclude[oldPath];
+    }
+    if (orderExtra[oldPath] !== undefined) {
+        orderExtra[newPath] = orderExtra[oldPath];
+        delete orderExtra[oldPath];
     }
     saveOrderData();
 }

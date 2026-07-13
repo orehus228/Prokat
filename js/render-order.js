@@ -35,6 +35,8 @@ import {
     loadOrderData,
     getOrderPacking,
     setOrderPacking,
+    getOrderExtra,
+    setOrderExtra,
     getCommonRoutes,
     setCommonRoutes,
     getIndividualCaseValues,
@@ -43,7 +45,8 @@ import {
     getCaseOptions,
     getSelectedOption,
     updateOrderPaths,
-    orderExclude
+    orderExclude,
+    orderExtra
 } from './order.js';
 
 // ============================================================
@@ -63,6 +66,20 @@ let eventDelegationInitialized = false;
 // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 // ============================================================
 function getValue(path) {
+    // Для мульти-режима общее количество считается как сумма individualCaseValues
+    const mode = getCaseMode(path);
+    const isMulti = localStorage.getItem('multi_' + path) === 'true';
+    if (mode.enabled && isMulti) {
+        const vals = getIndividualCaseValues(path);
+        return vals.reduce((a,b) => a + b, 0);
+    }
+    // Для общих кофров: orderExtra + сумма packing
+    const packing = getOrderPacking(path);
+    if (packing.length > 0) {
+        const extra = getOrderExtra(path);
+        const packed = packing.reduce((s, p) => s + (p.qty || 0), 0);
+        return extra + packed;
+    }
     return order[path] || 0;
 }
 
@@ -76,6 +93,19 @@ function getStockValue(path) {
 
 function setValueOrder(path, val) {
     val = Math.max(0, parseInt(val) || 0);
+    // Если мульти-режим, не разрешаем менять через это поле
+    const mode = getCaseMode(path);
+    const isMulti = localStorage.getItem('multi_' + path) === 'true';
+    if (mode.enabled && isMulti) {
+        showToast('В мульти-режиме меняйте количество в дочерних полях', 'warning');
+        return;
+    }
+    // Если общие кофры, тоже запрещаем менять через основное поле
+    const packing = getOrderPacking(path);
+    if (packing.length > 0) {
+        showToast('В режиме общих кофров меняйте количество в дочерних полях', 'warning');
+        return;
+    }
     if (order[path] === val) return;
     order[path] = val;
     if (val === 0) delete order[path];
@@ -286,24 +316,35 @@ function buildCategoryHTML(data, path, level) {
 // ПОСТРОЕНИЕ СТРОКИ С ОТОБРАЖЕНИЕМ ВЕСА/ОБЪЁМА, ИНДИКАЦИЕЙ СТАТУСОВ И ДОЧЕРНИМИ СТРОКАМИ
 // ============================================================
 function buildItemRow(fullPath, level) {
-    const val = getValue(fullPath);
     const sq = getStockValue(fullPath);
     const hasDesc = !!(editorData.specs && editorData.specs[fullPath]);
     const hasLink = links[fullPath] && links[fullPath].length > 0;
     const props = getItemProps(fullPath);
     const hasCase = (props.individualCases && props.individualCases.length > 0) || props.allowCommon;
     const mode = getCaseMode(fullPath);
-    const overstock = getTotalQty(fullPath) > sq;
-    const isInfoOpen = infoBlocksOpen[fullPath] || false;
-    const totalQty = getTotalQty(fullPath);
-    const hasNote = !!(notes[fullPath] && notes[fullPath].trim());
-    const isCaseModeOn = mode.enabled || false;
     const isMulti = localStorage.getItem('multi_' + fullPath) === 'true';
     const hasAlt = !!mode.alt;
     const packing = getOrderPacking(fullPath);
     const hasCommonPacking = packing.length > 0;
     const individualVals = getIndividualCaseValues(fullPath);
     const options = getCaseOptions(fullPath);
+
+    // Вычисляем общее количество
+    let totalQty = 0;
+    if (isMulti && mode.enabled) {
+        totalQty = individualVals.reduce((a,b) => a + b, 0);
+    } else if (hasCommonPacking) {
+        const extra = getOrderExtra(fullPath);
+        const packed = packing.reduce((s, p) => s + (p.qty || 0), 0);
+        totalQty = extra + packed;
+    } else {
+        totalQty = order[fullPath] || 0;
+    }
+
+    const overstock = totalQty > sq;
+    const isInfoOpen = infoBlocksOpen[fullPath] || false;
+    const hasNote = !!(notes[fullPath] && notes[fullPath].trim());
+    const isCaseModeOn = mode.enabled || false;
 
     let caseStatusText = 'Кофры';
     let caseStatusClass = '';
@@ -356,14 +397,29 @@ function buildItemRow(fullPath, level) {
             </div>
             <div class="qty-controls">
                 <span class="weight-vol-display">${weightDisplay} / ${volumeDisplay}</span>
-                <span class="stock-info">в наличии: ${sq}</span>
-                <button class="btn-c qty-btn" data-path="${esc(fullPath)}" data-delta="-1">−</button>
-                <input type="number" class="qty-input" value="${val}" min="0" step="1" data-path="${esc(fullPath)}">
-                <button class="btn-c qty-btn" data-path="${esc(fullPath)}" data-delta="1">+</button>
-            </div>
-        </div>
-        ${isInfoOpen ? `<div class="row-info">${infoHtml}</div>` : ''}
-    </div>`;
+                <span class="stock-info">в наличии: ${sq}</span>`;
+
+    // Показываем основное поле только если не мульти и не общие кофры
+    const showMainInput = !(isMulti && mode.enabled) && !hasCommonPacking;
+    if (showMainInput) {
+        html += `<button class="btn-c qty-btn" data-path="${esc(fullPath)}" data-delta="-1">−</button>
+                <input type="number" class="qty-input" value="${totalQty}" min="0" step="1" data-path="${esc(fullPath)}">
+                <button class="btn-c qty-btn" data-path="${esc(fullPath)}" data-delta="1">+</button>`;
+    } else {
+        // Показываем только текст общего количества
+        html += `<span style="font-weight:bold;color:var(--accent);">${totalQty}</span>`;
+        if (isMulti && mode.enabled) {
+            html += ` <span style="font-size:12px;color:var(--text-secondary);">(сумма по кофрам)</span>`;
+        }
+        if (hasCommonPacking) {
+            html += ` <span style="font-size:12px;color:var(--text-secondary);">(вне кофра + в кофрах)</span>`;
+        }
+    }
+
+    html += `</div></div>`;
+    if (isInfoOpen) {
+        html += `<div class="row-info">${infoHtml}</div>`;
+    }
     if (hasDesc) {
         html += `<div class="desc-block" data-path="${esc(fullPath)}">${esc(editorData.specs[fullPath])}</div>`;
     }
@@ -374,14 +430,17 @@ function buildItemRow(fullPath, level) {
     }
 
     // Дочерние строки для мульти-режима
-    if (isMulti && options.length > 1) {
+    if (isMulti && mode.enabled && options.length > 1) {
         html += `<div class="child-row" data-parent="${esc(fullPath)}">`;
         html += `<div style="padding:4px 8px;font-size:13px;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">Распределение по вариантам кофров (сумма: ${individualVals.reduce((a,b)=>a+b,0)} шт)</div>`;
         options.forEach((opt, idx) => {
             const val = individualVals[idx] || 0;
+            const maxPossible = getStockValue(fullPath); // ограничение
             html += `<div class="child-controls">
                 <label>Вариант ${idx+1} (вм. ${opt.qty} шт):</label>
-                <input type="number" class="child-qty" data-path="${esc(fullPath)}" data-idx="${idx}" value="${val}" min="0" step="1">
+                <button class="btn-c child-qty-btn" data-path="${esc(fullPath)}" data-idx="${idx}" data-delta="-1">−</button>
+                <input type="number" class="child-qty" data-path="${esc(fullPath)}" data-idx="${idx}" value="${val}" min="0" step="1" max="${maxPossible}">
+                <button class="btn-c child-qty-btn" data-path="${esc(fullPath)}" data-idx="${idx}" data-delta="1">+</button>
                 <span class="child-info">габ: ${opt.dims || 'н/д'}, вес: ${opt.weight || 0} кг</span>
             </div>`;
         });
@@ -391,15 +450,27 @@ function buildItemRow(fullPath, level) {
     // Дочерние строки для общих кофров
     if (hasCommonPacking) {
         const commonCases = getCommonCases();
+        const extra = getOrderExtra(fullPath);
         html += `<div class="child-row" data-parent="${esc(fullPath)}">`;
-        html += `<div style="padding:4px 8px;font-size:13px;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">Упаковка в общие кофры</div>`;
+        html += `<div style="padding:4px 8px;font-size:13px;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">Упаковка в общие кофры (вне кофра: ${extra} шт)</div>`;
+        // Поле "вне кофра"
+        const maxExtra = getStockValue(fullPath);
+        html += `<div class="child-controls">
+            <label>Вне кофра:</label>
+            <button class="btn-c child-extra-btn" data-path="${esc(fullPath)}" data-delta="-1">−</button>
+            <input type="number" class="child-extra-qty" data-path="${esc(fullPath)}" value="${extra}" min="0" step="1" max="${maxExtra}">
+            <button class="btn-c child-extra-btn" data-path="${esc(fullPath)}" data-delta="1">+</button>
+        </div>`;
         packing.forEach((p, idx) => {
             const c = commonCases.find(c => c.id === p.caseId);
             const name = c ? c.name : 'удалённый кофр';
             const qty = p.qty || 0;
+            const maxPack = c ? c.qty : 0;
             html += `<div class="child-controls">
-                <label>${name} (вм. ${c ? c.qty : '?'} шт):</label>
-                <input type="number" class="child-common-qty" data-path="${esc(fullPath)}" data-caseid="${p.caseId}" value="${qty}" min="0" step="1">
+                <label>${name} (вм. ${maxPack} шт):</label>
+                <button class="btn-c child-common-btn" data-path="${esc(fullPath)}" data-caseid="${p.caseId}" data-delta="-1">−</button>
+                <input type="number" class="child-common-qty" data-path="${esc(fullPath)}" data-caseid="${p.caseId}" value="${qty}" min="0" step="1" max="${maxPack}">
+                <button class="btn-c child-common-btn" data-path="${esc(fullPath)}" data-caseid="${p.caseId}" data-delta="1">+</button>
                 <span class="child-info">габ: ${c ? c.dimensions || 'н/д' : 'н/д'}, вес: ${c ? c.emptyWeight || 0 : 0} кг</span>
                 <button class="btn btn-sm remove-common-pack" style="background:var(--danger);color:white;padding:0 8px;font-size:12px;" data-path="${esc(fullPath)}" data-caseid="${p.caseId}">✕</button>
             </div>`;
@@ -471,7 +542,7 @@ function buildInfoHtml(path, props, mode) {
 }
 
 // ============================================================
-// ДЕЛЕГИРОВАНИЕ СОБЫТИЙ
+// ДЕЛЕГИРОВАНИЕ СОБЫТИЙ (добавлена обработка кнопок +/− для дочерних полей)
 // ============================================================
 function setupEventDelegation() {
     const container = document.getElementById('categoryContents');
@@ -484,8 +555,9 @@ function setupEventDelegation() {
 }
 
 function handleContainerClick(e) {
+    // Обработка основных кнопок +/−
     const target = e.target.closest('.qty-btn');
-    if (target) {
+    if (target && !target.closest('.child-controls')) {
         const path = target.dataset.path;
         const delta = parseInt(target.dataset.delta);
         if (path && !isNaN(delta)) {
@@ -494,6 +566,12 @@ function handleContainerClick(e) {
             if (inp) {
                 let val = parseInt(inp.value) || 0;
                 val = Math.max(0, val + delta);
+                // ограничение по stock
+                const maxStock = getStockValue(path);
+                if (val > maxStock) {
+                    showToast('Недостаточно на складе', 'warning');
+                    val = maxStock;
+                }
                 inp.value = val;
                 setValueOrder(path, val);
                 updateRowOrder(path);
@@ -502,6 +580,92 @@ function handleContainerClick(e) {
         return;
     }
 
+    // Обработка кнопок +/− для мульти-режима (дочерние)
+    const childBtn = e.target.closest('.child-qty-btn');
+    if (childBtn) {
+        const path = childBtn.dataset.path;
+        const idx = parseInt(childBtn.dataset.idx);
+        const delta = parseInt(childBtn.dataset.delta);
+        const input = childBtn.parentElement.querySelector('.child-qty');
+        if (input) {
+            let val = parseInt(input.value) || 0;
+            val = Math.max(0, val + delta);
+            const maxStock = getStockValue(path);
+            if (val > maxStock) {
+                showToast('Недостаточно на складе', 'warning');
+                val = maxStock;
+            }
+            input.value = val;
+            // Обновляем данные
+            const vals = getIndividualCaseValues(path);
+            vals[idx] = val;
+            setIndividualCaseValues(path, vals);
+            // Обновляем общее количество
+            const total = vals.reduce((a,b) => a + b, 0);
+            order[path] = total;
+            if (total === 0) delete order[path];
+            saveOrderData();
+            updateRowOrder(path);
+            updateTotalsOrder();
+        }
+        return;
+    }
+
+    // Обработка кнопок +/− для общих кофров (дочерние)
+    const commonBtn = e.target.closest('.child-common-btn');
+    if (commonBtn) {
+        const path = commonBtn.dataset.path;
+        const caseId = commonBtn.dataset.caseid;
+        const delta = parseInt(commonBtn.dataset.delta);
+        const input = commonBtn.parentElement.querySelector('.child-common-qty');
+        if (input) {
+            let val = parseInt(input.value) || 0;
+            val = Math.max(0, val + delta);
+            // ограничение по вместимости кофра
+            const packing = getOrderPacking(path);
+            const p = packing.find(p => p.caseId === caseId);
+            if (p) {
+                const c = getCommonCases().find(c => c.id === caseId);
+                const maxPack = c ? c.qty : 0;
+                if (val > maxPack) {
+                    showToast('Превышена вместимость кофра', 'warning');
+                    val = maxPack;
+                }
+                input.value = val;
+                p.qty = val;
+                setOrderPacking(path, packing);
+                saveOrderData();
+                updateRowOrder(path);
+                updateTotalsOrder();
+            }
+        }
+        return;
+    }
+
+    // Обработка кнопок +/− для поля "вне кофра"
+    const extraBtn = e.target.closest('.child-extra-btn');
+    if (extraBtn) {
+        const path = extraBtn.dataset.path;
+        const delta = parseInt(extraBtn.dataset.delta);
+        const input = extraBtn.parentElement.querySelector('.child-extra-qty');
+        if (input) {
+            let val = parseInt(input.value) || 0;
+            val = Math.max(0, val + delta);
+            const maxStock = getStockValue(path);
+            if (val > maxStock) {
+                showToast('Недостаточно на складе', 'warning');
+                val = maxStock;
+            }
+            input.value = val;
+            setOrderExtra(path, val);
+            saveOrderData();
+            updateRowOrder(path);
+            updateTotalsOrder();
+        }
+        return;
+    }
+
+    // Остальные кнопки (инфо, описание, линк, кофры, заметка, удаление привязки)
     const infoBtn = e.target.closest('.info-btn');
     if (infoBtn) {
         toggleInfoOrder(infoBtn);
@@ -575,48 +739,90 @@ function handleContainerClick(e) {
 }
 
 function handleContainerInput(e) {
+    // Основное поле
     const target = e.target.closest('.qty-input');
     if (target) {
         const path = target.dataset.path;
         let val = parseInt(target.value);
         if (isNaN(val) || val < 0) val = 0;
-        target.value = val;
+        const maxStock = getStockValue(path);
+        if (val > maxStock) {
+            showToast('Недостаточно на складе', 'warning');
+            val = maxStock;
+            target.value = val;
+        }
         setValueOrder(path, val);
         updateRowOrder(path);
         return;
     }
 
+    // Дочерние поля для мульти-режима
     const childQty = e.target.closest('.child-qty');
     if (childQty) {
         const path = childQty.dataset.path;
         const idx = parseInt(childQty.dataset.idx);
         let val = parseInt(childQty.value);
         if (isNaN(val) || val < 0) val = 0;
-        childQty.value = val;
+        const maxStock = getStockValue(path);
+        if (val > maxStock) {
+            showToast('Недостаточно на складе', 'warning');
+            val = maxStock;
+            childQty.value = val;
+        }
         const vals = getIndividualCaseValues(path);
         vals[idx] = val;
         setIndividualCaseValues(path, vals);
         const total = vals.reduce((a,b) => a + b, 0);
-        setValueOrder(path, total);
+        order[path] = total;
+        if (total === 0) delete order[path];
+        saveOrderData();
         updateRowOrder(path);
+        updateTotalsOrder();
         return;
     }
 
+    // Дочерние поля для общих кофров
     const childCommon = e.target.closest('.child-common-qty');
     if (childCommon) {
         const path = childCommon.dataset.path;
         const caseId = childCommon.dataset.caseid;
         let val = parseInt(childCommon.value);
         if (isNaN(val) || val < 0) val = 0;
-        childCommon.value = val;
         const packing = getOrderPacking(path);
-        const idx = packing.findIndex(p => p.caseId === caseId);
-        if (idx !== -1) {
-            packing[idx].qty = val;
+        const p = packing.find(p => p.caseId === caseId);
+        if (p) {
+            const c = getCommonCases().find(c => c.id === caseId);
+            const maxPack = c ? c.qty : 0;
+            if (val > maxPack) {
+                showToast('Превышена вместимость кофра', 'warning');
+                val = maxPack;
+                childCommon.value = val;
+            }
+            p.qty = val;
             setOrderPacking(path, packing);
             saveOrderData();
             updateRowOrder(path);
+            updateTotalsOrder();
         }
+        return;
+    }
+
+    // Поле "вне кофра"
+    const childExtra = e.target.closest('.child-extra-qty');
+    if (childExtra) {
+        const path = childExtra.dataset.path;
+        let val = parseInt(childExtra.value);
+        if (isNaN(val) || val < 0) val = 0;
+        const maxStock = getStockValue(path);
+        if (val > maxStock) {
+            showToast('Недостаточно на складе', 'warning');
+            val = maxStock;
+            childExtra.value = val;
+        }
+        setOrderExtra(path, val);
+        saveOrderData();
+        updateRowOrder(path);
+        updateTotalsOrder();
         return;
     }
 
@@ -631,7 +837,11 @@ function handleContainerInput(e) {
             const opt = getSelectedOption(path);
             if (opt && opt.qty > 0) {
                 const newQty = val * opt.qty;
-                setValueOrder(path, newQty);
+                order[path] = newQty;
+                if (newQty === 0) delete order[path];
+                saveOrderData();
+                updateRowOrder(path);
+                updateTotalsOrder();
             }
         }
         renderCommonCaseIndicatorsOrder();
@@ -714,16 +924,20 @@ function handleDropdownItemOrder(item) {
         return;
     }
     if (idx !== undefined) {
+        // Включаем режим кофров автоматически при выборе варианта
+        mode.enabled = true;
         mode.selectedOption = idx;
         mode.alt = null;
         saveOrderData();
         updateRowOrder(path);
         updateTotalsOrder();
         updateCategoryTotalsOrder(currentOrderCategory);
-        showToast('Вариант кофра выбран');
+        showToast('Выбран вариант кофра, режим включён');
         const dropdown = item.closest('.case-dropdown');
         if (dropdown) dropdown.classList.remove('open');
         renderCommonCaseIndicatorsOrder();
+        // Уведомление о необходимости заполнить количество
+        showToast('Теперь выберите количество в кофре', 'neutral');
     }
 }
 
@@ -733,10 +947,34 @@ function handleDropdownItemOrder(item) {
 function updateRowOrder(path) {
     const row = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
     if (!row) return;
-    const qtyInput = row.querySelector('.qty-input');
-    if (qtyInput) qtyInput.value = getValue(path);
     const sq = getStockValue(path);
-    const totalQty = getTotalQty(path);
+    const mode = getCaseMode(path);
+    const isMulti = localStorage.getItem('multi_' + path) === 'true';
+    const packing = getOrderPacking(path);
+    const hasCommonPacking = packing.length > 0;
+    let totalQty = 0;
+    if (isMulti && mode.enabled) {
+        const vals = getIndividualCaseValues(path);
+        totalQty = vals.reduce((a,b) => a + b, 0);
+    } else if (hasCommonPacking) {
+        const extra = getOrderExtra(path);
+        const packed = packing.reduce((s, p) => s + (p.qty || 0), 0);
+        totalQty = extra + packed;
+    } else {
+        totalQty = order[path] || 0;
+    }
+
+    const qtyInput = row.querySelector('.qty-input');
+    if (qtyInput) {
+        if (isMulti && mode.enabled || hasCommonPacking) {
+            qtyInput.style.display = 'none'; // скрываем, показываем текст
+            // вместо него показываем span с количеством
+        } else {
+            qtyInput.style.display = 'inline-block';
+            qtyInput.value = totalQty;
+        }
+    }
+
     const isAdded = totalQty > 0;
     const isOverstock = totalQty > sq;
     row.classList.toggle('added', isAdded);
@@ -837,16 +1075,19 @@ function updateChildRowsForPath(path) {
     const hasCommonPacking = packing.length > 0;
     const individualVals = getIndividualCaseValues(path);
 
-    if (isMulti && options.length > 1) {
+    if (isMulti && mode.enabled && options.length > 1) {
         const childDiv = document.createElement('div');
         childDiv.className = 'child-row';
         childDiv.dataset.parent = path;
         let html = `<div style="padding:4px 8px;font-size:13px;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">Распределение по вариантам кофров (сумма: ${individualVals.reduce((a,b)=>a+b,0)} шт)</div>`;
         options.forEach((opt, idx) => {
             const val = individualVals[idx] || 0;
+            const maxStock = getStockValue(path);
             html += `<div class="child-controls">
                 <label>Вариант ${idx+1} (вм. ${opt.qty} шт):</label>
-                <input type="number" class="child-qty" data-path="${path}" data-idx="${idx}" value="${val}" min="0" step="1">
+                <button class="btn-c child-qty-btn" data-path="${path}" data-idx="${idx}" data-delta="-1">−</button>
+                <input type="number" class="child-qty" data-path="${path}" data-idx="${idx}" value="${val}" min="0" step="1" max="${maxStock}">
+                <button class="btn-c child-qty-btn" data-path="${path}" data-idx="${idx}" data-delta="1">+</button>
                 <span class="child-info">габ: ${opt.dims || 'н/д'}, вес: ${opt.weight || 0} кг</span>
             </div>`;
         });
@@ -856,17 +1097,29 @@ function updateChildRowsForPath(path) {
 
     if (hasCommonPacking) {
         const commonCases = getCommonCases();
+        const extra = getOrderExtra(path);
         const childDiv = document.createElement('div');
         childDiv.className = 'child-row';
         childDiv.dataset.parent = path;
-        let html = `<div style="padding:4px 8px;font-size:13px;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">Упаковка в общие кофры</div>`;
+        let html = `<div style="padding:4px 8px;font-size:13px;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">Упаковка в общие кофры (вне кофра: ${extra} шт)</div>`;
+        // Поле "вне кофра"
+        const maxExtra = getStockValue(path);
+        html += `<div class="child-controls">
+            <label>Вне кофра:</label>
+            <button class="btn-c child-extra-btn" data-path="${path}" data-delta="-1">−</button>
+            <input type="number" class="child-extra-qty" data-path="${path}" value="${extra}" min="0" step="1" max="${maxExtra}">
+            <button class="btn-c child-extra-btn" data-path="${path}" data-delta="1">+</button>
+        </div>`;
         packing.forEach((p, idx) => {
             const c = commonCases.find(c => c.id === p.caseId);
             const name = c ? c.name : 'удалённый кофр';
             const qty = p.qty || 0;
+            const maxPack = c ? c.qty : 0;
             html += `<div class="child-controls">
-                <label>${name} (вм. ${c ? c.qty : '?'} шт):</label>
-                <input type="number" class="child-common-qty" data-path="${path}" data-caseid="${p.caseId}" value="${qty}" min="0" step="1">
+                <label>${name} (вм. ${maxPack} шт):</label>
+                <button class="btn-c child-common-btn" data-path="${path}" data-caseid="${p.caseId}" data-delta="-1">−</button>
+                <input type="number" class="child-common-qty" data-path="${path}" data-caseid="${p.caseId}" value="${qty}" min="0" step="1" max="${maxPack}">
+                <button class="btn-c child-common-btn" data-path="${path}" data-caseid="${p.caseId}" data-delta="1">+</button>
                 <span class="child-info">габ: ${c ? c.dimensions || 'н/д' : 'н/д'}, вес: ${c ? c.emptyWeight || 0 : 0} кг</span>
                 <button class="btn btn-sm remove-common-pack" style="background:var(--danger);color:white;padding:0 8px;font-size:12px;" data-path="${path}" data-caseid="${p.caseId}">✕</button>
             </div>`;
@@ -932,17 +1185,19 @@ function updateTotalsOrder() {
 
 function getActiveItemsOrder() {
     const items = [];
-    for (let p in order) {
-        if (order[p] > 0) items.push({ path: p, qty: order[p] });
+    // Собираем все пути из order (основные) и orderExtra/packing
+    const allPaths = new Set();
+    for (let p in order) allPaths.add(p);
+    for (let p in orderExtra) allPaths.add(p);
+    for (let p in orderPacking) allPaths.add(p);
+    for (let p in individualCaseValues) {
+        const vals = individualCaseValues[p];
+        if (vals.reduce((a,b) => a + b, 0) > 0) allPaths.add(p);
     }
-    for (let p in orderSplits) {
-        const segs = orderSplits[p];
-        segs.forEach(seg => {
-            if (seg.qty > 0) {
-                items.push({ path: p, qty: seg.qty });
-            }
-        });
-    }
+    allPaths.forEach(path => {
+        const qty = getTotalQty(path);
+        if (qty > 0) items.push({ path, qty });
+    });
     return items;
 }
 
@@ -1030,7 +1285,8 @@ async function saveOrderPreset() {
         individualCases: JSON.parse(JSON.stringify(individualCaseValues)),
         routes: JSON.parse(JSON.stringify(commonRoutes)),
         caseModes: JSON.parse(JSON.stringify(caseModes)),
-        exclude: { ...orderExclude }
+        exclude: { ...orderExclude },
+        extra: { ...orderExtra }
     };
     presets.push({ name: name.trim(), data: snapshot });
     saveOrderPresets(presets);
@@ -1062,6 +1318,7 @@ async function loadOrderPreset(overlay = true) {
         for (let key in commonRoutes) delete commonRoutes[key];
         for (let key in caseModes) delete caseModes[key];
         for (let key in orderExclude) delete orderExclude[key];
+        for (let key in orderExtra) delete orderExtra[key];
     }
     if (overlay) {
         for (let path in data.order) {
@@ -1087,19 +1344,27 @@ async function loadOrderPreset(overlay = true) {
         for (let path in data.packing) {
             if (!orderPacking[path]) orderPacking[path] = [];
             data.packing[path].forEach(p => {
-                orderPacking[path].push({ ...p });
+                const existing = orderPacking[path].find(ep => ep.caseId === p.caseId);
+                if (existing) existing.qty += p.qty;
+                else orderPacking[path].push({ ...p });
             });
         }
         for (let path in data.individualCases) {
             if (!individualCaseValues[path]) individualCaseValues[path] = [];
-            data.individualCases[path].forEach(v => {
-                individualCaseValues[path].push(v);
+            data.individualCases[path].forEach((v, idx) => {
+                if (individualCaseValues[path][idx] !== undefined) {
+                    individualCaseValues[path][idx] += v;
+                } else {
+                    individualCaseValues[path][idx] = v;
+                }
             });
         }
         for (let path in data.routes) {
             if (!commonRoutes[path]) commonRoutes[path] = [];
             data.routes[path].forEach(r => {
-                commonRoutes[path].push({ ...r });
+                const existing = commonRoutes[path].find(er => er.target === r.target);
+                if (existing) existing.multiplier += r.multiplier;
+                else commonRoutes[path].push({ ...r });
             });
         }
         for (let path in data.caseModes) {
@@ -1107,6 +1372,9 @@ async function loadOrderPreset(overlay = true) {
         }
         for (let path in data.exclude) {
             orderExclude[path] = true;
+        }
+        for (let path in data.extra) {
+            orderExtra[path] = (orderExtra[path] || 0) + data.extra[path];
         }
     } else {
         Object.assign(order, data.order);
@@ -1118,6 +1386,7 @@ async function loadOrderPreset(overlay = true) {
         Object.assign(commonRoutes, JSON.parse(JSON.stringify(data.routes)));
         Object.assign(caseModes, JSON.parse(JSON.stringify(data.caseModes)));
         Object.assign(orderExclude, data.exclude);
+        Object.assign(orderExtra, data.extra || {});
     }
     saveOrderData();
     renderOrderAll();
@@ -1198,9 +1467,10 @@ export function exportOrderJSON() {
         routes: getCommonRoutes(),
         links: links,
         notes: notes,
-        exclude: orderExclude
+        exclude: orderExclude,
+        extra: orderExtra
     };
-    if (Object.keys(order).length === 0 && Object.keys(orderSplits).length === 0) {
+    if (Object.keys(order).length === 0 && Object.keys(orderSplits).length === 0 && Object.keys(orderExtra).length === 0 && Object.keys(orderPacking).length === 0) {
         showToast('Список пуст', 'warning'); return;
     }
     const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
@@ -1321,6 +1591,7 @@ export async function clearOrderData() {
     for (let key in commonRoutes) delete commonRoutes[key];
     for (let key in caseModes) delete caseModes[key];
     for (let key in orderExclude) delete orderExclude[key];
+    for (let key in orderExtra) delete orderExtra[key];
     saveOrderData();
     renderOrderAll();
     showToast('Список очищен', 'success');
