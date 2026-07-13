@@ -192,8 +192,8 @@ function initApp() {
     initModalHandlers();
     initCases();
     initRenderHandlers();
-    initOrderUI();
-    initOrderPresetsUI();
+    initOrderUI();          // инициализация UI заказа (вкладки, поиск и т.д.)
+    initOrderPresetsUI();   // инициализация пресетов (теперь в отдельном модуле)
     initOpenUI();
     initTruckManagerHandlers();
 
