@@ -106,6 +106,7 @@ function setValueOrder(path, val) {
     order[path] = val;
     if (val === 0) delete order[path];
     saveOrderData();
+    // Мгновенное обновление UI
     updateRowOrder(path);
     updateTotalsOrder();
     updateCategoryTotalsOrder(currentOrderCategory);
@@ -259,6 +260,7 @@ function renderOrderCategory(catKey, filterQuery = '') {
     setupInputListenersOrder();
     setupCaseTogglesOrder();
 
+    // Обновляем строки (уже существующие)
     document.querySelectorAll('#categoryContents .row').forEach(row => {
         const path = row.dataset.path;
         if (path) { updateRowOrder(path); }
@@ -509,7 +511,7 @@ function buildInfoHtml(path, props, mode) {
 
     html += `<div style="width:100%;"><strong>Статус режимов кофров:</strong></div>`;
     html += `<div style="width:100%;padding-left:12px;font-size:13px;color:var(--text-secondary);">
-        <span>Режим кофров: ${mode.enabled ? '✅ Включён' : '❌ Выключен'}</span>
+        <span>Режим кофров: ${mode.enabled ? '✅ Включён' : 'не активирован'}</span>
         ${isMulti ? `<span style="margin-left:12px;">🔄 Мульти-режим (включён)</span>` : ''}
         ${hasAlt ? `<span style="margin-left:12px;">🔀 Альтернативный кофр (активен)</span>` : ''}
         ${hasCommonPacking ? `<span style="margin-left:12px;">📦 Общие кофры (${packing.length} шт)</span>` : ''}

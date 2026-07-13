@@ -695,14 +695,20 @@ body {
     border-color: var(--text-secondary);
 }
 
-/* Индикация added/overstock (зелёная/красная полоса слева) — всегда видна */
+/* Индикация added/overstock — фон и полоса слева, всегда видны */
 .row.added {
+    background: var(--added-bg) !important;
     border-left: 4px solid var(--success) !important;
 }
 .row.overstock {
+    background: var(--overstock-bg) !important;
     border-left: 4px solid var(--danger) !important;
 }
-/* При наведении сохраняем индикацию, но не перекрываем */
+.row.added.overstock {
+    background: var(--overstock-bg) !important;
+    border-left: 4px solid var(--danger) !important;
+}
+/* При наведении сохраняем тот же фон */
 .row.added:hover {
     background: var(--added-bg) !important;
 }
@@ -785,7 +791,13 @@ body {
     color: #fff;
 }
 
-/* Блок описания и информации (занимает всю ширину) */
+/* Блок описания и информации — после основной строки */
+.row-info,
+.desc-block {
+    width: 100%;
+    flex-basis: 100%;
+    order: 3; /* чтобы шли после всех остальных элементов */
+}
 .row-info {
     margin-top: 6px;
     padding: 8px 12px;
@@ -794,8 +806,6 @@ body {
     font-size: 13px;
     color: var(--text-secondary);
     border-left: 3px solid var(--accent);
-    width: 100%;
-    flex-basis: 100%;
 }
 .row-info > div {
     display: flex;
@@ -814,8 +824,6 @@ body {
     color: var(--text-secondary);
     margin: 4px 0 4px 20px;
     border-left: 3px solid var(--accent);
-    width: 100%;
-    flex-basis: 100%;
 }
 .desc-block.open {
     display: block;
@@ -915,6 +923,7 @@ body {
     border-radius: 4px;
     width: 100%;
     flex-basis: 100%;
+    order: 3; /* тоже после основной строки */
 }
 .child-row .child-controls {
     display: flex;
