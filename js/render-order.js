@@ -389,11 +389,13 @@ function buildItemRow(fullPath, level) {
         <div class="main-line">
             <div class="name-area">
                 <span class="name">${escapedName}</span>
-                <button class="action-btn info-btn" data-path="${esc(fullPath)}" title="Информация">Инфо</button>
-                ${hasDesc ? `<button class="action-btn desc-btn" data-path="${esc(fullPath)}">Описание</button>` : ''}
-                <button class="action-btn link-btn ${linkClass}" data-path="${esc(fullPath)}" title="Линк">Линк${hasLink ? ' ✓' : ''}</button>
-                ${hasCase ? `<button class="action-btn case-btn ${caseClass} ${caseStatusClass}" data-path="${esc(fullPath)}" title="Настройка кофров">${caseStatusText}</button>` : ''}
-                <button class="action-btn note-btn ${noteClass}" data-path="${esc(fullPath)}" title="Заметка">Заметка${hasNote ? ' ✓' : ''}</button>
+                <div class="action-buttons">
+                    <button class="action-btn info-btn" data-path="${esc(fullPath)}" title="Информация">Инфо</button>
+                    ${hasDesc ? `<button class="action-btn desc-btn" data-path="${esc(fullPath)}">Описание</button>` : ''}
+                    <button class="action-btn link-btn ${linkClass}" data-path="${esc(fullPath)}" title="Линк">Линк${hasLink ? ' ✓' : ''}</button>
+                    ${hasCase ? `<button class="action-btn case-btn ${caseClass} ${caseStatusClass}" data-path="${esc(fullPath)}" title="Настройка кофров">${caseStatusText}</button>` : ''}
+                    <button class="action-btn note-btn ${noteClass}" data-path="${esc(fullPath)}" title="Заметка">Заметка${hasNote ? ' ✓' : ''}</button>
+                </div>
             </div>
             <div class="qty-controls">
                 <span class="weight-vol-display">${weightDisplay} / ${volumeDisplay}</span>
@@ -681,7 +683,6 @@ function handleContainerClick(e) {
     const linkBtn = e.target.closest('.link-btn');
     if (linkBtn) {
         import('./cases.js').then(module => {
-            // Передаём текущую категорию для автоматического раскрытия
             module.openMatrixModal(linkBtn.dataset.path, false, currentOrderCategory);
         });
         return;

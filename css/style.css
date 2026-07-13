@@ -596,6 +596,7 @@ body {
     font-size: 13px;
 }
 
+/* ===== СТРОКИ ПОЗИЦИЙ ===== */
 .row {
     display: flex;
     flex-direction: column;
@@ -604,31 +605,93 @@ body {
     transition: background 0.2s;
     border-radius: 4px;
 }
-.row:hover {
-    background: var(--bg-hover);
+/* Убираем нижнюю границу у последней строки */
+.row:last-child {
+    border-bottom: none;
 }
+.row:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+/* Светлая тема */
+[data-theme="light"] .row:hover {
+    background: rgba(0, 0, 0, 0.04);
+}
+
+/* Основная линия */
 .row .main-line {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 6px;
+    gap: 8px;
+    flex-wrap: nowrap;
+    width: 100%;
 }
+
+/* Блок названия + кнопки (занимает всё доступное место) */
 .row .name-area {
     display: flex;
     align-items: center;
-    gap: 6px;
     flex-wrap: wrap;
+    gap: 6px;
+    flex: 1 1 0;
+    min-width: 0;
 }
+
+/* Название — переносится */
 .row .name {
     font-weight: 500;
+    word-break: break-word;
+    white-space: normal;
+    flex: 0 1 auto;
 }
+
+/* Блок кнопок действий */
+.row .action-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+/* Блок количества (всегда справа) */
 .row .qty-controls {
     display: flex;
     align-items: center;
     gap: 4px;
-    flex-wrap: wrap;
+    flex-shrink: 0;
+    margin-left: auto;
+    /* прижимаем к правому краю */
 }
+
+/* Индикация added/overstock — не перекрывается при наведении */
+.row.added {
+    background: var(--added-bg) !important;
+    border-left: 3px solid var(--success) !important;
+}
+.row.overstock {
+    background: var(--overstock-bg) !important;
+    border-left: 3px solid var(--danger) !important;
+}
+/* При наведении на added/overstock сохраняем индикацию, но меняем фон */
+.row.added:hover {
+    background: color-mix(in srgb, var(--added-bg) 80%, var(--bg-hover)) !important;
+}
+.row.overstock:hover {
+    background: color-mix(in srgb, var(--overstock-bg) 80%, var(--bg-hover)) !important;
+}
+/* Если браузер не поддерживает color-mix, используем fallback */
+@supports not (color-mix(in srgb, red, blue)) {
+    .row.added:hover {
+        background: var(--added-bg) !important;
+        opacity: 0.9;
+    }
+    .row.overstock:hover {
+        background: var(--overstock-bg) !important;
+        opacity: 0.9;
+    }
+}
+
+/* Остальные элементы контролов */
 .qty-controls input[type="number"] {
     width: 52px;
     padding: 4px;
@@ -658,18 +721,6 @@ body {
     border-color: var(--text-secondary);
 }
 
-.row.added {
-    background: var(--added-bg) !important;
-    border-left: 3px solid var(--success) !important;
-}
-.row.overstock {
-    background: var(--overstock-bg) !important;
-    border-left: 3px solid var(--danger) !important;
-}
-.row.added:hover,
-.row.overstock:hover {
-    background: var(--bg-hover) !important;
-}
 .overstock-warning {
     color: var(--danger);
     font-weight: bold;
