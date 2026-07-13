@@ -1050,7 +1050,7 @@ body {
     z-index: 1200;
 }
 #matrixModal .table-wrap {
-    overflow: auto;
+    overflow: auto !important;
     flex: 1;
     width: 100%;
     position: relative;
@@ -1068,8 +1068,21 @@ body {
     font-size: 13px;
     table-layout: fixed;
 }
-.matrix-table th,
-.matrix-table td {
+/* Заголовки целей — фиксированы сверху */
+.matrix-table thead {
+    position: -webkit-sticky;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+.matrix-table thead th {
+    background: var(--matrix-header-bg);
+    color: var(--text-secondary);
+    font-weight: 500;
+    position: -webkit-sticky;
+    position: sticky;
+    top: 0;
+    z-index: 10;
     border: 1px solid var(--matrix-border);
     padding: 4px 6px;
     text-align: center;
@@ -1077,41 +1090,31 @@ body {
     height: 32px;
     overflow: hidden;
     text-overflow: ellipsis;
-    width: 90px;
-    min-width: 90px;
-    max-width: 90px;
 }
-.matrix-table th:first-child,
-.matrix-table td:first-child {
-    width: 120px;
-    min-width: 120px;
-    max-width: 120px;
-    text-align: left;
+.matrix-table thead th:first-child {
+    z-index: 20;
 }
-/* Фиксация первой колонки (источники) */
-.matrix-table th:first-child,
-.matrix-table td:first-child {
+/* Первая колонка (источники) — фиксирована слева */
+.matrix-table td:first-child,
+.matrix-table th:first-child {
+    position: -webkit-sticky;
     position: sticky;
     left: 0;
     z-index: 5;
     background: var(--bg-card);
+    border: 1px solid var(--matrix-border);
+    padding: 4px 6px;
+    text-align: left;
+    white-space: nowrap;
+    height: 32px;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .matrix-table th:first-child {
     z-index: 20;
 }
 .matrix-table td:first-child {
     z-index: 5;
-}
-/* Заголовки целей — фиксированы сверху */
-.matrix-table thead th {
-    position: -webkit-sticky;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    background: var(--matrix-header-bg);
-}
-.matrix-table thead th:first-child {
-    z-index: 20;
 }
 /* Для тёмной темы */
 [data-theme="dark"] .matrix-table td:first-child {
@@ -1311,67 +1314,82 @@ body {
     background: var(--text-muted);
 }
 
+/* ===== МОБИЛЬНАЯ АДАПТАЦИЯ ===== */
 @media (max-width: 768px) {
     .matrix-table {
-        font-size: 11px;
+        font-size: 13px;
     }
     .matrix-table th,
     .matrix-table td {
-        padding: 2px 4px;
-        height: 28px;
-        min-width: 60px;
-        max-width: 90px;
+        padding: 4px 6px;
+        height: 32px;
+        min-width: 80px;
+        max-width: 110px;
     }
     .matrix-table th:first-child,
     .matrix-table td:first-child {
-        min-width: 80px;
-        max-width: 120px;
+        min-width: 100px;
+        max-width: 140px;
     }
     .matrix-zoom-controls .zoom-btn {
-        padding: 2px 8px;
-        font-size: 11px;
-        min-height: 26px;
+        padding: 4px 10px;
+        font-size: 13px;
+        min-height: 30px;
     }
     #matrixZoomLevelLabel {
-        font-size: 11px;
-        min-width: 40px;
+        font-size: 13px;
+        min-width: 50px;
     }
     .matrix-name-toggle {
-        font-size: 11px;
-        margin-left: 6px;
+        font-size: 13px;
+        margin-left: 8px;
     }
 }
 
 @media (max-width: 480px) {
     .matrix-table {
-        font-size: 10px;
+        font-size: 12px;
     }
     .matrix-table th,
     .matrix-table td {
-        padding: 1px 3px;
-        height: 24px;
-        min-width: 50px;
-        max-width: 70px;
+        padding: 3px 5px;
+        height: 28px;
+        min-width: 70px;
+        max-width: 90px;
     }
     .matrix-table th:first-child,
     .matrix-table td:first-child {
-        min-width: 60px;
-        max-width: 90px;
+        min-width: 80px;
+        max-width: 110px;
+    }
+    .matrix-zoom-controls .zoom-btn {
+        padding: 2px 8px;
+        font-size: 12px;
+        min-height: 26px;
+    }
+    #matrixZoomLevelLabel {
+        font-size: 12px;
+        min-width: 40px;
+    }
+    .matrix-name-toggle {
+        font-size: 12px;
+        margin-left: 6px;
     }
     @media (orientation: landscape) {
         .matrix-table {
-            font-size: 11px;
+            font-size: 14px;
         }
         .matrix-table th,
         .matrix-table td {
-            min-width: 60px;
-            max-width: 80px;
-            height: 28px;
+            min-width: 90px;
+            max-width: 120px;
+            height: 34px;
+            padding: 4px 8px;
         }
         .matrix-table th:first-child,
         .matrix-table td:first-child {
-            min-width: 80px;
-            max-width: 110px;
+            min-width: 110px;
+            max-width: 150px;
         }
     }
 }
