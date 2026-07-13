@@ -1093,26 +1093,29 @@ body {
 .matrix-table thead th:first-child {
     z-index: 20;
 }
-/* Первая колонка (источники) — фиксирована слева */
+/* Фиксация первой колонки для всех строк (включая категории) */
 .matrix-table td:first-child,
 .matrix-table th:first-child {
-    position: sticky;
-    left: 0;
-    z-index: 5;
+    position: sticky !important;
+    left: 0 !important;
+    z-index: 15 !important;
     background: var(--bg-card);
     border: 2px solid var(--matrix-border);
     padding: 4px 6px;
     text-align: left;
     white-space: nowrap;
     height: 32px;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow: visible !important; /* чтобы стрелка не обрезалась */
+    text-overflow: clip !important;
 }
-.matrix-table th:first-child {
-    z-index: 20;
+/* Для ячеек категорий, чтобы они были поверх остальных */
+.matrix-table .matrix-category td:first-child {
+    z-index: 20 !important;
+    background: var(--bg-secondary);
 }
-.matrix-table td:first-child {
-    z-index: 5;
+/* Для заголовка первой колонки */
+.matrix-table thead th:first-child {
+    z-index: 25 !important;
 }
 /* Обычные ячейки */
 .matrix-table td {
@@ -1152,6 +1155,7 @@ body {
 .matrix-table .matrix-category .toggle {
     display: inline-block;
     width: 20px;
+    font-size: inherit;
 }
 .matrix-table .matrix-cell {
     width: 90px;
