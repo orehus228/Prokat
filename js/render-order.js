@@ -1565,6 +1565,8 @@ tr:nth-child(even){background:#f9f9f9}
 export async function clearOrderData() {
     const confirmed = await showConfirm('Очистить список?');
     if (!confirmed) return;
+    
+    // Очищаем все данные заказа
     for (let key in order) delete order[key];
     for (let key in orderSplits) delete orderSplits[key];
     for (let key in links) delete links[key];
@@ -1575,13 +1577,27 @@ export async function clearOrderData() {
     for (let key in caseModes) delete caseModes[key];
     for (let key in orderExclude) delete orderExclude[key];
     for (let key in orderExtra) delete orderExtra[key];
+    
     // Сбрасываем поиск
     searchModeOrder = false;
     searchQueryOrder = '';
     const searchInput = document.getElementById('searchInput');
     if (searchInput) searchInput.value = '';
+    
+    // Сохраняем пустое состояние
     saveOrderData();
+    
+    // Принудительно переключаемся на первую категорию
+    const firstCat = editorData._categoryOrder?.[0] || Object.keys(editorData.inventory)[0];
+    if (firstCat) {
+        currentOrderCategory = firstCat;
+    }
+    
+    // Полная перерисовка
+    flatItemsCache = null;
+    eventDelegationInitialized = false;
     renderOrderAll();
+    
     showToast('Список очищен', 'success');
 }
 
