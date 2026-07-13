@@ -1,5 +1,5 @@
 // order.js — Данные заказа (полная версия с синхронизацией путей)
-import { getItemProps, getCommonCases, getCachedCalculation, setCachedCalculation, clearCache } from './data.js';
+import { getItemProps, getCommonCases, getCachedCalculation, setCachedCalculation, clearCache as clearDataCache } from './data.js';
 
 export let order = {};
 export let orderSplits = {};
@@ -14,8 +14,10 @@ export let orderExtra = {};
 
 const STORAGE_ORDER_KEY = 'app_order_data';
 
-// Экспортируем clearCache для использования в data.js
-export { clearCache };
+// Локальная функция clearCache для кеша order.js (вызывает clearDataCache из data.js)
+export function clearCache() {
+    clearDataCache();
+}
 
 export function loadOrderData() {
     try {
@@ -63,7 +65,6 @@ export function saveOrderData() {
 
 // ===== СИНХРОНИЗАЦИЯ ПУТЕЙ ПРИ ПЕРЕИМЕНОВАНИИ/ПЕРЕМЕЩЕНИИ =====
 export function updateAllPaths(oldPrefix, newPrefix) {
-    // Обновляем ключи во всех объектах заказа
     const objectsToUpdate = [
         { obj: order, name: 'order' },
         { obj: orderSplits, name: 'orderSplits' },
@@ -84,7 +85,6 @@ export function updateAllPaths(oldPrefix, newPrefix) {
                 const newKey = oldKey.replace(oldPrefix, newPrefix);
                 obj[newKey] = obj[oldKey];
                 delete obj[oldKey];
-                // Если это orderSplits, обновляем внутренние пути в сегментах
                 if (name === 'orderSplits' && Array.isArray(obj[newKey])) {
                     obj[newKey].forEach(seg => {
                         if (seg.path && seg.path.startsWith(oldPrefix)) {
@@ -92,7 +92,6 @@ export function updateAllPaths(oldPrefix, newPrefix) {
                         }
                     });
                 }
-                // Если это links, обновляем target в каждом линке
                 if (name === 'links' && Array.isArray(obj[newKey])) {
                     obj[newKey].forEach(link => {
                         if (link.target && link.target.startsWith(oldPrefix)) {
@@ -100,7 +99,6 @@ export function updateAllPaths(oldPrefix, newPrefix) {
                         }
                     });
                 }
-                // Если это commonRoutes, обновляем target
                 if (name === 'commonRoutes' && Array.isArray(obj[newKey])) {
                     obj[newKey].forEach(route => {
                         if (route.target && route.target.startsWith(oldPrefix)) {
@@ -114,7 +112,6 @@ export function updateAllPaths(oldPrefix, newPrefix) {
     saveOrderData();
 }
 
-// Функция для обновления одного пути (используется при переименовании отдельного элемента)
 export function updateOrderPaths(oldPath, newPath) {
     if (oldPath === newPath) return;
     const objectsToUpdate = [
@@ -130,10 +127,7 @@ export function updateOrderPaths(oldPath, newPath) {
     saveOrderData();
 }
 
-// Остальные функции (getTotalQty, getOrderPacking, calcItemWeightWithMode и т.д.) без изменений
-// ... (весь остальной код из вашего файла order.js, который я не привожу для краткости,
-// но он остаётся тем же, за исключением добавления updateAllPaths)
-
+// Остальные функции (без изменений)
 export function getTotalQty(path) {
     let total = order[path] || 0;
     if (orderSplits[path]) {
@@ -402,6 +396,3 @@ export function calcItemCases(path, qty) {
     if (!opt || opt.qty <= 0) return 0;
     return Math.ceil(qty / opt.qty);
 }
-
-// Функция updateOrderPaths уже есть, но для одного пути
-// Теперь есть updateAllPaths для префиксов
