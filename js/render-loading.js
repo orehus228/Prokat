@@ -31,12 +31,38 @@ import {
     showConfirm
 } from './ui.js';
 
+// Ключ для сохранения выбранных грузовиков
+const SELECTED_TRUCKS_KEY = 'selected_truck_ids';
+
 // ============================================================
 // СОСТОЯНИЕ СТРАНИЦЫ РАСЧЁТА ЗАГРУЗКИ
 // ============================================================
-let selectedTruckIds = [];
+export let selectedTruckIds = [];
 let loadingResult = null;
 let truckPresets = [];
+
+// ============================================================
+// ЗАГРУЗКА/СОХРАНЕНИЕ ВЫБРАННЫХ ГРУЗОВИКОВ
+// ============================================================
+export function loadSelectedTrucks() {
+    try {
+        const saved = localStorage.getItem(SELECTED_TRUCKS_KEY);
+        if (saved) {
+            selectedTruckIds = JSON.parse(saved);
+            // Фильтруем только существующие ID
+            const presets = getTruckPresets();
+            selectedTruckIds = selectedTruckIds.filter(id => presets.some(p => p.id === id));
+        } else {
+            selectedTruckIds = [];
+        }
+    } catch (e) {
+        selectedTruckIds = [];
+    }
+}
+
+export function saveSelectedTrucks() {
+    localStorage.setItem(SELECTED_TRUCKS_KEY, JSON.stringify(selectedTruckIds));
+}
 
 // ============================================================
 // ПОЛУЧЕНИЕ ДАННЫХ ДЛЯ РАСЧЁТА
@@ -208,7 +234,6 @@ function packItems(truck, items) {
     const maxWeight = truck.maxWeight || Infinity;
 
     for (let item of sortedItems) {
-        // Проверка на превышение веса
         if (currentWeight + item.weight > maxWeight) {
             return { success: false, packed, failedItem: item, reason: 'weight' };
         }
@@ -219,7 +244,6 @@ function packItems(truck, items) {
             if (pt.x + item.width <= truck.width &&
                 pt.y + item.height <= truck.height &&
                 pt.z + item.depth <= truck.depth) {
-                // Проверка на пересечение
                 let collision = false;
                 for (let p of packed) {
                     if (pt.x < p.x + p.w && pt.x + item.width > p.x &&
@@ -265,7 +289,6 @@ function calculateLoading() {
         return null;
     }
 
-    // Получаем все единицы груза
     let allCargo = [];
     for (let item of items) {
         const dims = getItemDimensions(item.path, item.qty);
@@ -277,7 +300,6 @@ function calculateLoading() {
         return null;
     }
 
-    // Получаем выбранные грузовики
     const presets = getTruckPresets();
     const selectedTrucks = presets.filter(p => selectedTruckIds.includes(p.id));
     if (selectedTrucks.length === 0) {
@@ -303,7 +325,6 @@ function calculateLoading() {
                 totalWeight: truckResult.packed.reduce((s, i) => s + i.weight, 0),
                 totalVolume: truckResult.packed.reduce((s, i) => s + i.w * i.h * i.d / 1000000, 0)
             });
-            // Удаляем упакованные предметы из остатка
             const packedPaths = truckResult.packed.map(p => p.path + p.name);
             remainingCargo = remainingCargo.filter((item, idx) => {
                 return !truckResult.packed.some(p => p.path === item.path && p.name === item.name);
@@ -311,7 +332,6 @@ function calculateLoading() {
             result.totalWeight += truckResult.packed.reduce((s, i) => s + i.weight, 0);
             result.totalVolume += truckResult.packed.reduce((s, i) => s + i.w * i.h * i.d / 1000000, 0);
         } else {
-            // Частичная загрузка
             if (truckResult.packed.length > 0) {
                 result.trucks.push({
                     truckName: truck.name + ' (частично)',
@@ -319,7 +339,6 @@ function calculateLoading() {
                     totalWeight: truckResult.packed.reduce((s, i) => s + i.weight, 0),
                     totalVolume: truckResult.packed.reduce((s, i) => s + i.w * i.h * i.d / 1000000, 0)
                 });
-                // Удаляем упакованные
                 remainingCargo = remainingCargo.filter((item, idx) => {
                     return !truckResult.packed.some(p => p.path === item.path && p.name === item.name);
                 });
@@ -329,7 +348,6 @@ function calculateLoading() {
                     result.failedItems.push(truckResult.failedItem);
                 }
             } else {
-                // Всё не поместилось
                 result.failedItems = remainingCargo.slice();
                 break;
             }
@@ -352,6 +370,7 @@ export function renderLoadingPage() {
     if (!container) return;
 
     loadOrderData();
+    loadSelectedTrucks();
     truckPresets = getTruckPresets();
 
     let html = `
@@ -406,6 +425,7 @@ function renderTruckSelection() {
             } else {
                 selectedTruckIds = selectedTruckIds.filter(id => id !== cb.value);
             }
+            saveSelectedTrucks();
         });
     });
 }
@@ -618,6 +638,7 @@ window.deleteTruck = async function(id) {
     if (!confirmed) return;
     deleteTruckPreset(id);
     selectedTruckIds = selectedTruckIds.filter(tid => tid !== id);
+    saveSelectedTrucks();
     renderTruckList();
     renderTruckSelection();
     showToast('Грузовик удалён', 'neutral');

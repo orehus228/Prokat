@@ -1,4 +1,4 @@
-// order.js — Данные заказа (полная версия)
+// order.js — Данные заказа (полная версия с синхронизацией путей)
 import { getItemProps, getCommonCases, getCachedCalculation, setCachedCalculation, clearCache } from './data.js';
 
 export let order = {};
@@ -10,9 +10,12 @@ export let individualCaseValues = {};
 export let commonRoutes = {};
 export let caseModes = {};
 export let orderExclude = {};
-export let orderExtra = {}; // количество "вне кофра" для общих кофров
+export let orderExtra = {};
 
 const STORAGE_ORDER_KEY = 'app_order_data';
+
+// Экспортируем clearCache для использования в data.js
+export { clearCache };
 
 export function loadOrderData() {
     try {
@@ -58,12 +61,84 @@ export function saveOrderData() {
     clearCache();
 }
 
+// ===== СИНХРОНИЗАЦИЯ ПУТЕЙ ПРИ ПЕРЕИМЕНОВАНИИ/ПЕРЕМЕЩЕНИИ =====
+export function updateAllPaths(oldPrefix, newPrefix) {
+    // Обновляем ключи во всех объектах заказа
+    const objectsToUpdate = [
+        { obj: order, name: 'order' },
+        { obj: orderSplits, name: 'orderSplits' },
+        { obj: links, name: 'links' },
+        { obj: notes, name: 'notes' },
+        { obj: orderPacking, name: 'orderPacking' },
+        { obj: individualCaseValues, name: 'individualCaseValues' },
+        { obj: commonRoutes, name: 'commonRoutes' },
+        { obj: caseModes, name: 'caseModes' },
+        { obj: orderExclude, name: 'orderExclude' },
+        { obj: orderExtra, name: 'orderExtra' }
+    ];
+
+    objectsToUpdate.forEach(({ obj, name }) => {
+        const keys = Object.keys(obj);
+        keys.forEach(oldKey => {
+            if (oldKey.startsWith(oldPrefix)) {
+                const newKey = oldKey.replace(oldPrefix, newPrefix);
+                obj[newKey] = obj[oldKey];
+                delete obj[oldKey];
+                // Если это orderSplits, обновляем внутренние пути в сегментах
+                if (name === 'orderSplits' && Array.isArray(obj[newKey])) {
+                    obj[newKey].forEach(seg => {
+                        if (seg.path && seg.path.startsWith(oldPrefix)) {
+                            seg.path = seg.path.replace(oldPrefix, newPrefix);
+                        }
+                    });
+                }
+                // Если это links, обновляем target в каждом линке
+                if (name === 'links' && Array.isArray(obj[newKey])) {
+                    obj[newKey].forEach(link => {
+                        if (link.target && link.target.startsWith(oldPrefix)) {
+                            link.target = link.target.replace(oldPrefix, newPrefix);
+                        }
+                    });
+                }
+                // Если это commonRoutes, обновляем target
+                if (name === 'commonRoutes' && Array.isArray(obj[newKey])) {
+                    obj[newKey].forEach(route => {
+                        if (route.target && route.target.startsWith(oldPrefix)) {
+                            route.target = route.target.replace(oldPrefix, newPrefix);
+                        }
+                    });
+                }
+            }
+        });
+    });
+    saveOrderData();
+}
+
+// Функция для обновления одного пути (используется при переименовании отдельного элемента)
+export function updateOrderPaths(oldPath, newPath) {
+    if (oldPath === newPath) return;
+    const objectsToUpdate = [
+        order, orderSplits, links, notes, orderPacking,
+        individualCaseValues, commonRoutes, caseModes, orderExclude, orderExtra
+    ];
+    objectsToUpdate.forEach(obj => {
+        if (obj[oldPath] !== undefined) {
+            obj[newPath] = obj[oldPath];
+            delete obj[oldPath];
+        }
+    });
+    saveOrderData();
+}
+
+// Остальные функции (getTotalQty, getOrderPacking, calcItemWeightWithMode и т.д.) без изменений
+// ... (весь остальной код из вашего файла order.js, который я не привожу для краткости,
+// но он остаётся тем же, за исключением добавления updateAllPaths)
+
 export function getTotalQty(path) {
     let total = order[path] || 0;
     if (orderSplits[path]) {
         total += orderSplits[path].reduce((s, seg) => s + (seg.qty || 0), 0);
     }
-    // Добавляем количество из общих кофров (packing) и "вне кофра"
     const packing = getOrderPacking(path);
     const extra = getOrderExtra(path);
     total += packing.reduce((s, p) => s + (p.qty || 0), 0);
@@ -328,46 +403,5 @@ export function calcItemCases(path, qty) {
     return Math.ceil(qty / opt.qty);
 }
 
-export function updateOrderPaths(oldPath, newPath) {
-    if (order[oldPath] !== undefined) {
-        order[newPath] = order[oldPath];
-        delete order[oldPath];
-    }
-    if (orderSplits[oldPath] !== undefined) {
-        orderSplits[newPath] = orderSplits[oldPath];
-        delete orderSplits[oldPath];
-    }
-    if (links[oldPath] !== undefined) {
-        links[newPath] = links[oldPath];
-        delete links[oldPath];
-    }
-    if (notes[oldPath] !== undefined) {
-        notes[newPath] = notes[oldPath];
-        delete notes[oldPath];
-    }
-    if (orderPacking[oldPath] !== undefined) {
-        orderPacking[newPath] = orderPacking[oldPath];
-        delete orderPacking[oldPath];
-    }
-    if (individualCaseValues[oldPath] !== undefined) {
-        individualCaseValues[newPath] = individualCaseValues[oldPath];
-        delete individualCaseValues[oldPath];
-    }
-    if (commonRoutes[oldPath] !== undefined) {
-        commonRoutes[newPath] = commonRoutes[oldPath];
-        delete commonRoutes[oldPath];
-    }
-    if (caseModes[oldPath] !== undefined) {
-        caseModes[newPath] = caseModes[oldPath];
-        delete caseModes[oldPath];
-    }
-    if (orderExclude[oldPath] !== undefined) {
-        orderExclude[newPath] = orderExclude[oldPath];
-        delete orderExclude[oldPath];
-    }
-    if (orderExtra[oldPath] !== undefined) {
-        orderExtra[newPath] = orderExtra[oldPath];
-        delete orderExtra[oldPath];
-    }
-    saveOrderData();
-}
+// Функция updateOrderPaths уже есть, но для одного пути
+// Теперь есть updateAllPaths для префиксов

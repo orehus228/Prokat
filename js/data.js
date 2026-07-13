@@ -6,6 +6,9 @@ import {
     DEFAULT_TRUCK_PRESETS
 } from './config.js';
 
+// Импортируем функции из order.js для синхронизации и кеширования
+import { updateOrderPaths, updateAllPaths, clearCache } from './order.js';
+
 export let editorData = {};
 const calculationCache = new Map();
 
@@ -104,12 +107,12 @@ function normalizeAllData() {
 export function saveEditorData() {
     localStorage.setItem(STORAGE_KEYS.APP_DATA, JSON.stringify(editorData));
     calculationCache.clear();
+    clearCache(); // сброс кеша order.js
 }
 
 export function resetAllData() {
     resetToEmpty();
     saveEditorData();
-    // Очищаем все ключи мульти-режима из localStorage
     const keysToRemove = [];
     for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
@@ -244,11 +247,9 @@ export function setSpec(catKey, subKey, itemName, val) {
     saveEditorData();
 }
 
-// Универсальная функция: принимает либо 3 аргумента (catKey, subKey, itemName), либо 1 (полный путь)
 export function getItemProps(catKey, subKey, itemName) {
     let key;
     if (arguments.length === 1) {
-        // Передан один аргумент — это полный путь
         key = catKey;
     } else {
         key = getStockKey(catKey, subKey, itemName);
@@ -274,6 +275,7 @@ export function setItemProps(catKey, subKey, itemName, props) {
         delete editorData.itemProps[key];
     }
     saveEditorData();
+    clearCache(); // сброс кеша веса/объёма
 }
 
 export function getCommonCases() {
@@ -346,6 +348,7 @@ export function clearCache() {
     calculationCache.clear();
 }
 
+// ===== ПЕРЕИМЕНОВАНИЕ И ПЕРЕМЕЩЕНИЕ С СИНХРОНИЗАЦИЕЙ ЗАКАЗА =====
 export function renameCategory(oldName, newName) {
     if (oldName === newName) return;
     if (editorData.inventory[newName]) throw new Error('Категория уже существует');
@@ -359,6 +362,7 @@ export function renameCategory(oldName, newName) {
     }
     const oldPrefix = oldName + '|';
     const newPrefix = newName + '|';
+    // Обновляем stock, specs, itemProps
     const keysToUpdate = Object.keys(editorData.stock).filter(k => k.startsWith(oldPrefix));
     keysToUpdate.forEach(k => {
         const newK = k.replace(oldPrefix, newPrefix);
@@ -377,6 +381,8 @@ export function renameCategory(oldName, newName) {
         editorData.itemProps[newK] = editorData.itemProps[k];
         delete editorData.itemProps[k];
     });
+    // Синхронизация данных заказа
+    updateAllPaths(oldPrefix, newPrefix);
     saveEditorData();
 }
 
@@ -394,6 +400,7 @@ export function renameSubgroup(catKey, oldSub, newSub) {
     }
     const oldPrefix = catKey + '|' + oldSub + '|';
     const newPrefix = catKey + '|' + newSub + '|';
+    // Обновляем stock, specs, itemProps
     const keysToUpdate = Object.keys(editorData.stock).filter(k => k.startsWith(oldPrefix));
     keysToUpdate.forEach(k => {
         const newK = k.replace(oldPrefix, newPrefix);
@@ -412,6 +419,8 @@ export function renameSubgroup(catKey, oldSub, newSub) {
         editorData.itemProps[newK] = editorData.itemProps[k];
         delete editorData.itemProps[k];
     });
+    // Синхронизация данных заказа
+    updateAllPaths(oldPrefix, newPrefix);
     saveEditorData();
 }
 
@@ -425,11 +434,7 @@ export function renameItem(catKey, subKey, oldName, newName) {
     targetArray[idx] = newName;
     const oldPath = getStockKey(catKey, subKey, oldName);
     const newPath = getStockKey(catKey, subKey, newName);
-    updateAllKeys(oldPath, newPath);
-    saveEditorData();
-}
-
-function updateAllKeys(oldPath, newPath) {
+    // Обновляем stock, specs, itemProps
     if (editorData.stock[oldPath] !== undefined) {
         editorData.stock[newPath] = editorData.stock[oldPath];
         delete editorData.stock[oldPath];
@@ -442,6 +447,9 @@ function updateAllKeys(oldPath, newPath) {
         editorData.itemProps[newPath] = editorData.itemProps[oldPath];
         delete editorData.itemProps[oldPath];
     }
+    // Синхронизация данных заказа
+    updateOrderPaths(oldPath, newPath);
+    saveEditorData();
 }
 
 export function moveItem(catKey, subKey, itemName, targetCat, targetSub) {
@@ -459,7 +467,21 @@ export function moveItem(catKey, subKey, itemName, targetCat, targetSub) {
     targetArray.push(itemName);
     const oldPath = getStockKey(catKey, subKey, itemName);
     const newPath = getStockKey(targetCat, targetSub, itemName);
-    updateAllKeys(oldPath, newPath);
+    // Обновляем stock, specs, itemProps
+    if (editorData.stock[oldPath] !== undefined) {
+        editorData.stock[newPath] = editorData.stock[oldPath];
+        delete editorData.stock[oldPath];
+    }
+    if (editorData.specs[oldPath] !== undefined) {
+        editorData.specs[newPath] = editorData.specs[oldPath];
+        delete editorData.specs[oldPath];
+    }
+    if (editorData.itemProps[oldPath] !== undefined) {
+        editorData.itemProps[newPath] = editorData.itemProps[oldPath];
+        delete editorData.itemProps[oldPath];
+    }
+    // Синхронизация данных заказа
+    updateOrderPaths(oldPath, newPath);
     saveEditorData();
 }
 

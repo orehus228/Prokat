@@ -1,0 +1,728 @@
+// order-render.js — Отрисовка страницы создания заказа (рендеринг)
+import {
+    editorData,
+    getStock,
+    getItemProps,
+    getCommonCases,
+    saveEditorData
+} from './data.js';
+
+import {
+    CAT_NAMES
+} from './config.js';
+
+import {
+    esc,
+    showToast,
+    showPrompt,
+    showConfirm,
+    debounce
+} from './ui.js';
+
+import {
+    order,
+    orderSplits,
+    links,
+    notes,
+    caseModes,
+    saveOrderData,
+    getTotalQty,
+    getSegmentsSum,
+    calcItemWeightWithMode,
+    calcItemVolumeWithMode,
+    calcItemCases,
+    loadOrderData,
+    getOrderPacking,
+    setOrderPacking,
+    getOrderExtra,
+    setOrderExtra,
+    getCommonRoutes,
+    setCommonRoutes,
+    getIndividualCaseValues,
+    setIndividualCaseValues,
+    getCaseMode,
+    getCaseOptions,
+    getSelectedOption,
+    updateOrderPaths,
+    orderExclude,
+    orderExtra
+} from './order.js';
+
+import {
+    getValue,
+    getStockValue,
+    setValueOrder,
+    buildFlatItemsList,
+    invalidateFlatItemsCache,
+    getActiveItemsOrder,
+    updateLinkCountOrder,
+    renderCommonCaseIndicatorsOrder,
+    updateChildRowsForPath,
+    buildInfoHtml,
+    initOrderHelpers
+} from './order-helpers.js';
+
+// ============================================================
+// СОСТОЯНИЕ СТРАНИЦЫ ЗАКАЗА
+// ============================================================
+
+export let currentOrderCategory = 'sound';
+export let showPropsOrder = false;
+export let searchModeOrder = false;
+export let searchQueryOrder = '';
+export let detailsOpenOrder = false;
+export const infoBlocksOpen = {};
+
+// ============================================================
+// ФУНКЦИИ ДЛЯ ИЗМЕНЕНИЯ СОСТОЯНИЯ
+// ============================================================
+
+export function setCurrentCategory(cat) {
+    currentOrderCategory = cat;
+}
+
+export function setSearchMode(mode) {
+    searchModeOrder = mode;
+}
+
+export function setSearchQuery(query) {
+    searchQueryOrder = query;
+}
+
+export function toggleDetailsOpen() {
+    detailsOpenOrder = !detailsOpenOrder;
+    localStorage.setItem('detailsOpenOrder', JSON.stringify(detailsOpenOrder));
+}
+
+export function toggleInfoBlock(path) {
+    infoBlocksOpen[path] = !infoBlocksOpen[path];
+}
+
+// ============================================================
+// ОТРИСОВКА ВКЛАДОК КАТЕГОРИЙ
+// ============================================================
+
+export function renderOrderTabs() {
+    const container = document.getElementById('categoryTabs');
+    container.innerHTML = '';
+    let orderKeys = editorData._categoryOrder || Object.keys(editorData.inventory);
+    orderKeys = orderKeys.filter(key => editorData.inventory && editorData.inventory[key] !== undefined);
+    if (orderKeys.length === 0) {
+        container.innerHTML = '<div class="empty-message">Нет категорий</div>';
+        return;
+    }
+    orderKeys.forEach(key => {
+        const tab = document.createElement('div');
+        tab.className = 'category-tab' + (key === currentOrderCategory ? ' active' : '');
+        tab.textContent = CAT_NAMES[key] || key;
+        tab.dataset.cat = key;
+        tab.addEventListener('click', () => {
+            if (searchModeOrder) { document.getElementById('searchInput').value = ''; searchModeOrder = false; searchQueryOrder = ''; }
+            currentOrderCategory = key;
+            renderOrderTabs();
+            renderOrderCategory(key);
+            setupInputListenersOrder();
+            setupCaseTogglesOrder();
+            updateTotalsOrder();
+            updateLinkCountOrder();
+            renderCommonCaseIndicatorsOrder();
+        });
+        container.appendChild(tab);
+    });
+    if (!orderKeys.includes(currentOrderCategory)) {
+        currentOrderCategory = orderKeys[0];
+    }
+}
+
+// ============================================================
+// РЕНДЕРИНГ КАТЕГОРИИ
+// ============================================================
+
+export function renderOrderCategory(catKey, filterQuery = '') {
+    const container = document.getElementById('categoryContents');
+    const wrapper = document.createElement('div');
+    wrapper.className = 'category-content active';
+    container.innerHTML = '';
+    container.appendChild(wrapper);
+
+    const query = (filterQuery || searchQueryOrder || '').toLowerCase().trim();
+    const isSearchMode = !!query;
+
+    if (isSearchMode) {
+        const allPaths = buildFlatItemsList();
+        const filteredPaths = allPaths.filter(path => {
+            const name = path.split('|').pop().toLowerCase();
+            const spec = (editorData.specs && editorData.specs[path] || '').toLowerCase();
+            return name.includes(query) || spec.includes(query);
+        });
+        if (filteredPaths.length === 0) {
+            wrapper.innerHTML = '<div class="empty-message">Ничего не найдено</div>';
+            return;
+        }
+        const grouped = {};
+        filteredPaths.forEach(path => {
+            const cat = path.split('|')[0];
+            if (!grouped[cat]) grouped[cat] = [];
+            grouped[cat].push(path);
+        });
+        let html = '';
+        const orderKeys = editorData._categoryOrder || Object.keys(editorData.inventory);
+        orderKeys.forEach(cat => {
+            if (!grouped[cat]) return;
+            html += `<div class="sub-cat-t">${CAT_NAMES[cat]||cat}</div>`;
+            grouped[cat].forEach(path => {
+                html += buildItemRow(path, 1);
+            });
+        });
+        wrapper.innerHTML = html;
+        searchModeOrder = true;
+        currentOrderCategory = 'all';
+    } else {
+        searchModeOrder = false;
+        if (catKey === 'all') {
+            const first = editorData._categoryOrder?.[0] || Object.keys(editorData.inventory)[0];
+            if (first) {
+                currentOrderCategory = first;
+                renderOrderCategory(first);
+            } else {
+                wrapper.innerHTML = '<div class="empty-message">Нет категорий</div>';
+            }
+            return;
+        }
+        const catData = editorData.inventory[catKey];
+        if (!catData) {
+            wrapper.innerHTML = '<div class="empty-message">Категория пуста</div>';
+            return;
+        }
+        wrapper.innerHTML = buildCategoryHTML(catData, [catKey], 0);
+        currentOrderCategory = catKey;
+    }
+
+    // Делегирование событий уже настроено в initOrderUI, но повторно навешивать не нужно
+    setupInputListenersOrder();
+    setupCaseTogglesOrder();
+
+    document.querySelectorAll('#categoryContents .row').forEach(row => {
+        const path = row.dataset.path;
+        if (path) { updateRowOrder(path); }
+    });
+
+    if (!searchModeOrder) updateCategoryTotalsOrder(catKey);
+    updateTotalsOrder();
+    updateLinkCountOrder();
+    if (detailsOpenOrder) {
+        document.getElementById('globalDetails').classList.add('open');
+        document.getElementById('detailToggle').textContent = 'Скрыть';
+    } else {
+        document.getElementById('globalDetails').classList.remove('open');
+        document.getElementById('detailToggle').textContent = 'Подробно';
+    }
+    renderCommonCaseIndicatorsOrder();
+}
+
+// ============================================================
+// РЕКУРСИВНЫЙ ОБХОД КАТЕГОРИИ
+// ============================================================
+
+function buildCategoryHTML(data, path, level) {
+    if (level > 15) {
+        console.warn('Превышена глубина обхода', path);
+        return '';
+    }
+    let html = '';
+    if (Array.isArray(data)) {
+        data.forEach(item => {
+            if (typeof item === 'string') {
+                const fullPath = path.length ? path.join('|') + '|' + item : item;
+                html += buildItemRow(fullPath, level);
+            }
+        });
+        return html;
+    } else if (data && typeof data === 'object') {
+        const keys = Object.keys(data).filter(k => !k.startsWith('_'));
+        keys.forEach(key => {
+            const childPath = [...path, key];
+            const isSubSub = level >= 2;
+            if (isSubSub) html += `<div class="sub-sub-cat-t">${key}</div>`;
+            else html += `<div class="sub-cat-t">${key}</div>`;
+            html += buildCategoryHTML(data[key], childPath, level + 1);
+        });
+        return html;
+    }
+    return '';
+}
+
+// ============================================================
+// ПОСТРОЕНИЕ СТРОКИ
+// ============================================================
+
+export function buildItemRow(fullPath, level) {
+    const sq = getStockValue(fullPath);
+    const hasDesc = !!(editorData.specs && editorData.specs[fullPath]);
+    const hasLink = links[fullPath] && links[fullPath].length > 0;
+    const props = getItemProps(fullPath);
+    const hasCase = (props.individualCases && props.individualCases.length > 0) || props.allowCommon;
+    const mode = getCaseMode(fullPath);
+    const isMulti = localStorage.getItem('multi_' + fullPath) === 'true';
+    const hasAlt = !!mode.alt;
+    const packing = getOrderPacking(fullPath);
+    const hasCommonPacking = packing.length > 0;
+    const individualVals = getIndividualCaseValues(fullPath);
+    const options = getCaseOptions(fullPath);
+
+    let totalQty = 0;
+    if (isMulti && mode.enabled) {
+        totalQty = individualVals.reduce((a,b) => a + b, 0);
+    } else if (hasCommonPacking) {
+        const extra = getOrderExtra(fullPath);
+        const packed = packing.reduce((s, p) => s + (p.qty || 0), 0);
+        totalQty = extra + packed;
+    } else {
+        totalQty = order[fullPath] || 0;
+    }
+
+    const overstock = totalQty > sq;
+    const isInfoOpen = infoBlocksOpen[fullPath] || false;
+    const hasNote = !!(notes[fullPath] && notes[fullPath].trim());
+    const isCaseModeOn = mode.enabled || false;
+
+    let caseStatusText = 'Кофры';
+    let caseStatusClass = '';
+    if (hasCommonPacking) {
+        caseStatusText = 'Общие';
+        caseStatusClass = 'common';
+    } else if (isMulti && options.length > 1) {
+        caseStatusText = 'Мульти';
+        caseStatusClass = 'multi';
+    } else if (hasAlt) {
+        caseStatusText = 'Альт.';
+        caseStatusClass = 'alt';
+    } else if (isCaseModeOn) {
+        caseStatusText = 'Вкл';
+        caseStatusClass = 'on';
+    } else if (hasCase) {
+        caseStatusText = 'Выкл';
+        caseStatusClass = 'off';
+    }
+
+    let weightDisplay = '0 кг', volumeDisplay = '0 м³';
+    if (props.weight !== undefined && props.weight !== null && props.weight > 0) {
+        const w = calcItemWeightWithMode(fullPath, totalQty);
+        weightDisplay = w.toFixed(1) + ' кг';
+    }
+    if (props.dimensions && props.dimensions.trim() !== '') {
+        const v = calcItemVolumeWithMode(fullPath, totalQty);
+        volumeDisplay = v.toFixed(3) + ' м³';
+    }
+    
+    const infoHtml = buildInfoHtml(fullPath, props, mode);
+    const escapedName = esc(fullPath.split('|').pop());
+    const isAdded = totalQty > 0;
+    const rowClass = (isAdded ? 'added' : '') + (overstock ? ' overstock' : '');
+
+    const linkClass = hasLink ? 'active' : '';
+    const noteClass = hasNote ? 'has-note' : '';
+    const caseClass = isCaseModeOn ? 'active' : '';
+
+    let extraInfo = '';
+    if (totalQty > 0 || sq > 0) {
+        extraInfo = `<div class="extra-info">
+            <span><strong>${totalQty}</strong> шт добавлено</span>
+            <span>в наличии: <strong>${sq}</strong></span>
+            ${weightDisplay !== '0 кг' ? `<span>${weightDisplay}</span>` : ''}
+            ${volumeDisplay !== '0 м³' ? `<span>${volumeDisplay}</span>` : ''}
+        </div>`;
+    }
+
+    let html = `<div class="row ${rowClass}" data-path="${esc(fullPath)}" data-search="${fullPath}">
+        <div class="name-area">
+            <span class="name">${escapedName}</span>
+            ${extraInfo}
+        </div>
+        <div class="action-buttons">
+            <button class="action-btn info-btn" data-path="${esc(fullPath)}" title="Информация">Инфо</button>
+            ${hasDesc ? `<button class="action-btn desc-btn" data-path="${esc(fullPath)}">Описание</button>` : ''}
+            <button class="action-btn link-btn ${linkClass}" data-path="${esc(fullPath)}" title="Линк">Линк${hasLink ? ' ✓' : ''}</button>
+            ${hasCase ? `<button class="action-btn case-btn ${caseClass} ${caseStatusClass}" data-path="${esc(fullPath)}" title="Настройка кофров">${caseStatusText}</button>` : ''}
+            <button class="action-btn note-btn ${noteClass}" data-path="${esc(fullPath)}" title="Заметка">Заметка${hasNote ? ' ✓' : ''}</button>
+        </div>
+        <div class="qty-controls">
+            <span class="weight-vol-display" style="display:none !important;">${weightDisplay} / ${volumeDisplay}</span>
+            <span class="stock-info" style="display:none !important;">в наличии: ${sq}</span>
+            <button class="btn-c qty-btn" data-path="${esc(fullPath)}" data-delta="-1">−</button>
+            <input type="number" class="qty-input" value="${totalQty}" min="0" step="1" data-path="${esc(fullPath)}">
+            <button class="btn-c qty-btn" data-path="${esc(fullPath)}" data-delta="1">+</button>
+        </div>
+    </div>`;
+    if (isInfoOpen) {
+        html += `<div class="row-info">${infoHtml}</div>`;
+    }
+    if (hasDesc) {
+        html += `<div class="desc-block" data-path="${esc(fullPath)}">${esc(editorData.specs[fullPath])}</div>`;
+    }
+    if (hasLink) {
+        links[fullPath].forEach(link => {
+            html += `<div style="font-size:13px;color:var(--text-secondary);padding-left:${level*20+20}px;width:100%;flex-basis:100%;">→ ${link.target} (×${link.multiplier})</div>`;
+        });
+    }
+
+    // Дочерние строки для мульти-режима
+    if (isMulti && mode.enabled && options.length > 1) {
+        html += `<div class="child-row" data-parent="${esc(fullPath)}" style="width:100%;flex-basis:100%;">`;
+        html += `<div style="padding:4px 8px;font-size:13px;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">Распределение по вариантам кофров (сумма: ${individualVals.reduce((a,b)=>a+b,0)} шт)</div>`;
+        options.forEach((opt, idx) => {
+            const val = individualVals[idx] || 0;
+            const maxPossible = getStockValue(fullPath);
+            html += `<div class="child-controls">
+                <label>Вариант ${idx+1} (вм. ${opt.qty} шт):</label>
+                <button class="btn-c child-qty-btn" data-path="${esc(fullPath)}" data-idx="${idx}" data-delta="-1">−</button>
+                <input type="number" class="child-qty" data-path="${esc(fullPath)}" data-idx="${idx}" value="${val}" min="0" step="1" max="${maxPossible}">
+                <button class="btn-c child-qty-btn" data-path="${esc(fullPath)}" data-idx="${idx}" data-delta="1">+</button>
+                <span class="child-info">габ: ${opt.dims || 'н/д'}, вес: ${opt.weight || 0} кг</span>
+            </div>`;
+        });
+        html += `</div>`;
+    }
+
+    // Дочерние строки для общих кофров
+    if (hasCommonPacking) {
+        const commonCases = getCommonCases();
+        const extra = getOrderExtra(fullPath);
+        html += `<div class="child-row" data-parent="${esc(fullPath)}" style="width:100%;flex-basis:100%;">`;
+        html += `<div style="padding:4px 8px;font-size:13px;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">Упаковка в общие кофры (вне кофра: ${extra} шт)</div>`;
+        const maxExtra = getStockValue(fullPath);
+        html += `<div class="child-controls">
+            <label>Вне кофра:</label>
+            <button class="btn-c child-extra-btn" data-path="${esc(fullPath)}" data-delta="-1">−</button>
+            <input type="number" class="child-extra-qty" data-path="${esc(fullPath)}" value="${extra}" min="0" step="1" max="${maxExtra}">
+            <button class="btn-c child-extra-btn" data-path="${esc(fullPath)}" data-delta="1">+</button>
+        </div>`;
+        packing.forEach((p, idx) => {
+            const c = commonCases.find(c => c.id === p.caseId);
+            const name = c ? c.name : 'удалённый кофр';
+            const qty = p.qty || 0;
+            const maxPack = c ? c.qty : 0;
+            html += `<div class="child-controls">
+                <label>${name} (вм. ${maxPack} шт):</label>
+                <button class="btn-c child-common-btn" data-path="${esc(fullPath)}" data-caseid="${p.caseId}" data-delta="-1">−</button>
+                <input type="number" class="child-common-qty" data-path="${esc(fullPath)}" data-caseid="${p.caseId}" value="${qty}" min="0" step="1" max="${maxPack}">
+                <button class="btn-c child-common-btn" data-path="${esc(fullPath)}" data-caseid="${p.caseId}" data-delta="1">+</button>
+                <span class="child-info">габ: ${c ? c.dimensions || 'н/д' : 'н/д'}, вес: ${c ? c.emptyWeight || 0 : 0} кг</span>
+                <button class="btn btn-sm remove-common-pack" style="background:var(--danger);color:white;padding:0 8px;font-size:12px;" data-path="${esc(fullPath)}" data-caseid="${p.caseId}">✕</button>
+            </div>`;
+        });
+        html += `</div>`;
+    }
+
+    return html;
+}
+
+// ============================================================
+// ОБНОВЛЕНИЕ СТРОКИ
+// ============================================================
+
+export function updateRowOrder(path) {
+    const row = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
+    if (!row) return;
+    const sq = getStockValue(path);
+    const mode = getCaseMode(path);
+    const isMulti = localStorage.getItem('multi_' + path) === 'true';
+    const packing = getOrderPacking(path);
+    const hasCommonPacking = packing.length > 0;
+    let totalQty = 0;
+    if (isMulti && mode.enabled) {
+        const vals = getIndividualCaseValues(path);
+        totalQty = vals.reduce((a,b) => a + b, 0);
+    } else if (hasCommonPacking) {
+        const extra = getOrderExtra(path);
+        const packed = packing.reduce((s, p) => s + (p.qty || 0), 0);
+        totalQty = extra + packed;
+    } else {
+        totalQty = order[path] || 0;
+    }
+
+    const isAdded = totalQty > 0;
+    const isOverstock = totalQty > sq;
+    row.classList.toggle('added', isAdded);
+    row.classList.toggle('overstock', isOverstock);
+
+    const qtyInput = row.querySelector('.qty-input');
+    if (qtyInput) {
+        if ((isMulti && mode.enabled) || hasCommonPacking) {
+            qtyInput.style.display = 'none';
+        } else {
+            qtyInput.style.display = 'inline-block';
+            qtyInput.value = totalQty;
+        }
+    }
+
+    const extraInfo = row.querySelector('.extra-info');
+    if (extraInfo) {
+        let info = '';
+        if (totalQty > 0 || sq > 0) {
+            info = `<span><strong>${totalQty}</strong> шт добавлено</span>
+                    <span>в наличии: <strong>${sq}</strong></span>`;
+            const props = getItemProps(path);
+            if (props.weight !== undefined && props.weight !== null && props.weight > 0) {
+                const w = calcItemWeightWithMode(path, totalQty);
+                info += `<span>${w.toFixed(1)} кг</span>`;
+            }
+            if (props.dimensions && props.dimensions.trim() !== '') {
+                const v = calcItemVolumeWithMode(path, totalQty);
+                info += `<span>${v.toFixed(3)} м³</span>`;
+            }
+        }
+        extraInfo.innerHTML = info;
+    }
+
+    const weightVolDisplay = row.querySelector('.weight-vol-display');
+    if (weightVolDisplay) {
+        const props = getItemProps(path);
+        let weightDisplay = '0 кг', volumeDisplay = '0 м³';
+        if (props.weight !== undefined && props.weight !== null && props.weight > 0) {
+            const w = calcItemWeightWithMode(path, totalQty);
+            weightDisplay = w.toFixed(1) + ' кг';
+        }
+        if (props.dimensions && props.dimensions.trim() !== '') {
+            const v = calcItemVolumeWithMode(path, totalQty);
+            volumeDisplay = v.toFixed(3) + ' м³';
+        }
+        weightVolDisplay.textContent = weightDisplay + ' / ' + volumeDisplay;
+    }
+
+    const oldWarn = row.querySelector('.overstock-warning');
+    if (oldWarn) oldWarn.remove();
+    if (isOverstock) {
+        const warn = document.createElement('span');
+        warn.className = 'overstock-warning';
+        warn.textContent = '!';
+        warn.title = 'Больше нет (в наличии ' + sq + ')';
+        const controls = row.querySelector('.qty-controls');
+        if (controls) controls.appendChild(warn);
+    }
+
+    if (infoBlocksOpen[path]) {
+        const infoBlock = row.querySelector('.row-info');
+        if (infoBlock) {
+            const props = getItemProps(path);
+            const mode = getCaseMode(path);
+            infoBlock.innerHTML = buildInfoHtml(path, props, mode);
+            infoBlock.style.display = 'block';
+        }
+    }
+
+    const linkBtn = row.querySelector('.link-btn');
+    if (linkBtn) {
+        const hasLink = links[path] && links[path].length > 0;
+        linkBtn.textContent = 'Линк' + (hasLink ? ' ✓' : '');
+        linkBtn.classList.toggle('active', hasLink);
+    }
+    const noteBtn = row.querySelector('.note-btn');
+    if (noteBtn) {
+        const hasNote = !!(notes[path] && notes[path].trim());
+        noteBtn.textContent = 'Заметка' + (hasNote ? ' ✓' : '');
+        noteBtn.classList.toggle('has-note', hasNote);
+    }
+    const caseBtn = row.querySelector('.case-btn');
+    if (caseBtn) {
+        const mode = getCaseMode(path);
+        const isOn = mode.enabled || false;
+        const isMulti = localStorage.getItem('multi_' + path) === 'true';
+        const hasAlt = !!mode.alt;
+        const packing = getOrderPacking(path);
+        const hasCommonPacking = packing.length > 0;
+        let statusText = 'Кофры';
+        let statusClass = '';
+        if (hasCommonPacking) {
+            statusText = 'Общие';
+            statusClass = 'common';
+        } else if (isMulti) {
+            statusText = 'Мульти';
+            statusClass = 'multi';
+        } else if (hasAlt) {
+            statusText = 'Альт.';
+            statusClass = 'alt';
+        } else if (isOn) {
+            statusText = 'Вкл';
+            statusClass = 'on';
+        } else {
+            statusText = 'Выкл';
+            statusClass = 'off';
+        }
+        caseBtn.textContent = statusText;
+        caseBtn.className = 'action-btn case-btn ' + (isOn ? 'active ' : '') + statusClass;
+    }
+
+    updateChildRowsForPath(path);
+}
+
+// ============================================================
+// ИТОГИ
+// ============================================================
+
+export function updateCategoryTotalsOrder(catKey) {
+    const container = document.querySelector('#categoryContents .category-content.active');
+    if (!container || searchModeOrder) return;
+    let totalsDiv = container.querySelector('.category-totals');
+    if (!totalsDiv) {
+        totalsDiv = document.createElement('div');
+        totalsDiv.className = 'category-totals';
+        container.appendChild(totalsDiv);
+    }
+    const items = getActiveItemsOrder().filter(({ path }) => path.startsWith(catKey + '|'));
+    let qty = 0, weight = 0, volume = 0, cases = 0;
+    items.forEach(({ path, qty: q }) => {
+        qty += q;
+        weight += calcItemWeightWithMode(path, q);
+        volume += calcItemVolumeWithMode(path, q);
+        cases += calcItemCases(path, q);
+    });
+    totalsDiv.innerHTML = `<span>Итого в категории: ${qty} шт</span><span>Вес: ${weight.toFixed(1)} кг</span><span>Объём: ${volume.toFixed(3)} м³</span>${cases > 0 ? `<span>Кофров: ${cases} шт</span>` : ''}`;
+}
+
+export function updateTotalsOrder() {
+    const items = getActiveItemsOrder();
+    let totalQty = 0, totalWeight = 0, totalVolume = 0, totalCases = 0;
+    const catTotals = {};
+    items.forEach(({ path, qty }) => {
+        totalQty += qty;
+        totalWeight += calcItemWeightWithMode(path, qty);
+        totalVolume += calcItemVolumeWithMode(path, qty);
+        totalCases += calcItemCases(path, qty);
+        const cat = path.split('|')[0];
+        if (!catTotals[cat]) catTotals[cat] = { qty: 0, weight: 0, volume: 0, cases: 0 };
+        catTotals[cat].qty += qty;
+        catTotals[cat].weight += calcItemWeightWithMode(path, qty);
+        catTotals[cat].volume += calcItemVolumeWithMode(path, qty);
+        catTotals[cat].cases += calcItemCases(path, qty);
+    });
+    document.getElementById('totalQty').textContent = totalQty;
+    document.getElementById('totalWeight').textContent = totalWeight.toFixed(1);
+    document.getElementById('totalVolume').textContent = totalVolume.toFixed(3);
+    const detailsDiv = document.getElementById('globalDetails');
+    let detailsHtml = '';
+    const orderKeys = editorData._categoryOrder || Object.keys(editorData.inventory);
+    orderKeys.forEach(cat => {
+        if (!catTotals[cat]) return;
+        const d = catTotals[cat];
+        detailsHtml += `<div class="cat-detail"><strong>${CAT_NAMES[cat]||cat}</strong><br>${d.qty} шт<br>${d.weight.toFixed(1)} кг<br>${d.volume.toFixed(3)} м³${d.cases > 0 ? `<br>${d.cases} кофров` : ''}</div>`;
+    });
+    detailsDiv.innerHTML = detailsHtml || '';
+    renderCommonCaseIndicatorsOrder();
+}
+
+// ============================================================
+// ПОИСК
+// ============================================================
+
+const debouncedSearch = debounce(applySearchOrder, 300);
+
+export function applySearchOrder() {
+    const query = document.getElementById('searchInput').value.toLowerCase().trim();
+    searchQueryOrder = query;
+    renderOrderCategory('all', query);
+}
+
+export function clearSearchOrder() {
+    document.getElementById('searchInput').value = '';
+    searchQueryOrder = '';
+    searchModeOrder = false;
+    const first = editorData._categoryOrder?.[0] || Object.keys(editorData.inventory)[0];
+    if (first) {
+        currentOrderCategory = first;
+        renderOrderCategory(first);
+    } else {
+        renderOrderCategory(null);
+    }
+}
+
+// ============================================================
+// ОБРАБОТЧИКИ КНОПОК (инфо, описание, заметка)
+// ============================================================
+
+export function toggleInfoOrder(btn) {
+    const path = btn.dataset.path;
+    const row = btn.closest('.row');
+    let infoBlock = row.querySelector('.row-info');
+    if (!infoBlock) {
+        infoBlock = document.createElement('div');
+        infoBlock.className = 'row-info';
+        row.appendChild(infoBlock);
+    }
+    const isOpen = infoBlocksOpen[path] || false;
+    infoBlocksOpen[path] = !isOpen;
+    if (infoBlocksOpen[path]) {
+        const props = getItemProps(path);
+        const mode = getCaseMode(path);
+        infoBlock.innerHTML = buildInfoHtml(path, props, mode);
+        infoBlock.style.display = 'block';
+        btn.textContent = 'Скрыть';
+    } else {
+        infoBlock.style.display = 'none';
+        btn.textContent = 'Инфо';
+    }
+}
+
+export function toggleDescOrder(btn) {
+    const path = btn.dataset.path;
+    const block = document.querySelector(`.desc-block[data-path="${path}"]`);
+    if (block) {
+        block.classList.toggle('open');
+        btn.textContent = block.classList.contains('open') ? 'Скрыть описание' : 'Описание';
+    }
+}
+
+export async function openNoteEditorOrder(btn) {
+    const path = btn.dataset.path;
+    const current = notes[path] || '';
+    const newNote = await showPrompt('Редактировать заметку', 'Заметка:', current);
+    if (newNote === null) return;
+    if (newNote.trim() === '') {
+        delete notes[path];
+    } else {
+        notes[path] = newNote.trim();
+    }
+    saveOrderData();
+    updateRowOrder(path);
+    showToast('Заметка сохранена', 'neutral');
+}
+
+// ============================================================
+// ЗАГЛУШКИ ДЛЯ ИНИЦИАЛИЗАЦИИ (вызываются из initOrderUI)
+// ============================================================
+
+export function setupInputListenersOrder() {
+    // Уже настроено через делегирование в initOrderUI
+}
+
+export function setupCaseTogglesOrder() {
+    // Уже настроено через делегирование
+}
+
+// ============================================================
+// РЕНДЕР ВСЕГО
+// ============================================================
+
+export function renderOrderAll() {
+    invalidateFlatItemsCache();
+    loadOrderData();
+    document.getElementById('pComment').value = localStorage.getItem('last_comment') || '';
+    const savedDate = localStorage.getItem('last_date');
+    if (savedDate) document.getElementById('pDate').value = savedDate;
+    // Загрузка пресетов будет в order-presets.js
+    if (!currentOrderCategory || !editorData.inventory[currentOrderCategory]) {
+        const first = editorData._categoryOrder?.[0] || Object.keys(editorData.inventory)[0];
+        if (first) currentOrderCategory = first;
+    }
+    renderOrderTabs();
+    renderOrderCategory(currentOrderCategory);
+    // Обновляем состояние деталей
+    detailsOpenOrder = localStorage.getItem('detailsOpenOrder') === 'true';
+    if (detailsOpenOrder) {
+        document.getElementById('globalDetails').classList.add('open');
+        document.getElementById('detailToggle').textContent = 'Скрыть';
+    } else {
+        document.getElementById('globalDetails').classList.remove('open');
+        document.getElementById('detailToggle').textContent = 'Подробно';
+    }
+}

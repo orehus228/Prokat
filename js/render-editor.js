@@ -51,6 +51,69 @@ function moveItemWithinGroup(catKey, subKey, itemName, direction) {
 }
 
 // ============================================================
+// ЭКСПОРТ ИНВЕНТАРЯ В HTML
+// ============================================================
+export function exportInventoryHTML() {
+    let html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Инвентарь</title>
+<style>
+body{font-family:'Segoe UI',Arial,sans-serif;margin:40px;color:#222;background:#fff}
+h1{color:#2c3e50;border-bottom:2px solid #3498db;padding-bottom:10px}
+table{width:100%;border-collapse:collapse;margin-top:20px;font-size:14px}
+th{background:#2c3e50;color:#fff;padding:8px;text-align:left}
+td{padding:6px 8px;border-bottom:1px solid #ddd}
+tr:nth-child(even){background:#f9f9f9}
+.category{background:#e6f2ff;font-weight:bold}
+.subgroup{background:#f0f4f8;font-weight:bold}
+</style>
+</head><body>
+<h1>Инвентарь склада</h1>
+<table><thead><tr><th>Категория</th><th>Подгруппа</th><th>Позиция</th><th>В наличии</th><th>Вес (кг)</th><th>Габариты (см)</th></tr></thead><tbody>`;
+
+    const order = editorData._categoryOrder || Object.keys(editorData.inventory);
+    order.forEach(cat => {
+        const catData = editorData.inventory[cat];
+        if (!catData) return;
+        if (Array.isArray(catData)) {
+            catData.forEach(item => {
+                const path = cat + '|' + item;
+                const stock = editorData.stock[path] || 0;
+                const props = editorData.itemProps[path] || {};
+                html += `<tr><td>${esc(cat)}</td><td></td><td>${esc(item)}</td><td>${stock}</td><td>${props.weight || ''}</td><td>${props.dimensions || ''}</td></tr>`;
+            });
+        } else if (typeof catData === 'object') {
+            const subOrder = catData._subOrder || Object.keys(catData).filter(k => k !== '_subOrder');
+            subOrder.forEach(sub => {
+                const items = catData[sub];
+                if (!Array.isArray(items)) return;
+                items.forEach(item => {
+                    const path = cat + '|' + sub + '|' + item;
+                    const stock = editorData.stock[path] || 0;
+                    const props = editorData.itemProps[path] || {};
+                    html += `<tr><td>${esc(cat)}</td><td>${esc(sub)}</td><td>${esc(item)}</td><td>${stock}</td><td>${props.weight || ''}</td><td>${props.dimensions || ''}</td></tr>`;
+                });
+            });
+        }
+    });
+
+    html += `</tbody></table>
+<div style="margin-top:30px;display:flex;gap:12px;">
+    <button onclick="window.print()" style="padding:10px 24px;background:#2c3e50;color:white;border:none;border-radius:6px;font-size:16px;cursor:pointer;">Сохранить PDF</button>
+    <button onclick="window.close()" style="padding:10px 24px;background:#ddd;color:#333;border:none;border-radius:6px;font-size:16px;cursor:pointer;">Закрыть</button>
+</div>
+</body></html>`;
+
+    const win = window.open('', '_blank');
+    if (win) {
+        win.document.write(html);
+        win.document.close();
+        win.focus();
+    } else {
+        showToast('Не удалось открыть окно', 'error');
+    }
+}
+
+// ============================================================
 // ОТРИСОВКА ВКЛАДОК
 // ============================================================
 function renderEditorTabs() {
@@ -99,7 +162,6 @@ function renderEditorTabs() {
         });
         container.appendChild(tab);
     });
-    // Если текущая категория невалидна, выбираем первую
     if (!order.includes(currentCategory) && order.length > 0) {
         currentCategory = order[0];
         renderEditorTabs();
@@ -165,7 +227,6 @@ function renderEditorCategory(catKey) {
     const catData = editorData.inventory[catKey];
 
     if (Array.isArray(catData)) {
-        // Плоский список
         const wrapper = document.createElement('div');
         wrapper.className = 'category-content active';
         const listDiv = document.createElement('div');
@@ -203,7 +264,6 @@ function renderEditorCategory(catKey) {
         return;
     }
 
-    // Категория с подгруппами
     const wrapper = document.createElement('div');
     wrapper.className = 'category-content active';
     const keys = Object.keys(catData).filter(k => !k.startsWith('_'));
@@ -405,7 +465,6 @@ function createItemRowEditor(catKey, subKey, itemName) {
     mainLine.appendChild(actions);
     row.appendChild(mainLine);
 
-    // Информация о свойствах (видна всегда в редакторе)
     const props = getItemProps(catKey, subKey, itemName);
     const infoDiv = document.createElement('div');
     infoDiv.className = 'props-info';
@@ -529,7 +588,7 @@ export function renderEditorAll() {
 // ИНИЦИАЛИЗАЦИЯ ОБРАБОТЧИКОВ КНОПОК
 // ============================================================
 export function initRenderHandlers() {
-    // Экспорт
+    // Экспорт JSON
     document.getElementById('exportBtn').addEventListener('click', () => {
         const exportData = {
             ...editorData,
@@ -549,7 +608,7 @@ export function initRenderHandlers() {
         showToast('JSON экспортирован', 'success');
     });
 
-    // Импорт
+    // Импорт JSON
     document.getElementById('importBtn').addEventListener('click', () => {
         document.getElementById('importFile').click();
     });
@@ -578,7 +637,6 @@ export function initRenderHandlers() {
                     }
                 }
                 cleanupInventory(imported.inventory, imported.stock, imported.specs, imported.itemProps);
-                // Применяем импорт
                 for (let key in imported) {
                     editorData[key] = imported[key];
                 }
@@ -593,7 +651,7 @@ export function initRenderHandlers() {
         this.value = '';
     });
 
-    // Сброс (удаляет все данные редактора)
+    // Сброс
     document.getElementById('resetBtn').addEventListener('click', async () => {
         const confirmed = await showConfirm('Сбросить все данные редактора? Это удалит все категории и позиции.');
         if (!confirmed) return;
@@ -610,4 +668,10 @@ export function initRenderHandlers() {
             });
         });
     });
+
+    // Экспорт HTML — теперь обработчик в main.js, но дублируем здесь для надёжности
+    const saveHtmlBtn = document.getElementById('saveHtmlBtn');
+    if (saveHtmlBtn) {
+        saveHtmlBtn.addEventListener('click', exportInventoryHTML);
+    }
 }

@@ -14,6 +14,9 @@ console.log('main.js загружен');
 let currentMode = 'menu';
 let currentTheme = 'dark';
 
+// Ключ для сохранения выбранных грузовиков
+const SELECTED_TRUCKS_KEY = 'selected_truck_ids';
+
 function switchMode(mode) {
     console.log('switchMode:', mode);
     currentMode = mode;
@@ -38,6 +41,17 @@ function switchMode(mode) {
         document.getElementById('fSel').value = '';
     }
     if (mode === 'loading') {
+        // Восстанавливаем выбранные грузовики перед рендерингом
+        const saved = localStorage.getItem(SELECTED_TRUCKS_KEY);
+        if (saved) {
+            try {
+                window.selectedTruckIds = JSON.parse(saved);
+            } catch(e) {
+                window.selectedTruckIds = [];
+            }
+        } else {
+            window.selectedTruckIds = [];
+        }
         renderLoadingPage();
     }
 }
@@ -87,11 +101,9 @@ function loadLibrary() {
                 if (data.truckPresets) editorData.truckPresets = data.truckPresets;
                 saveEditorData();
                 showToast('Библиотека загружена', 'success');
-                // Перерисовываем текущую страницу
                 if (currentMode === 'editor') renderEditorAll();
                 else if (currentMode === 'order') renderOrderAll();
                 else if (currentMode === 'loading') renderLoadingPage();
-                // На странице открытия и меню ничего не перерисовываем
             } catch(err) {
                 showToast('Ошибка: ' + err.message, 'error');
             }
@@ -111,12 +123,67 @@ async function resetLibrary() {
     location.reload();
 }
 
-// Заглушки для пресетов (заменены полноценными функциями в render-order.js)
-function savePreset() { showToast('Сохранение пресета (заглушка)', 'neutral'); }
-function loadPreset() { showToast('Загрузка пресета (заглушка)', 'neutral'); }
-function exportPresets() { showToast('Экспорт пресетов (заглушка)', 'neutral'); }
-function importPresets() { document.getElementById('orderPresetFileInput').click(); }
-function deletePreset() { showToast('Удаление пресета (заглушка)', 'neutral'); }
+// Экспорт инвентаря в HTML
+function exportInventoryHTML() {
+    // Собираем все категории и позиции
+    let html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Инвентарь</title>
+<style>
+body{font-family:'Segoe UI',Arial,sans-serif;margin:40px;color:#222;background:#fff}
+h1{color:#2c3e50;border-bottom:2px solid #3498db;padding-bottom:10px}
+table{width:100%;border-collapse:collapse;margin-top:20px;font-size:14px}
+th{background:#2c3e50;color:#fff;padding:8px;text-align:left}
+td{padding:6px 8px;border-bottom:1px solid #ddd}
+tr:nth-child(even){background:#f9f9f9}
+.category{background:#e6f2ff;font-weight:bold}
+.subgroup{background:#f0f4f8;font-weight:bold}
+</style>
+</head><body>
+<h1>Инвентарь склада</h1>
+<table><thead><tr><th>Категория</th><th>Подгруппа</th><th>Позиция</th><th>В наличии</th><th>Вес (кг)</th><th>Габариты (см)</th></tr></thead><tbody>`;
+
+    const order = editorData._categoryOrder || Object.keys(editorData.inventory);
+    order.forEach(cat => {
+        const catData = editorData.inventory[cat];
+        if (!catData) return;
+        if (Array.isArray(catData)) {
+            catData.forEach(item => {
+                const path = cat + '|' + item;
+                const stock = editorData.stock[path] || 0;
+                const props = editorData.itemProps[path] || {};
+                html += `<tr><td>${cat}</td><td></td><td>${item}</td><td>${stock}</td><td>${props.weight || ''}</td><td>${props.dimensions || ''}</td></tr>`;
+            });
+        } else if (typeof catData === 'object') {
+            const subOrder = catData._subOrder || Object.keys(catData).filter(k => k !== '_subOrder');
+            subOrder.forEach(sub => {
+                const items = catData[sub];
+                if (!Array.isArray(items)) return;
+                items.forEach(item => {
+                    const path = cat + '|' + sub + '|' + item;
+                    const stock = editorData.stock[path] || 0;
+                    const props = editorData.itemProps[path] || {};
+                    html += `<tr><td>${cat}</td><td>${sub}</td><td>${item}</td><td>${stock}</td><td>${props.weight || ''}</td><td>${props.dimensions || ''}</td></tr>`;
+                });
+            });
+        }
+    });
+
+    html += `</tbody></table>
+<div style="margin-top:30px;display:flex;gap:12px;">
+    <button onclick="window.print()" style="padding:10px 24px;background:#2c3e50;color:white;border:none;border-radius:6px;font-size:16px;cursor:pointer;">Сохранить PDF</button>
+    <button onclick="window.close()" style="padding:10px 24px;background:#ddd;color:#333;border:none;border-radius:6px;font-size:16px;cursor:pointer;">Закрыть</button>
+</div>
+</body></html>`;
+
+    const win = window.open('', '_blank');
+    if (win) {
+        win.document.write(html);
+        win.document.close();
+        win.focus();
+    } else {
+        showToast('Не удалось открыть окно', 'error');
+    }
+}
 
 function initApp() {
     console.log('Инициализация...');
@@ -160,37 +227,24 @@ function initApp() {
 
     const btnMatrix = document.getElementById('openMatrixModal');
     const btnCommonCases = document.getElementById('openCommonCasesManager');
-    const btnSavePreset = document.getElementById('saveOrderPreset');
-    const btnLoadPreset = document.getElementById('loadOrderPreset');
-    const btnExportPresets = document.getElementById('exportOrderPresets');
-    const btnImportPresets = document.getElementById('importOrderPresetsBtn');
-    const presetFileInput = document.getElementById('orderPresetFileInput');
-    const btnDeletePreset = document.getElementById('deleteOrderPreset');
     const btnSaveJSON = document.getElementById('saveJ');
     const btnSavePDF = document.getElementById('savePdf');
     const btnClearOrder = document.getElementById('clearOrder');
 
     if (btnMatrix) btnMatrix.addEventListener('click', () => openMatrixModal());
     if (btnCommonCases) btnCommonCases.addEventListener('click', () => openCasesManagerModal());
-    if (btnSavePreset) btnSavePreset.addEventListener('click', savePreset);
-    if (btnLoadPreset) btnLoadPreset.addEventListener('click', loadPreset);
-    if (btnExportPresets) btnExportPresets.addEventListener('click', exportPresets);
-    if (btnImportPresets) btnImportPresets.addEventListener('click', importPresets);
-    if (presetFileInput) {
-        presetFileInput.addEventListener('change', function(e) {
-            if (e.target.files[0]) {
-                showToast('Импорт пресета (заглушка)', 'neutral');
-                this.value = '';
-            }
-        });
-    }
-    if (btnDeletePreset) btnDeletePreset.addEventListener('click', deletePreset);
     if (btnSaveJSON) btnSaveJSON.addEventListener('click', exportOrderJSON);
     if (btnSavePDF) btnSavePDF.addEventListener('click', exportOrderPDF);
     if (btnClearOrder) btnClearOrder.addEventListener('click', clearOrderData);
 
     const addCategoryBtn = document.getElementById('addCategoryBtn');
     if (addCategoryBtn) addCategoryBtn.addEventListener('click', addCategory);
+
+    // Кнопка "Сохранить в HTML" в редакторе
+    const saveHtmlBtn = document.getElementById('saveHtmlBtn');
+    if (saveHtmlBtn) saveHtmlBtn.addEventListener('click', exportInventoryHTML);
+
+    // Обработчики для пресетов удалены из main.js — они теперь в render-order.js
 
     switchMode('menu');
     showToast('Прокатошная загружена', 'neutral');
