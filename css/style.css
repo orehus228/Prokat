@@ -1378,6 +1378,60 @@ body {
         font-size: 13px;
         padding: 4px 8px;
     }
+    /* Горизонтальная ориентация: скрываем лишние панели */
+    @media (orientation: landscape) {
+        #matrixPresetPanel {
+            display: none !important; /* полностью скрываем панель пресетов */
+        }
+        .matrix-name-toggle {
+            display: none !important; /* скрываем переключатель полных названий */
+        }
+        .matrix-zoom-controls .zoom-label {
+            display: none;
+        }
+        .matrix-zoom-controls .zoom-btn {
+            padding: 2px 6px;
+            font-size: 11px;
+            min-height: 24px;
+        }
+        #matrixZoomLevelLabel {
+            font-size: 11px;
+            min-width: 30px;
+        }
+        #matrixModal .filter-row {
+            flex-direction: row;
+            gap: 4px;
+        }
+        #matrixModal .filter-row input {
+            font-size: 12px;
+            padding: 2px 6px;
+            width: auto;
+            flex: 1;
+        }
+        #matrixModal .modal {
+            padding: 4px;
+        }
+        .matrix-table {
+            font-size: 14px;
+        }
+        .matrix-table th,
+        .matrix-table td {
+            min-width: 90px;
+            max-width: 120px;
+            height: 34px;
+            padding: 4px 8px;
+        }
+        .matrix-table th:first-child,
+        .matrix-table td:first-child {
+            min-width: 110px;
+            max-width: 150px;
+        }
+        /* Максимальная высота таблицы */
+        #matrixModal .table-wrap {
+            max-height: none;
+            flex: 1;
+        }
+    }
 }
 
 @media (max-width: 480px) {
@@ -1409,7 +1463,6 @@ body {
         font-size: 12px;
         margin-left: 6px;
     }
-    /* Максимально компактная панель пресетов */
     #matrixPresetPanel {
         flex-wrap: wrap;
         gap: 2px;
@@ -1441,6 +1494,37 @@ body {
         padding: 2px 6px;
     }
     @media (orientation: landscape) {
+        #matrixPresetPanel {
+            display: none !important;
+        }
+        .matrix-name-toggle {
+            display: none !important;
+        }
+        .matrix-zoom-controls .zoom-label {
+            display: none;
+        }
+        .matrix-zoom-controls .zoom-btn {
+            padding: 2px 6px;
+            font-size: 11px;
+            min-height: 22px;
+        }
+        #matrixZoomLevelLabel {
+            font-size: 11px;
+            min-width: 30px;
+        }
+        #matrixModal .filter-row {
+            flex-direction: row;
+            gap: 4px;
+        }
+        #matrixModal .filter-row input {
+            font-size: 12px;
+            padding: 2px 6px;
+            width: auto;
+            flex: 1;
+        }
+        #matrixModal .modal {
+            padding: 2px;
+        }
         .matrix-table {
             font-size: 14px;
         }
@@ -1456,21 +1540,9 @@ body {
             min-width: 110px;
             max-width: 150px;
         }
-        #matrixModal .modal {
-            padding: 8px;
-        }
-        #matrixPresetPanel {
-            padding: 2px 4px;
-        }
-        #matrixPresetPanel .btn-sm {
-            padding: 2px 8px;
-            font-size: 11px;
-            min-height: 26px;
-        }
-        #matrixPresetPanel select {
-            font-size: 11px;
-            padding: 2px 6px;
-            min-height: 26px;
+        #matrixModal .table-wrap {
+            max-height: none;
+            flex: 1;
         }
     }
 }
