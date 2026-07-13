@@ -1,7 +1,7 @@
 // order.js — Данные заказа (полная версия с синхронизацией путей)
 import { getItemProps, getCommonCases, getCachedCalculation, setCachedCalculation } from './data.js';
 
-// Экспортируемые переменные состояния
+// Экспортируемые переменные состояния (уже export let)
 export let order = {};
 export let orderSplits = {};
 export let links = {};
@@ -15,7 +15,7 @@ export let orderExtra = {};
 
 const STORAGE_ORDER_KEY = 'app_order_data';
 
-// Локальный кеш (очищается при сохранении)
+// Локальный кеш
 let calculationCache = new Map();
 
 export function clearCache() {
@@ -66,7 +66,7 @@ export function saveOrderData() {
     clearCache();
 }
 
-// ===== СИНХРОНИЗАЦИЯ ПУТЕЙ ПРИ ПЕРЕИМЕНОВАНИИ/ПЕРЕМЕЩЕНИИ =====
+// ===== СИНХРОНИЗАЦИЯ ПУТЕЙ =====
 export function updateAllPaths(oldPrefix, newPrefix) {
     const objectsToUpdate = [
         { obj: order, name: 'order' },
@@ -131,7 +131,7 @@ export function updateOrderPaths(oldPath, newPath) {
 }
 
 // ============================================================
-// ОСТАЛЬНЫЕ ФУНКЦИИ (без изменений)
+// ОСТАЛЬНЫЕ ФУНКЦИИ
 // ============================================================
 
 export function getTotalQty(path) {
@@ -402,17 +402,3 @@ export function calcItemCases(path, qty) {
     if (!opt || opt.qty <= 0) return 0;
     return Math.ceil(qty / opt.qty);
 }
-
-// Явный экспорт всех переменных (для надёжности)
-export {
-    order,
-    orderSplits,
-    links,
-    notes,
-    orderPacking,
-    individualCaseValues,
-    commonRoutes,
-    caseModes,
-    orderExclude,
-    orderExtra
-};
