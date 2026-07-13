@@ -49,7 +49,7 @@ let caseSettingsCallback = null;
 let matrixZoomLevel = 1;
 let openCategories = [];
 let scrollToPath = null;
-let matrixFullNames = true; // по умолчанию включено
+let matrixFullNames = true;
 
 const MATRIX_PRESETS_KEY = STORAGE_KEYS.MATRIX_PRESETS || 'matrix_presets';
 const MATRIX_FULLNAMES_KEY = 'matrix_full_names';
@@ -673,10 +673,12 @@ function renderMatrix() {
     const fontSize = baseFontSize * matrixZoomLevel;
     const padding = Math.round(basePadding * matrixZoomLevel);
     const height = Math.round(baseHeight * matrixZoomLevel);
-    const sourceWidth = matrixFullNames ? Math.max(200, colWidth * 2) : colWidth;
+    // Ширина первой колонки: при полных названиях — 250px, иначе 120px
+    const sourceWidth = matrixFullNames ? 250 : 120;
 
     let html = `<div class="matrix-table-wrapper"><table class="matrix-table" style="font-size:${fontSize}px; table-layout:fixed; width:100%;">`;
-    html += `<thead><tr><th class="matrix-header" style="width:${sourceWidth}px; min-width:${sourceWidth}px; max-width:${sourceWidth}px; padding:${padding}px; height:${height}px; font-size:${fontSize}px; position:sticky; left:0; z-index:20;">Источник \\ Цель</th>`;
+    // Заголовки
+    html += `<thead><tr><th class="matrix-header" style="width:${sourceWidth}px; min-width:${sourceWidth}px; max-width:${sourceWidth}px; padding:${padding}px; height:${height}px; font-size:${fontSize}px; position:sticky; left:0; z-index:25;">Источник \\ Цель</th>`;
     allTargets.forEach(target => {
         const displayName = matrixFullNames ? target.name : truncateName(target.name);
         html += `<th class="matrix-header" style="width:${colWidth}px; min-width:${colWidth}px; max-width:${colWidth}px; padding:${padding}px; height:${height}px; font-size:${fontSize}px;" title="${esc(target.name)}">${displayName}</th>`;
@@ -693,14 +695,25 @@ function renderMatrix() {
         const catId = 'cat_' + cat + '_' + Date.now();
         const isOpen = openCategories.includes(cat);
         const toggleIcon = isOpen ? '▼' : '▶';
-        html += `<tr class="matrix-category" onclick="window.toggleMatrixCategory('${catId}', '${cat}')"><td colspan="${allTargets.length+1}" style="text-align:left;padding:${padding}px 10px;background:var(--bg-secondary);border:1px solid var(--border-color);font-size:${fontSize}px;"><span class="toggle" id="toggle_${catId}">${toggleIcon}</span> ${CAT_NAMES[cat]||cat} (${filtered.length})</td></tr>`;
+        // Строка категории — первая ячейка фиксирована
+        html += `<tr class="matrix-category" onclick="window.toggleMatrixCategory('${catId}', '${cat}')">`;
+        html += `<td class="matrix-cell matrix-category-toggle" style="width:${sourceWidth}px; min-width:${sourceWidth}px; max-width:${sourceWidth}px; padding:${padding}px; height:${height}px; font-size:${fontSize}px; position:sticky; left:0; z-index:20; background:var(--bg-secondary); border:1px solid var(--matrix-border); text-align:center; cursor:pointer;">`;
+        html += `<span class="toggle" id="toggle_${catId}">${toggleIcon}</span>`;
+        html += `</td>`;
+        // Вторая ячейка — название категории и количество (colspan)
+        html += `<td colspan="${allTargets.length}" style="text-align:left;padding:${padding}px 10px;background:var(--bg-secondary);border:1px solid var(--border-color);font-size:${fontSize}px;cursor:pointer;">`;
+        html += `${CAT_NAMES[cat]||cat} (${filtered.length})`;
+        html += `</td>`;
+        html += `</tr>`;
+
         html += `<tbody id="${catId}" class="matrix-category-items" style="display:${isOpen ? 'table-row-group' : 'none'};">`;
         filtered.forEach((source, idx) => {
             const rowClass = idx % 2 === 0 ? 'row-even' : 'row-odd';
             const rowId = (scrollToPath && source.full === scrollToPath) ? 'id="matrix-scroll-target"' : '';
             html += `<tr class="${rowClass}" ${rowId}>`;
+            // Источник — первая ячейка фиксирована, ширина sourceWidth, отображаем полное название всегда (если matrixFullNames включено, то без обрезания)
             const sourceDisplay = matrixFullNames ? source.name : truncateName(source.name);
-            html += `<td class="matrix-cell matrix-source" style="width:${sourceWidth}px; min-width:${sourceWidth}px; max-width:${sourceWidth}px; padding:${padding}px; height:${height}px; overflow:hidden; text-overflow:ellipsis; font-size:${fontSize}px; position:sticky; left:0; z-index:5; background:${idx % 2 === 0 ? 'var(--matrix-row-even)' : 'var(--matrix-row-odd)'};" title="${esc(source.name)}">${sourceDisplay}</td>`;
+            html += `<td class="matrix-cell matrix-source" style="width:${sourceWidth}px; min-width:${sourceWidth}px; max-width:${sourceWidth}px; padding:${padding}px; height:${height}px; overflow:hidden; text-overflow:ellipsis; font-size:${fontSize}px; position:sticky; left:0; z-index:15; background:${idx % 2 === 0 ? 'var(--matrix-row-even)' : 'var(--matrix-row-odd)'};" title="${esc(source.name)}">${sourceDisplay}</td>`;
             allTargets.forEach(target => {
                 if (source.full === target.full) {
                     html += `<td class="matrix-cell matrix-diagonal" style="width:${colWidth}px; min-width:${colWidth}px; max-width:${colWidth}px; padding:${padding}px; height:${height}px; font-size:${fontSize}px;">—</td>`;
@@ -730,7 +743,7 @@ function renderMatrix() {
     html += '</tbody></table></div>';
     container.innerHTML = html;
 
-    // Переключатель полных названий (если его нет, создаём)
+    // Переключатель полных названий
     const zoomControls = document.querySelector('.matrix-zoom-controls');
     if (zoomControls && !document.getElementById('matrixNameToggle')) {
         const toggleDiv = document.createElement('div');

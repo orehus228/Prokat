@@ -1094,30 +1094,42 @@ body {
     z-index: 20;
 }
 /* Фиксация первой колонки для всех строк (включая категории) */
-.matrix-table td:first-child,
-.matrix-table th:first-child {
+#matrixModal .matrix-table td:first-child,
+#matrixModal .matrix-table th:first-child {
     position: sticky !important;
     left: 0 !important;
     z-index: 15 !important;
-    background: var(--bg-card);
-    border: 2px solid var(--matrix-border);
-    padding: 4px 6px;
-    text-align: left;
-    white-space: nowrap;
-    height: 32px;
-    overflow: visible !important; /* чтобы стрелка не обрезалась */
-    text-overflow: clip !important;
+    background: var(--bg-card) !important;
+    border-right: 2px solid var(--matrix-border) !important;
 }
-/* Для ячеек категорий, чтобы они были поверх остальных */
-.matrix-table .matrix-category td:first-child {
+/* Для ячеек категорий — выше */
+#matrixModal .matrix-table .matrix-category td:first-child {
     z-index: 20 !important;
-    background: var(--bg-secondary);
+    background: var(--bg-secondary) !important;
 }
-/* Для заголовка первой колонки */
-.matrix-table thead th:first-child {
+/* Для заголовка первой колонки — выше всех */
+#matrixModal .matrix-table thead th:first-child {
     z-index: 25 !important;
+    background: var(--matrix-header-bg) !important;
 }
-/* Обычные ячейки */
+/* Чередование фона для строк */
+#matrixModal .matrix-table .row-even td:first-child {
+    background: var(--matrix-row-even) !important;
+}
+#matrixModal .matrix-table .row-odd td:first-child {
+    background: var(--matrix-row-odd) !important;
+}
+/* Убедимся, что контейнер прокручивается */
+#matrixModal .table-wrap {
+    overflow: auto !important;
+    position: relative;
+}
+/* Для мобильных устройств, чтобы стрелка не обрезалась */
+#matrixModal .matrix-table .toggle {
+    display: inline-block;
+    min-width: 20px;
+}
+/* Остальные ячейки */
 .matrix-table td {
     border: 1px solid var(--matrix-border);
     padding: 4px 6px;
@@ -1127,17 +1139,11 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
 }
-/* Чередование строк */
+/* Чередование строк (для остальных ячеек) */
 .matrix-table .row-even {
     background: var(--matrix-row-even);
 }
 .matrix-table .row-odd {
-    background: var(--matrix-row-odd);
-}
-.matrix-table .row-even td:first-child {
-    background: var(--matrix-row-even);
-}
-.matrix-table .row-odd td:first-child {
     background: var(--matrix-row-odd);
 }
 .matrix-table .matrix-category td {
