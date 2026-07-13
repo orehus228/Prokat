@@ -47,10 +47,9 @@ let casesManagerCallback = null;
 let currentCaseSettingsPath = null;
 let caseSettingsCallback = null;
 let matrixZoomLevel = 1;
-let openCategories = []; // массив имён открытых категорий
-let scrollToPath = null; // путь, к которому нужно прокрутить после рендера
-
-const ZOOM_PRESETS = [0.5, 0.75, 1, 1.25, 1.5];
+let openCategories = [];
+let scrollToPath = null;
+let matrixFullNames = false;
 
 // ============================================================
 // МОДАЛКА СВОЙСТВ ПОЗИЦИИ
@@ -283,7 +282,6 @@ export function openCaseSettingsModal(path, callback) {
                 radio.checked = true;
                 mode.selectedOption = idx;
                 mode.alt = null;
-                // Автоматически включаем режим кофров при выборе варианта
                 mode.enabled = true;
                 saveOrderData();
                 document.querySelectorAll('.case-option-item').forEach(el => el.classList.remove('active'));
@@ -572,7 +570,7 @@ export function initCasesManagerOverlayClose() {
 }
 
 // ============================================================
-// МАТРИЦА ПРИВЯЗОК (с пресетами, фиксированной шириной, суммированием)
+// МАТРИЦА ПРИВЯЗОК (с пресетами, фиксированной шириной, сохранением категорий, прокруткой)
 // ============================================================
 const MATRIX_PRESETS_KEY = STORAGE_KEYS.MATRIX_PRESETS || 'matrix_presets';
 
@@ -587,7 +585,7 @@ function saveMatrixPresets(presets) {
     localStorage.setItem(MATRIX_PRESETS_KEY, JSON.stringify(presets));
 }
 
-export function openMatrixModal(sourcePath, showPresets = true) {
+export function openMatrixModal(sourcePath, showPresets = true, category = null) {
     const modal = document.getElementById('matrixModal');
     if (!modal) {
         showToast('Матрица привязок не найдена', 'error');
@@ -595,19 +593,17 @@ export function openMatrixModal(sourcePath, showPresets = true) {
     }
     if (sourcePath) {
         document.getElementById('matrixSearchSource').value = sourcePath.split('|').pop();
-        // Сохраняем путь для прокрутки
         scrollToPath = sourcePath;
-        // Определяем категорию и добавляем её в открытые
-        const parts = sourcePath.split('|');
-        if (parts.length >= 1) {
-            const catName = parts[0];
-            if (!openCategories.includes(catName)) {
-                openCategories.push(catName);
-            }
+        const catName = category || (sourcePath.split('|')[0]);
+        if (catName && !openCategories.includes(catName)) {
+            openCategories.push(catName);
         }
     } else {
         document.getElementById('matrixSearchSource').value = '';
         scrollToPath = null;
+        if (category && !openCategories.includes(category)) {
+            openCategories.push(category);
+        }
     }
     document.getElementById('matrixSearchTarget').value = '';
     matrixZoomLevel = 1;
@@ -649,22 +645,22 @@ function renderMatrix() {
     allTargets = unique;
     if (tgtFilter) allTargets = allTargets.filter(t => t.name.toLowerCase().includes(tgtFilter));
 
-    // Базовые размеры (при зуме 1)
+    // Базовые размеры
     const baseColWidth = 90;
     const baseFontSize = 13;
     const basePadding = 4;
     const baseHeight = 32;
 
-    // Применяем текущий зум
     const colWidth = Math.round(baseColWidth * matrixZoomLevel);
     const fontSize = baseFontSize * matrixZoomLevel;
     const padding = Math.round(basePadding * matrixZoomLevel);
     const height = Math.round(baseHeight * matrixZoomLevel);
+    const sourceWidth = matrixFullNames ? Math.max(200, colWidth * 2) : colWidth;
 
     let html = `<div class="matrix-table-wrapper"><table class="matrix-table" style="font-size:${fontSize}px; table-layout:fixed; width:100%;">`;
-    html += `<thead><tr><th class="matrix-header" style="width:${colWidth}px; min-width:${colWidth}px; max-width:${colWidth}px; padding:${padding}px; height:${height}px; font-size:${fontSize}px;">Источник \\ Цель</th>`;
+    html += `<thead><tr><th class="matrix-header" style="width:${sourceWidth}px; min-width:${sourceWidth}px; max-width:${sourceWidth}px; padding:${padding}px; height:${height}px; font-size:${fontSize}px; position:sticky; left:0; z-index:15;">Источник \\ Цель</th>`;
     allTargets.forEach(target => {
-        const displayName = truncateName(target.name);
+        const displayName = matrixFullNames ? target.name : truncateName(target.name);
         html += `<th class="matrix-header" style="width:${colWidth}px; min-width:${colWidth}px; max-width:${colWidth}px; padding:${padding}px; height:${height}px; font-size:${fontSize}px;" title="${esc(target.name)}">${displayName}</th>`;
     });
     html += '</tr></thead><tbody>';
@@ -677,17 +673,16 @@ function renderMatrix() {
         if (filtered.length === 0) return;
 
         const catId = 'cat_' + cat + '_' + Date.now();
-        // Определяем, открыта ли категория
         const isOpen = openCategories.includes(cat);
         const toggleIcon = isOpen ? '▼' : '▶';
         html += `<tr class="matrix-category" onclick="window.toggleMatrixCategory('${catId}', '${cat}')"><td colspan="${allTargets.length+1}" style="text-align:left;padding:${padding}px 10px;background:var(--bg-secondary);border:1px solid var(--border-color);font-size:${fontSize}px;"><span class="toggle" id="toggle_${catId}">${toggleIcon}</span> ${CAT_NAMES[cat]||cat} (${filtered.length})</td></tr>`;
         html += `<tbody id="${catId}" class="matrix-category-items" style="display:${isOpen ? 'table-row-group' : 'none'};">`;
         filtered.forEach((source, idx) => {
             const rowClass = idx % 2 === 0 ? 'row-even' : 'row-odd';
-            // Если это целевая строка для прокрутки, добавляем id
             const rowId = (scrollToPath && source.full === scrollToPath) ? 'id="matrix-scroll-target"' : '';
             html += `<tr class="${rowClass}" ${rowId}>`;
-            html += `<td class="matrix-cell matrix-source" style="width:${colWidth}px; min-width:${colWidth}px; max-width:${colWidth}px; padding:${padding}px; height:${height}px; overflow:hidden; text-overflow:ellipsis; font-size:${fontSize}px;" title="${esc(source.name)}">${truncateName(source.name)}</td>`;
+            const sourceDisplay = matrixFullNames ? source.name : truncateName(source.name);
+            html += `<td class="matrix-cell matrix-source" style="width:${sourceWidth}px; min-width:${sourceWidth}px; max-width:${sourceWidth}px; padding:${padding}px; height:${height}px; overflow:hidden; text-overflow:ellipsis; font-size:${fontSize}px; position:sticky; left:0; z-index:5; background:${idx % 2 === 0 ? 'var(--matrix-row-even)' : 'var(--matrix-row-odd)'};" title="${esc(source.name)}">${sourceDisplay}</td>`;
             allTargets.forEach(target => {
                 if (source.full === target.full) {
                     html += `<td class="matrix-cell matrix-diagonal" style="width:${colWidth}px; min-width:${colWidth}px; max-width:${colWidth}px; padding:${padding}px; height:${height}px; font-size:${fontSize}px;">—</td>`;
@@ -700,19 +695,10 @@ function renderMatrix() {
                         }
                     }
                     const currentLinks = allLinks.filter(l => l.source === source.full);
-                    const conflictLinks = allLinks.filter(l => l.source !== source.full);
                     const totalMultiplier = currentLinks.reduce((sum, l) => sum + l.multiplier, 0);
-                    const hasConflict = conflictLinks.length > 0;
 
-                    if (totalMultiplier > 0 || hasConflict) {
+                    if (totalMultiplier > 0) {
                         let cellContent = `<span class="matrix-value" style="font-size:${fontSize}px;">${totalMultiplier.toFixed(2)}</span>`;
-                        if (hasConflict) {
-                            const conflictInfo = conflictLinks.map(c => {
-                                const srcName = c.source.split('|').pop();
-                                return `${srcName} (×${c.multiplier})`;
-                            }).join(', ');
-                            cellContent += `<span class="matrix-conflict" style="font-size:${fontSize}px;" title="Конфликт! Также ссылаются: ${conflictInfo}">!</span>`;
-                        }
                         html += `<td class="matrix-cell matrix-value-cell" style="width:${colWidth}px; min-width:${colWidth}px; max-width:${colWidth}px; padding:${padding}px; height:${height}px; overflow:hidden; text-overflow:ellipsis; font-size:${fontSize}px;" data-src="${source.full}" data-target="${target.full}" onclick="window.editMatrixCell(this,'${source.full}','${target.full}')">${cellContent}</td>`;
                     } else {
                         html += `<td class="matrix-cell matrix-empty" style="width:${colWidth}px; min-width:${colWidth}px; max-width:${colWidth}px; padding:${padding}px; height:${height}px; font-size:${fontSize}px;" data-src="${source.full}" data-target="${target.full}" onclick="window.editMatrixCell(this,'${source.full}','${target.full}')">+</td>`;
@@ -725,25 +711,45 @@ function renderMatrix() {
     });
     html += '</tbody></table></div>';
     container.innerHTML = html;
-    // После рендера, если есть цель прокрутки, прокручиваем к ней
+
+    // Добавляем переключатель полных названий, если его нет
+    const zoomControls = document.querySelector('.matrix-zoom-controls');
+    if (zoomControls && !document.getElementById('matrixNameToggle')) {
+        const toggleDiv = document.createElement('div');
+        toggleDiv.className = 'matrix-name-toggle';
+        toggleDiv.id = 'matrixNameToggle';
+        toggleDiv.innerHTML = `
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                <input type="checkbox" ${matrixFullNames ? 'checked' : ''}> Полные названия
+            </label>
+        `;
+        toggleDiv.querySelector('input').addEventListener('change', function() {
+            matrixFullNames = this.checked;
+            renderMatrix();
+        });
+        zoomControls.after(toggleDiv);
+    } else {
+        const toggleInput = document.querySelector('#matrixNameToggle input');
+        if (toggleInput) toggleInput.checked = matrixFullNames;
+    }
+
+    // Прокрутка к целевой строке
     if (scrollToPath) {
         setTimeout(() => {
             const targetRow = document.getElementById('matrix-scroll-target');
             if (targetRow) {
                 targetRow.scrollIntoView({ block: 'center', behavior: 'smooth' });
-                // Подсветка строки
                 targetRow.style.background = 'var(--bg-active)';
                 setTimeout(() => {
                     targetRow.style.background = '';
                 }, 2000);
-                scrollToPath = null; // сбрасываем, чтобы не прокручивать повторно
+                scrollToPath = null;
             }
         }, 100);
     }
 }
 
 function applyMatrixZoom() {
-    // Обновляем активную кнопку
     document.querySelectorAll('.zoom-btn').forEach(btn => {
         btn.classList.toggle('active', parseFloat(btn.dataset.zoom) === matrixZoomLevel);
     });
@@ -799,7 +805,6 @@ window.toggleMatrixCategory = function(catId, catName) {
     if (isOpen) {
         tbody.style.display = 'none';
         toggle.textContent = '▶';
-        // Удаляем из открытых
         const idx = openCategories.indexOf(catName);
         if (idx !== -1) openCategories.splice(idx, 1);
     } else {
@@ -981,7 +986,6 @@ export function initMatrixHandlers() {
     if (closeBtn) {
         closeBtn.addEventListener('click', () => {
             document.getElementById('matrixModal').classList.remove('open');
-            // Сбрасываем состояние открытых категорий при закрытии
             openCategories = [];
             scrollToPath = null;
         });
@@ -1003,10 +1007,8 @@ export function initMatrixHandlers() {
     const tgtInput = document.getElementById('matrixSearchTarget');
     if (tgtInput) tgtInput.addEventListener('input', renderMatrix);
 
-    // Настройка кнопок масштаба
     setupZoomButtons();
 
-    // Пресеты
     const savePresetBtn = document.getElementById('matrixSavePreset');
     if (savePresetBtn) savePresetBtn.addEventListener('click', saveMatrixPreset);
 
@@ -1036,7 +1038,6 @@ export function initMatrixHandlers() {
         });
     }
 
-    // Заполняем select при открытии матрицы
     const modal = document.getElementById('matrixModal');
     if (modal) {
         const observer = new MutationObserver(() => {

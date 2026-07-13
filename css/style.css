@@ -1086,6 +1086,33 @@ body {
     max-width: 120px;
     text-align: left;
 }
+/* Фиксация первой колонки (источники) */
+.matrix-table th:first-child,
+.matrix-table td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 5;
+    background: var(--bg-card);
+}
+.matrix-table th:first-child {
+    z-index: 15; /* выше, чем ячейки */
+}
+.matrix-table td:first-child {
+    z-index: 5;
+}
+/* Для тёмной темы */
+[data-theme="dark"] .matrix-table td:first-child {
+    background: var(--matrix-row-even);
+}
+[data-theme="dark"] .matrix-table .row-odd td:first-child {
+    background: var(--matrix-row-odd);
+}
+[data-theme="light"] .matrix-table td:first-child {
+    background: #f8f8f8;
+}
+[data-theme="light"] .matrix-table .row-odd td:first-child {
+    background: #ffffff;
+}
 .matrix-table th {
     background: var(--matrix-header-bg);
     color: var(--text-secondary);
@@ -1208,6 +1235,20 @@ body {
     text-align: center;
     color: var(--text-secondary);
     font-size: 14px;
+}
+/* Переключатель полных названий */
+.matrix-name-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+    margin-left: 12px;
+}
+.matrix-name-toggle input[type="checkbox"] {
+    accent-color: var(--accent);
 }
 /* Фиксированные кнопки внизу матрицы */
 #matrixModal .modal .buttons.matrix-footer {

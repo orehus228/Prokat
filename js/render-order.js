@@ -681,7 +681,8 @@ function handleContainerClick(e) {
     const linkBtn = e.target.closest('.link-btn');
     if (linkBtn) {
         import('./cases.js').then(module => {
-            module.openMatrixModal(linkBtn.dataset.path, false);
+            // Передаём текущую категорию для автоматического раскрытия
+            module.openMatrixModal(linkBtn.dataset.path, false, currentOrderCategory);
         });
         return;
     }
@@ -1654,6 +1655,16 @@ export function initOrderUI() {
             this.value = '';
         }
     });
+
+    // Кнопка "Матрица привязок" передаёт текущую категорию
+    const btnMatrix = document.getElementById('openMatrixModal');
+    if (btnMatrix) {
+        btnMatrix.addEventListener('click', () => {
+            import('./cases.js').then(module => {
+                module.openMatrixModal(null, true, currentOrderCategory);
+            });
+        });
+    }
 
     populateOrderPresetSelect();
 }
