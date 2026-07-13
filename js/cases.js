@@ -47,8 +47,10 @@ let casesManagerCallback = null;
 let currentCaseSettingsPath = null;
 let caseSettingsCallback = null;
 let matrixZoomLevel = 1;
-const MATRIX_MIN_ZOOM = 0.5;
-const MATRIX_MAX_ZOOM = 2;
+let openCategories = []; // массив имён открытых категорий
+let scrollToPath = null; // путь, к которому нужно прокрутить после рендера
+
+const ZOOM_PRESETS = [0.5, 0.75, 1, 1.25, 1.5];
 
 // ============================================================
 // МОДАЛКА СВОЙСТВ ПОЗИЦИИ
@@ -281,10 +283,13 @@ export function openCaseSettingsModal(path, callback) {
                 radio.checked = true;
                 mode.selectedOption = idx;
                 mode.alt = null;
+                // Автоматически включаем режим кофров при выборе варианта
+                mode.enabled = true;
                 saveOrderData();
                 document.querySelectorAll('.case-option-item').forEach(el => el.classList.remove('active'));
                 div.classList.add('active');
-                showToast('Вариант кофра выбран', 'neutral');
+                showToast('Вариант кофра выбран, режим включён', 'neutral');
+                if (caseSettingsCallback) caseSettingsCallback();
             });
             optionsContainer.appendChild(div);
         });
@@ -590,8 +595,19 @@ export function openMatrixModal(sourcePath, showPresets = true) {
     }
     if (sourcePath) {
         document.getElementById('matrixSearchSource').value = sourcePath.split('|').pop();
+        // Сохраняем путь для прокрутки
+        scrollToPath = sourcePath;
+        // Определяем категорию и добавляем её в открытые
+        const parts = sourcePath.split('|');
+        if (parts.length >= 1) {
+            const catName = parts[0];
+            if (!openCategories.includes(catName)) {
+                openCategories.push(catName);
+            }
+        }
     } else {
         document.getElementById('matrixSearchSource').value = '';
+        scrollToPath = null;
     }
     document.getElementById('matrixSearchTarget').value = '';
     matrixZoomLevel = 1;
@@ -661,11 +677,16 @@ function renderMatrix() {
         if (filtered.length === 0) return;
 
         const catId = 'cat_' + cat + '_' + Date.now();
-        html += `<tr class="matrix-category" onclick="window.toggleMatrixCategory('${catId}')"><td colspan="${allTargets.length+1}" style="text-align:left;padding:${padding}px 10px;background:var(--bg-secondary);border:1px solid var(--border-color);font-size:${fontSize}px;"><span class="toggle" id="toggle_${catId}">▶</span> ${CAT_NAMES[cat]||cat} (${filtered.length})</td></tr>`;
-        html += `<tbody id="${catId}" class="matrix-category-items" style="display:none;">`;
+        // Определяем, открыта ли категория
+        const isOpen = openCategories.includes(cat);
+        const toggleIcon = isOpen ? '▼' : '▶';
+        html += `<tr class="matrix-category" onclick="window.toggleMatrixCategory('${catId}', '${cat}')"><td colspan="${allTargets.length+1}" style="text-align:left;padding:${padding}px 10px;background:var(--bg-secondary);border:1px solid var(--border-color);font-size:${fontSize}px;"><span class="toggle" id="toggle_${catId}">${toggleIcon}</span> ${CAT_NAMES[cat]||cat} (${filtered.length})</td></tr>`;
+        html += `<tbody id="${catId}" class="matrix-category-items" style="display:${isOpen ? 'table-row-group' : 'none'};">`;
         filtered.forEach((source, idx) => {
             const rowClass = idx % 2 === 0 ? 'row-even' : 'row-odd';
-            html += `<tr class="${rowClass}">`;
+            // Если это целевая строка для прокрутки, добавляем id
+            const rowId = (scrollToPath && source.full === scrollToPath) ? 'id="matrix-scroll-target"' : '';
+            html += `<tr class="${rowClass}" ${rowId}>`;
             html += `<td class="matrix-cell matrix-source" style="width:${colWidth}px; min-width:${colWidth}px; max-width:${colWidth}px; padding:${padding}px; height:${height}px; overflow:hidden; text-overflow:ellipsis; font-size:${fontSize}px;" title="${esc(source.name)}">${truncateName(source.name)}</td>`;
             allTargets.forEach(target => {
                 if (source.full === target.full) {
@@ -704,24 +725,43 @@ function renderMatrix() {
     });
     html += '</tbody></table></div>';
     container.innerHTML = html;
+    // После рендера, если есть цель прокрутки, прокручиваем к ней
+    if (scrollToPath) {
+        setTimeout(() => {
+            const targetRow = document.getElementById('matrix-scroll-target');
+            if (targetRow) {
+                targetRow.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                // Подсветка строки
+                targetRow.style.background = 'var(--bg-active)';
+                setTimeout(() => {
+                    targetRow.style.background = '';
+                }, 2000);
+                scrollToPath = null; // сбрасываем, чтобы не прокручивать повторно
+            }
+        }, 100);
+    }
 }
 
 function applyMatrixZoom() {
-    const slider = document.getElementById('matrixZoomSlider');
-    if (slider) slider.value = matrixZoomLevel;
+    // Обновляем активную кнопку
+    document.querySelectorAll('.zoom-btn').forEach(btn => {
+        btn.classList.toggle('active', parseFloat(btn.dataset.zoom) === matrixZoomLevel);
+    });
     const label = document.getElementById('matrixZoomLevelLabel');
     if (label) label.textContent = Math.round(matrixZoomLevel * 100) + '%';
     renderMatrix();
 }
 
-function setupMatrixZoomSlider() {
-    const slider = document.getElementById('matrixZoomSlider');
-    if (slider) {
-        slider.addEventListener('input', function() {
-            matrixZoomLevel = parseFloat(this.value);
-            applyMatrixZoom();
+function setupZoomButtons() {
+    document.querySelectorAll('.zoom-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const zoom = parseFloat(this.dataset.zoom);
+            if (!isNaN(zoom) && zoom !== matrixZoomLevel) {
+                matrixZoomLevel = zoom;
+                applyMatrixZoom();
+            }
         });
-    }
+    });
 }
 
 function truncateName(name, maxLen = 10) {
@@ -751,16 +791,23 @@ function getAllItemPaths() {
     return res;
 }
 
-window.toggleMatrixCategory = function(catId) {
+window.toggleMatrixCategory = function(catId, catName) {
     const tbody = document.getElementById(catId);
     const toggle = document.getElementById('toggle_' + catId);
     if (!tbody || !toggle) return;
-    if (tbody.style.display === 'none') {
-        tbody.style.display = 'table-row-group';
-        toggle.textContent = '▼';
-    } else {
+    const isOpen = tbody.style.display !== 'none';
+    if (isOpen) {
         tbody.style.display = 'none';
         toggle.textContent = '▶';
+        // Удаляем из открытых
+        const idx = openCategories.indexOf(catName);
+        if (idx !== -1) openCategories.splice(idx, 1);
+    } else {
+        tbody.style.display = 'table-row-group';
+        toggle.textContent = '▼';
+        if (!openCategories.includes(catName)) {
+            openCategories.push(catName);
+        }
     }
 };
 
@@ -934,6 +981,9 @@ export function initMatrixHandlers() {
     if (closeBtn) {
         closeBtn.addEventListener('click', () => {
             document.getElementById('matrixModal').classList.remove('open');
+            // Сбрасываем состояние открытых категорий при закрытии
+            openCategories = [];
+            scrollToPath = null;
         });
     }
     const clearBtn = document.getElementById('matrixClearAll');
@@ -953,8 +1003,10 @@ export function initMatrixHandlers() {
     const tgtInput = document.getElementById('matrixSearchTarget');
     if (tgtInput) tgtInput.addEventListener('input', renderMatrix);
 
-    setupMatrixZoomSlider();
+    // Настройка кнопок масштаба
+    setupZoomButtons();
 
+    // Пресеты
     const savePresetBtn = document.getElementById('matrixSavePreset');
     if (savePresetBtn) savePresetBtn.addEventListener('click', saveMatrixPreset);
 
@@ -984,6 +1036,7 @@ export function initMatrixHandlers() {
         });
     }
 
+    // Заполняем select при открытии матрицы
     const modal = document.getElementById('matrixModal');
     if (modal) {
         const observer = new MutationObserver(() => {

@@ -910,7 +910,7 @@ body {
     display: none;
     align-items: center;
     justify-content: center;
-    z-index: 1200; /* Повышен, чтобы быть поверх матрицы */
+    z-index: 1300; /* Повышен, чтобы быть поверх матрицы */
     padding: 16px;
 }
 .modal-overlay.open {
@@ -1165,35 +1165,36 @@ body {
     border-radius: 4px;
     color: var(--text-primary);
 }
+/* Убрали ползунок, добавили кнопки масштаба */
 .matrix-zoom-controls {
     display: flex;
-    gap: 12px;
+    gap: 8px;
     align-items: center;
     margin-bottom: 12px;
+    flex-wrap: wrap;
 }
-.matrix-zoom-controls input[type="range"] {
-    flex: 1;
-    min-width: 100px;
-    background: var(--bg-input);
-    accent-color: var(--accent);
-    height: 6px;
-    border-radius: 3px;
+.matrix-zoom-controls .zoom-label {
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin-right: 4px;
 }
-.matrix-zoom-controls input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background: var(--accent);
+.matrix-zoom-controls .zoom-btn {
+    padding: 4px 12px;
+    font-size: 13px;
+    min-height: 32px;
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
     cursor: pointer;
+    transition: 0.15s;
 }
-.matrix-zoom-controls input[type="range"]::-moz-range-thumb {
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background: var(--accent);
-    cursor: pointer;
-    border: none;
+.matrix-zoom-controls .zoom-btn:hover {
+    background: var(--bg-hover);
+}
+.matrix-zoom-controls .zoom-btn.active {
+    border-color: var(--accent);
+    background: var(--bg-active);
 }
 #matrixZoomLevelLabel {
     min-width: 50px;
