@@ -6,11 +6,16 @@ import {
     DEFAULT_TRUCK_PRESETS
 } from './config.js';
 
-// Импортируем функции из order.js для синхронизации и кеширования
-import { updateOrderPaths, updateAllPaths, clearCache } from './order.js';
+// Импортируем только функции синхронизации из order.js (без clearCache)
+import { updateOrderPaths, updateAllPaths } from './order.js';
 
 export let editorData = {};
 const calculationCache = new Map();
+
+// Локальная функция очистки кеша (экспортируется)
+export function clearCache() {
+    calculationCache.clear();
+}
 
 export function loadEditorData() {
     try {
@@ -106,8 +111,7 @@ function normalizeAllData() {
 
 export function saveEditorData() {
     localStorage.setItem(STORAGE_KEYS.APP_DATA, JSON.stringify(editorData));
-    calculationCache.clear();
-    clearCache(); // вызов импортированной функции из order.js
+    clearCache(); // локальная
 }
 
 export function resetAllData() {
@@ -275,7 +279,7 @@ export function setItemProps(catKey, subKey, itemName, props) {
         delete editorData.itemProps[key];
     }
     saveEditorData();
-    clearCache(); // вызов импортированной функции
+    clearCache(); // локальная
 }
 
 export function getCommonCases() {
@@ -343,8 +347,6 @@ export function getCachedCalculation(key) {
 export function setCachedCalculation(key, value) {
     calculationCache.set(key, value);
 }
-
-// Удалено локальное объявление clearCache — используем импортированное
 
 // ===== ПЕРЕИМЕНОВАНИЕ И ПЕРЕМЕЩЕНИЕ С СИНХРОНИЗАЦИЕЙ ЗАКАЗА =====
 export function renameCategory(oldName, newName) {
