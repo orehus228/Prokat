@@ -107,7 +107,7 @@ function normalizeAllData() {
 export function saveEditorData() {
     localStorage.setItem(STORAGE_KEYS.APP_DATA, JSON.stringify(editorData));
     calculationCache.clear();
-    clearCache(); // сброс кеша order.js
+    clearCache(); // вызов импортированной функции из order.js
 }
 
 export function resetAllData() {
@@ -275,7 +275,7 @@ export function setItemProps(catKey, subKey, itemName, props) {
         delete editorData.itemProps[key];
     }
     saveEditorData();
-    clearCache(); // сброс кеша веса/объёма
+    clearCache(); // вызов импортированной функции
 }
 
 export function getCommonCases() {
@@ -344,9 +344,7 @@ export function setCachedCalculation(key, value) {
     calculationCache.set(key, value);
 }
 
-export function clearCache() {
-    calculationCache.clear();
-}
+// Удалено локальное объявление clearCache — используем импортированное
 
 // ===== ПЕРЕИМЕНОВАНИЕ И ПЕРЕМЕЩЕНИЕ С СИНХРОНИЗАЦИЕЙ ЗАКАЗА =====
 export function renameCategory(oldName, newName) {
@@ -362,7 +360,6 @@ export function renameCategory(oldName, newName) {
     }
     const oldPrefix = oldName + '|';
     const newPrefix = newName + '|';
-    // Обновляем stock, specs, itemProps
     const keysToUpdate = Object.keys(editorData.stock).filter(k => k.startsWith(oldPrefix));
     keysToUpdate.forEach(k => {
         const newK = k.replace(oldPrefix, newPrefix);
@@ -381,7 +378,6 @@ export function renameCategory(oldName, newName) {
         editorData.itemProps[newK] = editorData.itemProps[k];
         delete editorData.itemProps[k];
     });
-    // Синхронизация данных заказа
     updateAllPaths(oldPrefix, newPrefix);
     saveEditorData();
 }
@@ -400,7 +396,6 @@ export function renameSubgroup(catKey, oldSub, newSub) {
     }
     const oldPrefix = catKey + '|' + oldSub + '|';
     const newPrefix = catKey + '|' + newSub + '|';
-    // Обновляем stock, specs, itemProps
     const keysToUpdate = Object.keys(editorData.stock).filter(k => k.startsWith(oldPrefix));
     keysToUpdate.forEach(k => {
         const newK = k.replace(oldPrefix, newPrefix);
@@ -419,7 +414,6 @@ export function renameSubgroup(catKey, oldSub, newSub) {
         editorData.itemProps[newK] = editorData.itemProps[k];
         delete editorData.itemProps[k];
     });
-    // Синхронизация данных заказа
     updateAllPaths(oldPrefix, newPrefix);
     saveEditorData();
 }
@@ -434,7 +428,6 @@ export function renameItem(catKey, subKey, oldName, newName) {
     targetArray[idx] = newName;
     const oldPath = getStockKey(catKey, subKey, oldName);
     const newPath = getStockKey(catKey, subKey, newName);
-    // Обновляем stock, specs, itemProps
     if (editorData.stock[oldPath] !== undefined) {
         editorData.stock[newPath] = editorData.stock[oldPath];
         delete editorData.stock[oldPath];
@@ -447,7 +440,6 @@ export function renameItem(catKey, subKey, oldName, newName) {
         editorData.itemProps[newPath] = editorData.itemProps[oldPath];
         delete editorData.itemProps[oldPath];
     }
-    // Синхронизация данных заказа
     updateOrderPaths(oldPath, newPath);
     saveEditorData();
 }
@@ -467,7 +459,6 @@ export function moveItem(catKey, subKey, itemName, targetCat, targetSub) {
     targetArray.push(itemName);
     const oldPath = getStockKey(catKey, subKey, itemName);
     const newPath = getStockKey(targetCat, targetSub, itemName);
-    // Обновляем stock, specs, itemProps
     if (editorData.stock[oldPath] !== undefined) {
         editorData.stock[newPath] = editorData.stock[oldPath];
         delete editorData.stock[oldPath];
@@ -480,7 +471,6 @@ export function moveItem(catKey, subKey, itemName, targetCat, targetSub) {
         editorData.itemProps[newPath] = editorData.itemProps[oldPath];
         delete editorData.itemProps[oldPath];
     }
-    // Синхронизация данных заказа
     updateOrderPaths(oldPath, newPath);
     saveEditorData();
 }
