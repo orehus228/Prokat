@@ -3,7 +3,7 @@ import { initData, saveEditorData, editorData, resetAllData } from './data.js';
 import { renderEditorAll, addCategory, initRenderHandlers } from './render-editor.js';
 import { renderOrderAll, initOrderUI } from './order-render.js';
 import { exportOrderJSON, exportOrderPDF, initOrderPresetsUI } from './order-presets.js';
-import { clearOrderData } from './order-actions.js';
+import { clearOrderData, initOrderActions } from './order-actions.js'; // <-- добавлен initOrderActions
 import { renderOpenOrder, initOpenUI } from './render-open.js';
 import { renderLoadingPage, initTruckManagerHandlers } from './render-loading.js';
 import { initModalHandlers, showToast, showConfirm } from './ui.js';
@@ -35,7 +35,11 @@ function switchMode(mode) {
     if (loadingPage) loadingPage.style.display = (mode === 'loading') ? 'block' : 'none';
 
     if (mode === 'editor') renderEditorAll();
-    if (mode === 'order') renderOrderAll();
+    if (mode === 'order') {
+        renderOrderAll();
+        // После рендера заказа убедимся, что делегирование событий активно
+        initOrderActions();
+    }
     if (mode === 'open') {
         const sRes = document.getElementById('sRes');
         if (sRes) sRes.style.display = 'none';
@@ -103,7 +107,10 @@ function loadLibrary() {
                 saveEditorData();
                 showToast('Библиотека загружена', 'success');
                 if (currentMode === 'editor') renderEditorAll();
-                else if (currentMode === 'order') renderOrderAll();
+                else if (currentMode === 'order') {
+                    renderOrderAll();
+                    initOrderActions();
+                }
                 else if (currentMode === 'loading') renderLoadingPage();
             } catch(err) {
                 showToast('Ошибка: ' + err.message, 'error');
@@ -193,7 +200,8 @@ function initApp() {
     initCases();
     initRenderHandlers();
     initOrderUI();          // инициализация UI заказа (вкладки, поиск и т.д.)
-    initOrderPresetsUI();   // инициализация пресетов (теперь в отдельном модуле)
+    initOrderPresetsUI();   // инициализация пресетов
+    initOrderActions();     // <-- инициализация делегирования событий для заказа
     initOpenUI();
     initTruckManagerHandlers();
 
