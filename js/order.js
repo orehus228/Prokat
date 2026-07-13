@@ -1,6 +1,7 @@
 // order.js — Данные заказа (полная версия с синхронизацией путей)
-import { getItemProps, getCommonCases, getCachedCalculation, setCachedCalculation, clearCache as clearDataCache } from './data.js';
+import { getItemProps, getCommonCases, getCachedCalculation, setCachedCalculation } from './data.js';
 
+// Экспортируемые переменные состояния
 export let order = {};
 export let orderSplits = {};
 export let links = {};
@@ -14,9 +15,11 @@ export let orderExtra = {};
 
 const STORAGE_ORDER_KEY = 'app_order_data';
 
-// Локальная функция clearCache для кеша order.js (вызывает clearDataCache из data.js)
+// Локальный кеш (очищается при сохранении)
+let calculationCache = new Map();
+
 export function clearCache() {
-    clearDataCache();
+    calculationCache.clear();
 }
 
 export function loadOrderData() {
@@ -127,7 +130,10 @@ export function updateOrderPaths(oldPath, newPath) {
     saveOrderData();
 }
 
-// Остальные функции (без изменений)
+// ============================================================
+// ОСТАЛЬНЫЕ ФУНКЦИИ (без изменений)
+// ============================================================
+
 export function getTotalQty(path) {
     let total = order[path] || 0;
     if (orderSplits[path]) {
@@ -396,3 +402,17 @@ export function calcItemCases(path, qty) {
     if (!opt || opt.qty <= 0) return 0;
     return Math.ceil(qty / opt.qty);
 }
+
+// Явный экспорт всех переменных (для надёжности)
+export {
+    order,
+    orderSplits,
+    links,
+    notes,
+    orderPacking,
+    individualCaseValues,
+    commonRoutes,
+    caseModes,
+    orderExclude,
+    orderExtra
+};
