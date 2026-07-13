@@ -695,14 +695,14 @@ body {
     border-color: var(--text-secondary);
 }
 
-/* Индикация added/overstock (зелёная/красная полоса слева) */
+/* Индикация added/overstock (зелёная/красная полоса слева) — всегда видна */
 .row.added {
-    border-left: 4px solid var(--success);
+    border-left: 4px solid var(--success) !important;
 }
 .row.overstock {
-    border-left: 4px solid var(--danger);
+    border-left: 4px solid var(--danger) !important;
 }
-/* При наведении на added/overstock сохраняем индикацию, но не перекрываем */
+/* При наведении сохраняем индикацию, но не перекрываем */
 .row.added:hover {
     background: var(--added-bg) !important;
 }
