@@ -1561,7 +1561,7 @@ tr:nth-child(even){background:#f9f9f9}
 }
 
 // ============================================================
-// ОЧИСТКА СПИСКА (исправлена)
+// ОЧИСТКА СПИСКА (исправлена — полная перерисовка через renderOrderAll)
 // ============================================================
 export async function clearOrderData() {
     const confirmed = await showConfirm('Очистить список?');
@@ -1588,23 +1588,8 @@ export async function clearOrderData() {
     // Сохраняем пустое состояние
     saveOrderData();
     
-    // Принудительно переключаемся на первую категорию
-    const firstCat = editorData._categoryOrder?.[0] || Object.keys(editorData.inventory)[0];
-    if (firstCat) {
-        currentOrderCategory = firstCat;
-    }
-    
-    // Сбрасываем кеши
-    flatItemsCache = null;
-    eventDelegationInitialized = false;
-    
-    // Перерисовываем вкладки и содержимое напрямую
-    renderOrderTabs();
-    renderOrderCategory(currentOrderCategory);
-    
-    // Обновляем итоги
-    updateTotalsOrder();
-    updateCategoryTotalsOrder(currentOrderCategory);
+    // Полная перерисовка страницы заказа
+    renderOrderAll();
     
     showToast('Список очищен', 'success');
 }
