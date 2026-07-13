@@ -3,7 +3,7 @@ import { initData, saveEditorData, editorData, resetAllData } from './data.js';
 import { renderEditorAll, addCategory, initRenderHandlers } from './render-editor.js';
 import { renderOrderAll, initOrderUI } from './order-render.js';
 import { exportOrderJSON, exportOrderPDF, initOrderPresetsUI } from './order-presets.js';
-import { clearOrderData, initOrderActions } from './order-actions.js';
+import { clearOrderData } from './order-actions.js';
 import { renderOpenOrder, initOpenUI } from './render-open.js';
 import { renderLoadingPage, initTruckManagerHandlers } from './render-loading.js';
 import { initModalHandlers, showToast, showConfirm } from './ui.js';
@@ -194,7 +194,6 @@ function initApp() {
     initRenderHandlers();
     initOrderUI();
     initOrderPresetsUI();
-    initOrderActions();
     initOpenUI();
     initTruckManagerHandlers();
 
