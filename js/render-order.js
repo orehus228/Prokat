@@ -1593,10 +1593,16 @@ export async function clearOrderData() {
         currentOrderCategory = firstCat;
     }
     
-    // Полная перерисовка
+    // Сбрасываем кеши
     flatItemsCache = null;
     eventDelegationInitialized = false;
+    
+    // Перерисовываем всё
     renderOrderAll();
+    
+    // Дополнительное обновление итогов
+    updateTotalsOrder();
+    updateCategoryTotalsOrder(currentOrderCategory);
     
     showToast('Список очищен', 'success');
 }
