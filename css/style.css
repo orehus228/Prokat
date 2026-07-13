@@ -1103,13 +1103,15 @@ body {
     z-index: 5;
 }
 /* Заголовки целей — фиксированы сверху */
-.matrix-table th {
-    background: var(--matrix-header-bg);
-    color: var(--text-secondary);
-    font-weight: 500;
+.matrix-table thead th {
+    position: -webkit-sticky;
     position: sticky;
     top: 0;
     z-index: 10;
+    background: var(--matrix-header-bg);
+}
+.matrix-table thead th:first-child {
+    z-index: 20;
 }
 /* Для тёмной темы */
 [data-theme="dark"] .matrix-table td:first-child {
