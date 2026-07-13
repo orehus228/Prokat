@@ -596,102 +596,71 @@ body {
     font-size: 13px;
 }
 
-/* ===== СТРОКИ ПОЗИЦИЙ ===== */
+/* ===== СТРОКИ ПОЗИЦИЙ (CSS Grid) ===== */
 .row {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    gap: 12px;
     padding: 6px 0;
     border-bottom: 1px solid var(--border-color);
     transition: background 0.2s;
     border-radius: 4px;
 }
-/* Убираем нижнюю границу у последней строки */
+/* Убираем границу у последней строки */
 .row:last-child {
     border-bottom: none;
 }
+/* Наведение только на одну строку */
 .row:hover {
     background: rgba(255, 255, 255, 0.05);
 }
-/* Светлая тема */
 [data-theme="light"] .row:hover {
     background: rgba(0, 0, 0, 0.04);
 }
 
-/* Основная линия */
-.row .main-line {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    flex-wrap: nowrap;
-    width: 100%;
-}
-
-/* Блок названия + кнопки (занимает всё доступное место) */
+/* Колонка названия (первая) */
 .row .name-area {
     display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 6px;
-    flex: 1 1 0;
+    flex-direction: column;
+    align-items: flex-start;
     min-width: 0;
+    gap: 2px;
 }
-
-/* Название — переносится */
 .row .name {
     font-weight: 500;
     word-break: break-word;
     white-space: normal;
-    flex: 0 1 auto;
+}
+.row .extra-info {
+    font-size: 12px;
+    color: var(--text-secondary);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.row .extra-info span {
+    white-space: nowrap;
 }
 
-/* Блок кнопок действий */
+/* Колонка кнопок (вторая) */
 .row .action-buttons {
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
     flex-shrink: 0;
+    justify-content: flex-start;
 }
 
-/* Блок количества (всегда справа) */
+/* Колонка контрола количества (третья) */
 .row .qty-controls {
     display: flex;
     align-items: center;
     gap: 4px;
     flex-shrink: 0;
-    margin-left: auto;
-    /* прижимаем к правому краю */
+    justify-content: flex-end;
+    flex-wrap: wrap;
 }
-
-/* Индикация added/overstock — не перекрывается при наведении */
-.row.added {
-    background: var(--added-bg) !important;
-    border-left: 3px solid var(--success) !important;
-}
-.row.overstock {
-    background: var(--overstock-bg) !important;
-    border-left: 3px solid var(--danger) !important;
-}
-/* При наведении на added/overstock сохраняем индикацию, но меняем фон */
-.row.added:hover {
-    background: color-mix(in srgb, var(--added-bg) 80%, var(--bg-hover)) !important;
-}
-.row.overstock:hover {
-    background: color-mix(in srgb, var(--overstock-bg) 80%, var(--bg-hover)) !important;
-}
-/* Если браузер не поддерживает color-mix, используем fallback */
-@supports not (color-mix(in srgb, red, blue)) {
-    .row.added:hover {
-        background: var(--added-bg) !important;
-        opacity: 0.9;
-    }
-    .row.overstock:hover {
-        background: var(--overstock-bg) !important;
-        opacity: 0.9;
-    }
-}
-
-/* Остальные элементы контролов */
 .qty-controls input[type="number"] {
     width: 52px;
     padding: 4px;
@@ -721,6 +690,34 @@ body {
     border-color: var(--text-secondary);
 }
 
+/* Индикация added/overstock (зелёная/красная полоса слева) */
+.row.added {
+    border-left: 4px solid var(--success);
+}
+.row.overstock {
+    border-left: 4px solid var(--danger);
+}
+/* При наведении на added/overstock сохраняем индикацию */
+.row.added:hover {
+    background: var(--added-bg) !important;
+}
+.row.overstock:hover {
+    background: var(--overstock-bg) !important;
+}
+.row.added.overstock:hover {
+    background: var(--overstock-bg) !important;
+}
+
+/* Остальные элементы */
+.weight-vol-display {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-right: 8px;
+}
+.stock-info {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
 .overstock-warning {
     color: var(--danger);
     font-weight: bold;
@@ -729,7 +726,7 @@ body {
     cursor: help;
 }
 
-/* ===== Цветные кнопки действий в строках позиций ===== */
+/* ===== Цветные кнопки действий ===== */
 .action-btn {
     background: none;
     border: 1px solid var(--border-light);
@@ -753,7 +750,6 @@ body {
     border-color: var(--color-note);
     color: var(--color-note);
 }
-/* Инфо — зелёный */
 .action-btn.info-btn {
     border-color: var(--color-info);
     color: var(--color-info);
@@ -762,7 +758,6 @@ body {
     background: var(--color-info);
     color: #fff;
 }
-/* Линк — синий */
 .action-btn.link-btn {
     border-color: var(--color-link);
     color: var(--color-link);
@@ -771,7 +766,6 @@ body {
     background: var(--color-link);
     color: #fff;
 }
-/* Кофры — оранжевый */
 .action-btn.case-btn {
     border-color: var(--color-case);
     color: var(--color-case);
@@ -780,7 +774,6 @@ body {
     background: var(--color-case);
     color: #fff;
 }
-/* Заметка — красный */
 .action-btn.note-btn {
     border-color: var(--color-note);
     color: var(--color-note);
@@ -790,15 +783,7 @@ body {
     color: #fff;
 }
 
-.weight-vol-display {
-    font-size: 13px;
-    color: var(--text-secondary);
-    margin-right: 8px;
-}
-.stock-info {
-    font-size: 13px;
-    color: var(--text-secondary);
-}
+/* Блок описания и информации */
 .row-info {
     margin-top: 6px;
     padding: 8px 12px;
@@ -807,6 +792,7 @@ body {
     font-size: 13px;
     color: var(--text-secondary);
     border-left: 3px solid var(--accent);
+    grid-column: 1 / -1; /* занимает всю ширину */
 }
 .row-info > div {
     display: flex;
@@ -825,10 +811,12 @@ body {
     color: var(--text-secondary);
     margin: 4px 0 4px 20px;
     border-left: 3px solid var(--accent);
+    grid-column: 1 / -1;
 }
 .desc-block.open {
     display: block;
 }
+
 .category-totals {
     margin-top: 8px;
     padding: 8px 12px;
@@ -1119,7 +1107,6 @@ body {
     font-size: 13px;
     table-layout: fixed;
 }
-/* Заголовки целей — фиксированы сверху */
 .matrix-table thead {
     position: sticky;
     top: 0;
@@ -1144,7 +1131,6 @@ body {
 .matrix-table thead th:first-child {
     z-index: 20;
 }
-/* Фиксация первой колонки для всех строк (включая категории) */
 #matrixModal .matrix-table td:first-child,
 #matrixModal .matrix-table th:first-child {
     position: sticky !important;
@@ -1153,34 +1139,28 @@ body {
     background: var(--bg-card) !important;
     border-right: 2px solid var(--matrix-border) !important;
 }
-/* Для ячеек категорий — выше */
 #matrixModal .matrix-table .matrix-category td:first-child {
     z-index: 20 !important;
     background: var(--bg-secondary) !important;
 }
-/* Для заголовка первой колонки — выше всех */
 #matrixModal .matrix-table thead th:first-child {
     z-index: 25 !important;
     background: var(--matrix-header-bg) !important;
 }
-/* Чередование фона для строк */
 #matrixModal .matrix-table .row-even td:first-child {
     background: var(--matrix-row-even) !important;
 }
 #matrixModal .matrix-table .row-odd td:first-child {
     background: var(--matrix-row-odd) !important;
 }
-/* Убедимся, что контейнер прокручивается */
 #matrixModal .table-wrap {
     overflow: auto !important;
     position: relative;
 }
-/* Для мобильных устройств, чтобы стрелка не обрезалась */
 #matrixModal .matrix-table .toggle {
     display: inline-block;
     min-width: 20px;
 }
-/* Остальные ячейки */
 .matrix-table td {
     border: 1px solid var(--matrix-border);
     padding: 4px 6px;
@@ -1190,7 +1170,6 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
 }
-/* Чередование строк (для остальных ячеек) */
 .matrix-table .row-even {
     background: var(--matrix-row-even);
 }
@@ -1308,7 +1287,6 @@ body {
     color: var(--text-secondary);
     font-size: 14px;
 }
-/* Переключатель полных названий */
 .matrix-name-toggle {
     display: inline-flex;
     align-items: center;
@@ -1322,7 +1300,6 @@ body {
 .matrix-name-toggle input[type="checkbox"] {
     accent-color: var(--accent);
 }
-/* Фиксированные кнопки внизу матрицы */
 #matrixModal .modal .buttons.matrix-footer {
     position: sticky;
     bottom: 0;
@@ -1439,7 +1416,6 @@ body {
         font-size: 13px;
         padding: 4px 8px;
     }
-    /* Горизонтальная ориентация: скрываем лишние панели */
     @media (orientation: landscape) {
         #matrixPresetPanel {
             display: none !important;
