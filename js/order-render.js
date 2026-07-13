@@ -56,7 +56,7 @@ import {
     invalidateFlatItemsCache,
     getActiveItemsOrder,
     updateLinkCountOrder,
-    renderCommonCaseIndicatorsOrder,
+    renderCommonCaseIndicatorsOrder as renderIndicators, // импортируем из helpers
     updateChildRowsForPath,
     buildInfoHtml,
     initOrderHelpers
@@ -96,6 +96,13 @@ export function toggleDetailsOpen() {
 
 export function toggleInfoBlock(path) {
     infoBlocksOpen[path] = !infoBlocksOpen[path];
+}
+
+// ============================================================
+// ЗАГЛУШКА ДЛЯ ИНДИКАТОРОВ (используется в order-actions)
+// ============================================================
+export function renderCommonCaseIndicatorsOrder() {
+    renderIndicators(); // вызывает реализацию из helpers
 }
 
 // ============================================================
@@ -198,7 +205,6 @@ export function renderOrderCategory(catKey, filterQuery = '') {
         currentOrderCategory = catKey;
     }
 
-    // Делегирование событий уже настроено в initOrderUI, но повторно навешивать не нужно
     setupInputListenersOrder();
     setupCaseTogglesOrder();
 
@@ -709,14 +715,12 @@ export function renderOrderAll() {
     document.getElementById('pComment').value = localStorage.getItem('last_comment') || '';
     const savedDate = localStorage.getItem('last_date');
     if (savedDate) document.getElementById('pDate').value = savedDate;
-    // Загрузка пресетов будет в order-presets.js
     if (!currentOrderCategory || !editorData.inventory[currentOrderCategory]) {
         const first = editorData._categoryOrder?.[0] || Object.keys(editorData.inventory)[0];
         if (first) currentOrderCategory = first;
     }
     renderOrderTabs();
     renderOrderCategory(currentOrderCategory);
-    // Обновляем состояние деталей
     detailsOpenOrder = localStorage.getItem('detailsOpenOrder') === 'true';
     if (detailsOpenOrder) {
         document.getElementById('globalDetails').classList.add('open');
@@ -725,4 +729,32 @@ export function renderOrderAll() {
         document.getElementById('globalDetails').classList.remove('open');
         document.getElementById('detailToggle').textContent = 'Подробно';
     }
+}
+
+// ============================================================
+// ИНИЦИАЛИЗАЦИЯ UI ЗАКАЗА
+// ============================================================
+
+export function initOrderUI() {
+    detailsOpenOrder = localStorage.getItem('detailsOpenOrder') === 'true';
+
+    document.getElementById('detailToggle')?.addEventListener('click', function() {
+        const details = document.getElementById('globalDetails');
+        details.classList.toggle('open');
+        detailsOpenOrder = details.classList.contains('open');
+        localStorage.setItem('detailsOpenOrder', JSON.stringify(detailsOpenOrder));
+        this.textContent = detailsOpenOrder ? 'Скрыть' : 'Подробно';
+    });
+
+    document.getElementById('searchInput')?.addEventListener('input', debouncedSearch);
+    document.getElementById('clearSearchBtn')?.addEventListener('click', clearSearchOrder);
+
+    document.getElementById('pDate')?.addEventListener('change', function() {
+        localStorage.setItem('last_date', this.value);
+    });
+    document.getElementById('pComment')?.addEventListener('input', function() {
+        localStorage.setItem('last_comment', this.value);
+    });
+
+    // Импорт/экспорт JSON и PDF уже в main.js, здесь только UI
 }
