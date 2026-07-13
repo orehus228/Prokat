@@ -1088,6 +1088,7 @@ body {
     height: 32px;
     overflow: hidden;
     text-overflow: ellipsis;
+    border: 2px solid var(--matrix-border); /* Утолщённая граница для заголовков */
 }
 .matrix-table thead th:first-child {
     z-index: 20;
@@ -1099,7 +1100,7 @@ body {
     left: 0;
     z-index: 5;
     background: var(--bg-card);
-    border: 1px solid var(--matrix-border);
+    border: 2px solid var(--matrix-border); /* Утолщённая граница для первой колонки */
     padding: 4px 6px;
     text-align: left;
     white-space: nowrap;
@@ -1112,6 +1113,16 @@ body {
 }
 .matrix-table td:first-child {
     z-index: 5;
+}
+/* Обычные ячейки — чёткие границы */
+.matrix-table td {
+    border: 1px solid var(--matrix-border);
+    padding: 4px 6px;
+    text-align: center;
+    white-space: nowrap;
+    height: 32px;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 /* Чередование строк */
 .matrix-table .row-even {
@@ -1136,6 +1147,7 @@ body {
     width: auto !important;
     min-width: auto !important;
     max-width: none !important;
+    border: 1px solid var(--matrix-border);
 }
 .matrix-table .matrix-category .toggle {
     display: inline-block;
@@ -1335,6 +1347,28 @@ body {
         font-size: 13px;
         margin-left: 8px;
     }
+    /* Панель пресетов на мобильных — компактнее */
+    #matrixPresetPanel {
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+    #matrixPresetPanel .btn-sm {
+        padding: 2px 8px;
+        font-size: 11px;
+        min-height: 26px;
+    }
+    #matrixPresetPanel select {
+        font-size: 11px;
+        padding: 2px 6px;
+        min-height: 26px;
+        flex: 1 1 100%;
+    }
+    #matrixPresetPanel label {
+        font-size: 11px;
+    }
+    #matrixModal .modal {
+        padding: 10px;
+    }
 }
 
 @media (max-width: 480px) {
@@ -1365,6 +1399,23 @@ body {
     .matrix-name-toggle {
         font-size: 12px;
         margin-left: 6px;
+    }
+    /* Ещё компактнее для очень маленьких экранов */
+    #matrixPresetPanel .btn-sm {
+        padding: 1px 6px;
+        font-size: 10px;
+        min-height: 22px;
+    }
+    #matrixPresetPanel select {
+        font-size: 10px;
+        padding: 1px 4px;
+        min-height: 22px;
+    }
+    #matrixPresetPanel label {
+        font-size: 10px;
+    }
+    #matrixModal .modal {
+        padding: 6px;
     }
     @media (orientation: landscape) {
         .matrix-table {
