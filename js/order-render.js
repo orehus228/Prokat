@@ -56,7 +56,7 @@ import {
     invalidateFlatItemsCache,
     getActiveItemsOrder,
     updateLinkCountOrder,
-    renderCommonCaseIndicatorsOrder as renderIndicators, // импортируем из helpers
+    renderCommonCaseIndicatorsOrder as renderIndicators,
     updateChildRowsForPath,
     buildInfoHtml,
     initOrderHelpers
@@ -102,7 +102,7 @@ export function toggleInfoBlock(path) {
 // ЗАГЛУШКА ДЛЯ ИНДИКАТОРОВ (используется в order-actions)
 // ============================================================
 export function renderCommonCaseIndicatorsOrder() {
-    renderIndicators(); // вызывает реализацию из helpers
+    renderIndicators();
 }
 
 // ============================================================
@@ -496,16 +496,17 @@ export function updateRowOrder(path) {
         weightVolDisplay.textContent = weightDisplay + ' / ' + volumeDisplay;
     }
 
-    const oldWarn = row.querySelector('.overstock-warning');
-    if (oldWarn) oldWarn.remove();
-    if (isOverstock) {
-        const warn = document.createElement('span');
-        warn.className = 'overstock-warning';
-        warn.textContent = '!';
-        warn.title = 'Больше нет (в наличии ' + sq + ')';
-        const controls = row.querySelector('.qty-controls');
-        if (controls) controls.appendChild(warn);
-    }
+    // Удаляем блок с предупреждением "!" (убрано по требованию)
+    // const oldWarn = row.querySelector('.overstock-warning');
+    // if (oldWarn) oldWarn.remove();
+    // if (isOverstock) {
+    //     const warn = document.createElement('span');
+    //     warn.className = 'overstock-warning';
+    //     warn.textContent = '!';
+    //     warn.title = 'Больше нет (в наличии ' + sq + ')';
+    //     const controls = row.querySelector('.qty-controls');
+    //     if (controls) controls.appendChild(warn);
+    // }
 
     if (infoBlocksOpen[path]) {
         const infoBlock = row.querySelector('.row-info');
@@ -755,6 +756,4 @@ export function initOrderUI() {
     document.getElementById('pComment')?.addEventListener('input', function() {
         localStorage.setItem('last_comment', this.value);
     });
-
-    // Импорт/экспорт JSON и PDF уже в main.js, здесь только UI
 }

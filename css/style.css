@@ -652,7 +652,7 @@ body {
     flex-wrap: wrap;
     gap: 4px;
     flex: 0 1 auto;
-    order: 1; /* чтобы кнопки были между названием и контролом */
+    order: 1;
 }
 
 /* Правая часть: контрол количества (всегда прижат к правому краю) */
@@ -708,15 +708,15 @@ body {
     background: var(--overstock-bg) !important;
     border-left: 4px solid var(--danger) !important;
 }
-/* При наведении сохраняем тот же фон */
+/* При наведении сохраняем фон, но с небольшим затемнением для различия */
 .row.added:hover {
-    background: var(--added-bg) !important;
+    background: color-mix(in srgb, var(--added-bg) 85%, black 15%) !important;
 }
 .row.overstock:hover {
-    background: var(--overstock-bg) !important;
+    background: color-mix(in srgb, var(--overstock-bg) 85%, black 15%) !important;
 }
 .row.added.overstock:hover {
-    background: var(--overstock-bg) !important;
+    background: color-mix(in srgb, var(--overstock-bg) 85%, black 15%) !important;
 }
 
 /* Убираем дублирующую информацию из контролов */
@@ -725,14 +725,14 @@ body {
     display: none !important;
 }
 
-/* Предупреждение о переполнении */
-.overstock-warning {
+/* Предупреждение о переполнении — удалено (не используется) */
+/* .overstock-warning {
     color: var(--danger);
     font-weight: bold;
     font-size: 16px;
     margin-left: 4px;
     cursor: help;
-}
+} */
 
 /* ===== Цветные кнопки действий ===== */
 .action-btn {
@@ -796,7 +796,7 @@ body {
 .desc-block {
     width: 100%;
     flex-basis: 100%;
-    order: 3; /* чтобы шли после всех остальных элементов */
+    order: 3;
 }
 .row-info {
     margin-top: 6px;
@@ -923,7 +923,7 @@ body {
     border-radius: 4px;
     width: 100%;
     flex-basis: 100%;
-    order: 3; /* тоже после основной строки */
+    order: 3;
 }
 .child-row .child-controls {
     display: flex;
@@ -969,11 +969,9 @@ body {
 .modal-overlay.open {
     display: flex;
 }
-/* Модалка ввода множителя поверх матрицы */
 #modalOverlay {
     z-index: 1400 !important;
 }
-/* Остальные модалки (свойства, настройки, управление) — ниже матрицы, но выше обычного контента */
 .modal-overlay:not(#modalOverlay) {
     z-index: 1100;
 }
