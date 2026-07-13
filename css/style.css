@@ -1,1573 +1,1099 @@
-/* ===== CSS для Прокатошной (финальная, чистая версия) ===== */
-:root {
-    --bg-primary: #1a1a1a;
-    --bg-secondary: #252525;
-    --bg-card: #252525;
-    --bg-input: #1e1e1e;
-    --bg-hover: #2d2d2d;
-    --bg-active: #2a3a2a;
-    --text-primary: #d0d0d0;
-    --text-secondary: #888;
-    --text-muted: #666;
-    --border-color: #333;
-    --border-light: #3a3a3a;
-    --shadow: rgba(0,0,0,0.5);
-    --accent: #4a7a5a;
-    --accent-hover: #5a8a6a;
-    --danger: #7a3a3a;
-    --danger-hover: #8a4a4a;
-    --success: #3a7a4a;
-    --success-hover: #4a8a5a;
-    --warning: #8a7a3a;
-    --overstock-bg: #2a1a1a;
-    --added-bg: #1a2a1a;
-    --toast-bg: #2a2a2a;
-    --toast-border: #444;
-    --scrollbar-track: #1a1a1a;
-    --scrollbar-thumb: #444;
-    --matrix-row-even: #252525;
-    --matrix-row-odd: #1e1e1e;
-    --matrix-header-bg: #2a2a2a;
-    --matrix-border: #3a3a3a;
-    --btn-neutral: #333;
-    --btn-neutral-hover: #444;
-    --btn-import: #3a4a5a;
-    --btn-import-hover: #4a5a6a;
-    --btn-reset: #5a3a3a;
-    --btn-reset-hover: #6a4a4a;
-    --color-info: #4a8a5a;
-    --color-link: #4a6a9a;
-    --color-case: #b57a2a;
-    --color-note: #b55a5a;
-}
+// cases.js — Модалки: свойства позиции, общие кофры, матрица привязок, настройка кофров для позиции
+import {
+    getItemProps,
+    setItemProps,
+    getCommonCases,
+    addCommonCase,
+    updateCommonCase,
+    deleteCommonCase,
+    saveEditorData,
+    editorData,
+    getStockKey,
+    renameCategory,
+    renameSubgroup,
+    renameItem,
+    moveItem,
+    getTruckPresets
+} from './data.js';
 
-[data-theme="light"] {
-    --bg-primary: #f5f5f5;
-    --bg-secondary: #ffffff;
-    --bg-card: #ffffff;
-    --bg-input: #f0f0f0;
-    --bg-hover: #e8e8e8;
-    --bg-active: #d4e8d4;
-    --text-primary: #222;
-    --text-secondary: #555;
-    --text-muted: #999;
-    --border-color: #ddd;
-    --border-light: #e0e0e0;
-    --shadow: rgba(0,0,0,0.1);
-    --accent: #3a7a4a;
-    --accent-hover: #4a8a5a;
-    --danger: #b55a5a;
-    --danger-hover: #c66a6a;
-    --success: #4a8a5a;
-    --success-hover: #5a9a6a;
-    --warning: #b5a04a;
-    --overstock-bg: #fde8e8;
-    --added-bg: #e8f5e8;
-    --toast-bg: #ffffff;
-    --toast-border: #ccc;
-    --scrollbar-track: #f0f0f0;
-    --scrollbar-thumb: #ccc;
-    --matrix-row-even: #f8f8f8;
-    --matrix-row-odd: #ffffff;
-    --matrix-header-bg: #e8e8e8;
-    --matrix-border: #ddd;
-    --btn-neutral: #e0e0e0;
-    --btn-neutral-hover: #d0d0d0;
-    --btn-import: #c0d0e0;
-    --btn-import-hover: #b0c0d0;
-    --btn-reset: #e0c0c0;
-    --btn-reset-hover: #d0b0b0;
-    --color-info: #3a8a4a;
-    --color-link: #3a5a8a;
-    --color-case: #b58a2a;
-    --color-note: #b55a5a;
-}
+import {
+    esc,
+    showToast,
+    showPrompt,
+    showConfirm
+} from './ui.js';
 
-* {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-}
+import { CAT_NAMES, STORAGE_KEYS } from './config.js';
+import {
+    links,
+    saveOrderData,
+    getCaseMode,
+    getCaseOptions,
+    getSelectedOption,
+    setIndividualCaseValues,
+    getIndividualCaseValues,
+    getOrderPacking,
+    setOrderPacking,
+    caseModes,
+    orderExclude
+} from './order.js';
 
-body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    background: var(--bg-primary);
-    padding: 16px;
-    color: var(--text-primary);
-    min-height: 100vh;
-    transition: background 0.3s, color 0.3s;
-}
-.app {
-    max-width: 1000px;
-    margin: 0 auto;
-}
-.card {
-    background: var(--bg-card);
-    padding: 16px;
-    border-radius: 12px;
-    border: 1px solid var(--border-color);
-    margin-bottom: 16px;
-    transition: background 0.3s, border-color 0.3s;
-}
+// ============================================================
+// ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
+// ============================================================
+let currentPropsPath = null;
+let variantCounter = 0;
+let casesManagerCallback = null;
+let currentCaseSettingsPath = null;
+let caseSettingsCallback = null;
+let matrixZoomLevel = 1;
+let openCategories = [];
+let scrollToPath = null;
+let matrixFullNames = true;
 
-.btn {
-    background: var(--bg-secondary);
-    color: var(--text-primary);
-    border: 1px solid var(--border-light);
-    padding: 10px 16px;
-    border-radius: 8px;
-    font-weight: 500;
-    cursor: pointer;
-    display: inline-block;
-    text-align: center;
-    font-size: 15px;
-    transition: 0.2s;
-    min-height: 44px;
-    user-select: none;
-    font-family: inherit;
-}
-.btn:hover {
-    background: var(--bg-hover);
-    border-color: var(--text-secondary);
-}
-.btn:active {
-    transform: scale(0.97);
-}
-.btn-neutral {
-    background: var(--btn-neutral);
-    border-color: var(--border-light);
-    color: var(--text-primary);
-}
-.btn-neutral:hover {
-    background: var(--btn-neutral-hover);
-}
-.btn-import {
-    background: var(--btn-import);
-    border-color: var(--border-light);
-    color: var(--text-primary);
-}
-.btn-import:hover {
-    background: var(--btn-import-hover);
-}
-.btn-reset {
-    background: var(--btn-reset);
-    border-color: var(--border-light);
-    color: var(--text-primary);
-}
-.btn-reset:hover {
-    background: var(--btn-reset-hover);
-}
-.btn-green {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: white;
-}
-.btn-green:hover {
-    background: var(--accent-hover);
-    border-color: var(--accent-hover);
-}
-.btn-red {
-    background: var(--danger);
-    border-color: var(--danger);
-    color: white;
-}
-.btn-red:hover {
-    background: var(--danger-hover);
-    border-color: var(--danger-hover);
-}
-.btn-sec {
-    background: var(--bg-secondary);
-    border-color: var(--border-light);
-}
-.btn-orange {
-    background: #5a4a3a;
-    border-color: #6a5a4a;
-    color: white;
-}
-.btn-orange:hover {
-    background: #6a5a4a;
-}
-.btn-purple {
-    background: #3a2a4a;
-    border-color: #5a3a6a;
-    color: white;
-}
-.btn-purple:hover {
-    background: #4a3a5a;
-}
-.btn-sm {
-    padding: 6px 12px;
-    font-size: 13px;
-    min-height: 34px;
-}
+const MATRIX_PRESETS_KEY = STORAGE_KEYS.MATRIX_PRESETS || 'matrix_presets';
+const MATRIX_FULLNAMES_KEY = 'matrix_full_names';
 
-.input-field {
-    width: 100%;
-    padding: 10px 14px;
-    border: 1px solid var(--border-light);
-    border-radius: 8px;
-    margin-bottom: 8px;
-    background: var(--bg-input);
-    color: var(--text-primary);
-    font-size: 15px;
-    font-family: inherit;
-    transition: background 0.3s, color 0.3s, border-color 0.3s;
-}
-.input-field:focus {
-    outline: none;
-    border-color: var(--accent);
-}
-.input-textarea {
-    resize: vertical;
-    font-family: inherit;
-    width: 100%;
-    padding: 10px 14px;
-    border: 1px solid var(--border-light);
-    border-radius: 8px;
-    margin-bottom: 8px;
-    background: var(--bg-input);
-    color: var(--text-primary);
-    font-size: 15px;
-}
-.input-textarea:focus {
-    outline: none;
-    border-color: var(--accent);
-}
-
-.toast {
-    position: fixed;
-    bottom: 30px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: var(--toast-bg);
-    color: var(--text-primary);
-    padding: 10px 20px;
-    border-radius: 10px;
-    border: 1px solid var(--toast-border);
-    font-size: 14px;
-    opacity: 0;
-    transition: opacity 0.3s;
-    pointer-events: none;
-    z-index: 999;
-    max-width: 90%;
-    text-align: center;
-    box-shadow: 0 4px 12px var(--shadow);
-}
-.toast.show {
-    opacity: 1;
-}
-.toast.success {
-    border-color: var(--success);
-    background: var(--added-bg);
-}
-.toast.neutral {
-    border-color: var(--border-light);
-    background: var(--toast-bg);
-}
-.toast.warning {
-    border-color: var(--warning);
-    background: #2a2a1a;
-    color: #d0c080;
-}
-.toast.error {
-    border-color: var(--danger);
-    background: var(--overstock-bg);
-    color: #d0a0a0;
-}
-
-.header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 16px;
-    padding: 10px 16px;
-    background: var(--bg-card);
-    border-radius: 12px;
-    border: 1px solid var(--border-color);
-    transition: background 0.3s, border-color 0.3s;
-}
-.header .logo {
-    font-size: 28px;
-}
-.header h1 {
-    font-size: 22px;
-    font-weight: 600;
-    flex: 1;
-}
-.theme-toggle {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    border: 2px solid var(--border-light);
-    cursor: pointer;
-    transition: 0.2s;
-    background: var(--bg-secondary);
-    padding: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0;
-    position: relative;
-}
-.theme-toggle::after {
-    content: '';
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    background: var(--text-primary);
-    transition: 0.3s;
-}
-[data-theme="light"] .theme-toggle::after {
-    background: var(--text-primary);
-    transform: scale(0.7);
-}
-[data-theme="dark"] .theme-toggle::after {
-    background: var(--text-primary);
-    transform: scale(1);
-}
-.theme-toggle:hover {
-    border-color: var(--text-secondary);
-}
-
-.menu-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-}
-.menu-grid .btn {
-    flex: 1 1 160px;
-}
-
-.category-tabs {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    margin-bottom: 12px;
-}
-.category-tab {
-    padding: 6px 14px;
-    background: var(--bg-secondary);
-    border-radius: 6px 6px 0 0;
-    cursor: pointer;
-    color: var(--text-secondary);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 14px;
-    transition: 0.2s;
-    border-bottom: 2px solid transparent;
-}
-.category-tab.active {
-    background: var(--bg-card);
-    color: var(--text-primary);
-    border-bottom: 2px solid var(--accent);
-}
-.category-tab:hover:not(.active) {
-    background: var(--bg-hover);
-}
-.category-tab .tab-actions {
-    display: flex;
-    gap: 2px;
-    margin-left: 6px;
-}
-.category-tab .tab-actions button {
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    cursor: pointer;
-    font-size: 11px;
-    padding: 0 2px;
-    line-height: 1;
-}
-.category-tab .tab-actions button:hover {
-    color: var(--text-primary);
-}
-.category-tab .tab-actions button.danger {
-    color: var(--danger);
-}
-.category-tab .tab-actions button.danger:hover {
-    color: var(--danger-hover);
-}
-
-.subgroup {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    margin-bottom: 12px;
-    overflow: hidden;
-}
-.subgroup-header {
-    display: flex;
-    align-items: center;
-    padding: 8px 12px;
-    background: var(--bg-card);
-    border-bottom: 1px solid var(--border-color);
-    gap: 8px;
-    flex-wrap: wrap;
-}
-.subgroup-header .name {
-    font-weight: 600;
-    flex: 1;
-    cursor: pointer;
-}
-.subgroup-header .controls {
-    display: flex;
-    gap: 4px;
-}
-.subgroup-header .controls button {
-    background: none;
-    border: 1px solid var(--border-light);
-    border-radius: 4px;
-    padding: 2px 6px;
-    color: var(--text-secondary);
-    cursor: pointer;
-    font-size: 12px;
-}
-.subgroup-header .controls button:hover {
-    background: var(--bg-hover);
-}
-.items-list {
-    padding: 6px 12px;
-}
-.item-row {
-    display: flex;
-    flex-direction: column;
-    padding: 6px 0;
-    border-bottom: 1px solid var(--border-color);
-}
-.item-row .main-line {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-.item-row .name {
-    flex: 1 1 180px;
-    font-size: 14px;
-}
-.item-row .qty {
-    width: 70px;
-    padding: 4px 6px;
-    border: 1px solid var(--border-light);
-    border-radius: 4px;
-    font-size: 14px;
-    text-align: center;
-    background: var(--bg-input);
-    color: var(--text-primary);
-}
-.item-row .spec {
-    flex: 2 1 200px;
-    padding: 4px 6px;
-    border: 1px solid var(--border-light);
-    border-radius: 4px;
-    font-size: 13px;
-    min-width: 120px;
-    background: var(--bg-input);
-    color: var(--text-primary);
-}
-.item-row .actions {
-    display: flex;
-    gap: 4px;
-}
-.item-row .actions button {
-    background: none;
-    border: none;
-    color: var(--text-secondary);
-    cursor: pointer;
-    font-size: 16px;
-    padding: 0 4px;
-}
-.item-row .actions button:hover {
-    color: var(--text-primary);
-}
-.item-row .props-info {
-    font-size: 12px;
-    color: var(--text-secondary);
-    padding: 4px 0 0 12px;
-    border-left: 2px solid var(--accent);
-    margin-left: 12px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    align-items: center;
-}
-.item-row .props-info .na {
-    color: var(--text-muted);
-}
-.add-item {
-    margin: 6px 0 8px 12px;
-    padding: 4px 12px;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-light);
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 13px;
-    color: var(--text-secondary);
-}
-.add-item:hover {
-    background: var(--bg-hover);
-}
-.add-subgroup {
-    margin: 6px 0 12px 0;
-    padding: 6px 16px;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-light);
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 14px;
-    color: var(--text-secondary);
-}
-.add-subgroup:hover {
-    background: var(--bg-hover);
-}
-.editor-add {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin-top: 12px;
-}
-.editor-add input {
-    flex: 1;
-    min-width: 140px;
-    padding: 8px 12px;
-    background: var(--bg-input);
-    border: 1px solid var(--border-light);
-    border-radius: 6px;
-    color: var(--text-primary);
-}
-.editor-add button {
-    padding: 8px 16px;
-}
-.toolbar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 12px;
-}
-.toolbar button {
-    flex: 1;
-    padding: 8px 12px;
-}
-
-.search-box {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 12px;
-}
-.search-box input {
-    flex: 1;
-    padding: 8px 12px;
-    background: var(--bg-input);
-    border: 1px solid var(--border-light);
-    border-radius: 6px;
-    color: var(--text-primary);
-}
-.search-box .clear-btn {
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    font-size: 20px;
-    cursor: pointer;
-    padding: 0 8px;
-}
-.preset-bar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-bottom: 12px;
-    padding: 10px;
-    background: var(--bg-secondary);
-    border-radius: 8px;
-    border: 1px solid var(--border-color);
-    align-items: center;
-}
-.preset-bar select {
-    flex: 1;
-    min-width: 120px;
-    padding: 6px 10px;
-    background: var(--bg-input);
-    border: 1px solid var(--border-light);
-    border-radius: 4px;
-    color: var(--text-primary);
-}
-.preset-bar button {
-    padding: 4px 10px;
-    font-size: 13px;
-}
-
-.row {
-    display: flex;
-    flex-direction: column;
-    padding: 6px 0;
-    border-bottom: 1px solid var(--border-color);
-    transition: background 0.2s;
-    border-radius: 4px;
-}
-.row:hover {
-    background: var(--bg-hover);
-}
-.row .main-line {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 6px;
-}
-.row .name-area {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex-wrap: wrap;
-}
-.row .name {
-    font-weight: 500;
-}
-.row .qty-controls {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    flex-wrap: wrap;
-}
-.qty-controls input[type="number"] {
-    width: 52px;
-    padding: 4px;
-    background: var(--bg-input);
-    border: 1px solid var(--border-light);
-    border-radius: 4px;
-    color: var(--text-primary);
-    text-align: center;
-}
-.btn-c {
-    width: 34px;
-    height: 34px;
-    border-radius: 50%;
-    border: 1px solid var(--border-light);
-    background: var(--bg-input);
-    color: var(--text-secondary);
-    font-size: 18px;
-    font-weight: bold;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    transition: 0.15s;
-}
-.btn-c:hover {
-    background: var(--bg-hover);
-    border-color: var(--text-secondary);
-}
-
-.row.added {
-    background: var(--added-bg) !important;
-    border-left: 3px solid var(--success) !important;
-}
-.row.overstock {
-    background: var(--overstock-bg) !important;
-    border-left: 3px solid var(--danger) !important;
-}
-.row.added:hover,
-.row.overstock:hover {
-    background: var(--bg-hover) !important;
-}
-.overstock-warning {
-    color: var(--danger);
-    font-weight: bold;
-    font-size: 16px;
-    margin-left: 4px;
-    cursor: help;
-}
-
-/* ===== Цветные кнопки действий в строках позиций ===== */
-.action-btn {
-    background: none;
-    border: 1px solid var(--border-light);
-    border-radius: 4px;
-    padding: 2px 8px;
-    font-size: 12px;
-    color: var(--text-secondary);
-    cursor: pointer;
-    font-family: inherit;
-    transition: 0.15s;
-}
-.action-btn:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
-}
-.action-btn.active {
-    border-color: var(--accent);
-    color: var(--accent);
-}
-.action-btn.has-note {
-    border-color: var(--color-note);
-    color: var(--color-note);
-}
-/* Инфо — зелёный */
-.action-btn.info-btn {
-    border-color: var(--color-info);
-    color: var(--color-info);
-}
-.action-btn.info-btn:hover {
-    background: var(--color-info);
-    color: #fff;
-}
-/* Линк — синий */
-.action-btn.link-btn {
-    border-color: var(--color-link);
-    color: var(--color-link);
-}
-.action-btn.link-btn:hover {
-    background: var(--color-link);
-    color: #fff;
-}
-/* Кофры — оранжевый */
-.action-btn.case-btn {
-    border-color: var(--color-case);
-    color: var(--color-case);
-}
-.action-btn.case-btn:hover {
-    background: var(--color-case);
-    color: #fff;
-}
-/* Заметка — красный */
-.action-btn.note-btn {
-    border-color: var(--color-note);
-    color: var(--color-note);
-}
-.action-btn.note-btn:hover {
-    background: var(--color-note);
-    color: #fff;
-}
-
-.weight-vol-display {
-    font-size: 13px;
-    color: var(--text-secondary);
-    margin-right: 8px;
-}
-.stock-info {
-    font-size: 13px;
-    color: var(--text-secondary);
-}
-.row-info {
-    margin-top: 6px;
-    padding: 8px 12px;
-    background: var(--bg-secondary);
-    border-radius: 6px;
-    font-size: 13px;
-    color: var(--text-secondary);
-    border-left: 3px solid var(--accent);
-}
-.row-info > div {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-}
-.row-info span {
-    white-space: nowrap;
-}
-.desc-block {
-    display: none;
-    padding: 4px 12px;
-    background: var(--bg-secondary);
-    border-radius: 6px;
-    font-size: 13px;
-    color: var(--text-secondary);
-    margin: 4px 0 4px 20px;
-    border-left: 3px solid var(--accent);
-}
-.desc-block.open {
-    display: block;
-}
-.category-totals {
-    margin-top: 8px;
-    padding: 8px 12px;
-    background: var(--bg-secondary);
-    border-radius: 6px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    font-size: 14px;
-}
-.global-totals {
-    margin-top: 16px;
-    padding: 12px 16px;
-    background: var(--bg-secondary);
-    border-radius: 8px;
-    border: 1px solid var(--border-color);
-    display: flex;
-    flex-wrap: wrap;
-    gap: 16px;
-    font-size: 15px;
-}
-.global-details {
-    display: none;
-    width: 100%;
-    margin-top: 8px;
-    padding: 10px;
-    background: var(--bg-input);
-    border-radius: 6px;
-    flex-wrap: wrap;
-    gap: 12px;
-}
-.global-details.open {
-    display: flex;
-}
-.global-details .cat-detail {
-    flex: 1 1 140px;
-    padding: 4px 8px;
-    border-left: 3px solid var(--accent);
-}
-.progress-container {
-    margin-top: 16px;
-    padding: 12px;
-    background: var(--bg-secondary);
-    border-radius: 8px;
-}
-.progress-bar-bg {
-    width: 100%;
-    background: var(--bg-input);
-    height: 10px;
-    border-radius: 6px;
-    margin-top: 6px;
-    overflow: hidden;
-}
-.progress-bar-fill {
-    width: 0;
-    background: var(--accent);
-    height: 10px;
-    border-radius: 6px;
-    transition: width 0.4s;
-}
-.progress-bar-fill.complete {
-    background: var(--success);
-}
-.sub-cat-t {
-    font-weight: 600;
-    margin: 8px 0 4px;
-    padding-left: 10px;
-    border-left: 3px solid var(--accent);
-    font-size: 16px;
-}
-.sub-sub-cat-t {
-    font-size: 15px;
-    color: var(--text-secondary);
-    padding-left: 24px;
-    border-left-color: var(--border-light);
-}
-.empty-message {
-    color: var(--text-muted);
-    padding: 8px;
-    font-style: italic;
-}
-.hidden {
-    display: none !important;
-}
-
-/* ===== ДОЧЕРНИЕ СТРОКИ ДЛЯ КОФРОВ ===== */
-.child-row {
-    padding-left: 40px;
-    border-left: 2px solid var(--color-case);
-    margin: 4px 0 4px 20px;
-    background: var(--bg-secondary);
-    border-radius: 4px;
-}
-.child-row .child-controls {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 4px 8px;
-    flex-wrap: wrap;
-}
-.child-row .child-controls label {
-    font-size: 13px;
-    color: var(--text-secondary);
-    min-width: 120px;
-}
-.child-row .child-controls input[type="number"] {
-    width: 60px;
-    padding: 2px 4px;
-    background: var(--bg-input);
-    border: 1px solid var(--border-light);
-    border-radius: 4px;
-    color: var(--text-primary);
-    text-align: center;
-    font-size: 13px;
-}
-.child-row .child-controls .child-info {
-    font-size: 12px;
-    color: var(--text-muted);
-    margin-left: 8px;
-}
-
-/* ===== МОДАЛКИ ===== */
-.modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0,0,0,0.6);
-    display: none;
-    align-items: center;
-    justify-content: center;
-    padding: 16px;
-}
-.modal-overlay.open {
-    display: flex;
-}
-/* Модалка ввода множителя поверх матрицы */
-#modalOverlay {
-    z-index: 1400 !important;
-}
-/* Остальные модалки (свойства, настройки, управление) — ниже матрицы, но выше обычного контента */
-.modal-overlay:not(#modalOverlay) {
-    z-index: 1100;
-}
-.modal {
-    background: var(--bg-card);
-    padding: 20px;
-    border-radius: 12px;
-    border: 1px solid var(--border-color);
-    max-width: 95vw;
-    max-height: 90vh;
-    overflow: auto;
-    width: 100%;
-    max-width: 600px;
-    box-shadow: 0 8px 32px var(--shadow);
-}
-.modal h3 {
-    margin-bottom: 12px;
-}
-.modal label {
-    display: block;
-    margin: 6px 0 2px;
-    color: var(--text-secondary);
-    font-size: 14px;
-}
-.modal input[type="text"],
-.modal input[type="number"],
-.modal textarea {
-    width: 100%;
-    padding: 6px 10px;
-    background: var(--bg-input);
-    border: 1px solid var(--border-light);
-    border-radius: 4px;
-    color: var(--text-primary);
-    margin-bottom: 6px;
-}
-.modal .buttons {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-    margin-top: 12px;
-}
-.modal .buttons button {
-    padding: 6px 16px;
-    border: 0;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 14px;
-    font-family: inherit;
-}
-.modal .buttons .cancel {
-    background: var(--bg-secondary);
-    color: var(--text-secondary);
-}
-.modal .buttons .cancel:hover {
-    background: var(--bg-hover);
-}
-.modal .buttons .confirm {
-    background: var(--accent);
-    color: white;
-}
-.modal .buttons .confirm:hover {
-    background: var(--accent-hover);
-}
-.confirm-modal .modal {
-    max-width: 450px;
-    text-align: center;
-}
-.confirm-modal .modal .message {
-    padding: 12px 0;
-    font-size: 16px;
-}
-.confirm-modal .modal .buttons {
-    justify-content: center;
-}
-.confirm-modal .modal .buttons .confirm {
-    background: var(--danger);
-}
-.confirm-modal .modal .buttons .confirm:hover {
-    background: var(--danger-hover);
-}
-
-#caseSettingsModal .modal {
-    max-width: 600px;
-}
-#caseSettingsOptions .case-option-item {
-    padding: 6px 10px;
-    border: 1px solid var(--border-light);
-    border-radius: 4px;
-    margin-bottom: 4px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    transition: 0.15s;
-}
-#caseSettingsOptions .case-option-item:hover {
-    background: var(--bg-hover);
-}
-#caseSettingsOptions .case-option-item.active {
-    border-color: var(--accent);
-    background: var(--bg-active);
-}
-#caseSettingsOptions .case-option-item input[type="radio"] {
-    accent-color: var(--accent);
-}
-#caseSettingsCommonList .common-case-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 4px 8px;
-    border-bottom: 1px solid var(--border-color);
-}
-#caseSettingsCommonList .common-case-item button {
-    background: none;
-    border: none;
-    color: var(--danger);
-    cursor: pointer;
-    font-size: 16px;
-}
-
-/* ===== МАТРИЦА ===== */
-#matrixModal .modal {
-    max-width: 95vw;
-    max-height: 85vh;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    z-index: 1200;
-}
-#matrixModal .table-wrap {
-    overflow: auto !important;
-    flex: 1;
-    width: 100%;
-    position: relative;
-    -webkit-overflow-scrolling: touch;
-}
-.matrix-table-wrapper {
-    overflow: visible;
-    width: 100%;
-    position: relative;
-    min-height: 200px;
-}
-.matrix-table {
-    border-collapse: collapse;
-    width: 100%;
-    font-size: 13px;
-    table-layout: fixed;
-}
-/* Заголовки целей — фиксированы сверху */
-.matrix-table thead {
-    position: sticky;
-    top: 0;
-    z-index: 10;
-}
-.matrix-table thead th {
-    background: var(--matrix-header-bg);
-    color: var(--text-secondary);
-    font-weight: 500;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    border: 1px solid var(--matrix-border);
-    padding: 4px 6px;
-    text-align: center;
-    white-space: nowrap;
-    height: 32px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    border: 2px solid var(--matrix-border);
-}
-.matrix-table thead th:first-child {
-    z-index: 20;
-}
-/* Первая колонка (источники) — фиксирована слева */
-.matrix-table td:first-child,
-.matrix-table th:first-child {
-    position: sticky;
-    left: 0;
-    z-index: 5;
-    background: var(--bg-card);
-    border: 2px solid var(--matrix-border);
-    padding: 4px 6px;
-    text-align: left;
-    white-space: nowrap;
-    height: 32px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.matrix-table th:first-child {
-    z-index: 20;
-}
-.matrix-table td:first-child {
-    z-index: 5;
-}
-/* Обычные ячейки */
-.matrix-table td {
-    border: 1px solid var(--matrix-border);
-    padding: 4px 6px;
-    text-align: center;
-    white-space: nowrap;
-    height: 32px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-/* Чередование строк */
-.matrix-table .row-even {
-    background: var(--matrix-row-even);
-}
-.matrix-table .row-odd {
-    background: var(--matrix-row-odd);
-}
-.matrix-table .row-even td:first-child {
-    background: var(--matrix-row-even);
-}
-.matrix-table .row-odd td:first-child {
-    background: var(--matrix-row-odd);
-}
-.matrix-table .matrix-category td {
-    background: var(--bg-secondary);
-    text-align: left;
-    padding: 6px 10px;
-    font-weight: 600;
-    cursor: pointer;
-    border-color: var(--border-color);
-    width: auto !important;
-    min-width: auto !important;
-    max-width: none !important;
-    border: 1px solid var(--matrix-border);
-}
-.matrix-table .matrix-category .toggle {
-    display: inline-block;
-    width: 20px;
-}
-.matrix-table .matrix-cell {
-    width: 90px;
-    min-width: 90px;
-    max-width: 90px;
-    height: 32px !important;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.matrix-table .matrix-source {
-    text-align: left;
-    font-weight: 500;
-    color: var(--text-primary);
-    width: 120px;
-    min-width: 120px;
-    max-width: 120px;
-}
-.matrix-table .matrix-diagonal {
-    color: var(--text-muted);
-    font-size: 18px;
-    cursor: default;
-}
-.matrix-table .matrix-empty {
-    color: var(--text-muted);
-    font-size: 18px;
-    cursor: pointer;
-}
-.matrix-table .matrix-empty:hover {
-    color: var(--accent);
-}
-.matrix-table .matrix-value-cell {
-    cursor: pointer;
-    position: relative;
-}
-.matrix-table .matrix-value-cell:hover {
-    background: var(--bg-hover);
-}
-.matrix-table .matrix-value {
-    font-weight: 600;
-    color: var(--accent);
-}
-.matrix-table .matrix-conflict {
-    display: inline-block;
-    margin-left: 4px;
-    color: var(--danger);
-    font-weight: bold;
-    cursor: help;
-    font-size: 14px;
-}
-.matrix-table .matrix-conflict:hover {
-    color: var(--danger-hover);
-}
-#matrixModal .filter-row input {
-    padding: 6px 10px;
-    background: var(--bg-input);
-    border: 1px solid var(--border-light);
-    border-radius: 4px;
-    color: var(--text-primary);
-}
-.matrix-zoom-controls {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    margin-bottom: 12px;
-    flex-wrap: wrap;
-}
-.matrix-zoom-controls .zoom-label {
-    color: var(--text-secondary);
-    font-size: 14px;
-    margin-right: 4px;
-}
-.matrix-zoom-controls .zoom-btn {
-    padding: 4px 12px;
-    font-size: 13px;
-    min-height: 32px;
-    border: 1px solid var(--border-light);
-    border-radius: 4px;
-    background: var(--bg-secondary);
-    color: var(--text-primary);
-    cursor: pointer;
-    transition: 0.15s;
-}
-.matrix-zoom-controls .zoom-btn:hover {
-    background: var(--bg-hover);
-}
-.matrix-zoom-controls .zoom-btn.active {
-    border-color: var(--accent);
-    background: var(--bg-active);
-}
-#matrixZoomLevelLabel {
-    min-width: 50px;
-    text-align: center;
-    color: var(--text-secondary);
-    font-size: 14px;
-}
-/* Переключатель полных названий */
-.matrix-name-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    color: var(--text-secondary);
-    cursor: pointer;
-    user-select: none;
-    margin-left: 12px;
-}
-.matrix-name-toggle input[type="checkbox"] {
-    accent-color: var(--accent);
-}
-/* Фиксированные кнопки внизу матрицы */
-#matrixModal .modal .buttons.matrix-footer {
-    position: sticky;
-    bottom: 0;
-    background: var(--bg-card);
-    padding: 12px 0 0 0;
-    margin-top: 12px;
-    border-top: 1px solid var(--border-color);
-    z-index: 20;
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-    flex-shrink: 0;
-}
-
-#casesList {
-    max-height: 300px;
-    overflow-y: auto;
-}
-#casesList > div {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 6px 8px;
-    border-bottom: 1px solid var(--border-color);
-    gap: 10px;
-}
-
-#truckList {
-    max-height: 250px;
-    overflow-y: auto;
-}
-#truckList > div {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 6px 8px;
-    border-bottom: 1px solid var(--border-color);
-    gap: 10px;
-}
-
-::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-}
-::-webkit-scrollbar-track {
-    background: var(--scrollbar-track);
-}
-::-webkit-scrollbar-thumb {
-    background: var(--scrollbar-thumb);
-    border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-    background: var(--text-muted);
-}
-
-/* ===== МОБИЛЬНАЯ АДАПТАЦИЯ ===== */
-@media (max-width: 768px) {
-    .matrix-table {
-        font-size: 13px;
-    }
-    .matrix-table th,
-    .matrix-table td {
-        padding: 4px 6px;
-        height: 32px;
-        min-width: 80px;
-        max-width: 110px;
-    }
-    .matrix-table th:first-child,
-    .matrix-table td:first-child {
-        min-width: 100px;
-        max-width: 140px;
-    }
-    .matrix-zoom-controls .zoom-btn {
-        padding: 4px 10px;
-        font-size: 13px;
-        min-height: 30px;
-    }
-    #matrixZoomLevelLabel {
-        font-size: 13px;
-        min-width: 50px;
-    }
-    .matrix-name-toggle {
-        font-size: 13px;
-        margin-left: 8px;
-    }
-    #matrixPresetPanel {
-        flex-wrap: wrap;
-        gap: 4px;
-        padding: 4px;
-    }
-    #matrixPresetPanel .btn-sm {
-        padding: 2px 8px;
-        font-size: 11px;
-        min-height: 26px;
-    }
-    #matrixPresetPanel select {
-        font-size: 11px;
-        padding: 2px 6px;
-        min-height: 26px;
-        flex: 1 1 100%;
-    }
-    #matrixPresetPanel label {
-        font-size: 11px;
-    }
-    #matrixModal .modal {
-        padding: 10px;
-    }
-    #matrixModal .filter-row {
-        flex-direction: column;
-        gap: 4px;
-    }
-    #matrixModal .filter-row input {
-        width: 100%;
-        font-size: 13px;
-        padding: 4px 8px;
-    }
-    /* Горизонтальная ориентация: скрываем лишние панели */
-    @media (orientation: landscape) {
-        #matrixPresetPanel {
-            display: none !important; /* полностью скрываем панель пресетов */
+// Загрузка состояния полных названий
+function loadMatrixFullNames() {
+    try {
+        const val = localStorage.getItem(MATRIX_FULLNAMES_KEY);
+        if (val !== null) {
+            matrixFullNames = val === 'true';
         }
-        .matrix-name-toggle {
-            display: none !important; /* скрываем переключатель полных названий */
+    } catch (e) {
+        matrixFullNames = true;
+    }
+}
+loadMatrixFullNames();
+
+function saveMatrixFullNames() {
+    localStorage.setItem(MATRIX_FULLNAMES_KEY, String(matrixFullNames));
+}
+
+// ============================================================
+// МОДАЛКА СВОЙСТВ ПОЗИЦИИ
+// ============================================================
+export function openPropsModalEditor(catKey, subKey, itemName, onSaveCallback) {
+    currentPropsPath = { catKey, subKey, itemName, onSaveCallback };
+    const props = getItemProps(catKey, subKey, itemName);
+
+    document.getElementById('propsTitle').textContent = 'Свойства: ' + itemName;
+    document.getElementById('propWeight').value = props.weight || '';
+    document.getElementById('propDimensions').value = props.dimensions || '';
+    document.getElementById('propVolume').value = props.volume || '';
+    document.getElementById('propAllowCommon').checked = !!props.allowCommon;
+
+    const containerInd = document.getElementById('individualCasesContainer');
+    containerInd.innerHTML = '';
+    const individualCases = props.individualCases || [];
+    if (individualCases.length === 0) {
+        addIndividualCaseVariant();
+    } else {
+        individualCases.forEach(c => {
+            addIndividualCaseVariant(c.qty, c.dimensions, c.weight, c.maxCases || 0);
+        });
+    }
+
+    const containerCom = document.getElementById('commonCasesContainer');
+    containerCom.innerHTML = '';
+    const commonCases = props.commonCases || [];
+    if (commonCases.length === 0) {
+        addCommonCaseVariant();
+    } else {
+        commonCases.forEach(opt => {
+            addCommonCaseVariant(opt.caseId, opt.qty);
+        });
+    }
+
+    document.getElementById('propsModal').classList.add('open');
+}
+
+// ============================================================
+// ИНДИВИДУАЛЬНЫЕ КОФРЫ
+// ============================================================
+function addIndividualCaseVariant(qty, dim, weight, maxCases) {
+    const container = document.getElementById('individualCasesContainer');
+    const group = document.createElement('div');
+    group.className = 'case-variant-group';
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'remove-variant';
+    removeBtn.textContent = '✕';
+    removeBtn.addEventListener('click', () => {
+        if (container.children.length <= 1) {
+            showToast('Нельзя удалить последний вариант', 'warning');
+            return;
         }
-        .matrix-zoom-controls .zoom-label {
-            display: none;
+        group.remove();
+    });
+    group.appendChild(removeBtn);
+    const id = 'ind_' + Date.now() + '_' + (variantCounter++);
+    group.innerHTML += `
+        <label>Кол-во в кофре (шт):</label>
+        <input type="number" class="ind-qty" data-id="${id}" value="${qty !== undefined ? qty : ''}" placeholder="0" min="1">
+        <label>Габариты кофра (Д×Ш×В, см):</label>
+        <input type="text" class="ind-dim" data-id="${id}" value="${dim !== undefined ? dim : ''}" placeholder="120x80x60">
+        <label>Вес пустого кофра (кг):</label>
+        <input type="number" class="ind-weight" data-id="${id}" step="0.1" value="${weight !== undefined ? weight : ''}" placeholder="0.0" min="0">
+        <label>Максимум кофров (0 = без ограничений):</label>
+        <input type="number" class="ind-max-cases" data-id="${id}" step="1" min="0" value="${maxCases !== undefined ? maxCases : 0}" placeholder="0">
+    `;
+    container.appendChild(group);
+}
+
+export function addIndividualCaseVariantBtn() {
+    addIndividualCaseVariant();
+}
+
+// ============================================================
+// ОБЩИЕ КОФРЫ (привязка к позиции)
+// ============================================================
+function addCommonCaseVariant(caseId, qty) {
+    const container = document.getElementById('commonCasesContainer');
+    const group = document.createElement('div');
+    group.className = 'case-variant-group';
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'remove-variant';
+    removeBtn.textContent = '✕';
+    removeBtn.addEventListener('click', () => { group.remove(); });
+    group.appendChild(removeBtn);
+    const id = 'com_' + Date.now() + '_' + (variantCounter++);
+    const commonCases = getCommonCases();
+    let selectHtml = `<select class="com-case-select" data-id="${id}" style="width:100%;padding:6px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:6px;color:var(--text-primary);margin-bottom:6px;">`;
+    selectHtml += `<option value="">— Выберите общий кофр —</option>`;
+    commonCases.forEach(c => {
+        const selected = (c.id === caseId) ? 'selected' : '';
+        selectHtml += `<option value="${c.id}" ${selected}>${c.name} (вместимость: ${c.qty} шт, макс. вес: ${c.maxWeight || 0} кг)</option>`;
+    });
+    selectHtml += `</select>`;
+    group.innerHTML += `
+        <label>Выберите общий кофр:</label>
+        ${selectHtml}
+        <label>Количество единиц позиции в кофре (шт):</label>
+        <input type="number" class="com-qty" data-id="${id}" value="${qty !== undefined ? qty : ''}" placeholder="0" min="1">
+        <button class="btn btn-green" style="width:auto;padding:2px 8px;font-size:12px;margin-top:4px;" onclick="addNewCaseFromProps(this)">+ Новый кофр</button>
+    `;
+    container.appendChild(group);
+}
+
+export function addCommonCaseVariantBtn() {
+    addCommonCaseVariant();
+}
+
+export function addNewCaseFromProps(btn) {
+    const group = btn.closest('.case-variant-group');
+    openCasesManagerModal(() => {
+        document.querySelectorAll('.com-case-select').forEach(sel => {
+            const currentVal = sel.value;
+            const commonCases = getCommonCases();
+            sel.innerHTML = '<option value="">— Выберите общий кофр —</option>';
+            commonCases.forEach(c => {
+                const selected = (c.id === currentVal) ? 'selected' : '';
+                sel.innerHTML += `<option value="${c.id}" ${selected}>${c.name} (вместимость: ${c.qty} шт, макс. вес: ${c.maxWeight || 0} кг)</option>`;
+            });
+        });
+        showToast('Список общих кофров обновлён', 'neutral');
+    });
+}
+
+// ============================================================
+// СОХРАНЕНИЕ СВОЙСТВ
+// ============================================================
+export function initPropsSaveHandler() {
+    const confirmBtn = document.getElementById('propsConfirm');
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', () => {
+            if (!currentPropsPath) return;
+            const { catKey, subKey, itemName, onSaveCallback } = currentPropsPath;
+            const weight = parseFloat(document.getElementById('propWeight').value);
+            const dimensions = document.getElementById('propDimensions').value.trim();
+            const volume = parseFloat(document.getElementById('propVolume').value);
+            const allowCommon = document.getElementById('propAllowCommon').checked;
+            const props = {};
+            if (!isNaN(weight) && weight > 0) props.weight = weight;
+            if (dimensions) props.dimensions = dimensions;
+            if (!isNaN(volume) && volume > 0) props.volume = volume;
+            props.allowCommon = allowCommon;
+
+            const individualCases = [];
+            document.querySelectorAll('#individualCasesContainer .case-variant-group').forEach(group => {
+                const qtyInput = group.querySelector('.ind-qty');
+                const dimInput = group.querySelector('.ind-dim');
+                const weightInput = group.querySelector('.ind-weight');
+                const maxCasesInput = group.querySelector('.ind-max-cases');
+                const qty = parseInt(qtyInput ? qtyInput.value : 0);
+                const dim = dimInput ? dimInput.value.trim() : '';
+                const w = parseFloat(weightInput ? weightInput.value : 0);
+                const maxCases = parseInt(maxCasesInput ? maxCasesInput.value : 0);
+                if (qty > 0 || dim || w > 0) {
+                    individualCases.push({ qty, dimensions: dim, weight: isNaN(w) ? 0 : w, maxCases: isNaN(maxCases) ? 0 : maxCases });
+                }
+            });
+            if (individualCases.length > 0) props.individualCases = individualCases;
+            else delete props.individualCases;
+
+            const commonCases = [];
+            document.querySelectorAll('#commonCasesContainer .case-variant-group').forEach(group => {
+                const select = group.querySelector('.com-case-select');
+                const qtyInput = group.querySelector('.com-qty');
+                const caseId = select ? select.value : '';
+                const qty = parseInt(qtyInput ? qtyInput.value : 0);
+                if (caseId && !isNaN(qty) && qty > 0) {
+                    commonCases.push({ caseId, qty });
+                }
+            });
+            if (commonCases.length > 0) props.commonCases = commonCases;
+            else delete props.commonCases;
+
+            setItemProps(catKey, subKey, itemName, props);
+            document.getElementById('propsModal').classList.remove('open');
+            currentPropsPath = null;
+            if (onSaveCallback) onSaveCallback();
+            showToast('Свойства сохранены', 'success');
+        });
+    }
+}
+
+export function initPropsCancelHandler() {
+    const cancelBtn = document.getElementById('propsCancel');
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => {
+            document.getElementById('propsModal').classList.remove('open');
+            currentPropsPath = null;
+        });
+    }
+}
+
+// ============================================================
+// МОДАЛКА НАСТРОЙКИ КОФРОВ ДЛЯ ПОЗИЦИИ
+// ============================================================
+export function openCaseSettingsModal(path, callback) {
+    currentCaseSettingsPath = path;
+    caseSettingsCallback = callback || null;
+    const mode = getCaseMode(path);
+    const props = getItemProps(path);
+    const options = getCaseOptions(path);
+    const packing = getOrderPacking(path);
+    const commonCases = getCommonCases();
+    const individualVals = getIndividualCaseValues(path);
+    const isMulti = localStorage.getItem('multi_' + path) === 'true';
+
+    const modal = document.getElementById('caseSettingsModal');
+    if (!modal) {
+        showToast('Модалка настройки кофров не найдена', 'error');
+        return;
+    }
+
+    document.getElementById('caseSettingsTitle').textContent = 'Настройка кофров: ' + path.split('|').pop();
+    document.getElementById('caseSettingsEnable').checked = mode.enabled;
+
+    const optionsContainer = document.getElementById('caseSettingsOptions');
+    optionsContainer.innerHTML = '';
+    if (options.length > 0) {
+        options.forEach((opt, idx) => {
+            const div = document.createElement('div');
+            div.className = 'case-option-item' + (mode.selectedOption === idx && !mode.alt ? ' active' : '');
+            div.innerHTML = `
+                <input type="radio" name="caseOption" value="${idx}" ${mode.selectedOption === idx && !mode.alt ? 'checked' : ''}>
+                <span>Вариант ${idx+1}: ${opt.qty} шт, габ: ${opt.dims || 'н/д'}, вес пустого: ${opt.weight || 0} кг</span>
+            `;
+            div.addEventListener('click', () => {
+                const radio = div.querySelector('input[type="radio"]');
+                radio.checked = true;
+                mode.selectedOption = idx;
+                mode.alt = null;
+                mode.enabled = true;
+                saveOrderData();
+                document.querySelectorAll('.case-option-item').forEach(el => el.classList.remove('active'));
+                div.classList.add('active');
+                showToast('Вариант кофра выбран, режим включён', 'neutral');
+                if (caseSettingsCallback) caseSettingsCallback();
+            });
+            optionsContainer.appendChild(div);
+        });
+        const multiContainer = document.getElementById('caseSettingsMulti');
+        if (options.length > 1) {
+            multiContainer.style.display = 'block';
+            document.getElementById('caseSettingsMultiCheck').checked = isMulti;
+        } else {
+            multiContainer.style.display = 'none';
         }
-        .matrix-zoom-controls .zoom-btn {
-            padding: 2px 6px;
-            font-size: 11px;
-            min-height: 24px;
+    } else {
+        optionsContainer.innerHTML = '<div style="color:var(--text-muted);">Нет индивидуальных кофров для этой позиции</div>';
+        document.getElementById('caseSettingsMulti').style.display = 'none';
+    }
+
+    const altContainer = document.getElementById('caseSettingsAlt');
+    if (mode.alt) {
+        altContainer.innerHTML = `
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <span>Альтернативный: ${mode.alt.qty} шт, габ: ${mode.alt.dims || 'н/д'}, вес: ${mode.alt.weight || 0} кг</span>
+                <button class="btn btn-sm" onclick="window.clearAltCase()">Очистить</button>
+            </div>
+        `;
+    } else {
+        altContainer.innerHTML = `
+            <button class="btn btn-sm" onclick="window.addAltCase()">+ Альтернативный кофр</button>
+        `;
+    }
+
+    const commonContainer = document.getElementById('caseSettingsCommon');
+    if (props.allowCommon) {
+        commonContainer.style.display = 'block';
+        const list = document.getElementById('caseSettingsCommonList');
+        list.innerHTML = '';
+        if (packing.length > 0) {
+            packing.forEach((p, idx) => {
+                const c = commonCases.find(c => c.id === p.caseId);
+                const div = document.createElement('div');
+                div.className = 'common-case-item';
+                div.innerHTML = `
+                    <span>${c ? c.name : 'Удалённый кофр'} (кол-во: ${p.qty} шт)</span>
+                    <button class="btn btn-sm" onclick="window.removeCommonCasePacking('${path}', ${idx})">✕</button>
+                `;
+                list.appendChild(div);
+            });
+        } else {
+            list.innerHTML = '<div style="color:var(--text-muted);">Нет привязок к общим кофрам</div>';
         }
-        #matrixZoomLevelLabel {
-            font-size: 11px;
-            min-width: 30px;
+        const addBtn = document.getElementById('caseSettingsCommonAdd');
+        addBtn.onclick = () => {
+            showPrompt('Выберите общий кофр', 'Введите ID кофра (или название для поиска):', '', '', (val) => {
+                if (!val) return null;
+                const found = commonCases.find(c => c.id === val || c.name.toLowerCase().includes(val.toLowerCase()));
+                if (!found) {
+                    showToast('Кофр не найден', 'error');
+                    return 'Кофр не найден';
+                }
+                showPrompt('Количество единиц в кофре', 'Введите кол-во:', '1', '', (qty) => {
+                    const num = parseInt(qty);
+                    if (isNaN(num) || num <= 0) {
+                        showToast('Введите положительное число', 'error');
+                        return 'Некорректное количество';
+                    }
+                    const currentPacking = getOrderPacking(path);
+                    currentPacking.push({ caseId: found.id, qty: num });
+                    setOrderPacking(path, currentPacking);
+                    saveOrderData();
+                    if (caseSettingsCallback) caseSettingsCallback();
+                    openCaseSettingsModal(path, caseSettingsCallback);
+                    showToast('Привязка добавлена', 'success');
+                    return null;
+                });
+                return null;
+            });
+        };
+    } else {
+        commonContainer.style.display = 'none';
+    }
+
+    modal.classList.add('open');
+
+    const saveBtn = document.getElementById('caseSettingsSave');
+    saveBtn.onclick = () => {
+        const enabled = document.getElementById('caseSettingsEnable').checked;
+        mode.enabled = enabled;
+        if (!enabled) {
+            mode.alt = null;
+            localStorage.removeItem('multi_' + path);
+            setIndividualCaseValues(path, []);
+        } else {
+            const selectedRadio = document.querySelector('input[name="caseOption"]:checked');
+            if (selectedRadio) {
+                const idx = parseInt(selectedRadio.value);
+                mode.selectedOption = idx;
+                mode.alt = null;
+            }
+            const multiCheck = document.getElementById('caseSettingsMultiCheck');
+            if (multiCheck && multiCheck.checked) {
+                localStorage.setItem('multi_' + path, 'true');
+                const vals = getIndividualCaseValues(path);
+                if (vals.length === 0) {
+                    setIndividualCaseValues(path, options.map(() => 0));
+                }
+            } else {
+                localStorage.removeItem('multi_' + path);
+                const vals = getIndividualCaseValues(path);
+                if (vals.length > 0) {
+                    const total = vals.reduce((a,b) => a + b, 0);
+                    setIndividualCaseValues(path, [total]);
+                }
+            }
         }
-        #matrixModal .filter-row {
-            flex-direction: row;
-            gap: 4px;
+        saveOrderData();
+        modal.classList.remove('open');
+        if (caseSettingsCallback) caseSettingsCallback();
+        showToast('Настройки кофров сохранены', 'success');
+    };
+
+    document.getElementById('caseSettingsCancel').onclick = () => {
+        modal.classList.remove('open');
+    };
+
+    modal.onclick = (e) => {
+        if (e.target === modal) {
+            modal.classList.remove('open');
         }
-        #matrixModal .filter-row input {
-            font-size: 12px;
-            padding: 2px 6px;
-            width: auto;
-            flex: 1;
+    };
+}
+
+window.addAltCase = function() {
+    const path = currentCaseSettingsPath;
+    if (!path) return;
+    showPrompt('Альтернативный кофр', 'Вместимость (шт):', '', '', (qty) => {
+        const numQty = parseInt(qty);
+        if (isNaN(numQty) || numQty <= 0) {
+            showToast('Введите корректную вместимость', 'error');
+            return 'Некорректное количество';
         }
-        #matrixModal .modal {
-            padding: 4px;
+        showPrompt('Альтернативный кофр', 'Вес пустого (кг):', '0', '', (weight) => {
+            const w = parseFloat(weight) || 0;
+            showPrompt('Альтернативный кофр', 'Габариты (Д×Ш×В, см):', '', '', (dims) => {
+                const mode = getCaseMode(path);
+                mode.alt = { qty: numQty, weight: w, dims: dims || '' };
+                mode.enabled = true;
+                document.getElementById('caseSettingsEnable').checked = true;
+                saveOrderData();
+                openCaseSettingsModal(path, caseSettingsCallback);
+                showToast('Альтернативный кофр добавлен', 'success');
+                return null;
+            });
+            return null;
+        });
+        return null;
+    });
+};
+
+window.clearAltCase = function() {
+    const path = currentCaseSettingsPath;
+    if (!path) return;
+    const mode = getCaseMode(path);
+    mode.alt = null;
+    saveOrderData();
+    openCaseSettingsModal(path, caseSettingsCallback);
+    showToast('Альтернативный кофр удалён', 'neutral');
+};
+
+window.removeCommonCasePacking = function(path, idx) {
+    const packing = getOrderPacking(path);
+    packing.splice(idx, 1);
+    setOrderPacking(path, packing);
+    saveOrderData();
+    openCaseSettingsModal(path, caseSettingsCallback);
+    showToast('Привязка удалена', 'neutral');
+};
+
+// ============================================================
+// МОДАЛКА УПРАВЛЕНИЯ ОБЩИМИ КОФРАМИ
+// ============================================================
+export function openCasesManagerModal(callback) {
+    casesManagerCallback = callback || null;
+    renderCasesList();
+    document.getElementById('casesManagerModal').classList.add('open');
+}
+
+function renderCasesList() {
+    const container = document.getElementById('casesList');
+    const cases = getCommonCases();
+    if (cases.length === 0) {
+        container.innerHTML = '<div class="empty-message">Нет общих кофров</div>';
+        return;
+    }
+    let html = '';
+    cases.forEach(c => {
+        html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-bottom:1px solid var(--border-color);gap:10px;">
+            <div><strong>${esc(c.name)}</strong><br>
+            <span style="font-size:13px;color:var(--text-secondary);">Вместимость: ${c.qty} шт, Габ: ${c.dimensions || 'н/д'}, Вес пустого: ${c.emptyWeight || 0} кг, Макс. вес: ${c.maxWeight || 0} кг, Макс. объём: ${c.maxVolume || 0} м³</span></div>
+            <div>
+                <button class="btn btn-sm" style="width:auto;padding:2px 8px;font-size:12px;" onclick="window.editCase('${c.id}')">✏️</button>
+                <button class="btn btn-sm" style="width:auto;padding:2px 8px;font-size:12px;background:var(--danger);color:white;" onclick="window.deleteCase('${c.id}')">✕</button>
+            </div>
+        </div>`;
+    });
+    container.innerHTML = html;
+}
+
+function editCase(id) {
+    const cases = getCommonCases();
+    const c = cases.find(c => c.id === id);
+    if (!c) return;
+    document.getElementById('newCaseName').value = c.name || '';
+    document.getElementById('newCaseQty').value = c.qty || '';
+    document.getElementById('newCaseDim').value = c.dimensions || '';
+    document.getElementById('newCaseWeight').value = c.emptyWeight || '';
+    document.getElementById('newCaseMaxWeight').value = c.maxWeight || '';
+    document.getElementById('newCaseMaxVolume').value = c.maxVolume || '';
+    const addBtn = document.getElementById('casesManagerAdd');
+    addBtn.textContent = 'Обновить';
+    addBtn.dataset.editId = id;
+}
+
+async function deleteCase(id) {
+    const confirmed = await showConfirm('Удалить этот кофр?');
+    if (!confirmed) return;
+    deleteCommonCase(id);
+    renderCasesList();
+    showToast('Кофр удалён', 'neutral');
+}
+
+export function initCasesManagerHandlers() {
+    const addBtn = document.getElementById('casesManagerAdd');
+    addBtn.addEventListener('click', function() {
+        const name = document.getElementById('newCaseName').value.trim();
+        const qty = parseInt(document.getElementById('newCaseQty').value);
+        const dimensions = document.getElementById('newCaseDim').value.trim();
+        const emptyWeight = parseFloat(document.getElementById('newCaseWeight').value);
+        const maxWeight = parseFloat(document.getElementById('newCaseMaxWeight').value);
+        const maxVolume = parseFloat(document.getElementById('newCaseMaxVolume').value);
+        if (!name) { showToast('Введите название кофра', 'warning'); return; }
+        if (isNaN(qty) || qty <= 0) { showToast('Вместимость должна быть положительным числом', 'warning'); return; }
+        const editId = this.dataset.editId;
+        if (editId) {
+            updateCommonCase(editId, { name, qty, dimensions, emptyWeight: isNaN(emptyWeight)?0:emptyWeight, maxWeight: isNaN(maxWeight)?0:maxWeight, maxVolume: isNaN(maxVolume)?0:maxVolume });
+            showToast('Кофр обновлён', 'success');
+        } else {
+            const newCase = {
+                id: 'case_' + Date.now(),
+                name, qty, dimensions, emptyWeight: isNaN(emptyWeight)?0:emptyWeight, maxWeight: isNaN(maxWeight)?0:maxWeight, maxVolume: isNaN(maxVolume)?0:maxVolume
+            };
+            addCommonCase(newCase);
+            showToast('Кофр добавлен', 'success');
         }
-        .matrix-table {
-            font-size: 14px;
+        document.getElementById('newCaseName').value = '';
+        document.getElementById('newCaseQty').value = '';
+        document.getElementById('newCaseDim').value = '';
+        document.getElementById('newCaseWeight').value = '';
+        document.getElementById('newCaseMaxWeight').value = '';
+        document.getElementById('newCaseMaxVolume').value = '';
+        this.textContent = '+ Добавить';
+        delete this.dataset.editId;
+        renderCasesList();
+        if (casesManagerCallback) casesManagerCallback();
+    });
+}
+
+export function initCasesManagerCloseHandler() {
+    document.getElementById('casesManagerClose').addEventListener('click', () => {
+        document.getElementById('casesManagerModal').classList.remove('open');
+        if (casesManagerCallback) casesManagerCallback();
+    });
+}
+
+export function initCasesManagerOverlayClose() {
+    const overlay = document.getElementById('casesManagerModal');
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+            document.getElementById('casesManagerModal').classList.remove('open');
+            if (casesManagerCallback) casesManagerCallback();
         }
-        .matrix-table th,
-        .matrix-table td {
-            min-width: 90px;
-            max-width: 120px;
-            height: 34px;
-            padding: 4px 8px;
+    });
+}
+
+// ============================================================
+// МАТРИЦА ПРИВЯЗОК (с фиксированной кнопкой разворота категорий)
+// ============================================================
+function getMatrixPresets() {
+    try {
+        const raw = localStorage.getItem(MATRIX_PRESETS_KEY);
+        return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+}
+
+function saveMatrixPresets(presets) {
+    localStorage.setItem(MATRIX_PRESETS_KEY, JSON.stringify(presets));
+}
+
+export function openMatrixModal(sourcePath, showPresets = true, category = null) {
+    const modal = document.getElementById('matrixModal');
+    if (!modal) {
+        showToast('Матрица привязок не найдена', 'error');
+        return;
+    }
+    if (sourcePath) {
+        document.getElementById('matrixSearchSource').value = sourcePath.split('|').pop();
+        scrollToPath = sourcePath;
+        const catName = category || (sourcePath.split('|')[0]);
+        if (catName && !openCategories.includes(catName)) {
+            openCategories.push(catName);
         }
-        .matrix-table th:first-child,
-        .matrix-table td:first-child {
-            min-width: 110px;
-            max-width: 150px;
-        }
-        /* Максимальная высота таблицы */
-        #matrixModal .table-wrap {
-            max-height: none;
-            flex: 1;
+    } else {
+        document.getElementById('matrixSearchSource').value = '';
+        scrollToPath = null;
+        if (category && !openCategories.includes(category)) {
+            openCategories.push(category);
         }
     }
+    document.getElementById('matrixSearchTarget').value = '';
+    matrixZoomLevel = 1;
+    applyMatrixZoom();
+    renderMatrix();
+    populateMatrixPresetSelect();
+    const panel = document.getElementById('matrixPresetPanel');
+    if (panel) panel.style.display = showPresets ? 'flex' : 'none';
+    modal.classList.add('open');
 }
 
-@media (max-width: 480px) {
-    .matrix-table {
-        font-size: 12px;
+function renderMatrix() {
+    const container = document.getElementById('matrixContainer');
+    if (!container) return;
+    const allPaths = getAllItemPaths();
+    if (allPaths.length === 0) {
+        container.innerHTML = '<p style="color:var(--text-muted);">Нет позиций</p>';
+        return;
     }
-    .matrix-table th,
-    .matrix-table td {
-        padding: 3px 5px;
-        height: 28px;
-        min-width: 70px;
-        max-width: 90px;
+    const srcFilter = document.getElementById('matrixSearchSource').value.toLowerCase();
+    const tgtFilter = document.getElementById('matrixSearchTarget').value.toLowerCase();
+
+    const catMap = {};
+    allPaths.forEach(p => {
+        const parts = p.split('|');
+        const cat = parts[0];
+        if (!catMap[cat]) catMap[cat] = [];
+        catMap[cat].push({ full: p, name: parts[parts.length-1] });
+    });
+
+    let allTargets = [];
+    allPaths.forEach(p => {
+        const parts = p.split('|');
+        allTargets.push({ full: p, name: parts[parts.length-1], cat: parts[0] });
+    });
+    const unique = [];
+    const seen = new Set();
+    allTargets.forEach(t => { if (!seen.has(t.full)) { seen.add(t.full); unique.push(t); } });
+    allTargets = unique;
+    if (tgtFilter) allTargets = allTargets.filter(t => t.name.toLowerCase().includes(tgtFilter));
+
+    // Базовые размеры
+    const baseColWidth = 90;
+    const baseFontSize = 13;
+    const basePadding = 4;
+    const baseHeight = 32;
+
+    const colWidth = Math.round(baseColWidth * matrixZoomLevel);
+    const fontSize = baseFontSize * matrixZoomLevel;
+    const padding = Math.round(basePadding * matrixZoomLevel);
+    const height = Math.round(baseHeight * matrixZoomLevel);
+    const sourceWidth = matrixFullNames ? Math.max(200, colWidth * 2) : colWidth;
+
+    let html = `<div class="matrix-table-wrapper"><table class="matrix-table" style="font-size:${fontSize}px; table-layout:fixed; width:100%;">`;
+    html += `<thead><tr><th class="matrix-header" style="width:${sourceWidth}px; min-width:${sourceWidth}px; max-width:${sourceWidth}px; padding:${padding}px; height:${height}px; font-size:${fontSize}px; position:sticky; left:0; z-index:20;">Источник \\ Цель</th>`;
+    allTargets.forEach(target => {
+        const displayName = matrixFullNames ? target.name : truncateName(target.name);
+        html += `<th class="matrix-header" style="width:${colWidth}px; min-width:${colWidth}px; max-width:${colWidth}px; padding:${padding}px; height:${height}px; font-size:${fontSize}px;" title="${esc(target.name)}">${displayName}</th>`;
+    });
+    html += '</tr></thead><tbody>';
+
+    const orderKeys = editorData._categoryOrder || Object.keys(editorData.inventory);
+    orderKeys.forEach(cat => {
+        const items = catMap[cat] || [];
+        let filtered = items;
+        if (srcFilter) filtered = items.filter(item => item.name.toLowerCase().includes(srcFilter));
+        if (filtered.length === 0) return;
+
+        const catId = 'cat_' + cat + '_' + Date.now();
+        const isOpen = openCategories.includes(cat);
+        const toggleIcon = isOpen ? '▼' : '▶';
+        // Первая ячейка — фиксированная с кнопкой
+        html += `<tr class="matrix-category" data-cat="${cat}" onclick="window.toggleMatrixCategory('${catId}', '${cat}')">`;
+        html += `<td class="matrix-cell matrix-category-toggle" style="width:${sourceWidth}px; min-width:${sourceWidth}px; max-width:${sourceWidth}px; padding:${padding}px; height:${height}px; font-size:${fontSize}px; position:sticky; left:0; z-index:5; background:var(--bg-secondary); border:1px solid var(--matrix-border); text-align:center; cursor:pointer;">`;
+        html += `<span class="toggle" id="toggle_${catId}">${toggleIcon}</span>`;
+        html += `</td>`;
+        // Вторая ячейка — название категории и количество
+        html += `<td colspan="${allTargets.length}" style="text-align:left;padding:${padding}px 10px;background:var(--bg-secondary);border:1px solid var(--border-color);font-size:${fontSize}px;cursor:pointer;">`;
+        html += `${CAT_NAMES[cat]||cat} (${filtered.length})`;
+        html += `</td>`;
+        html += `</tr>`;
+
+        html += `<tbody id="${catId}" class="matrix-category-items" style="display:${isOpen ? 'table-row-group' : 'none'};">`;
+        filtered.forEach((source, idx) => {
+            const rowClass = idx % 2 === 0 ? 'row-even' : 'row-odd';
+            const rowId = (scrollToPath && source.full === scrollToPath) ? 'id="matrix-scroll-target"' : '';
+            html += `<tr class="${rowClass}" ${rowId}>`;
+            const sourceDisplay = matrixFullNames ? source.name : truncateName(source.name);
+            html += `<td class="matrix-cell matrix-source" style="width:${sourceWidth}px; min-width:${sourceWidth}px; max-width:${sourceWidth}px; padding:${padding}px; height:${height}px; overflow:hidden; text-overflow:ellipsis; font-size:${fontSize}px; position:sticky; left:0; z-index:5; background:${idx % 2 === 0 ? 'var(--matrix-row-even)' : 'var(--matrix-row-odd)'};" title="${esc(source.name)}">${sourceDisplay}</td>`;
+            allTargets.forEach(target => {
+                if (source.full === target.full) {
+                    html += `<td class="matrix-cell matrix-diagonal" style="width:${colWidth}px; min-width:${colWidth}px; max-width:${colWidth}px; padding:${padding}px; height:${height}px; font-size:${fontSize}px;">—</td>`;
+                } else {
+                    const allLinks = [];
+                    for (let src in links) {
+                        const lnk = links[src].find(l => l.target === target.full);
+                        if (lnk) {
+                            allLinks.push({ source: src, multiplier: lnk.multiplier });
+                        }
+                    }
+                    const currentLinks = allLinks.filter(l => l.source === source.full);
+                    const totalMultiplier = currentLinks.reduce((sum, l) => sum + l.multiplier, 0);
+
+                    if (totalMultiplier > 0) {
+                        let cellContent = `<span class="matrix-value" style="font-size:${fontSize}px;">${totalMultiplier.toFixed(2)}</span>`;
+                        html += `<td class="matrix-cell matrix-value-cell" style="width:${colWidth}px; min-width:${colWidth}px; max-width:${colWidth}px; padding:${padding}px; height:${height}px; overflow:hidden; text-overflow:ellipsis; font-size:${fontSize}px;" data-src="${source.full}" data-target="${target.full}" onclick="window.editMatrixCell(this,'${source.full}','${target.full}')">${cellContent}</td>`;
+                    } else {
+                        html += `<td class="matrix-cell matrix-empty" style="width:${colWidth}px; min-width:${colWidth}px; max-width:${colWidth}px; padding:${padding}px; height:${height}px; font-size:${fontSize}px;" data-src="${source.full}" data-target="${target.full}" onclick="window.editMatrixCell(this,'${source.full}','${target.full}')">+</td>`;
+                    }
+                }
+            });
+            html += '</tr>';
+        });
+        html += '</tbody>';
+    });
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
+
+    // Переключатель полных названий
+    const zoomControls = document.querySelector('.matrix-zoom-controls');
+    if (zoomControls && !document.getElementById('matrixNameToggle')) {
+        const toggleDiv = document.createElement('div');
+        toggleDiv.className = 'matrix-name-toggle';
+        toggleDiv.id = 'matrixNameToggle';
+        toggleDiv.innerHTML = `
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                <input type="checkbox" ${matrixFullNames ? 'checked' : ''}> Полные названия
+            </label>
+        `;
+        toggleDiv.querySelector('input').addEventListener('change', function() {
+            matrixFullNames = this.checked;
+            saveMatrixFullNames();
+            renderMatrix();
+        });
+        zoomControls.after(toggleDiv);
+    } else {
+        const toggleInput = document.querySelector('#matrixNameToggle input');
+        if (toggleInput) toggleInput.checked = matrixFullNames;
     }
-    .matrix-table th:first-child,
-    .matrix-table td:first-child {
-        min-width: 80px;
-        max-width: 110px;
-    }
-    .matrix-zoom-controls .zoom-btn {
-        padding: 2px 8px;
-        font-size: 12px;
-        min-height: 26px;
-    }
-    #matrixZoomLevelLabel {
-        font-size: 12px;
-        min-width: 40px;
-    }
-    .matrix-name-toggle {
-        font-size: 12px;
-        margin-left: 6px;
-    }
-    #matrixPresetPanel {
-        flex-wrap: wrap;
-        gap: 2px;
-        padding: 2px;
-    }
-    #matrixPresetPanel .btn-sm {
-        padding: 1px 6px;
-        font-size: 10px;
-        min-height: 22px;
-    }
-    #matrixPresetPanel select {
-        font-size: 10px;
-        padding: 1px 4px;
-        min-height: 22px;
-        flex: 1 1 100%;
-    }
-    #matrixPresetPanel label {
-        font-size: 10px;
-    }
-    #matrixModal .modal {
-        padding: 4px;
-    }
-    #matrixModal .filter-row {
-        flex-direction: column;
-        gap: 2px;
-    }
-    #matrixModal .filter-row input {
-        font-size: 12px;
-        padding: 2px 6px;
-    }
-    @media (orientation: landscape) {
-        #matrixPresetPanel {
-            display: none !important;
-        }
-        .matrix-name-toggle {
-            display: none !important;
-        }
-        .matrix-zoom-controls .zoom-label {
-            display: none;
-        }
-        .matrix-zoom-controls .zoom-btn {
-            padding: 2px 6px;
-            font-size: 11px;
-            min-height: 22px;
-        }
-        #matrixZoomLevelLabel {
-            font-size: 11px;
-            min-width: 30px;
-        }
-        #matrixModal .filter-row {
-            flex-direction: row;
-            gap: 4px;
-        }
-        #matrixModal .filter-row input {
-            font-size: 12px;
-            padding: 2px 6px;
-            width: auto;
-            flex: 1;
-        }
-        #matrixModal .modal {
-            padding: 2px;
-        }
-        .matrix-table {
-            font-size: 14px;
-        }
-        .matrix-table th,
-        .matrix-table td {
-            min-width: 90px;
-            max-width: 120px;
-            height: 34px;
-            padding: 4px 8px;
-        }
-        .matrix-table th:first-child,
-        .matrix-table td:first-child {
-            min-width: 110px;
-            max-width: 150px;
-        }
-        #matrixModal .table-wrap {
-            max-height: none;
-            flex: 1;
-        }
+
+    // Прокрутка к целевой строке
+    if (scrollToPath) {
+        setTimeout(() => {
+            const targetRow = document.getElementById('matrix-scroll-target');
+            if (targetRow) {
+                targetRow.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                targetRow.style.background = 'var(--bg-active)';
+                setTimeout(() => {
+                    targetRow.style.background = '';
+                }, 2000);
+                scrollToPath = null;
+            }
+        }, 100);
     }
 }
 
-@media print {
-    .btn,
-    .header,
-    .preset-bar,
-    .search-box,
-    .category-tabs,
-    .modal-overlay,
-    .toast,
-    .actions,
-    #globalTotals {
-        display: none !important;
+function applyMatrixZoom() {
+    document.querySelectorAll('.zoom-btn').forEach(btn => {
+        btn.classList.toggle('active', parseFloat(btn.dataset.zoom) === matrixZoomLevel);
+    });
+    const label = document.getElementById('matrixZoomLevelLabel');
+    if (label) label.textContent = Math.round(matrixZoomLevel * 100) + '%';
+    renderMatrix();
+}
+
+function setupZoomButtons() {
+    document.querySelectorAll('.zoom-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const zoom = parseFloat(this.dataset.zoom);
+            if (!isNaN(zoom) && zoom !== matrixZoomLevel) {
+                matrixZoomLevel = zoom;
+                applyMatrixZoom();
+            }
+        });
+    });
+}
+
+function truncateName(name, maxLen = 10) {
+    if (name.length <= maxLen) return name;
+    const parts = name.split(' ');
+    if (parts.length <= 2) {
+        return name.substring(0, maxLen-3) + '...';
     }
-    body {
-        background: #fff;
-        color: #000;
+    const first = parts[0];
+    const last = parts[parts.length-1];
+    return first + ' ... ' + last;
+}
+
+function getAllItemPaths() {
+    const res = [];
+    function traverse(obj, path) {
+        if (Array.isArray(obj)) {
+            obj.forEach(item => res.push(path.length ? path.join('|') + '|' + item : item));
+        } else if (typeof obj === 'object' && obj !== null) {
+            for (let key in obj) {
+                if (key.startsWith('_')) continue;
+                traverse(obj[key], [...path, key]);
+            }
+        }
     }
-    .card {
-        border: 1px solid #ccc;
-        background: #fff;
+    traverse(editorData.inventory, []);
+    return res;
+}
+
+window.toggleMatrixCategory = function(catId, catName) {
+    const tbody = document.getElementById(catId);
+    const toggle = document.getElementById('toggle_' + catId);
+    if (!tbody || !toggle) return;
+    const isOpen = tbody.style.display !== 'none';
+    if (isOpen) {
+        tbody.style.display = 'none';
+        toggle.textContent = '▶';
+        const idx = openCategories.indexOf(catName);
+        if (idx !== -1) openCategories.splice(idx, 1);
+    } else {
+        tbody.style.display = 'table-row-group';
+        toggle.textContent = '▼';
+        if (!openCategories.includes(catName)) {
+            openCategories.push(catName);
+        }
     }
-    .row {
-        border-bottom: 1px solid #ddd;
+};
+
+window.editMatrixCell = async function(td, src, target) {
+    const existing = links[src] ? links[src].find(l => l.target === target) : null;
+    const currentVal = existing ? existing.multiplier : '';
+    const val = await showPrompt(
+        currentVal !== '' ? 'Изменить множитель' : 'Введите множитель',
+        'Множитель (0 для удаления):',
+        currentVal !== '' ? currentVal : '1'
+    );
+    if (val === null) return;
+    const num = parseFloat(val);
+    if (isNaN(num) || num === 0) {
+        if (links[src]) {
+            links[src] = links[src].filter(l => l.target !== target);
+            if (links[src].length === 0) delete links[src];
+        }
+    } else {
+        if (!links[src]) links[src] = [];
+        const existingLink = links[src].find(l => l.target === target);
+        if (existingLink) existingLink.multiplier = num;
+        else links[src].push({ target, multiplier: num });
     }
+    saveOrderData();
+    renderMatrix();
+    updateLinkCount();
+    showToast('Привязка обновлена', 'success');
+};
+
+function updateLinkCount() {
+    let count = 0;
+    for (let src in links) count += links[src].length;
+    const el = document.getElementById('linkCount');
+    if (el) el.textContent = `(${count} активных)`;
+}
+
+// ============================================================
+// ПРЕСЕТЫ МАТРИЦЫ
+// ============================================================
+function populateMatrixPresetSelect() {
+    const select = document.getElementById('matrixPresetSelect');
+    if (!select) return;
+    const presets = getMatrixPresets();
+    select.innerHTML = '<option value="">— Выберите пресет —</option>';
+    presets.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.name;
+        opt.textContent = p.name;
+        select.appendChild(opt);
+    });
+}
+
+async function saveMatrixPreset() {
+    const name = await showPrompt('Сохранить пресет матрицы', 'Введите имя пресета:', '', '');
+    if (!name || !name.trim()) return;
+    const presets = getMatrixPresets();
+    const existing = presets.find(p => p.name === name.trim());
+    if (existing) {
+        const overwrite = await showConfirm(`Пресет "${name.trim()}" уже существует. Перезаписать?`);
+        if (!overwrite) return;
+        const idx = presets.indexOf(existing);
+        presets.splice(idx, 1);
+    }
+    const snapshot = {};
+    for (let src in links) {
+        snapshot[src] = links[src].map(l => ({ ...l }));
+    }
+    presets.push({ name: name.trim(), links: snapshot });
+    saveMatrixPresets(presets);
+    populateMatrixPresetSelect();
+    showToast('Пресет сохранён', 'success');
+}
+
+async function loadMatrixPreset(overlay = true) {
+    const select = document.getElementById('matrixPresetSelect');
+    const name = select.value;
+    if (!name) {
+        showToast('Выберите пресет', 'warning');
+        return;
+    }
+    const presets = getMatrixPresets();
+    const preset = presets.find(p => p.name === name);
+    if (!preset) {
+        showToast('Пресет не найден', 'error');
+        return;
+    }
+    if (!overlay) {
+        for (let key in links) delete links[key];
+    }
+    for (let src in preset.links) {
+        preset.links[src].forEach(pl => {
+            if (!links[src]) links[src] = [];
+            const existing = links[src].find(l => l.target === pl.target);
+            if (existing) {
+                existing.multiplier += pl.multiplier;
+            } else {
+                links[src].push({ target: pl.target, multiplier: pl.multiplier });
+            }
+        });
+    }
+    saveOrderData();
+    renderMatrix();
+    updateLinkCount();
+    showToast(`Пресет "${name}" загружен ${overlay ? '(наложение)' : '(замена)'}`, 'success');
+}
+
+async function deleteMatrixPreset() {
+    const select = document.getElementById('matrixPresetSelect');
+    const name = select.value;
+    if (!name) {
+        showToast('Выберите пресет', 'warning');
+        return;
+    }
+    const confirmed = await showConfirm(`Удалить пресет "${name}"?`);
+    if (!confirmed) return;
+    let presets = getMatrixPresets();
+    presets = presets.filter(p => p.name !== name);
+    saveMatrixPresets(presets);
+    populateMatrixPresetSelect();
+    showToast('Пресет удалён', 'neutral');
+}
+
+function exportMatrixPresets() {
+    const presets = getMatrixPresets();
+    if (presets.length === 0) {
+        showToast('Нет пресетов для экспорта', 'warning');
+        return;
+    }
+    const blob = new Blob([JSON.stringify(presets, null, 2)], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'matrix_presets.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Пресеты экспортированы', 'success');
+}
+
+function importMatrixPresets(file) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (!Array.isArray(data)) throw new Error('Неверный формат: ожидается массив');
+            data.forEach(p => {
+                if (!p.name || typeof p.name !== 'string') throw new Error('У пресета отсутствует имя');
+                if (!p.links || typeof p.links !== 'object') throw new Error('У пресета отсутствуют привязки');
+            });
+            let presets = getMatrixPresets();
+            data.forEach(newP => {
+                const idx = presets.findIndex(p => p.name === newP.name);
+                if (idx !== -1) presets[idx] = newP;
+                else presets.push(newP);
+            });
+            saveMatrixPresets(presets);
+            populateMatrixPresetSelect();
+            showToast('Пресеты импортированы', 'success');
+        } catch(err) {
+            showToast('Ошибка импорта: ' + err.message, 'error');
+        }
+    };
+    reader.readAsText(file);
+}
+
+// ============================================================
+// ИНИЦИАЛИЗАЦИЯ ОБРАБОТЧИКОВ МАТРИЦЫ
+// ============================================================
+export function initMatrixHandlers() {
+    const closeBtn = document.getElementById('matrixClose');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            document.getElementById('matrixModal').classList.remove('open');
+            openCategories = [];
+            scrollToPath = null;
+        });
+    }
+    const clearBtn = document.getElementById('matrixClearAll');
+    if (clearBtn) {
+        clearBtn.addEventListener('click', async () => {
+            const confirmed = await showConfirm('Удалить все привязки?');
+            if (!confirmed) return;
+            for (let key in links) delete links[key];
+            saveOrderData();
+            renderMatrix();
+            updateLinkCount();
+            showToast('Все привязки удалены', 'neutral');
+        });
+    }
+    const srcInput = document.getElementById('matrixSearchSource');
+    if (srcInput) srcInput.addEventListener('input', renderMatrix);
+    const tgtInput = document.getElementById('matrixSearchTarget');
+    if (tgtInput) tgtInput.addEventListener('input', renderMatrix);
+
+    setupZoomButtons();
+
+    const savePresetBtn = document.getElementById('matrixSavePreset');
+    if (savePresetBtn) savePresetBtn.addEventListener('click', saveMatrixPreset);
+
+    const loadPresetBtn = document.getElementById('matrixLoadPreset');
+    if (loadPresetBtn) {
+        loadPresetBtn.addEventListener('click', async () => {
+            const overlay = document.getElementById('matrixOverlayToggle')?.checked || false;
+            await loadMatrixPreset(overlay);
+        });
+    }
+
+    const deletePresetBtn = document.getElementById('matrixDeletePreset');
+    if (deletePresetBtn) deletePresetBtn.addEventListener('click', deleteMatrixPreset);
+
+    const exportPresetsBtn = document.getElementById('matrixExportPresets');
+    if (exportPresetsBtn) exportPresetsBtn.addEventListener('click', exportMatrixPresets);
+
+    const importPresetsBtn = document.getElementById('matrixImportPresets');
+    const fileInput = document.getElementById('matrixPresetFileInput');
+    if (importPresetsBtn && fileInput) {
+        importPresetsBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', function(e) {
+            if (this.files[0]) {
+                importMatrixPresets(this.files[0]);
+                this.value = '';
+            }
+        });
+    }
+
+    const modal = document.getElementById('matrixModal');
+    if (modal) {
+        const observer = new MutationObserver(() => {
+            if (modal.classList.contains('open')) {
+                populateMatrixPresetSelect();
+            }
+        });
+        observer.observe(modal, { attributes: true, attributeFilter: ['class'] });
+    }
+}
+
+// ============================================================
+// ИНИЦИАЛИЗАЦИЯ
+// ============================================================
+export function initCases() {
+    initPropsSaveHandler();
+    initPropsCancelHandler();
+    initCasesManagerHandlers();
+    initCasesManagerCloseHandler();
+    initCasesManagerOverlayClose();
+    initMatrixHandlers();
+
+    window.addIndividualCaseVariant = addIndividualCaseVariantBtn;
+    window.addCommonCaseVariant = addCommonCaseVariantBtn;
+    window.addNewCaseFromProps = addNewCaseFromProps;
+    window.editCase = editCase;
+    window.deleteCase = deleteCase;
+    window.toggleMatrixCategory = toggleMatrixCategory;
+    window.editMatrixCell = editMatrixCell;
 }
