@@ -25,6 +25,8 @@ import {
     links,
     notes,
     caseModes,
+    orderPacking,          // <-- добавлено
+    individualCaseValues,  // <-- добавлено
     saveOrderData,
     getTotalQty,
     getSegmentsSum,
