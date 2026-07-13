@@ -1,7 +1,9 @@
 // main.js — Точка входа, навигация, инициализация
 import { initData, saveEditorData, editorData, resetAllData } from './data.js';
 import { renderEditorAll, addCategory, initRenderHandlers } from './render-editor.js';
-import { renderOrderAll, initOrderUI, exportOrderJSON, exportOrderPDF, clearOrderData } from './render-order.js';
+import { renderOrderAll, initOrderUI } from './order-render.js';
+import { exportOrderJSON, exportOrderPDF, initOrderPresetsUI } from './order-presets.js';
+import { clearOrderData, initOrderActions } from './order-actions.js';
 import { renderOpenOrder, initOpenUI } from './render-open.js';
 import { renderLoadingPage, initTruckManagerHandlers } from './render-loading.js';
 import { initModalHandlers, showToast, showConfirm } from './ui.js';
@@ -41,7 +43,6 @@ function switchMode(mode) {
         document.getElementById('fSel').value = '';
     }
     if (mode === 'loading') {
-        // Восстанавливаем выбранные грузовики перед рендерингом
         const saved = localStorage.getItem(SELECTED_TRUCKS_KEY);
         if (saved) {
             try {
@@ -123,9 +124,7 @@ async function resetLibrary() {
     location.reload();
 }
 
-// Экспорт инвентаря в HTML
 function exportInventoryHTML() {
-    // Собираем все категории и позиции
     let html = `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>Инвентарь</title>
 <style>
@@ -194,6 +193,8 @@ function initApp() {
     initCases();
     initRenderHandlers();
     initOrderUI();
+    initOrderPresetsUI();
+    initOrderActions();
     initOpenUI();
     initTruckManagerHandlers();
 
@@ -240,11 +241,8 @@ function initApp() {
     const addCategoryBtn = document.getElementById('addCategoryBtn');
     if (addCategoryBtn) addCategoryBtn.addEventListener('click', addCategory);
 
-    // Кнопка "Сохранить в HTML" в редакторе
     const saveHtmlBtn = document.getElementById('saveHtmlBtn');
     if (saveHtmlBtn) saveHtmlBtn.addEventListener('click', exportInventoryHTML);
-
-    // Обработчики для пресетов удалены из main.js — они теперь в render-order.js
 
     switchMode('menu');
     showToast('Прокатошная загружена', 'neutral');

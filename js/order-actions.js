@@ -7,13 +7,21 @@ import {
 
 import {
     showToast,
-    showPrompt
+    showPrompt,
+    showConfirm
 } from './ui.js';
 
 import {
     order,
+    orderSplits,
     links,
     notes,
+    orderPacking,
+    individualCaseValues,
+    commonRoutes,
+    caseModes,
+    orderExclude,
+    orderExtra,
     saveOrderData,
     getOrderPacking,
     setOrderPacking,
@@ -23,8 +31,7 @@ import {
     setIndividualCaseValues,
     getCaseMode,
     getCaseOptions,
-    getSelectedOption,
-    orderExclude
+    getSelectedOption
 } from './order.js';
 
 import {
@@ -43,7 +50,10 @@ import {
     toggleDescOrder,
     openNoteEditorOrder,
     renderCommonCaseIndicatorsOrder,
-    currentOrderCategory
+    currentOrderCategory,
+    renderOrderAll,
+    setSearchMode,
+    setSearchQuery
 } from './order-render.js';
 
 // ============================================================
@@ -228,7 +238,6 @@ function handleContainerClick(e) {
         return;
     }
 
-    // Обработка дропдауна кофров (если используется)
     const dropdownBtn = e.target.closest('.case-dropdown-btn');
     if (dropdownBtn) {
         const path = dropdownBtn.dataset.path;
@@ -348,13 +357,7 @@ function handleContainerInput(e) {
     }
 }
 
-function handleContainerChange(e) {
-    // Для select и других элементов, если понадобится
-}
-
-// ============================================================
-// ОБРАБОТКА ДРОПДАУНА КОФРОВ
-// ============================================================
+function handleContainerChange(e) {}
 
 function handleDropdownItemOrder(item) {
     const path = item.dataset.path;
@@ -395,10 +398,41 @@ function handleDropdownItemOrder(item) {
 }
 
 // ============================================================
+// ОЧИСТКА СПИСКА
+// ============================================================
+export async function clearOrderData() {
+    const confirmed = await showConfirm('Очистить список?');
+    if (!confirmed) return;
+
+    // Очищаем все данные заказа
+    for (let key in order) delete order[key];
+    for (let key in orderSplits) delete orderSplits[key];
+    for (let key in links) delete links[key];
+    for (let key in notes) delete notes[key];
+    for (let key in orderPacking) delete orderPacking[key];
+    for (let key in individualCaseValues) delete individualCaseValues[key];
+    for (let key in commonRoutes) delete commonRoutes[key];
+    for (let key in caseModes) delete caseModes[key];
+    for (let key in orderExclude) delete orderExclude[key];
+    for (let key in orderExtra) delete orderExtra[key];
+
+    // Сбрасываем поиск
+    setSearchMode(false);
+    setSearchQuery('');
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) searchInput.value = '';
+
+    saveOrderData();
+
+    // Полная перерисовка страницы заказа
+    renderOrderAll();
+
+    showToast('Список очищен', 'success');
+}
+
+// ============================================================
 // ИНИЦИАЛИЗАЦИЯ
 // ============================================================
-
 export function initOrderActions() {
     setupEventDelegation();
-    // Дополнительные обработчики, если нужны
 }
