@@ -106,7 +106,6 @@ function setValueOrder(path, val) {
     order[path] = val;
     if (val === 0) delete order[path];
     saveOrderData();
-    // Мгновенное обновление UI
     updateRowOrder(path);
     updateTotalsOrder();
     updateCategoryTotalsOrder(currentOrderCategory);
@@ -260,7 +259,6 @@ function renderOrderCategory(catKey, filterQuery = '') {
     setupInputListenersOrder();
     setupCaseTogglesOrder();
 
-    // Обновляем строки (уже существующие)
     document.querySelectorAll('#categoryContents .row').forEach(row => {
         const path = row.dataset.path;
         if (path) { updateRowOrder(path); }
@@ -1562,6 +1560,9 @@ tr:nth-child(even){background:#f9f9f9}
     }
 }
 
+// ============================================================
+// ОЧИСТКА СПИСКА (исправлена)
+// ============================================================
 export async function clearOrderData() {
     const confirmed = await showConfirm('Очистить список?');
     if (!confirmed) return;
@@ -1597,16 +1598,20 @@ export async function clearOrderData() {
     flatItemsCache = null;
     eventDelegationInitialized = false;
     
-    // Перерисовываем всё
-    renderOrderAll();
+    // Перерисовываем вкладки и содержимое напрямую
+    renderOrderTabs();
+    renderOrderCategory(currentOrderCategory);
     
-    // Дополнительное обновление итогов
+    // Обновляем итоги
     updateTotalsOrder();
     updateCategoryTotalsOrder(currentOrderCategory);
     
     showToast('Список очищен', 'success');
 }
 
+// ============================================================
+// РЕНДЕР ВСЕГО
+// ============================================================
 export function renderOrderAll() {
     flatItemsCache = null;
     eventDelegationInitialized = false;
@@ -1623,6 +1628,9 @@ export function renderOrderAll() {
     renderOrderCategory(currentOrderCategory);
 }
 
+// ============================================================
+// ИНИЦИАЛИЗАЦИЯ UI
+// ============================================================
 export function initOrderUI() {
     detailsOpenOrder = localStorage.getItem('detailsOpenOrder') === 'true';
 
