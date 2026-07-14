@@ -259,7 +259,7 @@ function buildCategoryHTML(data, path, level) {
 }
 
 // ============================================================
-// ПОСТРОЕНИЕ СТРОКИ
+// ПОСТРОЕНИЕ СТРОКИ (исправлен single-режим, добавлена информация о кофрах)
 // ============================================================
 
 export function buildItemRow(fullPath, level) {
@@ -294,18 +294,34 @@ export function buildItemRow(fullPath, level) {
 
     let caseStatusText = 'Кофры';
     let caseStatusClass = '';
+    let extraCaseInfo = ''; // дополнительная информация о кофрах в extra-info
+
     if (hasCommonPacking) {
         caseStatusText = 'Общие';
         caseStatusClass = 'common';
+        const totalPieces = packing.reduce((s, p) => s + (p.pieces || 0), 0);
+        extraCaseInfo = `📦 ${packing.length} кофр${packing.length>1?'а':''} (${totalPieces} шт)`;
     } else if (isMulti && options.length > 1) {
         caseStatusText = 'Мульти';
         caseStatusClass = 'multi';
-    } else if (hasAlt) {
-        caseStatusText = 'Альт.';
-        caseStatusClass = 'alt';
-    } else if (isCaseModeOn) {
-        caseStatusText = 'Вкл';
-        caseStatusClass = 'on';
+        const totalCases = individualVals.reduce((sum, v, idx) => {
+            if (v <= 0) return sum;
+            const opt = options[idx] || options[0];
+            return sum + Math.ceil(v / opt.qty);
+        }, 0);
+        extraCaseInfo = `🔄 ${totalCases} кофр${totalCases>1?'а':''}`;
+    } else if (mode.enabled && individualVals.length === 1 && !packing.length && !isMulti) {
+        const opt = getSelectedOption(fullPath);
+        const val = individualVals[0] || 0;
+        if (opt && val > 0) {
+            const casesCount = Math.ceil(val / opt.qty);
+            caseStatusText = 'Вкл';
+            caseStatusClass = 'on';
+            extraCaseInfo = `📦 ${casesCount} кофр${casesCount>1?'а':''}`;
+        } else {
+            caseStatusText = 'Выкл';
+            caseStatusClass = 'off';
+        }
     } else if (hasCase) {
         caseStatusText = 'Выкл';
         caseStatusClass = 'off';
@@ -337,6 +353,7 @@ export function buildItemRow(fullPath, level) {
             <span>в наличии: <strong>${sq}</strong></span>
             ${weightDisplay !== '0 кг' ? `<span>${weightDisplay}</span>` : ''}
             ${volumeDisplay !== '0 м³' ? `<span>${volumeDisplay}</span>` : ''}
+            ${extraCaseInfo ? `<span>${extraCaseInfo}</span>` : ''}
         </div>`;
     }
 
@@ -374,7 +391,7 @@ export function buildItemRow(fullPath, level) {
 }
 
 // ============================================================
-// РЕНДЕРИНГ КОНТРОЛОВ КОЛИЧЕСТВА
+// РЕНДЕРИНГ КОНТРОЛОВ КОЛИЧЕСТВА (исправлен single-режим)
 // ============================================================
 function renderQtyControls(path) {
     const mode = getCaseMode(path);
@@ -490,6 +507,25 @@ export function updateRowOrder(path) {
             if (props.dimensions && props.dimensions.trim() !== '') {
                 const v = calcItemVolumeWithMode(path, totalQty);
                 info += `<span>${v.toFixed(3)} м³</span>`;
+            }
+            // Добавляем информацию о кофрах
+            if (packing.length > 0) {
+                const totalPieces = packing.reduce((s, p) => s + (p.pieces || 0), 0);
+                info += `<span>📦 ${packing.length} кофр${packing.length>1?'а':''} (${totalPieces} шт)</span>`;
+            } else if (isMulti) {
+                const totalCases = individualVals.reduce((sum, v, idx) => {
+                    if (v <= 0) return sum;
+                    const opt = getCaseOptions(path)[idx] || getCaseOptions(path)[0];
+                    return sum + Math.ceil(v / opt.qty);
+                }, 0);
+                info += `<span>🔄 ${totalCases} кофр${totalCases>1?'а':''}</span>`;
+            } else if (mode.enabled && individualVals.length === 1 && !packing.length && !isMulti) {
+                const opt = getSelectedOption(path);
+                const val = individualVals[0] || 0;
+                if (opt && val > 0) {
+                    const casesCount = Math.ceil(val / opt.qty);
+                    info += `<span>📦 ${casesCount} кофр${casesCount>1?'а':''}</span>`;
+                }
             }
         }
         extraInfo.innerHTML = info;

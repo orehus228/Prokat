@@ -178,13 +178,12 @@ export function updateLinkCountOrder() {
     if (el) el.textContent = `(${count} активных)`;
 }
 
-// Заглушка для индикаторов общих кофров
 export function renderCommonCaseIndicatorsOrder() {
-    // Пустая заглушка — можно добавить логику позже
+    // Пустая заглушка
 }
 
 // ============================================================
-// РАБОТА С ДОЧЕРНИМИ ЭЛЕМЕНТАМИ
+// РАБОТА С ДОЧЕРНИМИ ЭЛЕМЕНТАМИ (улучшенный внешний вид)
 // ============================================================
 
 export function updateChildRowsForPath(path) {
@@ -202,6 +201,7 @@ export function updateChildRowsForPath(path) {
     const packing = getOrderPacking(path);
     const hasCommonPacking = packing.length > 0;
     const individualVals = getIndividualCaseValues(path);
+    const props = getItemProps(path);
 
     // === МУЛЬТИ-РЕЖИМ (два поля: штуки и кофры) ===
     if (isMulti && mode.enabled && options.length > 1) {
@@ -210,13 +210,13 @@ export function updateChildRowsForPath(path) {
         childDiv.dataset.parent = path;
         childDiv.style.width = '100%';
         childDiv.style.flexBasis = '100%';
-        childDiv.style.padding = '8px 12px';
+        childDiv.style.padding = '6px 12px';
         childDiv.style.background = 'var(--bg-secondary)';
         childDiv.style.borderRadius = '6px';
         childDiv.style.margin = '4px 0';
         childDiv.style.border = '1px solid var(--border-light)';
 
-        let html = `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px;font-size:13px;color:var(--text-secondary);">
+        let html = `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px;font-size:13px;color:var(--text-secondary);">
             <strong>Распределение по вариантам кофров</strong>
             <span style="margin-left:auto;">Итого: ${individualVals.reduce((a,b) => a + b, 0)} шт</span>
         </div>`;
@@ -225,19 +225,22 @@ export function updateChildRowsForPath(path) {
             const val = individualVals[idx] || 0;
             const casesCount = Math.ceil(val / opt.qty);
             const maxPossible = getStockValue(path);
+            const maxCases = opt.maxCases || 0;
 
-            html += `<div class="child-controls" style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid var(--accent);">
-                <span style="font-weight:500;min-width:80px;font-size:13px;">Вар.${idx+1}</span>
-                <span style="font-size:12px;color:var(--text-secondary);margin-right:4px;">(вм.${opt.qty} шт)</span>
-                <span style="font-size:12px;color:var(--text-secondary);">шт:</span>
-                <button class="btn-c child-multi-piece-btn" style="width:28px;height:28px;font-size:14px;" data-path="${path}" data-idx="${idx}" data-delta="-1">−</button>
-                <input type="number" class="child-multi-pieces" data-path="${path}" data-idx="${idx}" value="${val}" min="0" step="1" max="${maxPossible}" style="width:50px;padding:2px 4px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);text-align:center;font-size:13px;">
-                <button class="btn-c child-multi-piece-btn" style="width:28px;height:28px;font-size:14px;" data-path="${path}" data-idx="${idx}" data-delta="1">+</button>
-                <span style="font-size:12px;color:var(--text-secondary);">кофры:</span>
-                <button class="btn-c child-multi-case-btn" style="width:28px;height:28px;font-size:14px;" data-path="${path}" data-idx="${idx}" data-delta="-1">−</button>
-                <input type="number" class="child-multi-cases" data-path="${path}" data-idx="${idx}" value="${casesCount}" min="0" step="1" style="width:50px;padding:2px 4px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);text-align:center;font-size:13px;">
-                <button class="btn-c child-multi-case-btn" style="width:28px;height:28px;font-size:14px;" data-path="${path}" data-idx="${idx}" data-delta="1">+</button>
-                <span style="font-size:11px;color:var(--text-muted);">габ:${opt.dims || 'н/д'}</span>
+            html += `<div class="child-controls" style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid var(--accent);">
+                <span style="font-weight:500;min-width:70px;font-size:13px;">Вар.${idx+1}</span>
+                <span style="font-size:11px;color:var(--text-secondary);margin-right:2px;">(вм.${opt.qty} шт)</span>
+                <span style="font-size:11px;color:var(--text-secondary);">шт:</span>
+                <button class="btn-c child-multi-piece-btn" style="width:26px;height:26px;font-size:13px;" data-path="${path}" data-idx="${idx}" data-delta="-1">−</button>
+                <input type="number" class="child-multi-pieces" data-path="${path}" data-idx="${idx}" value="${val}" min="0" step="1" max="${maxPossible}" style="width:44px;padding:2px 4px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);text-align:center;font-size:13px;">
+                <button class="btn-c child-multi-piece-btn" style="width:26px;height:26px;font-size:13px;" data-path="${path}" data-idx="${idx}" data-delta="1">+</button>
+                <span style="font-size:11px;color:var(--text-secondary);">кофры:</span>
+                <button class="btn-c child-multi-case-btn" style="width:26px;height:26px;font-size:13px;" data-path="${path}" data-idx="${idx}" data-delta="-1">−</button>
+                <input type="number" class="child-multi-cases" data-path="${path}" data-idx="${idx}" value="${casesCount}" min="0" step="1" style="width:44px;padding:2px 4px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);text-align:center;font-size:13px;">
+                <button class="btn-c child-multi-case-btn" style="width:26px;height:26px;font-size:13px;" data-path="${path}" data-idx="${idx}" data-delta="1">+</button>
+                ${maxCases > 0 ? `<span style="font-size:10px;color:var(--text-muted);">(макс. ${maxCases})</span>` : ''}
+                <span style="font-size:11px;color:var(--text-muted);">${opt.dims || 'н/д'}</span>
+                <span style="font-size:11px;color:var(--text-muted);">вес: ${opt.weight || 0} кг</span>
             </div>`;
         });
 
@@ -254,23 +257,23 @@ export function updateChildRowsForPath(path) {
         childDiv.dataset.parent = path;
         childDiv.style.width = '100%';
         childDiv.style.flexBasis = '100%';
-        childDiv.style.padding = '8px 12px';
+        childDiv.style.padding = '6px 12px';
         childDiv.style.background = 'var(--bg-secondary)';
         childDiv.style.borderRadius = '6px';
         childDiv.style.margin = '4px 0';
         childDiv.style.border = '1px solid var(--border-light)';
 
-        let html = `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px;font-size:13px;color:var(--text-secondary);">
+        let html = `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px;font-size:13px;color:var(--text-secondary);">
             <strong>Упаковка в общие кофры</strong>
             <span style="margin-left:auto;">Вне кофра: ${extra} шт</span>
         </div>`;
 
         const maxExtra = getStockValue(path);
-        html += `<div class="child-controls" style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid var(--text-muted);">
-            <span style="font-weight:500;min-width:80px;font-size:13px;">Вне кофра</span>
-            <button class="btn-c child-extra-btn" style="width:28px;height:28px;font-size:14px;" data-path="${path}" data-delta="-1">−</button>
-            <input type="number" class="child-extra-qty" data-path="${path}" value="${extra}" min="0" step="1" max="${maxExtra}" style="width:50px;padding:2px 4px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);text-align:center;font-size:13px;">
-            <button class="btn-c child-extra-btn" style="width:28px;height:28px;font-size:14px;" data-path="${path}" data-delta="1">+</button>
+        html += `<div class="child-controls" style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid var(--text-muted);">
+            <span style="font-weight:500;min-width:70px;font-size:13px;">Вне кофра</span>
+            <button class="btn-c child-extra-btn" style="width:26px;height:26px;font-size:13px;" data-path="${path}" data-delta="-1">−</button>
+            <input type="number" class="child-extra-qty" data-path="${path}" value="${extra}" min="0" step="1" max="${maxExtra}" style="width:44px;padding:2px 4px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);text-align:center;font-size:13px;">
+            <button class="btn-c child-extra-btn" style="width:26px;height:26px;font-size:13px;" data-path="${path}" data-delta="1">+</button>
         </div>`;
 
         packing.forEach((p, idx) => {
@@ -278,7 +281,7 @@ export function updateChildRowsForPath(path) {
             const name = c ? c.name : 'удалённый кофр';
             const qty = p.pieces || 0;
             const maxPack = c ? c.qty : 0;
-            const unitWeight = getItemProps(path).weight || 0;
+            const unitWeight = props.weight || 0;
             const filledWeight = qty * unitWeight;
             const maxWeight = c?.maxWeight || Infinity;
             let fillPercent = 0;
@@ -295,13 +298,15 @@ export function updateChildRowsForPath(path) {
                 statusText = '🟡 Почти заполнен';
             }
 
-            html += `<div class="child-controls" style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid ${statusColor};">
-                <span style="font-weight:500;min-width:80px;font-size:13px;">${esc(name)}</span>
-                <span style="font-size:12px;color:var(--text-secondary);">(вм.${c?.qty || 0} шт)</span>
-                <button class="btn-c child-common-btn" style="width:28px;height:28px;font-size:14px;" data-path="${path}" data-caseid="${p.caseId}" data-delta="-1">−</button>
-                <input type="number" class="child-common-qty" data-path="${path}" data-caseid="${p.caseId}" value="${qty}" min="0" step="1" max="${maxPack}" style="width:50px;padding:2px 4px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);text-align:center;font-size:13px;">
-                <button class="btn-c child-common-btn" style="width:28px;height:28px;font-size:14px;" data-path="${path}" data-caseid="${p.caseId}" data-delta="1">+</button>
-                ${statusText ? `<span style="font-size:12px;color:${statusColor};">${statusText} (${fillPercent}%)</span>` : ''}
+            html += `<div class="child-controls" style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid ${statusColor};">
+                <span style="font-weight:500;min-width:70px;font-size:13px;">${esc(name)}</span>
+                <span style="font-size:11px;color:var(--text-secondary);">(вм.${c?.qty || 0} шт)</span>
+                <button class="btn-c child-common-btn" style="width:26px;height:26px;font-size:13px;" data-path="${path}" data-caseid="${p.caseId}" data-delta="-1">−</button>
+                <input type="number" class="child-common-qty" data-path="${path}" data-caseid="${p.caseId}" value="${qty}" min="0" step="1" max="${maxPack}" style="width:44px;padding:2px 4px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);text-align:center;font-size:13px;">
+                <button class="btn-c child-common-btn" style="width:26px;height:26px;font-size:13px;" data-path="${path}" data-caseid="${p.caseId}" data-delta="1">+</button>
+                ${statusText ? `<span style="font-size:11px;color:${statusColor};">${statusText} (${fillPercent}%)</span>` : ''}
+                <span style="font-size:11px;color:var(--text-muted);">${c?.dimensions || 'н/д'}</span>
+                <span style="font-size:11px;color:var(--text-muted);">вес: ${c?.emptyWeight || 0} кг</span>
                 <button class="btn btn-sm remove-common-pack" style="background:var(--danger);color:white;padding:0 6px;font-size:11px;border-radius:4px;border:none;cursor:pointer;" data-path="${path}" data-caseid="${p.caseId}">✕</button>
             </div>`;
         });
@@ -354,7 +359,7 @@ export function buildInfoHtml(path, props, mode) {
             if (val > 0) {
                 const casesCount = Math.ceil(val / opt.qty);
                 html += `<div style="padding-left:12px;font-size:13px;color:var(--text-secondary);">
-                    • Вариант ${idx+1}: ${val} шт (${casesCount} кофр${casesCount > 1 ? 'а' : ''})
+                    • Вариант ${idx+1}: ${val} шт (${casesCount} кофр${casesCount > 1 ? 'а' : ''}) — габ: ${opt.dims || 'н/д'}, вес кофра: ${opt.weight || 0} кг
                 </div>`;
             }
         });
@@ -365,7 +370,7 @@ export function buildInfoHtml(path, props, mode) {
         if (val > 0 && opt) {
             const casesCount = Math.ceil(val / opt.qty);
             html += `<div style="padding-left:12px;font-size:13px;color:var(--text-secondary);">
-                • Вариант ${(mode.selectedOption || 0) + 1}: ${val} шт (${casesCount} кофр${casesCount > 1 ? 'а' : ''})
+                • Вариант ${(mode.selectedOption || 0) + 1}: ${val} шт (${casesCount} кофр${casesCount > 1 ? 'а' : ''}) — габ: ${opt.dims || 'н/д'}, вес кофра: ${opt.weight || 0} кг
             </div>`;
         }
         if (mode.alt && mode.useAlt) {

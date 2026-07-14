@@ -173,7 +173,6 @@ function renderCaseModeContent(mode, container, path, options, individualVals, p
                 html = `<div style="color:var(--text-muted);">Для мультирежима нужно минимум 2 варианта кофров. Добавьте их в редакторе склада.</div>`;
                 break;
             }
-            // Мультирежим: показываем все варианты как выбранные, без чекбоксов
             html = `<div style="margin-bottom:10px;"><strong>Все варианты будут доступны для распределения:</strong></div>`;
             options.forEach((opt, idx) => {
                 const maxCases = opt.maxCases || 0;
@@ -287,7 +286,9 @@ function saveCaseSettings(path) {
             }
             mode.enabled = true;
             mode.commonSelected = selected;
-            setOrderPacking(path, []);
+            // Создаём записи в packing для выбранных кофров с нулевым количеством
+            const packing = selected.map(caseId => ({ caseId, pieces: 0 }));
+            setOrderPacking(path, packing);
             setOrderExtra(path, 0);
             break;
         }
