@@ -725,15 +725,6 @@ body {
     display: none !important;
 }
 
-/* Предупреждение о переполнении — удалено (не используется) */
-/* .overstock-warning {
-    color: var(--danger);
-    font-weight: bold;
-    font-size: 16px;
-    margin-left: 4px;
-    cursor: help;
-} */
-
 /* ===== Цветные кнопки действий ===== */
 .action-btn {
     background: none;
@@ -924,6 +915,7 @@ body {
     width: 100%;
     flex-basis: 100%;
     order: 3;
+    transition: background 0.3s, border-left 0.3s;
 }
 .child-row .child-controls {
     display: flex;
@@ -951,6 +943,38 @@ body {
     font-size: 12px;
     color: var(--text-muted);
     margin-left: 8px;
+}
+
+/* ===== НОВЫЕ КЛАССЫ ДЛЯ ОКРАСКИ ОБЩИХ КОФРОВ ===== */
+.child-row.case-fill-80 {
+    background-color: #d4a017 !important;
+    border-left: 4px solid #d4a017 !important;
+}
+.child-row.case-fill-90 {
+    background-color: var(--warning) !important;
+    border-left: 4px solid var(--warning) !important;
+}
+.child-row.case-fill-100 {
+    background-color: var(--danger) !important;
+    border-left: 4px solid var(--danger) !important;
+}
+
+/* Чтобы текст был читаемым на цветном фоне */
+.child-row.case-fill-80 span,
+.child-row.case-fill-80 input,
+.child-row.case-fill-80 button:not(.remove-common-pack),
+.child-row.case-fill-90 span,
+.child-row.case-fill-90 input,
+.child-row.case-fill-90 button:not(.remove-common-pack),
+.child-row.case-fill-100 span,
+.child-row.case-fill-100 input,
+.child-row.case-fill-100 button:not(.remove-common-pack) {
+    color: #fff !important;
+}
+.child-row.case-fill-80 .case-fill-percent,
+.child-row.case-fill-90 .case-fill-percent,
+.child-row.case-fill-100 .case-fill-percent {
+    color: #fff !important;
 }
 
 /* ===== МОДАЛКИ ===== */

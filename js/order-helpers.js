@@ -114,7 +114,7 @@ export function renderCommonCaseIndicatorsOrder() {
     indicator.textContent = parts.join(' · ');
 }
 
-// ===== ИСПРАВЛЕННАЯ ФУНКЦИЯ ОКРАШИВАНИЯ (добавлены классы) =====
+// ===== ОБНОВЛЕННАЯ ФУНКЦИЯ ОКРАШИВАНИЯ (через классы) =====
 export function updateAllCommonCaseIndicators() {
     const allCommonCases = getCommonCases();
     const stats = new Map();
@@ -143,37 +143,10 @@ export function updateAllCommonCaseIndicators() {
         const fillPercent = stat.maxWeight > 0 ? Math.min(100, Math.round((stat.totalWeight / stat.maxWeight) * 100)) : 0;
         // Удаляем старые классы
         childRow.classList.remove('case-fill-80', 'case-fill-90', 'case-fill-100');
-        let color = '';
-        if (fillPercent >= 100) {
-            childRow.classList.add('case-fill-100');
-            color = 'var(--danger)';
-        } else if (fillPercent >= 90) {
-            childRow.classList.add('case-fill-90');
-            color = 'var(--warning)';
-        } else if (fillPercent >= 80) {
-            childRow.classList.add('case-fill-80');
-            color = '#d4a017';
-        }
-        // Применяем стили к самой дочерней строке с !important через style
-        if (fillPercent >= 80) {
-            childRow.style.setProperty('background', color, 'important');
-            childRow.style.setProperty('border-left', `4px solid ${color}`, 'important');
-            // Меняем цвет текста на белый для контраста
-            const allSpans = childRow.querySelectorAll('span, input, button:not(.remove-common-pack)');
-            allSpans.forEach(el => {
-                el.style.setProperty('color', '#fff', 'important');
-            });
-            // Кнопка удаления остаётся красной
-            const removeBtn = childRow.querySelector('.remove-common-pack');
-            if (removeBtn) removeBtn.style.color = 'white';
-        } else {
-            childRow.style.setProperty('background', '', 'important');
-            childRow.style.setProperty('border-left', '', 'important');
-            const allSpans = childRow.querySelectorAll('span, input, button:not(.remove-common-pack)');
-            allSpans.forEach(el => {
-                el.style.setProperty('color', '', 'important');
-            });
-        }
+        // Добавляем новый класс
+        if (fillPercent >= 100) childRow.classList.add('case-fill-100');
+        else if (fillPercent >= 90) childRow.classList.add('case-fill-90');
+        else if (fillPercent >= 80) childRow.classList.add('case-fill-80');
         // Обновляем процент
         let percentSpan = controls.querySelector('.case-fill-percent');
         if (!percentSpan) {
@@ -183,7 +156,7 @@ export function updateAllCommonCaseIndicators() {
             controls.appendChild(percentSpan);
         }
         percentSpan.textContent = `${fillPercent}%`;
-        percentSpan.style.color = fillPercent >= 80 ? '#fff' : 'var(--text-secondary)';
+        // Цвет текста процента оставляем по умолчанию (будет задан в CSS)
     });
 }
 
