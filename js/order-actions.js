@@ -123,11 +123,23 @@ function handleContainerClick(e) {
             order[path] = val;
             if (val === 0) delete order[path];
             saveOrderData();
-            // Пересчитываем поле кофров
+            // Пересчитываем поле кофров с учётом ограничений
             const opt = getSelectedOption(path);
             if (opt && opt.qty > 0) {
+                let casesCount = Math.ceil(val / opt.qty);
+                const maxCases = opt.maxCases || 0;
+                if (maxCases > 0 && casesCount > maxCases) {
+                    casesCount = maxCases;
+                    const newPieces = casesCount * opt.qty;
+                    input.value = newPieces;
+                    setIndividualCaseValues(path, [newPieces]);
+                    order[path] = newPieces;
+                    if (newPieces === 0) delete order[path];
+                    saveOrderData();
+                    showToast(`Достигнут лимит кофров (макс. ${maxCases})`, 'warning');
+                }
                 const casesInput = singlePieceBtn.parentElement.querySelector('.single-cases-input');
-                if (casesInput) casesInput.value = Math.ceil(val / opt.qty);
+                if (casesInput) casesInput.value = casesCount;
             }
             updateRowOrder(path);
             updateTotalsOrder();
@@ -145,10 +157,37 @@ function handleContainerClick(e) {
         if (input) {
             let val = parseInt(input.value) || 0;
             val = Math.max(0, val + delta);
-            input.value = val;
             const opt = getSelectedOption(path);
             if (opt && opt.qty > 0) {
+                const maxCases = opt.maxCases || 0;
+                if (maxCases > 0 && val > maxCases) {
+                    val = maxCases;
+                    input.value = val;
+                    showToast(`Превышен лимит кофров (макс. ${maxCases})`, 'warning');
+                }
                 const pieces = val * opt.qty;
+                const sq = getStockValue(path);
+                if (pieces > sq) {
+                    showToast(`Превышено доступное количество (${sq})`, 'warning');
+                    // Подбираем максимальное количество кофров
+                    const maxPieces = sq;
+                    const maxVal = Math.floor(maxPieces / opt.qty);
+                    if (maxVal < val) {
+                        val = maxVal;
+                        input.value = val;
+                        const newPieces = val * opt.qty;
+                        const piecesInput = singleCaseBtn.parentElement.querySelector('.single-pieces-input');
+                        if (piecesInput) piecesInput.value = newPieces;
+                        setIndividualCaseValues(path, [newPieces]);
+                        order[path] = newPieces;
+                        if (newPieces === 0) delete order[path];
+                        saveOrderData();
+                        updateRowOrder(path);
+                        updateTotalsOrder();
+                        updateCategoryTotalsOrder(currentOrderCategory);
+                        return;
+                    }
+                }
                 const piecesInput = singleCaseBtn.parentElement.querySelector('.single-pieces-input');
                 if (piecesInput) piecesInput.value = pieces;
                 setIndividualCaseValues(path, [pieces]);
@@ -184,11 +223,21 @@ function handleContainerClick(e) {
             const vals = getIndividualCaseValues(path);
             vals[idx] = val;
             setIndividualCaseValues(path, vals);
-            // Пересчитываем поле кофров
+            // Пересчитываем поле кофров с учётом ограничений
             const opt = getCaseOptions(path)[idx];
             if (opt && opt.qty > 0) {
+                let casesCount = Math.ceil(val / opt.qty);
+                const maxCases = opt.maxCases || 0;
+                if (maxCases > 0 && casesCount > maxCases) {
+                    casesCount = maxCases;
+                    const newPieces = casesCount * opt.qty;
+                    input.value = newPieces;
+                    vals[idx] = newPieces;
+                    setIndividualCaseValues(path, vals);
+                    showToast(`Достигнут лимит кофров для варианта ${idx+1} (макс. ${maxCases})`, 'warning');
+                }
                 const casesInput = multiPieceBtn.parentElement.querySelector('.child-multi-cases');
-                if (casesInput) casesInput.value = Math.ceil(val / opt.qty);
+                if (casesInput) casesInput.value = casesCount;
             }
             const total = vals.reduce((a,b) => a + b, 0);
             order[path] = total;
@@ -213,22 +262,49 @@ function handleContainerClick(e) {
             val = Math.max(0, val + delta);
             const opt = getCaseOptions(path)[idx];
             if (opt && opt.qty > 0) {
-                const pieces = val * opt.qty;
-                const piecesInput = multiCaseBtn.parentElement.querySelector('.child-multi-pieces');
-                if (piecesInput) {
-                    piecesInput.value = pieces;
-                    // Обновляем данные
-                    const vals = getIndividualCaseValues(path);
-                    vals[idx] = pieces;
-                    setIndividualCaseValues(path, vals);
-                    const total = vals.reduce((a,b) => a + b, 0);
-                    order[path] = total;
-                    if (total === 0) delete order[path];
-                    saveOrderData();
-                    updateRowOrder(path);
-                    updateTotalsOrder();
-                    updateCategoryTotalsOrder(currentOrderCategory);
+                const maxCases = opt.maxCases || 0;
+                if (maxCases > 0 && val > maxCases) {
+                    val = maxCases;
+                    input.value = val;
+                    showToast(`Превышен лимит кофров для варианта ${idx+1} (макс. ${maxCases})`, 'warning');
                 }
+                const pieces = val * opt.qty;
+                const sq = getStockValue(path);
+                if (pieces > sq) {
+                    showToast(`Превышено доступное количество (${sq})`, 'warning');
+                    const maxPieces = sq;
+                    const maxVal = Math.floor(maxPieces / opt.qty);
+                    if (maxVal < val) {
+                        val = maxVal;
+                        input.value = val;
+                        const newPieces = val * opt.qty;
+                        const piecesInput = multiCaseBtn.parentElement.querySelector('.child-multi-pieces');
+                        if (piecesInput) piecesInput.value = newPieces;
+                        const vals = getIndividualCaseValues(path);
+                        vals[idx] = newPieces;
+                        setIndividualCaseValues(path, vals);
+                        const total = vals.reduce((a,b) => a + b, 0);
+                        order[path] = total;
+                        if (total === 0) delete order[path];
+                        saveOrderData();
+                        updateRowOrder(path);
+                        updateTotalsOrder();
+                        updateCategoryTotalsOrder(currentOrderCategory);
+                        return;
+                    }
+                }
+                const piecesInput = multiCaseBtn.parentElement.querySelector('.child-multi-pieces');
+                if (piecesInput) piecesInput.value = pieces;
+                const vals = getIndividualCaseValues(path);
+                vals[idx] = pieces;
+                setIndividualCaseValues(path, vals);
+                const total = vals.reduce((a,b) => a + b, 0);
+                order[path] = total;
+                if (total === 0) delete order[path];
+                saveOrderData();
+                updateRowOrder(path);
+                updateTotalsOrder();
+                updateCategoryTotalsOrder(currentOrderCategory);
             }
         }
         return;
@@ -401,11 +477,22 @@ function handleContainerInput(e) {
         order[path] = val;
         if (val === 0) delete order[path];
         saveOrderData();
-        // Пересчитываем кофры
         const opt = getSelectedOption(path);
         if (opt && opt.qty > 0) {
+            let casesCount = Math.ceil(val / opt.qty);
+            const maxCases = opt.maxCases || 0;
+            if (maxCases > 0 && casesCount > maxCases) {
+                casesCount = maxCases;
+                const newPieces = casesCount * opt.qty;
+                singlePieces.value = newPieces;
+                setIndividualCaseValues(path, [newPieces]);
+                order[path] = newPieces;
+                if (newPieces === 0) delete order[path];
+                saveOrderData();
+                showToast(`Достигнут лимит кофров (макс. ${maxCases})`, 'warning');
+            }
             const casesInput = singlePieces.parentElement.querySelector('.single-cases-input');
-            if (casesInput) casesInput.value = Math.ceil(val / opt.qty);
+            if (casesInput) casesInput.value = casesCount;
         }
         updateRowOrder(path);
         updateTotalsOrder();
@@ -422,7 +509,34 @@ function handleContainerInput(e) {
         singleCases.value = val;
         const opt = getSelectedOption(path);
         if (opt && opt.qty > 0) {
+            const maxCases = opt.maxCases || 0;
+            if (maxCases > 0 && val > maxCases) {
+                val = maxCases;
+                singleCases.value = val;
+                showToast(`Превышен лимит кофров (макс. ${maxCases})`, 'warning');
+            }
             const pieces = val * opt.qty;
+            const sq = getStockValue(path);
+            if (pieces > sq) {
+                showToast(`Превышено доступное количество (${sq})`, 'warning');
+                const maxPieces = sq;
+                const maxVal = Math.floor(maxPieces / opt.qty);
+                if (maxVal < val) {
+                    val = maxVal;
+                    singleCases.value = val;
+                    const newPieces = val * opt.qty;
+                    const piecesInput = singleCases.parentElement.querySelector('.single-pieces-input');
+                    if (piecesInput) piecesInput.value = newPieces;
+                    setIndividualCaseValues(path, [newPieces]);
+                    order[path] = newPieces;
+                    if (newPieces === 0) delete order[path];
+                    saveOrderData();
+                    updateRowOrder(path);
+                    updateTotalsOrder();
+                    updateCategoryTotalsOrder(currentOrderCategory);
+                    return;
+                }
+            }
             const piecesInput = singleCases.parentElement.querySelector('.single-pieces-input');
             if (piecesInput) piecesInput.value = pieces;
             setIndividualCaseValues(path, [pieces]);
@@ -447,11 +561,20 @@ function handleContainerInput(e) {
         const vals = getIndividualCaseValues(path);
         vals[idx] = val;
         setIndividualCaseValues(path, vals);
-        // Пересчитываем кофры
         const opt = getCaseOptions(path)[idx];
         if (opt && opt.qty > 0) {
+            let casesCount = Math.ceil(val / opt.qty);
+            const maxCases = opt.maxCases || 0;
+            if (maxCases > 0 && casesCount > maxCases) {
+                casesCount = maxCases;
+                const newPieces = casesCount * opt.qty;
+                multiPieces.value = newPieces;
+                vals[idx] = newPieces;
+                setIndividualCaseValues(path, vals);
+                showToast(`Достигнут лимит кофров для варианта ${idx+1} (макс. ${maxCases})`, 'warning');
+            }
             const casesInput = multiPieces.parentElement.querySelector('.child-multi-cases');
-            if (casesInput) casesInput.value = Math.ceil(val / opt.qty);
+            if (casesInput) casesInput.value = casesCount;
         }
         const total = vals.reduce((a,b) => a + b, 0);
         order[path] = total;
@@ -473,7 +596,37 @@ function handleContainerInput(e) {
         multiCases.value = val;
         const opt = getCaseOptions(path)[idx];
         if (opt && opt.qty > 0) {
+            const maxCases = opt.maxCases || 0;
+            if (maxCases > 0 && val > maxCases) {
+                val = maxCases;
+                multiCases.value = val;
+                showToast(`Превышен лимит кофров для варианта ${idx+1} (макс. ${maxCases})`, 'warning');
+            }
             const pieces = val * opt.qty;
+            const sq = getStockValue(path);
+            if (pieces > sq) {
+                showToast(`Превышено доступное количество (${sq})`, 'warning');
+                const maxPieces = sq;
+                const maxVal = Math.floor(maxPieces / opt.qty);
+                if (maxVal < val) {
+                    val = maxVal;
+                    multiCases.value = val;
+                    const newPieces = val * opt.qty;
+                    const piecesInput = multiCases.parentElement.querySelector('.child-multi-pieces');
+                    if (piecesInput) piecesInput.value = newPieces;
+                    const vals = getIndividualCaseValues(path);
+                    vals[idx] = newPieces;
+                    setIndividualCaseValues(path, vals);
+                    const total = vals.reduce((a,b) => a + b, 0);
+                    order[path] = total;
+                    if (total === 0) delete order[path];
+                    saveOrderData();
+                    updateRowOrder(path);
+                    updateTotalsOrder();
+                    updateCategoryTotalsOrder(currentOrderCategory);
+                    return;
+                }
+            }
             const piecesInput = multiCases.parentElement.querySelector('.child-multi-pieces');
             if (piecesInput) piecesInput.value = pieces;
             const vals = getIndividualCaseValues(path);
@@ -567,14 +720,12 @@ function handleDropdownItemOrder(item) {
         return;
     }
     if (isAlt) {
-        // Альтернативный кофр теперь управляется через модалку
         showToast('Альтернативный кофр настраивается в модалке', 'neutral');
         const dropdown = item.closest('.case-dropdown');
         if (dropdown) dropdown.classList.remove('open');
         return;
     }
     if (idx !== undefined) {
-        // Включаем режим одного кофра через модалку — здесь просто открываем модалку
         import('./cases.js').then(module => {
             module.openCaseSettingsModal(path, () => {
                 updateRowOrder(path);

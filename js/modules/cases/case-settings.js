@@ -149,9 +149,10 @@ function renderCaseModeContent(mode, container, path, options, individualVals, p
             html = `<div style="margin-bottom:10px;"><strong>Выберите вариант кофра:</strong></div>`;
             options.forEach((opt, idx) => {
                 const checked = idx === selectedIdx ? 'checked' : '';
+                const maxCases = opt.maxCases || 0;
                 html += `<div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
                     <input type="radio" name="singleOption" value="${idx}" ${checked}>
-                    <span>Вариант ${idx+1}: вместимость ${opt.qty} шт, габ: ${opt.dims || 'н/д'}, вес пустого: ${opt.weight || 0} кг</span>
+                    <span>Вариант ${idx+1}: вместимость ${opt.qty} шт, габ: ${opt.dims || 'н/д'}, вес пустого: ${opt.weight || 0} кг${maxCases > 0 ? `, макс. кофров: ${maxCases}` : ''}</span>
                 </div>`;
             });
             if (modeData.alt) {
@@ -172,19 +173,12 @@ function renderCaseModeContent(mode, container, path, options, individualVals, p
                 html = `<div style="color:var(--text-muted);">Для мультирежима нужно минимум 2 варианта кофров. Добавьте их в редакторе склада.</div>`;
                 break;
             }
-            let multiSelected = modeData.multiSelected || [];
-            if (multiSelected.length === 0 && individualVals.length > 0) {
-                multiSelected = individualVals.map(v => v > 0);
-            }
-            if (multiSelected.length === 0) {
-                multiSelected = options.map(() => false);
-            }
-            html = `<div style="margin-bottom:10px;"><strong>Выберите варианты для использования:</strong></div>`;
+            // Мультирежим: показываем все варианты как выбранные, без чекбоксов
+            html = `<div style="margin-bottom:10px;"><strong>Все варианты будут доступны для распределения:</strong></div>`;
             options.forEach((opt, idx) => {
-                const checked = multiSelected[idx] ? 'checked' : '';
-                html += `<div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
-                    <input type="checkbox" class="multi-option-check" data-idx="${idx}" ${checked}>
-                    <span>Вариант ${idx+1}: вместимость ${opt.qty} шт, габ: ${opt.dims || 'н/д'}, вес пустого: ${opt.weight || 0} кг</span>
+                const maxCases = opt.maxCases || 0;
+                html += `<div style="padding:4px 8px;margin:2px 0;border-left:2px solid var(--accent);background:var(--bg-secondary);border-radius:4px;">
+                    <span>Вариант ${idx+1}: вместимость ${opt.qty} шт, габ: ${opt.dims || 'н/д'}, вес пустого: ${opt.weight || 0} кг${maxCases > 0 ? `, макс. кофров: ${maxCases}` : ''}</span>
                 </div>`;
             });
             break;
@@ -260,26 +254,18 @@ function saveCaseSettings(path) {
                 showToast('Альтернативный кофр не настроен', 'warning');
                 return;
             }
+            // Устанавливаем нулевое значение, чтобы поля появились в строке
+            setIndividualCaseValues(path, [0]);
             break;
         }
 
         case 'multi': {
-            const checkboxes = document.querySelectorAll('.multi-option-check');
-            const selected = [];
-            let hasSelected = false;
-            checkboxes.forEach(cb => {
-                const idx = parseInt(cb.dataset.idx);
-                const checked = cb.checked;
-                selected[idx] = checked;
-                if (checked) hasSelected = true;
-            });
-            if (!hasSelected) {
-                showToast('Выберите хотя бы один вариант', 'warning');
-                return;
-            }
+            // Все варианты считаются выбранными
+            const selected = options.map(() => true);
             mode.enabled = true;
             mode.multiSelected = selected;
-            const vals = selected.map(s => s ? 0 : -1);
+            // Инициализируем нулями для всех вариантов
+            const vals = options.map(() => 0);
             setIndividualCaseValues(path, vals);
             break;
         }

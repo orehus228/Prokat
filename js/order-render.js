@@ -259,7 +259,7 @@ function buildCategoryHTML(data, path, level) {
 }
 
 // ============================================================
-// ПОСТРОЕНИЕ СТРОКИ (исправлено isMulti)
+// ПОСТРОЕНИЕ СТРОКИ
 // ============================================================
 
 export function buildItemRow(fullPath, level) {
@@ -269,7 +269,6 @@ export function buildItemRow(fullPath, level) {
     const props = getItemProps(fullPath);
     const hasCase = (props.individualCases && props.individualCases.length > 0) || props.allowCommon;
     const mode = getCaseMode(fullPath);
-    // Исправлено: isMulti теперь проверяет mode.multiSelected
     const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
     const hasAlt = !!mode.alt;
     const packing = getOrderPacking(fullPath);
@@ -371,14 +370,11 @@ export function buildItemRow(fullPath, level) {
         });
     }
 
-    // Дочерние строки для мульти-режима (генерируются через updateChildRowsForPath, который вызывается отдельно)
-    // Поэтому здесь они не добавляются — обновляются в updateRowOrder
-
     return html;
 }
 
 // ============================================================
-// РЕНДЕРИНГ КОНТРОЛОВ КОЛИЧЕСТВА (исправлено isMulti)
+// РЕНДЕРИНГ КОНТРОЛОВ КОЛИЧЕСТВА
 // ============================================================
 function renderQtyControls(path) {
     const mode = getCaseMode(path);
@@ -386,7 +382,6 @@ function renderQtyControls(path) {
     const packing = getOrderPacking(path);
     const options = getCaseOptions(path);
     const totalQty = getTotalQty(path);
-    // Исправлено: isMulti через mode.multiSelected
     const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
 
     // Режим без кофров или выключен
@@ -403,6 +398,7 @@ function renderQtyControls(path) {
         const opt = getSelectedOption(path);
         const pieces = individualVals[0] || 0;
         const casesCount = opt && opt.qty > 0 ? Math.ceil(pieces / opt.qty) : 0;
+        const maxCases = opt?.maxCases || 0;
         return `
             <div style="display:flex;align-items:center;gap:4px;">
                 <span style="font-size:12px;color:var(--text-secondary);">шт:</span>
@@ -413,6 +409,7 @@ function renderQtyControls(path) {
                 <button class="btn-c single-case-btn" data-path="${path}" data-delta="-1" style="width:28px;height:28px;font-size:14px;">−</button>
                 <input type="number" class="single-cases-input" value="${casesCount}" min="0" step="1" data-path="${path}" style="width:50px;padding:2px;text-align:center;font-size:13px;">
                 <button class="btn-c single-case-btn" data-path="${path}" data-delta="1" style="width:28px;height:28px;font-size:14px;">+</button>
+                ${maxCases > 0 ? `<span style="font-size:11px;color:var(--text-muted);">(макс. ${maxCases} кофр${maxCases > 1 ? 'ов' : ''})</span>` : ''}
             </div>
         `;
     }
@@ -424,7 +421,7 @@ function renderQtyControls(path) {
 }
 
 // ============================================================
-// ОБНОВЛЕНИЕ СТРОКИ (исправлено isMulti)
+// ОБНОВЛЕНИЕ СТРОКИ
 // ============================================================
 
 export function updateRowOrder(path) {
@@ -432,7 +429,6 @@ export function updateRowOrder(path) {
     if (!row) return;
     const sq = getStockValue(path);
     const mode = getCaseMode(path);
-    // Исправлено: isMulti через mode.multiSelected
     const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
     const packing = getOrderPacking(path);
     const hasCommonPacking = packing.length > 0;
@@ -456,11 +452,7 @@ export function updateRowOrder(path) {
     // Обновляем контролы внутри qty-controls
     const qtyControls = row.querySelector('.qty-controls');
     if (qtyControls) {
-        // Перерисовываем контролы
         const path = row.dataset.path;
-        // Сохраняем ссылку на существующие элементы, чтобы не потерять обработчики
-        // Но лучше заменить содержимое и затем навесить обработчики через делегирование
-        // Так как обработчики в order-actions.js используют делегирование, можно просто заменить HTML
         const weightVolDisplay = qtyControls.querySelector('.weight-vol-display');
         const stockInfo = qtyControls.querySelector('.stock-info');
         qtyControls.innerHTML = `
@@ -468,7 +460,6 @@ export function updateRowOrder(path) {
             <span class="stock-info" style="display:none !important;"></span>
             ${renderQtyControls(path)}
         `;
-        // Обновляем вес/объём
         const newWeightVol = qtyControls.querySelector('.weight-vol-display');
         if (newWeightVol) {
             const props = getItemProps(path);
@@ -571,7 +562,6 @@ export function updateRowOrder(path) {
         caseBtn.className = 'action-btn case-btn ' + (isOn ? 'active ' : '') + statusClass;
     }
 
-    // Обновляем дочерние строки (в order-helpers.js уже использует mode.multiSelected)
     updateChildRowsForPath(path);
 }
 

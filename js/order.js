@@ -40,7 +40,6 @@ export function loadOrderData() {
             if (mode.alt === undefined) mode.alt = null;
             if (mode.selectedOption === undefined) mode.selectedOption = 0;
             if (mode.accumulate === undefined) mode.accumulate = false;
-            // Инициализация новых полей
             if (mode.multiSelected === undefined) mode.multiSelected = [];
             if (mode.commonSelected === undefined) mode.commonSelected = [];
             if (mode.useAlt === undefined) mode.useAlt = false;
@@ -142,10 +141,8 @@ export function getTotalQty(path) {
     }
     const packing = getOrderPacking(path);
     const extra = getOrderExtra(path);
-    // Исправлено: p.pieces вместо p.qty
     total += packing.reduce((s, p) => s + (p.pieces || 0), 0);
     total += extra;
-    // Добавляем individualCaseValues
     const vals = getIndividualCaseValues(path);
     if (vals.length > 0) {
         total += vals.reduce((a, b) => a + b, 0);
@@ -230,7 +227,13 @@ export function getCaseMode(path) {
 
 export function getCaseOptions(path) {
     const props = getItemProps(path);
-    return (props.individualCases || []).map(c => ({ qty: Number(c.qty)||0, dims: c.dimensions||'', weight: Number(c.weight)||0 }));
+    // Добавляем maxCases
+    return (props.individualCases || []).map(c => ({
+        qty: Number(c.qty)||0,
+        dims: c.dimensions||'',
+        weight: Number(c.weight)||0,
+        maxCases: Number(c.maxCases)||0
+    }));
 }
 
 export function getSelectedOption(path) {
@@ -274,7 +277,6 @@ export function calcItemWeightWithMode(path, qty) {
     const vals = getIndividualCaseValues(path);
     const extra = getOrderExtra(path);
 
-    // Исправлено: p.pieces вместо p.qty
     if (packing.length > 0) {
         let totalPacked = 0;
         packing.forEach(p => {
@@ -286,24 +288,14 @@ export function calcItemWeightWithMode(path, qty) {
                 totalPacked += p.pieces;
             }
         });
-        // Остаток вне кофров (уже учтено через extra и individual)
-        // Но в общем режиме extra уже включено в totalQty, поэтому здесь не добавляем повторно
-        // Однако для корректности нужно учесть оставшиеся штуки, которые не попали в кофры
-        // Но логика в этой функции: она получает общее количество qty и должна рассчитать вес с учётом кофров.
-        // У нас есть packing, который содержит распределение по кофрам, и extra — количество вне кофров.
-        // Также может быть individualCaseValues, но в режиме общих кофров они не используются.
-        // Поэтому считаем, что все штуки либо в packing, либо в extra.
-        // Проверим: totalPacked + extra должно равняться qty, но для надёжности добавим остаток.
         const remainder = qty - totalPacked - extra;
         if (remainder > 0) {
             result += remainder * props.weight;
         }
-        // Учтем extra
         if (extra > 0) {
             result += extra * props.weight;
         }
     }
-    // Режим индивидуальных кофров (single или multi)
     else if (vals.length > 0) {
         const options = getCaseOptions(path);
         vals.forEach((v, idx) => {
@@ -316,7 +308,6 @@ export function calcItemWeightWithMode(path, qty) {
             if (rem > 0) result += (opt.weight || 0) + (rem * props.weight);
         });
     }
-    // Без кофров
     else {
         result = qty * props.weight;
     }
@@ -340,7 +331,6 @@ export function calcItemVolumeWithMode(path, qty) {
     const vals = getIndividualCaseValues(path);
     const extra = getOrderExtra(path);
 
-    // Исправлено: p.pieces вместо p.qty
     if (packing.length > 0) {
         let totalPacked = 0;
         packing.forEach(p => {
