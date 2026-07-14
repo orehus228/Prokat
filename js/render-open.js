@@ -110,33 +110,36 @@ export function renderOpenOrder(d) {
                     const desc = specs[item.path] || '';
                     const hasDesc = !!desc;
                     const descOpen = openDescState[item.path] || false;
-                    const weight = calcItemWeightWithMode(item.path, item.qty);
-                    const volume = calcItemVolumeWithMode(item.path, item.qty);
+                    // Вес и объём считаем как для товара (без кофров)
                     const props = getItemProps(item.path);
+                    const weight = (props.weight || 0) * item.qty;
+                    const unitVol = parseUnitVolume(props.dimensions);
+                    const volume = unitVol * item.qty;
                     const dims = props.dimensions || 'н/д';
                     const mode = getCaseMode(item.path);
                     const cases = mode.enabled ? calcItemCases(item.path, item.qty) : null;
-                    html += `<div class="row" style="border-left:2px solid var(--border-color);padding-left:8px;margin-left:10px;background:${checked ? 'var(--added-bg)' : ''};">`;
-                    html += `<div class="main-line">`;
-                    html += `<div class="name-area">`;
+
+                    html += `<div class="row" style="border-left:2px solid var(--border-color);padding-left:8px;margin-left:10px;background:${checked ? 'var(--added-bg)' : ''};display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:6px 0;border-bottom:1px solid var(--border-color);">`;
+                    html += `<div class="main-line" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;flex:1 1 100%;">`;
+                    html += `<div class="name-area" style="display:flex;align-items:center;gap:8px;flex:1 1 200px;">`;
                     html += `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;">`;
                     html += `<input type="checkbox" class="open-check" data-path="${esc(item.path)}" ${checked ? 'checked' : ''} onchange="window.toggleOpenChecked('${esc(item.path)}', this)">`;
                     html += `<span class="name">${esc(item.name)}</span>`;
                     html += `</label>`;
                     if (hasDesc) {
-                        html += `<button class="desc-toggle" onclick="window.toggleOpenDesc('${esc(item.path)}')">${descOpen ? '📕' : '📄'}</button>`;
+                        html += `<button class="desc-toggle" onclick="window.toggleOpenDesc('${esc(item.path)}')" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:16px;">${descOpen ? '📕' : '📄'}</button>`;
                     }
                     html += `</div>`;
-                    html += `<div style="display:flex;gap:12px;flex-wrap:wrap;font-size:14px;color:var(--text-secondary);">`;
-                    html += `<span>${item.qty} шт</span>`;
-                    if (cases !== null) html += `<span>${cases} кофр${cases>1?'а':''}</span>`;
-                    html += `<span>${weight.toFixed(1)} кг</span>`;
-                    html += `<span>${volume.toFixed(3)} м³</span>`;
-                    html += `<span>${dims}</span>`;
+                    html += `<div style="display:flex;gap:12px;flex-wrap:wrap;font-size:14px;color:var(--text-secondary);flex:1 1 auto;justify-content:flex-start;">`;
+                    html += `<span style="min-width:60px;">${item.qty} шт</span>`;
+                    if (cases !== null) html += `<span style="min-width:60px;">${cases} кофр${cases>1?'а':''}</span>`;
+                    html += `<span style="min-width:60px;">${weight.toFixed(1)} кг</span>`;
+                    html += `<span style="min-width:60px;">${volume.toFixed(3)} м³</span>`;
+                    html += `<span style="min-width:80px;">${dims}</span>`;
                     html += `</div>`;
                     html += `</div>`;
                     if (hasDesc) {
-                        html += `<div class="desc-block" data-path="${esc(item.path)}" style="display:${descOpen ? 'block' : 'none'};margin-left:20px;">${esc(desc)}</div>`;
+                        html += `<div class="desc-block" data-path="${esc(item.path)}" style="display:${descOpen ? 'block' : 'none'};margin-left:20px;width:100%;flex-basis:100%;padding:4px 12px;background:var(--bg-secondary);border-radius:6px;font-size:13px;color:var(--text-secondary);border-left:3px solid var(--accent);">${esc(desc)}</div>`;
                     }
                     html += `</div>`;
                 }
@@ -150,6 +153,16 @@ export function renderOpenOrder(d) {
     const html = buildTreeHTML(tree, 0, '');
     container.innerHTML = html;
     updateOpenProgress();
+}
+
+// Вспомогательная функция для объёма
+function parseUnitVolume(dimensions) {
+    if (!dimensions) return 0;
+    const d = dimensions.split('x').map(s => parseFloat(s.trim()));
+    if (d.length === 3 && d.every(v => !isNaN(v) && v > 0)) {
+        return (d[0] * d[1] * d[2]) / 1000000;
+    }
+    return 0;
 }
 
 window.toggleOpenCategory = function(fullPath) {
@@ -196,8 +209,10 @@ function updateOpenProgress() {
     for (let path in loadedOrder.items) {
         const qty = loadedOrder.items[path];
         if (qty > 0) {
-            totalWeight += calcItemWeightWithMode(path, qty);
-            totalVolume += calcItemVolumeWithMode(path, qty);
+            const props = getItemProps(path);
+            totalWeight += (props.weight || 0) * qty;
+            const unitVol = parseUnitVolume(props.dimensions);
+            totalVolume += unitVol * qty;
         }
     }
     document.getElementById('totalWeightOpen').textContent = totalWeight.toFixed(1);

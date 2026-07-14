@@ -375,15 +375,19 @@ function renderEditorCategory(catKey) {
 }
 
 // ============================================================
-// СОЗДАНИЕ СТРОКИ ПОЗИЦИИ В РЕДАКТОРЕ
+// СОЗДАНИЕ СТРОКИ ПОЗИЦИИ В РЕДАКТОРЕ (единообразная структура)
 // ============================================================
 function createItemRowEditor(catKey, subKey, itemName) {
     const row = document.createElement('div');
     row.className = 'item-row';
     const mainLine = document.createElement('div');
     mainLine.className = 'main-line';
+    // Используем flex с фиксированными пропорциями, чтобы элементы не скакали
+    mainLine.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:4px 0;';
+
     const nameDiv = document.createElement('span');
     nameDiv.className = 'name';
+    nameDiv.style.cssText = 'flex:1 1 180px;font-size:14px;';
     nameDiv.textContent = itemName;
     nameDiv.title = 'Двойной клик для переименования';
     nameDiv.addEventListener('dblclick', () => { renameItemHandler(catKey, subKey, itemName); });
@@ -392,6 +396,7 @@ function createItemRowEditor(catKey, subKey, itemName) {
     const qtyInput = document.createElement('input');
     qtyInput.type = 'number';
     qtyInput.className = 'qty';
+    qtyInput.style.cssText = 'width:70px;padding:4px 6px;border:1px solid var(--border-light);border-radius:4px;font-size:14px;text-align:center;background:var(--bg-input);color:var(--text-primary);flex-shrink:0;';
     qtyInput.value = getStock(catKey, subKey, itemName);
     qtyInput.addEventListener('change', () => {
         let val = parseInt(qtyInput.value, 10);
@@ -404,6 +409,7 @@ function createItemRowEditor(catKey, subKey, itemName) {
     const specInput = document.createElement('input');
     specInput.type = 'text';
     specInput.className = 'spec';
+    specInput.style.cssText = 'flex:2 1 200px;padding:4px 6px;border:1px solid var(--border-light);border-radius:4px;font-size:13px;min-width:120px;background:var(--bg-input);color:var(--text-primary);';
     specInput.placeholder = 'Комментарий...';
     specInput.value = getSpec(catKey, subKey, itemName);
     specInput.addEventListener('change', () => {
@@ -413,20 +419,24 @@ function createItemRowEditor(catKey, subKey, itemName) {
 
     const actions = document.createElement('div');
     actions.className = 'actions';
+    actions.style.cssText = 'display:flex;gap:4px;flex-shrink:0;';
     const upBtn = document.createElement('button');
     upBtn.textContent = '⬆';
     upBtn.className = 'move';
+    upBtn.style.cssText = 'background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:16px;padding:0 4px;';
     upBtn.addEventListener('click', () => { moveItemWithinGroup(catKey, subKey, itemName, -1); });
     actions.appendChild(upBtn);
     const downBtn = document.createElement('button');
     downBtn.textContent = '⬇';
     downBtn.className = 'move';
+    downBtn.style.cssText = 'background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:16px;padding:0 4px;';
     downBtn.addEventListener('click', () => { moveItemWithinGroup(catKey, subKey, itemName, 1); });
     actions.appendChild(downBtn);
     const propsBtn = document.createElement('button');
     propsBtn.className = 'props';
     propsBtn.textContent = '📦';
     propsBtn.title = 'Свойства';
+    propsBtn.style.cssText = 'background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:16px;padding:0 4px;';
     propsBtn.addEventListener('click', () => {
         openPropsModalEditor(catKey, subKey, itemName, () => {
             renderEditorCategory(catKey);
@@ -437,14 +447,17 @@ function createItemRowEditor(catKey, subKey, itemName) {
     moveBtn.className = 'move';
     moveBtn.textContent = '↗';
     moveBtn.title = 'Переместить';
+    moveBtn.style.cssText = 'background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:16px;padding:0 4px;';
     moveBtn.addEventListener('click', () => { moveItemHandler(catKey, subKey, itemName); });
     actions.appendChild(moveBtn);
     const renameBtn = document.createElement('button');
     renameBtn.textContent = '✏️';
+    renameBtn.style.cssText = 'background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:16px;padding:0 4px;';
     renameBtn.addEventListener('click', () => { renameItemHandler(catKey, subKey, itemName); });
     actions.appendChild(renameBtn);
     const delBtn = document.createElement('button');
     delBtn.textContent = '✕';
+    delBtn.style.cssText = 'background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px;padding:0 4px;';
     delBtn.addEventListener('click', async () => {
         const confirmed = await showConfirm(`Удалить позицию "${itemName}"?`);
         if (!confirmed) return;
@@ -468,6 +481,7 @@ function createItemRowEditor(catKey, subKey, itemName) {
     const props = getItemProps(catKey, subKey, itemName);
     const infoDiv = document.createElement('div');
     infoDiv.className = 'props-info';
+    infoDiv.style.cssText = 'font-size:12px;color:var(--text-secondary);padding:4px 0 0 12px;border-left:2px solid var(--accent);margin-left:12px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;';
     const weight = props.weight ? props.weight + ' кг' : 'н/д';
     const dims = props.dimensions || 'н/д';
     const cases = (props.individualCases || []).length;
@@ -669,7 +683,7 @@ export function initRenderHandlers() {
         });
     });
 
-    // Экспорт HTML — теперь обработчик в main.js, но дублируем здесь для надёжности
+    // Экспорт HTML
     const saveHtmlBtn = document.getElementById('saveHtmlBtn');
     if (saveHtmlBtn) {
         saveHtmlBtn.addEventListener('click', exportInventoryHTML);
