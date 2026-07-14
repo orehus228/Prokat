@@ -98,8 +98,20 @@ export function toggleInfoBlock(path) {
     infoBlocksOpen[path] = !infoBlocksOpen[path];
 }
 
+// Сброс состояния инфо-блоков при очистке
+export function resetInfoBlocks() {
+    for (let key in infoBlocksOpen) {
+        delete infoBlocksOpen[key];
+    }
+    // Удаляем все row-info из DOM
+    document.querySelectorAll('.row-info').forEach(el => el.remove());
+    document.querySelectorAll('.info-btn').forEach(btn => {
+        btn.textContent = 'Инфо';
+    });
+}
+
 // ============================================================
-// ЗАГЛУШКА ДЛЯ ИНДИКАТОРОВ (используется в order-actions)
+// ЗАГЛУШКА ДЛЯ ИНДИКАТОРОВ
 // ============================================================
 export function renderCommonCaseIndicatorsOrder() {
     renderIndicators();
@@ -259,7 +271,7 @@ function buildCategoryHTML(data, path, level) {
 }
 
 // ============================================================
-// ПОСТРОЕНИЕ СТРОКИ (исправлен расчёт веса/объёма)
+// ПОСТРОЕНИЕ СТРОКИ (исправлен расчёт веса/объёма, убраны эмодзи)
 // ============================================================
 
 export function buildItemRow(fullPath, level) {
@@ -290,7 +302,7 @@ export function buildItemRow(fullPath, level) {
         caseStatusText = 'Общие';
         caseStatusClass = 'common';
         const totalPieces = packing.reduce((s, p) => s + (p.pieces || 0), 0);
-        extraCaseInfo = `📦 ${packing.length} кофр${packing.length>1?'а':''} (${totalPieces} шт)`;
+        extraCaseInfo = `[Кофр] ${packing.length} шт (${totalPieces} шт)`;
     } else if (isMulti && options.length > 1) {
         caseStatusText = 'Мульти';
         caseStatusClass = 'multi';
@@ -299,7 +311,7 @@ export function buildItemRow(fullPath, level) {
             const opt = options[idx] || options[0];
             return sum + Math.ceil(v / opt.qty);
         }, 0);
-        extraCaseInfo = `🔄 ${totalCases} кофр${totalCases>1?'а':''}`;
+        extraCaseInfo = `[Мульти] ${totalCases} кофр${totalCases>1?'а':''}`;
     } else if (mode.enabled && individualVals.length === 1 && !packing.length && !isMulti) {
         const opt = getSelectedOption(fullPath);
         const val = individualVals[0] || 0;
@@ -307,7 +319,7 @@ export function buildItemRow(fullPath, level) {
             const casesCount = Math.ceil(val / opt.qty);
             caseStatusText = 'Вкл';
             caseStatusClass = 'on';
-            extraCaseInfo = `📦 ${casesCount} кофр${casesCount>1?'а':''}`;
+            extraCaseInfo = `[Кофр] ${casesCount} шт`;
         } else {
             caseStatusText = 'Выкл';
             caseStatusClass = 'off';
@@ -317,19 +329,57 @@ export function buildItemRow(fullPath, level) {
         caseStatusClass = 'off';
     }
 
-    // ========== ИСПРАВЛЕНИЕ: вес и объём считаем без учёта кофров ==========
-    let weightDisplay = '0 кг', volumeDisplay = '0 м³';
+    // ========== РАЗДЕЛЬНЫЙ РАСЧЁТ: вес без кофра и с кофром ==========
+    let weightWithoutCase = 0, weightWithCase = 0;
+    let volumeOnlyCases = 0;
+
     if (props.weight !== undefined && props.weight !== null && props.weight > 0) {
-        const w = props.weight * totalQty;
-        weightDisplay = w.toFixed(1) + ' кг';
+        weightWithoutCase = props.weight * totalQty;
+        // Вес с кофром вычисляем через calcItemWeightWithMode
+        weightWithCase = calcItemWeightWithMode(fullPath, totalQty);
     }
-    if (props.dimensions && props.dimensions.trim() !== '') {
-        const unitVol = parseUnitVolume(props.dimensions);
-        if (unitVol > 0) {
-            volumeDisplay = (unitVol * totalQty).toFixed(3) + ' м³';
+
+    // Объём только кофров (если есть)
+    if (hasCommonPacking) {
+        const commonCases = getCommonCases();
+        packing.forEach(p => {
+            const c = commonCases.find(c => c.id === p.caseId);
+            if (c && p.pieces > 0) {
+                const dims = c.dimensions ? c.dimensions.split('x').map(s => parseFloat(s.trim())) : [0,0,0];
+                if (dims.length === 3 && dims.every(d => d > 0)) {
+                    volumeOnlyCases += (dims[0]*dims[1]*dims[2]) / 1000000;
+                }
+            }
+        });
+    } else if (isMulti && mode.enabled && individualVals.length > 1) {
+        options.forEach((opt, idx) => {
+            const val = individualVals[idx] || 0;
+            if (val > 0) {
+                const dims = opt.dims ? opt.dims.split('x').map(s => parseFloat(s.trim())) : [0,0,0];
+                if (dims.length === 3 && dims.every(d => d > 0)) {
+                    const fullCases = Math.floor(val / opt.qty);
+                    const rem = val % opt.qty;
+                    volumeOnlyCases += (fullCases + (rem > 0 ? 1 : 0)) * (dims[0]*dims[1]*dims[2]) / 1000000;
+                }
+            }
+        });
+    } else if (mode.enabled && individualVals.length === 1 && !packing.length && !isMulti) {
+        const opt = getSelectedOption(fullPath);
+        const val = individualVals[0] || 0;
+        if (opt && val > 0) {
+            const dims = opt.dims ? opt.dims.split('x').map(s => parseFloat(s.trim())) : [0,0,0];
+            if (dims.length === 3 && dims.every(d => d > 0)) {
+                const casesCount = Math.ceil(val / opt.qty);
+                volumeOnlyCases = casesCount * (dims[0]*dims[1]*dims[2]) / 1000000;
+            }
         }
     }
-    // =====================================================================
+
+    let weightDisplay = '0 кг';
+    if (weightWithoutCase > 0 || weightWithCase > 0) {
+        weightDisplay = `${weightWithoutCase.toFixed(1)} / ${weightWithCase.toFixed(1)} кг`; // "без кофра / с кофром"
+    }
+    let volumeDisplay = volumeOnlyCases > 0 ? volumeOnlyCases.toFixed(3) + ' м³' : '0 м³';
 
     const infoHtml = buildInfoHtml(fullPath, props, mode);
     const escapedName = esc(fullPath.split('|').pop());
@@ -418,7 +468,7 @@ function renderQtyControls(path) {
                 <button class="btn-c single-case-btn" data-path="${path}" data-delta="-1" style="width:28px;height:28px;font-size:14px;">−</button>
                 <input type="number" class="single-cases-input" value="${casesCount}" min="0" step="1" data-path="${path}" style="width:50px;padding:2px;text-align:center;font-size:13px;">
                 <button class="btn-c single-case-btn" data-path="${path}" data-delta="1" style="width:28px;height:28px;font-size:14px;">+</button>
-                ${maxCases > 0 ? `<span style="font-size:11px;color:var(--text-muted);">(макс. ${maxCases} кофр${maxCases > 1 ? 'ов' : ''})</span>` : ''}
+                ${maxCases > 0 ? `<span style="font-size:11px;color:var(--text-muted);">(макс. ${maxCases})</span>` : ''}
             </div>
         `;
     }
@@ -429,7 +479,7 @@ function renderQtyControls(path) {
 }
 
 // ============================================================
-// ОБНОВЛЕНИЕ СТРОКИ (исправлен расчёт веса/объёма)
+// ОБНОВЛЕНИЕ СТРОКИ (синхронизация контролов, раздельный вес/объём)
 // ============================================================
 
 export function updateRowOrder(path) {
@@ -470,17 +520,52 @@ export function updateRowOrder(path) {
         const weightVolDisplay = qtyControls.querySelector('.weight-vol-display');
         if (weightVolDisplay) {
             const props = getItemProps(path);
-            let weightDisplay = '0 кг', volumeDisplay = '0 м³';
+            let weightWithoutCase = 0, weightWithCase = 0;
+            let volumeOnlyCases = 0;
             if (props.weight !== undefined && props.weight !== null && props.weight > 0) {
-                const w = props.weight * totalQty;
-                weightDisplay = w.toFixed(1) + ' кг';
+                weightWithoutCase = props.weight * totalQty;
+                weightWithCase = calcItemWeightWithMode(path, totalQty);
             }
-            if (props.dimensions && props.dimensions.trim() !== '') {
-                const unitVol = parseUnitVolume(props.dimensions);
-                if (unitVol > 0) {
-                    volumeDisplay = (unitVol * totalQty).toFixed(3) + ' м³';
+            if (hasCommonPacking) {
+                const commonCases = getCommonCases();
+                packing.forEach(p => {
+                    const c = commonCases.find(c => c.id === p.caseId);
+                    if (c && p.pieces > 0) {
+                        const dims = c.dimensions ? c.dimensions.split('x').map(s => parseFloat(s.trim())) : [0,0,0];
+                        if (dims.length === 3 && dims.every(d => d > 0)) {
+                            volumeOnlyCases += (dims[0]*dims[1]*dims[2]) / 1000000;
+                        }
+                    }
+                });
+            } else if (isMulti && mode.enabled && individualVals.length > 1) {
+                const options = getCaseOptions(path);
+                options.forEach((opt, idx) => {
+                    const val = individualVals[idx] || 0;
+                    if (val > 0) {
+                        const dims = opt.dims ? opt.dims.split('x').map(s => parseFloat(s.trim())) : [0,0,0];
+                        if (dims.length === 3 && dims.every(d => d > 0)) {
+                            const fullCases = Math.floor(val / opt.qty);
+                            const rem = val % opt.qty;
+                            volumeOnlyCases += (fullCases + (rem > 0 ? 1 : 0)) * (dims[0]*dims[1]*dims[2]) / 1000000;
+                        }
+                    }
+                });
+            } else if (mode.enabled && individualVals.length === 1 && !packing.length && !isMulti) {
+                const opt = getSelectedOption(path);
+                const val = individualVals[0] || 0;
+                if (opt && val > 0) {
+                    const dims = opt.dims ? opt.dims.split('x').map(s => parseFloat(s.trim())) : [0,0,0];
+                    if (dims.length === 3 && dims.every(d => d > 0)) {
+                        const casesCount = Math.ceil(val / opt.qty);
+                        volumeOnlyCases = casesCount * (dims[0]*dims[1]*dims[2]) / 1000000;
+                    }
                 }
             }
+            let weightDisplay = '0 кг';
+            if (weightWithoutCase > 0 || weightWithCase > 0) {
+                weightDisplay = `${weightWithoutCase.toFixed(1)} / ${weightWithCase.toFixed(1)} кг`;
+            }
+            let volumeDisplay = volumeOnlyCases > 0 ? volumeOnlyCases.toFixed(3) + ' м³' : '0 м³';
             weightVolDisplay.textContent = weightDisplay + ' / ' + volumeDisplay;
         }
     }
@@ -493,31 +578,65 @@ export function updateRowOrder(path) {
                     <span>в наличии: <strong>${sq}</strong></span>`;
             const props = getItemProps(path);
             if (props.weight !== undefined && props.weight !== null && props.weight > 0) {
-                const w = props.weight * totalQty;
-                info += `<span>${w.toFixed(1)} кг</span>`;
+                const wWithout = props.weight * totalQty;
+                const wWith = calcItemWeightWithMode(path, totalQty);
+                info += `<span>${wWithout.toFixed(1)} / ${wWith.toFixed(1)} кг</span>`;
             }
             if (props.dimensions && props.dimensions.trim() !== '') {
-                const unitVol = parseUnitVolume(props.dimensions);
-                if (unitVol > 0) {
-                    info += `<span>${(unitVol * totalQty).toFixed(3)} м³</span>`;
+                let vol = 0;
+                if (hasCommonPacking) {
+                    const commonCases = getCommonCases();
+                    packing.forEach(p => {
+                        const c = commonCases.find(c => c.id === p.caseId);
+                        if (c && p.pieces > 0) {
+                            const dims = c.dimensions ? c.dimensions.split('x').map(s => parseFloat(s.trim())) : [0,0,0];
+                            if (dims.length === 3 && dims.every(d => d > 0)) {
+                                vol += (dims[0]*dims[1]*dims[2]) / 1000000;
+                            }
+                        }
+                    });
+                } else if (isMulti && mode.enabled && individualVals.length > 1) {
+                    const options = getCaseOptions(path);
+                    options.forEach((opt, idx) => {
+                        const val = individualVals[idx] || 0;
+                        if (val > 0) {
+                            const dims = opt.dims ? opt.dims.split('x').map(s => parseFloat(s.trim())) : [0,0,0];
+                            if (dims.length === 3 && dims.every(d => d > 0)) {
+                                const fullCases = Math.floor(val / opt.qty);
+                                const rem = val % opt.qty;
+                                vol += (fullCases + (rem > 0 ? 1 : 0)) * (dims[0]*dims[1]*dims[2]) / 1000000;
+                            }
+                        }
+                    });
+                } else if (mode.enabled && individualVals.length === 1 && !packing.length && !isMulti) {
+                    const opt = getSelectedOption(path);
+                    const val = individualVals[0] || 0;
+                    if (opt && val > 0) {
+                        const dims = opt.dims ? opt.dims.split('x').map(s => parseFloat(s.trim())) : [0,0,0];
+                        if (dims.length === 3 && dims.every(d => d > 0)) {
+                            const casesCount = Math.ceil(val / opt.qty);
+                            vol = casesCount * (dims[0]*dims[1]*dims[2]) / 1000000;
+                        }
+                    }
                 }
+                if (vol > 0) info += `<span>${vol.toFixed(3)} м³</span>`;
             }
             if (packing.length > 0) {
                 const totalPieces = packing.reduce((s, p) => s + (p.pieces || 0), 0);
-                info += `<span>📦 ${packing.length} кофр${packing.length>1?'а':''} (${totalPieces} шт)</span>`;
+                info += `<span>[Кофр] ${packing.length} шт (${totalPieces} шт)</span>`;
             } else if (isMulti) {
                 const totalCases = individualVals.reduce((sum, v, idx) => {
                     if (v <= 0) return sum;
                     const opt = getCaseOptions(path)[idx] || getCaseOptions(path)[0];
                     return sum + Math.ceil(v / opt.qty);
                 }, 0);
-                info += `<span>🔄 ${totalCases} кофр${totalCases>1?'а':''}</span>`;
+                info += `<span>[Мульти] ${totalCases} кофр${totalCases>1?'а':''}</span>`;
             } else if (mode.enabled && individualVals.length === 1 && !packing.length && !isMulti) {
                 const opt = getSelectedOption(path);
                 const val = individualVals[0] || 0;
                 if (opt && val > 0) {
                     const casesCount = Math.ceil(val / opt.qty);
-                    info += `<span>📦 ${casesCount} кофр${casesCount>1?'а':''}</span>`;
+                    info += `<span>[Кофр] ${casesCount} шт</span>`;
                 }
             }
         }
@@ -759,7 +878,7 @@ export function updateCategoryTotalsOrder(catKey) {
     if (result.commonDetails && result.commonDetails.length > 0) {
         html += `<div style="width:100%;font-size:13px;color:var(--text-secondary);padding-top:4px;">`;
         result.commonDetails.forEach(c => {
-            html += `<span style="margin-right:12px;">📦 ${c.name}: ${c.pieces} шт, загрузка: ${c.fillPercent}%</span>`;
+            html += `<span style="margin-right:12px;">[Кофр] ${c.name}: ${c.pieces} шт, загрузка: ${c.fillPercent}%</span>`;
         });
         html += `</div>`;
     }
@@ -789,10 +908,10 @@ export function updateTotalsOrder() {
         result.commonDetails.forEach(c => {
             const statusColor = c.fillPercent >= 100 ? 'var(--danger)' : (c.fillPercent >= 90 ? 'var(--warning)' : 'var(--text-secondary)');
             detailsHtml += `<div style="font-size:13px;padding:2px 0;border-bottom:1px solid var(--border-light);">
-                <span>📦 ${c.name}</span>
+                <span>[Кофр] ${c.name}</span>
                 <span style="margin-left:8px;">${c.pieces} шт</span>
                 <span style="margin-left:8px;color:${statusColor};">${c.fillPercent}%</span>
-                <span style="margin-left:8px;font-size:12px;color:var(--text-muted);">${c.dimensions || 'н/д'} | вес кофра: ${c.emptyWeight.toFixed(1)} кг</span>
+                <span style="margin-left:8px;font-size:12px;color:var(--text-muted);">${c.dimensions || 'н/д'} | вес: ${c.emptyWeight.toFixed(1)} кг</span>
             </div>`;
         });
         detailsHtml += `</div>`;
@@ -835,23 +954,22 @@ export function toggleInfoOrder(btn) {
     const path = btn.dataset.path;
     const row = btn.closest('.row');
     let infoBlock = row.querySelector('.row-info');
-    if (!infoBlock) {
-        infoBlock = document.createElement('div');
-        infoBlock.className = 'row-info';
-        row.appendChild(infoBlock);
-    }
-    const isOpen = infoBlocksOpen[path] || false;
-    infoBlocksOpen[path] = !isOpen;
-    if (infoBlocksOpen[path]) {
-        const props = getItemProps(path);
-        const mode = getCaseMode(path);
-        infoBlock.innerHTML = buildInfoHtml(path, props, mode);
-        infoBlock.style.display = 'block';
-        btn.textContent = 'Скрыть';
-    } else {
-        infoBlock.style.display = 'none';
+    // Если блок уже есть, удаляем его и сбрасываем состояние
+    if (infoBlock) {
+        infoBlock.remove();
+        infoBlocksOpen[path] = false;
         btn.textContent = 'Инфо';
+        return;
     }
+    // Иначе создаём новый
+    infoBlock = document.createElement('div');
+    infoBlock.className = 'row-info';
+    const props = getItemProps(path);
+    const mode = getCaseMode(path);
+    infoBlock.innerHTML = buildInfoHtml(path, props, mode);
+    row.appendChild(infoBlock);
+    infoBlocksOpen[path] = true;
+    btn.textContent = 'Скрыть';
 }
 
 export function toggleDescOrder(btn) {

@@ -54,7 +54,8 @@ import {
     renderOrderAll,
     setSearchMode,
     setSearchQuery,
-    refreshRow   // <-- добавлен импорт
+    refreshRow,
+    resetInfoBlocks   // для очистки
 } from './order-render.js';
 
 // ============================================================
@@ -75,8 +76,343 @@ export function setupEventDelegation() {
     container.removeEventListener('change', handleContainerChange);
     container.addEventListener('change', handleContainerChange);
     
+    // Добавляем обработчики для автоповтора (mousedown/mouseup)
+    container.removeEventListener('mousedown', handleContainerMouseDown);
+    container.addEventListener('mousedown', handleContainerMouseDown);
+    container.removeEventListener('mouseup', handleContainerMouseUp);
+    container.addEventListener('mouseup', handleContainerMouseUp);
+    container.removeEventListener('mouseleave', handleContainerMouseUp);
+    container.addEventListener('mouseleave', handleContainerMouseUp);
+    
     eventDelegationInitialized = true;
 }
+
+let repeatInterval = null;
+let repeatTimeout = null;
+
+function startRepeat(btn, delta) {
+    if (repeatInterval) return;
+    repeatTimeout = setTimeout(() => {
+        repeatInterval = setInterval(() => {
+            // Эмулируем клик по кнопке
+            const path = btn.dataset.path;
+            const deltaVal = parseInt(btn.dataset.delta);
+            if (!path || isNaN(deltaVal)) return;
+            // Определяем тип кнопки и вызываем соответствующий обработчик
+            if (btn.classList.contains('qty-btn')) {
+                handleQtyChange(path, deltaVal);
+            } else if (btn.classList.contains('single-piece-btn')) {
+                handleSinglePieceChange(path, deltaVal);
+            } else if (btn.classList.contains('single-case-btn')) {
+                handleSingleCaseChange(path, deltaVal);
+            } else if (btn.classList.contains('child-multi-piece-btn')) {
+                const idx = parseInt(btn.dataset.idx);
+                handleMultiPieceChange(path, idx, deltaVal);
+            } else if (btn.classList.contains('child-multi-case-btn')) {
+                const idx = parseInt(btn.dataset.idx);
+                handleMultiCaseChange(path, idx, deltaVal);
+            } else if (btn.classList.contains('child-common-btn')) {
+                const caseId = btn.dataset.caseid;
+                handleCommonQtyChange(path, caseId, deltaVal);
+            } else if (btn.classList.contains('child-extra-btn')) {
+                handleExtraQtyChange(path, deltaVal);
+            }
+        }, 100);
+    }, 400);
+}
+
+function stopRepeat() {
+    clearTimeout(repeatTimeout);
+    clearInterval(repeatInterval);
+    repeatInterval = null;
+    repeatTimeout = null;
+}
+
+function handleContainerMouseDown(e) {
+    const btn = e.target.closest('.btn-c');
+    if (!btn) return;
+    if (!btn.dataset.delta) return;
+    // Проверяем, что это одна из управляющих кнопок
+    if (btn.classList.contains('qty-btn') ||
+        btn.classList.contains('single-piece-btn') ||
+        btn.classList.contains('single-case-btn') ||
+        btn.classList.contains('child-multi-piece-btn') ||
+        btn.classList.contains('child-multi-case-btn') ||
+        btn.classList.contains('child-common-btn') ||
+        btn.classList.contains('child-extra-btn')) {
+        startRepeat(btn, parseInt(btn.dataset.delta));
+    }
+}
+
+function handleContainerMouseUp(e) {
+    stopRepeat();
+}
+
+// Вспомогательные функции для изменения значений
+function handleQtyChange(path, delta) {
+    const row = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
+    if (!row) return;
+    const inp = row.querySelector('.qty-input');
+    if (!inp) return;
+    let val = parseInt(inp.value) || 0;
+    val = Math.max(0, val + delta);
+    const sq = getStockValue(path);
+    if (val > sq) {
+        const name = path.split('|').pop();
+        showToast(`Превышено количество для "${name}" (доступно ${sq})`, 'warning');
+        val = sq;
+    }
+    inp.value = val;
+    setValueOrder(path, val);
+    updateRowOrder(path);
+    updateTotalsOrder();
+    updateCategoryTotalsOrder(currentOrderCategory);
+}
+
+function handleSinglePieceChange(path, delta) {
+    const row = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
+    if (!row) return;
+    const input = row.querySelector('.single-pieces-input');
+    if (!input) return;
+    let val = parseInt(input.value) || 0;
+    val = Math.max(0, val + delta);
+    const sq = getStockValue(path);
+    if (val > sq) {
+        const name = path.split('|').pop();
+        showToast(`Превышено количество для "${name}" (доступно ${sq})`, 'warning');
+        val = sq;
+    }
+    input.value = val;
+    setIndividualCaseValues(path, [val]);
+    order[path] = val;
+    if (val === 0) delete order[path];
+    saveOrderData();
+    // Синхронизация кофров
+    const opt = getSelectedOption(path);
+    if (opt && opt.qty > 0) {
+        let casesCount = Math.ceil(val / opt.qty);
+        const maxCases = opt.maxCases || 0;
+        if (maxCases > 0 && casesCount > maxCases) {
+            casesCount = maxCases;
+            const newPieces = casesCount * opt.qty;
+            input.value = newPieces;
+            setIndividualCaseValues(path, [newPieces]);
+            order[path] = newPieces;
+            if (newPieces === 0) delete order[path];
+            saveOrderData();
+            showToast(`Достигнут лимит кофров (макс. ${maxCases})`, 'warning');
+        }
+        const casesInput = row.querySelector('.single-cases-input');
+        if (casesInput) casesInput.value = casesCount;
+    }
+    updateRowOrder(path);
+    updateTotalsOrder();
+    updateCategoryTotalsOrder(currentOrderCategory);
+}
+
+function handleSingleCaseChange(path, delta) {
+    const row = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
+    if (!row) return;
+    const input = row.querySelector('.single-cases-input');
+    if (!input) return;
+    let val = parseInt(input.value) || 0;
+    val = Math.max(0, val + delta);
+    const opt = getSelectedOption(path);
+    if (opt && opt.qty > 0) {
+        const maxCases = opt.maxCases || 0;
+        if (maxCases > 0 && val > maxCases) {
+            val = maxCases;
+            input.value = val;
+            showToast(`Превышен лимит кофров (макс. ${maxCases})`, 'warning');
+        }
+        const pieces = val * opt.qty;
+        const sq = getStockValue(path);
+        if (pieces > sq) {
+            showToast(`Превышено доступное количество (${sq})`, 'warning');
+            const maxPieces = sq;
+            const maxVal = Math.floor(maxPieces / opt.qty);
+            if (maxVal < val) {
+                val = maxVal;
+                input.value = val;
+                const newPieces = val * opt.qty;
+                const piecesInput = row.querySelector('.single-pieces-input');
+                if (piecesInput) piecesInput.value = newPieces;
+                setIndividualCaseValues(path, [newPieces]);
+                order[path] = newPieces;
+                if (newPieces === 0) delete order[path];
+                saveOrderData();
+                updateRowOrder(path);
+                updateTotalsOrder();
+                updateCategoryTotalsOrder(currentOrderCategory);
+                return;
+            }
+        }
+        const piecesInput = row.querySelector('.single-pieces-input');
+        if (piecesInput) piecesInput.value = pieces;
+        setIndividualCaseValues(path, [pieces]);
+        order[path] = pieces;
+        if (pieces === 0) delete order[path];
+        saveOrderData();
+        updateRowOrder(path);
+        updateTotalsOrder();
+        updateCategoryTotalsOrder(currentOrderCategory);
+    }
+}
+
+function handleMultiPieceChange(path, idx, delta) {
+    const row = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
+    if (!row) return;
+    const input = row.querySelector(`.child-multi-pieces[data-idx="${idx}"]`);
+    if (!input) return;
+    let val = parseInt(input.value) || 0;
+    val = Math.max(0, val + delta);
+    const sq = getStockValue(path);
+    if (val > sq) {
+        const name = path.split('|').pop();
+        showToast(`Превышено количество для "${name}" (доступно ${sq})`, 'warning');
+        val = sq;
+    }
+    input.value = val;
+    const vals = getIndividualCaseValues(path);
+    vals[idx] = val;
+    setIndividualCaseValues(path, vals);
+    const opt = getCaseOptions(path)[idx];
+    if (opt && opt.qty > 0) {
+        let casesCount = Math.ceil(val / opt.qty);
+        const maxCases = opt.maxCases || 0;
+        if (maxCases > 0 && casesCount > maxCases) {
+            casesCount = maxCases;
+            const newPieces = casesCount * opt.qty;
+            input.value = newPieces;
+            vals[idx] = newPieces;
+            setIndividualCaseValues(path, vals);
+            showToast(`Достигнут лимит кофров для варианта ${idx+1} (макс. ${maxCases})`, 'warning');
+        }
+        const casesInput = row.querySelector(`.child-multi-cases[data-idx="${idx}"]`);
+        if (casesInput) casesInput.value = casesCount;
+    }
+    const total = vals.reduce((a,b) => a + b, 0);
+    order[path] = total;
+    if (total === 0) delete order[path];
+    saveOrderData();
+    updateRowOrder(path);
+    updateTotalsOrder();
+    updateCategoryTotalsOrder(currentOrderCategory);
+}
+
+function handleMultiCaseChange(path, idx, delta) {
+    const row = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
+    if (!row) return;
+    const input = row.querySelector(`.child-multi-cases[data-idx="${idx}"]`);
+    if (!input) return;
+    let val = parseInt(input.value) || 0;
+    val = Math.max(0, val + delta);
+    const opt = getCaseOptions(path)[idx];
+    if (opt && opt.qty > 0) {
+        const maxCases = opt.maxCases || 0;
+        if (maxCases > 0 && val > maxCases) {
+            val = maxCases;
+            input.value = val;
+            showToast(`Превышен лимит кофров для варианта ${idx+1} (макс. ${maxCases})`, 'warning');
+        }
+        const pieces = val * opt.qty;
+        const sq = getStockValue(path);
+        if (pieces > sq) {
+            showToast(`Превышено доступное количество (${sq})`, 'warning');
+            const maxPieces = sq;
+            const maxVal = Math.floor(maxPieces / opt.qty);
+            if (maxVal < val) {
+                val = maxVal;
+                input.value = val;
+                const newPieces = val * opt.qty;
+                const piecesInput = row.querySelector(`.child-multi-pieces[data-idx="${idx}"]`);
+                if (piecesInput) piecesInput.value = newPieces;
+                const vals = getIndividualCaseValues(path);
+                vals[idx] = newPieces;
+                setIndividualCaseValues(path, vals);
+                const total = vals.reduce((a,b) => a + b, 0);
+                order[path] = total;
+                if (total === 0) delete order[path];
+                saveOrderData();
+                updateRowOrder(path);
+                updateTotalsOrder();
+                updateCategoryTotalsOrder(currentOrderCategory);
+                return;
+            }
+        }
+        const piecesInput = row.querySelector(`.child-multi-pieces[data-idx="${idx}"]`);
+        if (piecesInput) piecesInput.value = pieces;
+        const vals = getIndividualCaseValues(path);
+        vals[idx] = pieces;
+        setIndividualCaseValues(path, vals);
+        const total = vals.reduce((a,b) => a + b, 0);
+        order[path] = total;
+        if (total === 0) delete order[path];
+        saveOrderData();
+        updateRowOrder(path);
+        updateTotalsOrder();
+        updateCategoryTotalsOrder(currentOrderCategory);
+    }
+}
+
+function handleCommonQtyChange(path, caseId, delta) {
+    const row = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
+    if (!row) return;
+    const input = row.querySelector(`.child-common-qty[data-caseid="${caseId}"]`);
+    if (!input) return;
+    let val = parseInt(input.value) || 0;
+    val = Math.max(0, val + delta);
+    const packing = getOrderPacking(path);
+    const p = packing.find(p => p.caseId === caseId);
+    if (p) {
+        const c = getCommonCases().find(c => c.id === caseId);
+        const maxPack = c ? c.qty : Infinity;
+        const props = getItemProps(path);
+        const unitWeight = props.weight || 0;
+        const newWeight = val * unitWeight;
+        if (c && c.maxWeight && newWeight > c.maxWeight) {
+            showToast(`Превышен максимальный вес кофра "${c.name}" (${c.maxWeight} кг)`, 'warning');
+            val = Math.min(val, Math.floor(c.maxWeight / unitWeight));
+            if (val < 0) val = 0;
+        }
+        if (val > maxPack) {
+            showToast(`Превышена вместимость кофра "${c ? c.name : 'удалённый'}" (${maxPack} шт)`, 'warning');
+            val = Math.min(val, maxPack);
+        }
+        input.value = val;
+        p.pieces = val;
+        setOrderPacking(path, packing);
+        saveOrderData();
+        updateRowOrder(path);
+        updateTotalsOrder();
+        updateCategoryTotalsOrder(currentOrderCategory);
+    }
+}
+
+function handleExtraQtyChange(path, delta) {
+    const row = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
+    if (!row) return;
+    const input = row.querySelector('.child-extra-qty');
+    if (!input) return;
+    let val = parseInt(input.value) || 0;
+    val = Math.max(0, val + delta);
+    const sq = getStockValue(path);
+    if (val > sq) {
+        const name = path.split('|').pop();
+        showToast(`Превышено количество для "${name}" (доступно ${sq})`, 'warning');
+        val = sq;
+    }
+    input.value = val;
+    setOrderExtra(path, val);
+    saveOrderData();
+    updateRowOrder(path);
+    updateTotalsOrder();
+    updateCategoryTotalsOrder(currentOrderCategory);
+}
+
+// ============================================================
+// ОСНОВНОЙ ОБРАБОТЧИК КЛИКОВ
+// ============================================================
 
 function handleContainerClick(e) {
     const target = e.target.closest('.qty-btn');
@@ -84,163 +420,40 @@ function handleContainerClick(e) {
         const path = target.dataset.path;
         const delta = parseInt(target.dataset.delta);
         if (path && !isNaN(delta)) {
-            const row = target.closest('.row');
-            const inp = row.querySelector('.qty-input');
-            if (inp) {
-                let val = parseInt(inp.value) || 0;
-                val = Math.max(0, val + delta);
-                const sq = getStockValue(path);
-                if (val > sq) {
-                    const name = path.split('|').pop();
-                    showToast(`Превышено количество для "${name}" (доступно ${sq})`, 'warning');
-                }
-                inp.value = val;
-                setValueOrder(path, val);
-                updateRowOrder(path);
-                updateTotalsOrder();
-                updateCategoryTotalsOrder(currentOrderCategory);
-            }
+            handleQtyChange(path, delta);
         }
         return;
     }
 
-    // === SINGLE-РЕЖИМ: кнопки +/− для штук ===
+    // SINGLE-РЕЖИМ
     const singlePieceBtn = e.target.closest('.single-piece-btn');
     if (singlePieceBtn) {
         const path = singlePieceBtn.dataset.path;
         const delta = parseInt(singlePieceBtn.dataset.delta);
-        const input = singlePieceBtn.parentElement.querySelector('.single-pieces-input');
-        if (input) {
-            let val = parseInt(input.value) || 0;
-            val = Math.max(0, val + delta);
-            const sq = getStockValue(path);
-            if (val > sq) {
-                const name = path.split('|').pop();
-                showToast(`Превышено количество для "${name}" (доступно ${sq})`, 'warning');
-            }
-            input.value = val;
-            setIndividualCaseValues(path, [val]);
-            order[path] = val;
-            if (val === 0) delete order[path];
-            saveOrderData();
-            const opt = getSelectedOption(path);
-            if (opt && opt.qty > 0) {
-                let casesCount = Math.ceil(val / opt.qty);
-                const maxCases = opt.maxCases || 0;
-                if (maxCases > 0 && casesCount > maxCases) {
-                    casesCount = maxCases;
-                    const newPieces = casesCount * opt.qty;
-                    input.value = newPieces;
-                    setIndividualCaseValues(path, [newPieces]);
-                    order[path] = newPieces;
-                    if (newPieces === 0) delete order[path];
-                    saveOrderData();
-                    showToast(`Достигнут лимит кофров (макс. ${maxCases})`, 'warning');
-                }
-                const casesInput = singlePieceBtn.parentElement.querySelector('.single-cases-input');
-                if (casesInput) casesInput.value = casesCount;
-            }
-            updateRowOrder(path);
-            updateTotalsOrder();
-            updateCategoryTotalsOrder(currentOrderCategory);
+        if (path && !isNaN(delta)) {
+            handleSinglePieceChange(path, delta);
         }
         return;
     }
 
-    // === SINGLE-РЕЖИМ: кнопки +/− для кофров ===
     const singleCaseBtn = e.target.closest('.single-case-btn');
     if (singleCaseBtn) {
         const path = singleCaseBtn.dataset.path;
         const delta = parseInt(singleCaseBtn.dataset.delta);
-        const input = singleCaseBtn.parentElement.querySelector('.single-cases-input');
-        if (input) {
-            let val = parseInt(input.value) || 0;
-            val = Math.max(0, val + delta);
-            const opt = getSelectedOption(path);
-            if (opt && opt.qty > 0) {
-                const maxCases = opt.maxCases || 0;
-                if (maxCases > 0 && val > maxCases) {
-                    val = maxCases;
-                    input.value = val;
-                    showToast(`Превышен лимит кофров (макс. ${maxCases})`, 'warning');
-                }
-                const pieces = val * opt.qty;
-                const sq = getStockValue(path);
-                if (pieces > sq) {
-                    showToast(`Превышено доступное количество (${sq})`, 'warning');
-                    const maxPieces = sq;
-                    const maxVal = Math.floor(maxPieces / opt.qty);
-                    if (maxVal < val) {
-                        val = maxVal;
-                        input.value = val;
-                        const newPieces = val * opt.qty;
-                        const piecesInput = singleCaseBtn.parentElement.querySelector('.single-pieces-input');
-                        if (piecesInput) piecesInput.value = newPieces;
-                        setIndividualCaseValues(path, [newPieces]);
-                        order[path] = newPieces;
-                        if (newPieces === 0) delete order[path];
-                        saveOrderData();
-                        updateRowOrder(path);
-                        updateTotalsOrder();
-                        updateCategoryTotalsOrder(currentOrderCategory);
-                        return;
-                    }
-                }
-                const piecesInput = singleCaseBtn.parentElement.querySelector('.single-pieces-input');
-                if (piecesInput) piecesInput.value = pieces;
-                setIndividualCaseValues(path, [pieces]);
-                order[path] = pieces;
-                if (pieces === 0) delete order[path];
-                saveOrderData();
-                updateRowOrder(path);
-                updateTotalsOrder();
-                updateCategoryTotalsOrder(currentOrderCategory);
-            }
+        if (path && !isNaN(delta)) {
+            handleSingleCaseChange(path, delta);
         }
         return;
     }
 
-    // === ОБРАБОТЧИКИ ДЛЯ МУЛЬТИ-РЕЖИМА (дочерние строки) ===
+    // МУЛЬТИ-РЕЖИМ
     const multiPieceBtn = e.target.closest('.child-multi-piece-btn');
     if (multiPieceBtn) {
         const path = multiPieceBtn.dataset.path;
         const idx = parseInt(multiPieceBtn.dataset.idx);
         const delta = parseInt(multiPieceBtn.dataset.delta);
-        const input = multiPieceBtn.parentElement.querySelector('.child-multi-pieces');
-        if (input) {
-            let val = parseInt(input.value) || 0;
-            val = Math.max(0, val + delta);
-            const sq = getStockValue(path);
-            if (val > sq) {
-                const name = path.split('|').pop();
-                showToast(`Превышено количество для "${name}" (доступно ${sq})`, 'warning');
-            }
-            input.value = val;
-            const vals = getIndividualCaseValues(path);
-            vals[idx] = val;
-            setIndividualCaseValues(path, vals);
-            const opt = getCaseOptions(path)[idx];
-            if (opt && opt.qty > 0) {
-                let casesCount = Math.ceil(val / opt.qty);
-                const maxCases = opt.maxCases || 0;
-                if (maxCases > 0 && casesCount > maxCases) {
-                    casesCount = maxCases;
-                    const newPieces = casesCount * opt.qty;
-                    input.value = newPieces;
-                    vals[idx] = newPieces;
-                    setIndividualCaseValues(path, vals);
-                    showToast(`Достигнут лимит кофров для варианта ${idx+1} (макс. ${maxCases})`, 'warning');
-                }
-                const casesInput = multiPieceBtn.parentElement.querySelector('.child-multi-cases');
-                if (casesInput) casesInput.value = casesCount;
-            }
-            const total = vals.reduce((a,b) => a + b, 0);
-            order[path] = total;
-            if (total === 0) delete order[path];
-            saveOrderData();
-            updateRowOrder(path);
-            updateTotalsOrder();
-            updateCategoryTotalsOrder(currentOrderCategory);
+        if (path && !isNaN(idx) && !isNaN(delta)) {
+            handleMultiPieceChange(path, idx, delta);
         }
         return;
     }
@@ -250,95 +463,20 @@ function handleContainerClick(e) {
         const path = multiCaseBtn.dataset.path;
         const idx = parseInt(multiCaseBtn.dataset.idx);
         const delta = parseInt(multiCaseBtn.dataset.delta);
-        const input = multiCaseBtn.parentElement.querySelector('.child-multi-cases');
-        if (input) {
-            let val = parseInt(input.value) || 0;
-            val = Math.max(0, val + delta);
-            const opt = getCaseOptions(path)[idx];
-            if (opt && opt.qty > 0) {
-                const maxCases = opt.maxCases || 0;
-                if (maxCases > 0 && val > maxCases) {
-                    val = maxCases;
-                    input.value = val;
-                    showToast(`Превышен лимит кофров для варианта ${idx+1} (макс. ${maxCases})`, 'warning');
-                }
-                const pieces = val * opt.qty;
-                const sq = getStockValue(path);
-                if (pieces > sq) {
-                    showToast(`Превышено доступное количество (${sq})`, 'warning');
-                    const maxPieces = sq;
-                    const maxVal = Math.floor(maxPieces / opt.qty);
-                    if (maxVal < val) {
-                        val = maxVal;
-                        input.value = val;
-                        const newPieces = val * opt.qty;
-                        const piecesInput = multiCaseBtn.parentElement.querySelector('.child-multi-pieces');
-                        if (piecesInput) piecesInput.value = newPieces;
-                        const vals = getIndividualCaseValues(path);
-                        vals[idx] = newPieces;
-                        setIndividualCaseValues(path, vals);
-                        const total = vals.reduce((a,b) => a + b, 0);
-                        order[path] = total;
-                        if (total === 0) delete order[path];
-                        saveOrderData();
-                        updateRowOrder(path);
-                        updateTotalsOrder();
-                        updateCategoryTotalsOrder(currentOrderCategory);
-                        return;
-                    }
-                }
-                const piecesInput = multiCaseBtn.parentElement.querySelector('.child-multi-pieces');
-                if (piecesInput) piecesInput.value = pieces;
-                const vals = getIndividualCaseValues(path);
-                vals[idx] = pieces;
-                setIndividualCaseValues(path, vals);
-                const total = vals.reduce((a,b) => a + b, 0);
-                order[path] = total;
-                if (total === 0) delete order[path];
-                saveOrderData();
-                updateRowOrder(path);
-                updateTotalsOrder();
-                updateCategoryTotalsOrder(currentOrderCategory);
-            }
+        if (path && !isNaN(idx) && !isNaN(delta)) {
+            handleMultiCaseChange(path, idx, delta);
         }
         return;
     }
 
-    // === ОБРАБОТЧИКИ ДЛЯ ОБЩИХ КОФРОВ ===
+    // ОБЩИЕ КОФРЫ
     const commonBtn = e.target.closest('.child-common-btn');
     if (commonBtn) {
         const path = commonBtn.dataset.path;
         const caseId = commonBtn.dataset.caseid;
         const delta = parseInt(commonBtn.dataset.delta);
-        const input = commonBtn.parentElement.querySelector('.child-common-qty');
-        if (input) {
-            let val = parseInt(input.value) || 0;
-            val = Math.max(0, val + delta);
-            const packing = getOrderPacking(path);
-            const p = packing.find(p => p.caseId === caseId);
-            if (p) {
-                const c = getCommonCases().find(c => c.id === caseId);
-                const maxPack = c ? c.qty : Infinity;
-                const props = getItemProps(path);
-                const unitWeight = props.weight || 0;
-                const newWeight = val * unitWeight;
-                if (c && c.maxWeight && newWeight > c.maxWeight) {
-                    showToast(`Превышен максимальный вес кофра "${c.name}" (${c.maxWeight} кг)`, 'warning');
-                    val = Math.min(val, Math.floor(c.maxWeight / unitWeight));
-                    if (val < 0) val = 0;
-                }
-                if (val > maxPack) {
-                    showToast(`Превышена вместимость кофра "${c ? c.name : 'удалённый'}" (${maxPack} шт)`, 'warning');
-                    val = Math.min(val, maxPack);
-                }
-                input.value = val;
-                p.pieces = val;
-                setOrderPacking(path, packing);
-                saveOrderData();
-                updateRowOrder(path);
-                updateTotalsOrder();
-                updateCategoryTotalsOrder(currentOrderCategory);
-            }
+        if (path && caseId && !isNaN(delta)) {
+            handleCommonQtyChange(path, caseId, delta);
         }
         return;
     }
@@ -347,25 +485,13 @@ function handleContainerClick(e) {
     if (extraBtn) {
         const path = extraBtn.dataset.path;
         const delta = parseInt(extraBtn.dataset.delta);
-        const input = extraBtn.parentElement.querySelector('.child-extra-qty');
-        if (input) {
-            let val = parseInt(input.value) || 0;
-            val = Math.max(0, val + delta);
-            const sq = getStockValue(path);
-            if (val > sq) {
-                const name = path.split('|').pop();
-                showToast(`Превышено количество для "${name}" (доступно ${sq})`, 'warning');
-            }
-            input.value = val;
-            setOrderExtra(path, val);
-            saveOrderData();
-            updateRowOrder(path);
-            updateTotalsOrder();
-            updateCategoryTotalsOrder(currentOrderCategory);
+        if (path && !isNaN(delta)) {
+            handleExtraQtyChange(path, delta);
         }
         return;
     }
 
+    // Удаление привязки общих кофров
     const removeBtn = e.target.closest('.remove-common-pack');
     if (removeBtn) {
         const path = removeBtn.dataset.path;
@@ -381,7 +507,7 @@ function handleContainerClick(e) {
         return;
     }
 
-    // === ОБЫЧНЫЕ КНОПКИ (инфо, описание, линк, кофры, заметка) ===
+    // ОБЫЧНЫЕ КНОПКИ
     const infoBtn = e.target.closest('.info-btn');
     if (infoBtn) {
         toggleInfoOrder(infoBtn);
@@ -402,7 +528,6 @@ function handleContainerClick(e) {
         return;
     }
 
-    // ========== ИСПРАВЛЕНИЕ: обработчик case-btn теперь использует refreshRow ==========
     const caseBtn = e.target.closest('.case-btn');
     if (caseBtn) {
         import('./cases.js').then(module => {
@@ -412,7 +537,6 @@ function handleContainerClick(e) {
         });
         return;
     }
-    // ===================================================================================
 
     const noteBtn = e.target.closest('.note-btn');
     if (noteBtn) {
@@ -420,6 +544,7 @@ function handleContainerClick(e) {
         return;
     }
 
+    // Дропдаун кофров (устаревший)
     const dropdownBtn = e.target.closest('.case-dropdown-btn');
     if (dropdownBtn) {
         const path = dropdownBtn.dataset.path;
@@ -559,7 +684,7 @@ function handleContainerInput(e) {
                 setIndividualCaseValues(path, vals);
                 showToast(`Достигнут лимит кофров для варианта ${idx+1} (макс. ${maxCases})`, 'warning');
             }
-            const casesInput = multiPieces.parentElement.querySelector('.child-multi-cases');
+            const casesInput = multiPieces.parentElement.querySelector(`.child-multi-cases[data-idx="${idx}"]`);
             if (casesInput) casesInput.value = casesCount;
         }
         const total = vals.reduce((a,b) => a + b, 0);
@@ -597,7 +722,7 @@ function handleContainerInput(e) {
                     val = maxVal;
                     multiCases.value = val;
                     const newPieces = val * opt.qty;
-                    const piecesInput = multiCases.parentElement.querySelector('.child-multi-pieces');
+                    const piecesInput = multiCases.parentElement.querySelector(`.child-multi-pieces[data-idx="${idx}"]`);
                     if (piecesInput) piecesInput.value = newPieces;
                     const vals = getIndividualCaseValues(path);
                     vals[idx] = newPieces;
@@ -612,7 +737,7 @@ function handleContainerInput(e) {
                     return;
                 }
             }
-            const piecesInput = multiCases.parentElement.querySelector('.child-multi-pieces');
+            const piecesInput = multiCases.parentElement.querySelector(`.child-multi-pieces[data-idx="${idx}"]`);
             if (piecesInput) piecesInput.value = pieces;
             const vals = getIndividualCaseValues(path);
             vals[idx] = pieces;
@@ -720,7 +845,7 @@ function handleDropdownItemOrder(item) {
 }
 
 // ============================================================
-// ОЧИСТКА СПИСКА
+// ОЧИСТКА СПИСКА (сброс инфо-блоков)
 // ============================================================
 export async function clearOrderData() {
     const confirmed = await showConfirm('Очистить список?');
@@ -741,6 +866,9 @@ export async function clearOrderData() {
     setSearchQuery('');
     const searchInput = document.getElementById('searchInput');
     if (searchInput) searchInput.value = '';
+
+    // Сброс инфо-блоков
+    resetInfoBlocks();
 
     saveOrderData();
     renderOrderAll();

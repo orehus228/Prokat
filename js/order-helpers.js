@@ -220,13 +220,13 @@ export function renderCommonCaseIndicatorsOrder() {
     const parts = [];
     usedCases.forEach((pieces, caseId) => {
         const c = getCommonCases().find(x => x.id === caseId);
-        parts.push(`${c?.name || 'Кофр'}: ${pieces} шт`);
+        parts.push(`[Кофр] ${c?.name || 'Кофр'}: ${pieces} шт`);
     });
-    indicator.textContent = '📦 ' + parts.join(' · ');
+    indicator.textContent = parts.join(' · ');
 }
 
 // ============================================================
-// РАБОТА С ДОЧЕРНИМИ ЭЛЕМЕНТАМИ (исправлен мульти-режим – единообразные строки)
+// РАБОТА С ДОЧЕРНИМИ ЭЛЕМЕНТАМИ (единообразные строки)
 // ============================================================
 
 export function updateChildRowsForPath(path) {
@@ -270,20 +270,19 @@ export function updateChildRowsForPath(path) {
             const maxPossible = getStockValue(path);
             const maxCases = opt.maxCases || 0;
 
-            // ===== Единообразная структура с фиксированными размерами =====
             html += `<div class="child-controls" style="display:flex;flex-wrap:nowrap;align-items:center;gap:4px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid var(--accent);">
                 <span style="font-weight:500;min-width:70px;font-size:13px;">Вар.${idx+1}</span>
-                <span style="font-size:11px;color:var(--text-secondary);min-width:40px;">шт:</span>
+                <span style="font-size:11px;color:var(--text-secondary);min-width:30px;">шт:</span>
                 <button class="btn-c child-multi-piece-btn" style="width:26px;height:26px;font-size:13px;flex-shrink:0;" data-path="${path}" data-idx="${idx}" data-delta="-1">−</button>
                 <input type="number" class="child-multi-pieces" data-path="${path}" data-idx="${idx}" value="${val}" min="0" step="1" max="${maxPossible}" style="width:44px;padding:2px 4px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);text-align:center;font-size:13px;flex-shrink:0;">
                 <button class="btn-c child-multi-piece-btn" style="width:26px;height:26px;font-size:13px;flex-shrink:0;" data-path="${path}" data-idx="${idx}" data-delta="1">+</button>
-                <span style="font-size:11px;color:var(--text-secondary);min-width:40px;">кофры:</span>
+                <span style="font-size:11px;color:var(--text-secondary);min-width:35px;">кофры:</span>
                 <button class="btn-c child-multi-case-btn" style="width:26px;height:26px;font-size:13px;flex-shrink:0;" data-path="${path}" data-idx="${idx}" data-delta="-1">−</button>
                 <input type="number" class="child-multi-cases" data-path="${path}" data-idx="${idx}" value="${casesCount}" min="0" step="1" style="width:44px;padding:2px 4px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);text-align:center;font-size:13px;flex-shrink:0;">
                 <button class="btn-c child-multi-case-btn" style="width:26px;height:26px;font-size:13px;flex-shrink:0;" data-path="${path}" data-idx="${idx}" data-delta="1">+</button>
-                <span style="font-size:11px;color:var(--text-muted);min-width:70px;">${maxCases > 0 ? `макс.${maxCases}` : ''}</span>
-                <span style="font-size:11px;color:var(--text-muted);min-width:80px;">${opt.dims || 'н/д'}</span>
-                <span style="font-size:11px;color:var(--text-muted);min-width:60px;">вес:${opt.weight || 0}</span>
+                <span style="font-size:11px;color:var(--text-muted);min-width:60px;">${maxCases > 0 ? `макс.${maxCases}` : ''}</span>
+                <span style="font-size:11px;color:var(--text-muted);min-width:70px;">${opt.dims || 'н/д'}</span>
+                <span style="font-size:11px;color:var(--text-muted);min-width:50px;">вес:${opt.weight || 0}</span>
             </div>`;
         });
 
@@ -335,21 +334,21 @@ export function updateChildRowsForPath(path) {
             let statusText = '';
             if (fillPercent >= 100) {
                 statusColor = 'var(--danger)';
-                statusText = '🔴 Заполнен';
+                statusText = '[Заполнен]';
             } else if (fillPercent >= 90) {
                 statusColor = 'var(--warning)';
-                statusText = '🟡 Почти заполнен';
+                statusText = '[Почти]';
             }
 
             html += `<div class="child-controls" style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid ${statusColor};">
                 <span style="font-weight:500;min-width:70px;font-size:13px;">${esc(name)}</span>
-                <span style="font-size:11px;color:var(--text-secondary);min-width:40px;">шт:</span>
+                <span style="font-size:11px;color:var(--text-secondary);min-width:30px;">шт:</span>
                 <button class="btn-c child-common-btn" style="width:26px;height:26px;font-size:13px;" data-path="${path}" data-caseid="${p.caseId}" data-delta="-1">−</button>
                 <input type="number" class="child-common-qty" data-path="${path}" data-caseid="${p.caseId}" value="${qty}" min="0" step="1" max="${maxPack}" style="width:44px;padding:2px 4px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);text-align:center;font-size:13px;">
                 <button class="btn-c child-common-btn" style="width:26px;height:26px;font-size:13px;" data-path="${path}" data-caseid="${p.caseId}" data-delta="1">+</button>
                 ${statusText ? `<span style="font-size:11px;color:${statusColor};">${statusText} (${fillPercent}%)</span>` : ''}
                 <span style="font-size:11px;color:var(--text-muted);min-width:70px;">${c?.dimensions || 'н/д'}</span>
-                <span style="font-size:11px;color:var(--text-muted);min-width:60px;">вес:${c?.emptyWeight || 0}</span>
+                <span style="font-size:11px;color:var(--text-muted);min-width:50px;">вес:${c?.emptyWeight || 0}</span>
                 <button class="btn btn-sm remove-common-pack" style="background:var(--danger);color:white;padding:0 6px;font-size:11px;border-radius:4px;border:none;cursor:pointer;" data-path="${path}" data-caseid="${p.caseId}">✕</button>
             </div>`;
         });
@@ -424,11 +423,11 @@ export function buildInfoHtml(path, props, mode) {
 
     html += `<div style="width:100%;"><strong>Статус режимов кофров:</strong></div>`;
     html += `<div style="width:100%;padding-left:12px;font-size:13px;color:var(--text-secondary);">
-        <span>Режим: ${mode.enabled ? '✅ Включён' : 'не активирован'}</span>
-        ${packing.length > 0 ? `<span style="margin-left:12px;">📦 Общие кофры (${packing.length} шт)</span>` : ''}
-        ${isMulti ? `<span style="margin-left:12px;">🔄 Мульти-режим</span>` : ''}
-        ${individualVals.length === 1 && mode.enabled && !packing.length && !isMulti ? `<span style="margin-left:12px;">📦 Один кофр</span>` : ''}
-        ${mode.alt && mode.useAlt ? `<span style="margin-left:12px;">🔀 Альтернативный кофр</span>` : ''}
+        <span>Режим: ${mode.enabled ? '[Вкл]' : '[Выкл]'}</span>
+        ${packing.length > 0 ? `<span style="margin-left:12px;">[Общие кофры] ${packing.length} шт</span>` : ''}
+        ${isMulti ? `<span style="margin-left:12px;">[Мульти]</span>` : ''}
+        ${individualVals.length === 1 && mode.enabled && !packing.length && !isMulti ? `<span style="margin-left:12px;">[Один кофр]</span>` : ''}
+        ${mode.alt && mode.useAlt ? `<span style="margin-left:12px;">[Альт.]</span>` : ''}
     </div>`;
 
     html += `</div>`;
