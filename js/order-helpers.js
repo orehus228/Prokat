@@ -1,4 +1,4 @@
-// order-helpers.js — полная версия
+// order-helpers.js — Базовые утилиты для страницы заказа
 import { editorData, getStock, getItemProps, getCommonCases, saveEditorData } from './data.js';
 import { CAT_NAMES } from './config.js';
 import { esc, showToast, showPrompt, showConfirm, debounce } from './ui.js';
@@ -114,6 +114,7 @@ export function renderCommonCaseIndicatorsOrder() {
     indicator.textContent = parts.join(' · ');
 }
 
+// ===== ИСПРАВЛЕННАЯ ФУНКЦИЯ ОКРАШИВАНИЯ =====
 export function updateAllCommonCaseIndicators() {
     const allCommonCases = getCommonCases();
     const stats = new Map();
@@ -144,9 +145,10 @@ export function updateAllCommonCaseIndicators() {
         if (fillPercent >= 100) color = 'var(--danger)';
         else if (fillPercent >= 90) color = 'var(--warning)';
         else if (fillPercent >= 80) color = '#d4a017';
-        // Окрашиваем всю строку
-        childRow.style.background = fillPercent >= 80 ? color : 'var(--bg-secondary)';
-        childRow.style.borderLeft = fillPercent >= 80 ? `4px solid ${color}` : '1px solid var(--border-light)';
+        // Применяем стили к самой дочерней строке с !important
+        childRow.style.setProperty('background', fillPercent >= 80 ? color : 'var(--bg-secondary)', 'important');
+        childRow.style.setProperty('border-left', fillPercent >= 80 ? `4px solid ${color}` : '1px solid var(--border-light)', 'important');
+        childRow.style.setProperty('transition', 'background 0.3s', 'important');
         // Обновляем процент
         let percentSpan = controls.querySelector('.case-fill-percent');
         if (!percentSpan) {
@@ -157,8 +159,8 @@ export function updateAllCommonCaseIndicators() {
         }
         percentSpan.textContent = `${fillPercent}%`;
         percentSpan.style.color = fillPercent >= 80 ? '#fff' : 'var(--text-secondary)';
-        // Также обновляем цвет текста в строке для контраста
-        const allSpans = childRow.querySelectorAll('span, input, button:not(.remove-common-pack)');
+        // Меняем цвет текста внутри строки для контраста
+        const allSpans = childRow.querySelectorAll('span:not(.case-fill-percent), input, button:not(.remove-common-pack)');
         allSpans.forEach(el => {
             if (fillPercent >= 80) el.style.color = '#fff';
             else el.style.color = '';
@@ -264,7 +266,6 @@ export function updateChildRowsForPath(path) {
             const maxWeight = c?.maxWeight || Infinity;
             let fillPercent = 0;
             if (maxWeight > 0) fillPercent = Math.min(100, Math.round((filledWeight / maxWeight) * 100));
-            // Цвет для фона строки (будет применён позже в updateAllCommonCaseIndicators)
             html += `<div class="child-controls" data-caseid="${p.caseId}" style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid var(--text-muted);">
                 <span style="font-weight:500;min-width:70px;font-size:13px;">${esc(name)}</span>
                 <span style="font-size:11px;color:var(--text-secondary);min-width:30px;">шт:</span>

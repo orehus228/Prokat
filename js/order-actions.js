@@ -1,4 +1,4 @@
-// order-actions.js — полная версия
+// order-actions.js — Обработчики событий страницы заказа
 import { editorData, getItemProps, getCommonCases } from './data.js';
 import { showToast, showPrompt, showConfirm } from './ui.js';
 import {
@@ -157,24 +157,30 @@ function handleMultiPieceChange(path, idx, delta) {
     if (!row) return;
     const childRow = row.nextElementSibling?.matches('.child-row') ? row.nextElementSibling : null;
     if (!childRow) return;
-    const input = childRow.querySelector(`.child-multi-pieces[data-idx="${idx}"]`);
-    if (!input) return;
-    let val = parseInt(input.value) || 0;
+    const inputPieces = childRow.querySelector(`.child-multi-pieces[data-idx="${idx}"]`);
+    if (!inputPieces) return;
+    let val = parseInt(inputPieces.value) || 0;
     val = Math.max(0, val + delta);
     const sq = getStockValue(path);
     if (val > sq) { const name = path.split('|').pop(); showToast(`Превышено количество для "${name}" (доступно ${sq})`, 'warning'); val = sq; }
-    input.value = val;
-    const vals = getIndividualCaseValues(path);
-    vals[idx] = val;
-    setIndividualCaseValues(path, vals);
+    inputPieces.value = val;
     const opt = getCaseOptions(path)[idx];
     if (opt && opt.qty > 0) {
         let casesCount = Math.ceil(val / opt.qty);
         const maxCases = opt.maxCases || 0;
-        if (maxCases > 0 && casesCount > maxCases) { casesCount = maxCases; const newPieces = casesCount * opt.qty; input.value = newPieces; vals[idx] = newPieces; setIndividualCaseValues(path, vals); showToast(`Достигнут лимит кофров для вар.${idx+1} (макс. ${maxCases})`, 'warning'); }
-        const casesInput = childRow.querySelector(`.child-multi-cases[data-idx="${idx}"]`);
-        if (casesInput) casesInput.value = casesCount;
+        if (maxCases > 0 && casesCount > maxCases) {
+            casesCount = maxCases;
+            const newPieces = casesCount * opt.qty;
+            inputPieces.value = newPieces;
+            val = newPieces;
+            showToast(`Достигнут лимит кофров для вар.${idx+1} (макс. ${maxCases})`, 'warning');
+        }
+        const inputCases = childRow.querySelector(`.child-multi-cases[data-idx="${idx}"]`);
+        if (inputCases) inputCases.value = casesCount;
     }
+    const vals = getIndividualCaseValues(path);
+    vals[idx] = val;
+    setIndividualCaseValues(path, vals);
     const total = vals.reduce((a,b) => a + b, 0);
     order[path] = total;
     if (total === 0) delete order[path];
@@ -190,24 +196,42 @@ function handleMultiCaseChange(path, idx, delta) {
     if (!row) return;
     const childRow = row.nextElementSibling?.matches('.child-row') ? row.nextElementSibling : null;
     if (!childRow) return;
-    const input = childRow.querySelector(`.child-multi-cases[data-idx="${idx}"]`);
-    if (!input) return;
-    let val = parseInt(input.value) || 0;
+    const inputCases = childRow.querySelector(`.child-multi-cases[data-idx="${idx}"]`);
+    if (!inputCases) return;
+    let val = parseInt(inputCases.value) || 0;
     val = Math.max(0, val + delta);
     const opt = getCaseOptions(path)[idx];
     if (opt && opt.qty > 0) {
         const maxCases = opt.maxCases || 0;
-        if (maxCases > 0 && val > maxCases) { val = maxCases; input.value = val; showToast(`Превышен лимит кофров для вар.${idx+1} (макс. ${maxCases})`, 'warning'); }
+        if (maxCases > 0 && val > maxCases) { val = maxCases; inputCases.value = val; showToast(`Превышен лимит кофров для вар.${idx+1} (макс. ${maxCases})`, 'warning'); }
         const pieces = val * opt.qty;
         const sq = getStockValue(path);
         if (pieces > sq) {
             showToast(`Превышено доступное количество (${sq})`, 'warning');
             const maxPieces = sq;
             const maxVal = Math.floor(maxPieces / opt.qty);
-            if (maxVal < val) { val = maxVal; input.value = val; const newPieces = val * opt.qty; const piecesInput = childRow.querySelector(`.child-multi-pieces[data-idx="${idx}"]`); if (piecesInput) piecesInput.value = newPieces; const vals = getIndividualCaseValues(path); vals[idx] = newPieces; setIndividualCaseValues(path, vals); const total = vals.reduce((a,b) => a + b, 0); order[path] = total; if (total === 0) delete order[path]; saveOrderData(); updateRowOrder(path, false); updateTotalsOrder(); updateCategoryTotalsOrder(currentOrderCategory); updateAllCommonCaseIndicators(); return; }
+            if (maxVal < val) {
+                val = maxVal;
+                inputCases.value = val;
+                const newPieces = val * opt.qty;
+                const inputPieces = childRow.querySelector(`.child-multi-pieces[data-idx="${idx}"]`);
+                if (inputPieces) inputPieces.value = newPieces;
+                const vals = getIndividualCaseValues(path);
+                vals[idx] = newPieces;
+                setIndividualCaseValues(path, vals);
+                const total = vals.reduce((a,b) => a + b, 0);
+                order[path] = total;
+                if (total === 0) delete order[path];
+                saveOrderData();
+                updateRowOrder(path, false);
+                updateTotalsOrder();
+                updateCategoryTotalsOrder(currentOrderCategory);
+                updateAllCommonCaseIndicators();
+                return;
+            }
         }
-        const piecesInput = childRow.querySelector(`.child-multi-pieces[data-idx="${idx}"]`);
-        if (piecesInput) piecesInput.value = pieces;
+        const inputPieces = childRow.querySelector(`.child-multi-pieces[data-idx="${idx}"]`);
+        if (inputPieces) inputPieces.value = pieces;
         const vals = getIndividualCaseValues(path);
         vals[idx] = pieces;
         setIndividualCaseValues(path, vals);
@@ -300,7 +324,7 @@ function handleContainerInput(e) {
     const singleCases = e.target.closest('.single-cases-input');
     if (singleCases) { const path = singleCases.dataset.path; let val = parseInt(singleCases.value); if (isNaN(val) || val < 0) val = 0; singleCases.value = val; const opt = getSelectedOption(path); if (opt && opt.qty > 0) { const maxCases = opt.maxCases || 0; if (maxCases > 0 && val > maxCases) { val = maxCases; singleCases.value = val; showToast(`Превышен лимит кофров (макс. ${maxCases})`, 'warning'); } const pieces = val * opt.qty; const sq = getStockValue(path); if (pieces > sq) { showToast(`Превышено доступное количество (${sq})`, 'warning'); const maxPieces = sq; const maxVal = Math.floor(maxPieces / opt.qty); if (maxVal < val) { val = maxVal; singleCases.value = val; const newPieces = val * opt.qty; const piecesInput = singleCases.parentElement.querySelector('.single-pieces-input'); if (piecesInput) piecesInput.value = newPieces; setIndividualCaseValues(path, [newPieces]); order[path] = newPieces; if (newPieces === 0) delete order[path]; saveOrderData(); updateRowOrder(path, false); updateTotalsOrder(); updateCategoryTotalsOrder(currentOrderCategory); return; } } const piecesInput = singleCases.parentElement.querySelector('.single-pieces-input'); if (piecesInput) piecesInput.value = pieces; setIndividualCaseValues(path, [pieces]); order[path] = pieces; if (pieces === 0) delete order[path]; saveOrderData(); updateRowOrder(path, false); updateTotalsOrder(); updateCategoryTotalsOrder(currentOrderCategory); } return; }
     const multiPieces = e.target.closest('.child-multi-pieces');
-    if (multiPieces) { const path = multiPieces.dataset.path; const idx = parseInt(multiPieces.dataset.idx); let val = parseInt(multiPieces.value); if (isNaN(val) || val < 0) val = 0; multiPieces.value = val; const vals = getIndividualCaseValues(path); vals[idx] = val; setIndividualCaseValues(path, vals); const opt = getCaseOptions(path)[idx]; if (opt && opt.qty > 0) { let casesCount = Math.ceil(val / opt.qty); const maxCases = opt.maxCases || 0; if (maxCases > 0 && casesCount > maxCases) { casesCount = maxCases; const newPieces = casesCount * opt.qty; multiPieces.value = newPieces; vals[idx] = newPieces; setIndividualCaseValues(path, vals); showToast(`Достигнут лимит кофров для вар.${idx+1} (макс. ${maxCases})`, 'warning'); } const casesInput = multiPieces.parentElement.querySelector(`.child-multi-cases[data-idx="${idx}"]`); if (casesInput) casesInput.value = casesCount; } const total = vals.reduce((a,b) => a + b, 0); order[path] = total; if (total === 0) delete order[path]; saveOrderData(); updateRowOrder(path, false); updateTotalsOrder(); updateCategoryTotalsOrder(currentOrderCategory); updateAllCommonCaseIndicators(); return; }
+    if (multiPieces) { const path = multiPieces.dataset.path; const idx = parseInt(multiPieces.dataset.idx); let val = parseInt(multiPieces.value); if (isNaN(val) || val < 0) val = 0; multiPieces.value = val; const opt = getCaseOptions(path)[idx]; if (opt && opt.qty > 0) { let casesCount = Math.ceil(val / opt.qty); const maxCases = opt.maxCases || 0; if (maxCases > 0 && casesCount > maxCases) { casesCount = maxCases; const newPieces = casesCount * opt.qty; multiPieces.value = newPieces; val = newPieces; showToast(`Достигнут лимит кофров для вар.${idx+1} (макс. ${maxCases})`, 'warning'); } const casesInput = multiPieces.parentElement.querySelector(`.child-multi-cases[data-idx="${idx}"]`); if (casesInput) casesInput.value = casesCount; } const vals = getIndividualCaseValues(path); vals[idx] = val; setIndividualCaseValues(path, vals); const total = vals.reduce((a,b) => a + b, 0); order[path] = total; if (total === 0) delete order[path]; saveOrderData(); updateRowOrder(path, false); updateTotalsOrder(); updateCategoryTotalsOrder(currentOrderCategory); updateAllCommonCaseIndicators(); return; }
     const multiCases = e.target.closest('.child-multi-cases');
     if (multiCases) { const path = multiCases.dataset.path; const idx = parseInt(multiCases.dataset.idx); let val = parseInt(multiCases.value); if (isNaN(val) || val < 0) val = 0; multiCases.value = val; const opt = getCaseOptions(path)[idx]; if (opt && opt.qty > 0) { const maxCases = opt.maxCases || 0; if (maxCases > 0 && val > maxCases) { val = maxCases; multiCases.value = val; showToast(`Превышен лимит кофров для вар.${idx+1} (макс. ${maxCases})`, 'warning'); } const pieces = val * opt.qty; const sq = getStockValue(path); if (pieces > sq) { showToast(`Превышено доступное количество (${sq})`, 'warning'); const maxPieces = sq; const maxVal = Math.floor(maxPieces / opt.qty); if (maxVal < val) { val = maxVal; multiCases.value = val; const newPieces = val * opt.qty; const piecesInput = multiCases.parentElement.querySelector(`.child-multi-pieces[data-idx="${idx}"]`); if (piecesInput) piecesInput.value = newPieces; const vals = getIndividualCaseValues(path); vals[idx] = newPieces; setIndividualCaseValues(path, vals); const total = vals.reduce((a,b) => a + b, 0); order[path] = total; if (total === 0) delete order[path]; saveOrderData(); updateRowOrder(path, false); updateTotalsOrder(); updateCategoryTotalsOrder(currentOrderCategory); updateAllCommonCaseIndicators(); return; } } const piecesInput = multiCases.parentElement.querySelector(`.child-multi-pieces[data-idx="${idx}"]`); if (piecesInput) piecesInput.value = pieces; const vals = getIndividualCaseValues(path); vals[idx] = pieces; setIndividualCaseValues(path, vals); const total = vals.reduce((a,b) => a + b, 0); order[path] = total; if (total === 0) delete order[path]; saveOrderData(); updateRowOrder(path, false); updateTotalsOrder(); updateCategoryTotalsOrder(currentOrderCategory); updateAllCommonCaseIndicators(); } return; }
     const commonQty = e.target.closest('.child-common-qty');
