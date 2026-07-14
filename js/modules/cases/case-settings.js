@@ -1,7 +1,6 @@
 // modules/cases/case-settings.js — Модалка настройки кофров для позиции
 import {
     getItemProps,
-    getCommonCases,
     getCaseMode,
     getCaseOptions,
     getSelectedOption,
@@ -13,6 +12,9 @@ import {
     setOrderExtra,
     saveOrderData
 } from '../../order.js';
+
+// Исправлено: импорт getCommonCases из data.js
+import { getCommonCases } from '../../data.js';
 
 import {
     esc,
