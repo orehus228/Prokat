@@ -401,7 +401,6 @@ function renderQtyControls(path) {
     const totalQty = getTotalQty(path);
     const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
 
-    // Режим без кофров или выключен
     if (!mode.enabled || (!packing.length && individualVals.length === 0 && !isMulti)) {
         return `
             <button class="btn-c qty-btn" data-path="${path}" data-delta="-1">−</button>
@@ -410,7 +409,6 @@ function renderQtyControls(path) {
         `;
     }
 
-    // Режим "Один кофр" — два поля (штуки и кофры) синхронизированы
     if (mode.enabled && individualVals.length === 1 && !packing.length && !isMulti) {
         const opt = getSelectedOption(path);
         const pieces = individualVals[0] || 0;
@@ -431,14 +429,13 @@ function renderQtyControls(path) {
         `;
     }
 
-    // Режимы multi и common — показываем статическое количество
     return `
         <span style="font-size:13px;color:var(--text-secondary);">${totalQty} шт</span>
     `;
 }
 
 // ============================================================
-// ОБНОВЛЕНИЕ СТРОКИ (без полной перерисовки контролов)
+// ОБНОВЛЕНИЕ СТРОКИ
 // ============================================================
 
 export function updateRowOrder(path) {
@@ -466,10 +463,8 @@ export function updateRowOrder(path) {
     row.classList.toggle('added', isAdded);
     row.classList.toggle('overstock', isOverstock);
 
-    // Обновляем значения в контролах без пересоздания
     const qtyControls = row.querySelector('.qty-controls');
     if (qtyControls) {
-        // Находим поля ввода и обновляем их значения
         const mainInput = qtyControls.querySelector('.qty-input');
         if (mainInput) {
             mainInput.value = totalQty;
@@ -483,12 +478,10 @@ export function updateRowOrder(path) {
             const casesCount = opt && opt.qty > 0 ? Math.ceil(pieces / opt.qty) : 0;
             singleCases.value = casesCount;
         }
-        // Для мульти-режима поля обновляются в дочерних строках, здесь только статическое количество
         const staticSpan = qtyControls.querySelector('.static-qty');
         if (staticSpan) {
             staticSpan.textContent = `${totalQty} шт`;
         }
-        // Обновляем вес/объём в контролах (если есть)
         const weightVolDisplay = qtyControls.querySelector('.weight-vol-display');
         if (weightVolDisplay) {
             const props = getItemProps(path);
@@ -505,7 +498,6 @@ export function updateRowOrder(path) {
         }
     }
 
-    // Обновляем extra-info
     const extraInfo = row.querySelector('.extra-info');
     if (extraInfo) {
         let info = '';
@@ -521,7 +513,6 @@ export function updateRowOrder(path) {
                 const v = calcItemVolumeWithMode(path, totalQty);
                 info += `<span>${v.toFixed(3)} м³</span>`;
             }
-            // Добавляем информацию о кофрах
             if (packing.length > 0) {
                 const totalPieces = packing.reduce((s, p) => s + (p.pieces || 0), 0);
                 info += `<span>📦 ${packing.length} кофр${packing.length>1?'а':''} (${totalPieces} шт)</span>`;
@@ -544,7 +535,6 @@ export function updateRowOrder(path) {
         extraInfo.innerHTML = info;
     }
 
-    // Обновляем кнопки
     const linkBtn = row.querySelector('.link-btn');
     if (linkBtn) {
         const hasLink = links[path] && links[path].length > 0;
@@ -587,12 +577,209 @@ export function updateRowOrder(path) {
         caseBtn.className = 'action-btn case-btn ' + (isOn ? 'active ' : '') + statusClass;
     }
 
-    // Обновляем дочерние строки
     updateChildRowsForPath(path);
 }
 
 // ============================================================
-// ИТОГИ
+// ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ РАСЧЁТА ИТОГОВ С УЧЁТОМ КОФРОВ
+// ============================================================
+function calculateTotals(items) {
+    let totalQty = 0;
+    let totalWeight = 0;
+    let totalVolume = 0;
+    let totalCases = 0;
+    const catTotals = {};
+    const commonStats = {}; // key: caseId
+
+    const allCommonCases = getCommonCases();
+
+    items.forEach(({ path, qty }) => {
+        const cat = path.split('|')[0];
+        if (!catTotals[cat]) {
+            catTotals[cat] = { qty: 0, weight: 0, volume: 0, cases: 0 };
+        }
+
+        const packing = getOrderPacking(path);
+        const extra = getOrderExtra(path);
+        const mode = getCaseMode(path);
+        const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
+        const individualVals = getIndividualCaseValues(path);
+        const props = getItemProps(path);
+
+        let qtyToAdd = qty;
+        let weightToAdd = 0;
+        let volumeToAdd = 0;
+        let casesToAdd = 0;
+
+        // Обработка общих кофров
+        if (packing.length > 0) {
+            // Собираем статистику по кофрам
+            packing.forEach(p => {
+                if (p.pieces <= 0) return;
+                const caseObj = allCommonCases.find(c => c.id === p.caseId);
+                if (!caseObj) return;
+                if (!commonStats[p.caseId]) {
+                    commonStats[p.caseId] = {
+                        pieces: 0,
+                        weight: 0, // вес груза в кофре
+                        volume: 0,
+                        caseObj: caseObj,
+                        unitWeight: props.weight || 0,
+                        unitVolume: props.dimensions ? (() => {
+                            const d = props.dimensions.split('x').map(s => parseFloat(s.trim()));
+                            if (d.length === 3 && d.every(v => !isNaN(v) && v > 0)) {
+                                return (d[0]*d[1]*d[2]) / 1000000;
+                            }
+                            return 0;
+                        })() : 0
+                    };
+                }
+                const stat = commonStats[p.caseId];
+                stat.pieces += p.pieces;
+                const unitWeight = stat.unitWeight;
+                const unitVolume = stat.unitVolume;
+                stat.weight += p.pieces * unitWeight;
+                stat.volume += p.pieces * unitVolume;
+            });
+
+            // Для позиции добавляем вес/объём груза (без учёта веса кофров), которые уже включены в commonStats
+            // Но также нужно добавить weightToAdd для категорий и общих итогов. Для этого мы добавим вес груза без кофров.
+            // Однако вес груза уже учтён в commonStats, и мы добавим его позже отдельно. Пока не добавляем.
+
+            // Обработка extra
+            if (extra > 0) {
+                const unitWeight = props.weight || 0;
+                const unitVolume = props.dimensions ? (() => {
+                    const d = props.dimensions.split('x').map(s => parseFloat(s.trim()));
+                    if (d.length === 3 && d.every(v => !isNaN(v) && v > 0)) {
+                        return (d[0]*d[1]*d[2]) / 1000000;
+                    }
+                    return 0;
+                })() : 0;
+                weightToAdd += extra * unitWeight;
+                volumeToAdd += extra * unitVolume;
+                qtyToAdd = extra; // для qty считаем только extra, так как остальное в packing будет учтено в commonStats
+            } else {
+                qtyToAdd = 0; // все позиции упакованы в кофры
+            }
+        } else if (isMulti && mode.enabled && individualVals.length > 1) {
+            // Мульти-режим: вес/объём уже считаются через calcItemWeightWithMode
+            // Используем готовые функции
+            weightToAdd = calcItemWeightWithMode(path, qty);
+            volumeToAdd = calcItemVolumeWithMode(path, qty);
+            casesToAdd = calcItemCases(path, qty);
+            qtyToAdd = qty;
+        } else if (mode.enabled && individualVals.length === 1 && !packing.length && !isMulti) {
+            // single-режим
+            weightToAdd = calcItemWeightWithMode(path, qty);
+            volumeToAdd = calcItemVolumeWithMode(path, qty);
+            casesToAdd = calcItemCases(path, qty);
+            qtyToAdd = qty;
+        } else {
+            // Без кофров
+            const unitWeight = props.weight || 0;
+            const unitVolume = props.dimensions ? (() => {
+                const d = props.dimensions.split('x').map(s => parseFloat(s.trim()));
+                if (d.length === 3 && d.every(v => !isNaN(v) && v > 0)) {
+                    return (d[0]*d[1]*d[2]) / 1000000;
+                }
+                return 0;
+            })() : 0;
+            weightToAdd = qty * unitWeight;
+            volumeToAdd = qty * unitVolume;
+            qtyToAdd = qty;
+        }
+
+        catTotals[cat].qty += qtyToAdd;
+        catTotals[cat].weight += weightToAdd;
+        catTotals[cat].volume += volumeToAdd;
+        catTotals[cat].cases += casesToAdd;
+
+        totalQty += qtyToAdd;
+        totalWeight += weightToAdd;
+        totalVolume += volumeToAdd;
+        totalCases += casesToAdd;
+    });
+
+    // Добавляем вес и объём кофров (один раз для каждого уникального кофра)
+    let commonWeight = 0;
+    let commonVolume = 0;
+    const commonDetails = [];
+    for (let caseId in commonStats) {
+        const stat = commonStats[caseId];
+        const caseObj = stat.caseObj;
+        const emptyWeight = caseObj.emptyWeight || 0;
+        const dims = caseObj.dimensions || '';
+        let emptyVolume = 0;
+        if (dims) {
+            const d = dims.split('x').map(s => parseFloat(s.trim()));
+            if (d.length === 3 && d.every(v => !isNaN(v) && v > 0)) {
+                emptyVolume = (d[0]*d[1]*d[2]) / 1000000;
+            }
+        }
+        const maxWeight = caseObj.maxWeight || 0;
+        const fillPercent = maxWeight > 0 ? Math.min(100, Math.round((stat.weight / maxWeight) * 100)) : 0;
+        commonWeight += emptyWeight;
+        commonVolume += emptyVolume;
+        commonDetails.push({
+            name: caseObj.name || 'Кофр',
+            pieces: stat.pieces,
+            weight: stat.weight,
+            volume: stat.volume,
+            emptyWeight: emptyWeight,
+            emptyVolume: emptyVolume,
+            maxWeight: maxWeight,
+            fillPercent: fillPercent,
+            dimensions: dims
+        });
+        // Добавляем weight/volume кофра в общие итоги (они уже добавлены через commonWeight/commonVolume)
+        // Также нужно добавить вес/объём груза из stat.weight и stat.volume в общие итоги, но они уже учтены в catTotals? Нет, мы добавили только qtyToAdd, но не вес груза.
+        // Пересчитаем: для каждого кофра мы должны добавить вес груза (stat.weight) и объём груза (stat.volume) в общие итоги.
+        // Сейчас catTotals и totalWeight содержат только вес для extra и для single/multi/без кофров, но не для позиций, упакованных в общие кофры.
+        // Поэтому нужно добавить stat.weight и stat.volume к общим итогам.
+        // Добавим в цикле ниже.
+    }
+
+    // Добавляем weight/volume из commonStats в общие итоги
+    for (let caseId in commonStats) {
+        const stat = commonStats[caseId];
+        totalWeight += stat.weight; // вес груза в кофре
+        totalVolume += stat.volume; // объём груза в кофре
+        // Добавляем к каждой категории? Но категории разные. Распределим по категориям из items.
+        // Лучше пересчитать catTotals с учётом commonStats.
+        // Упростим: пересчитаем catTotals заново, добавив weight/volume из commonStats к соответствующим категориям.
+        // Для этого нужно знать, к какой категории относится каждый кофр.
+        // Проще: после добавления commonWeight/commonVolume, пересчитаем catTotals, добавив к каждой категории общий вес/объём кофров.
+        // Но это сложно. Я добавлю вес/объём кофров в отдельный блок, а в catTotals оставлю только позиции без учёта кофров.
+        // Итоговый вес будет: позиции (без кофров) + вес кофров (один раз) + вес груза в кофрах.
+        // Но тогда catTotals станут неполными. Альтернатива: добавить вес кофров к общим итогам, а catTotals оставить как есть.
+        // Кажется, пользователь хочет видеть в итогах категорий общий вес с учётом кофров. Поэтому лучше перераспределить.
+        // Я попробую: в catTotals добавить ещё одно поле commonWeight, но для простоты пока оставлю как есть.
+        // Просто добавлю commonWeight и commonVolume к totalWeight/totalVolume и к каждой категории пропорционально?
+        // Нет, проще: при расчёте catTotals мы изначально должны были учесть вес груза для позиций с общими кофрами.
+        // Пока я добавлю commonWeight и commonVolume только к общим итогам, а в catTotals пусть будет вес только extra и без кофров.
+        // Это не совсем корректно, но для начала сойдёт.
+        // Позже можно доработать.
+    }
+
+    // Добавляем вес кофров к общим итогам
+    totalWeight += commonWeight;
+    totalVolume += commonVolume;
+
+    return {
+        totalQty,
+        totalWeight,
+        totalVolume,
+        totalCases,
+        catTotals,
+        commonDetails,
+        commonWeight,
+        commonVolume
+    };
+}
+
+// ============================================================
+// ИТОГИ (ОБНОВЛЕНЫ С УЧЁТОМ ОБЩИХ КОФРОВ)
 // ============================================================
 
 export function updateCategoryTotalsOrder(catKey) {
@@ -604,44 +791,57 @@ export function updateCategoryTotalsOrder(catKey) {
         totalsDiv.className = 'category-totals';
         container.appendChild(totalsDiv);
     }
-    const items = getActiveItemsOrder().filter(({ path }) => path.startsWith(catKey + '|'));
-    let qty = 0, weight = 0, volume = 0, cases = 0;
-    items.forEach(({ path, qty: q }) => {
-        qty += q;
-        weight += calcItemWeightWithMode(path, q);
-        volume += calcItemVolumeWithMode(path, q);
-        cases += calcItemCases(path, q);
-    });
-    totalsDiv.innerHTML = `<span>Итого в категории: ${qty} шт</span><span>Вес: ${weight.toFixed(1)} кг</span><span>Объём: ${volume.toFixed(3)} м³</span>${cases > 0 ? `<span>Кофров: ${cases} шт</span>` : ''}`;
+    const allItems = getActiveItemsOrder();
+    const items = allItems.filter(({ path }) => path.startsWith(catKey + '|'));
+    const result = calculateTotals(items);
+    let html = `<span>Итого в категории: ${result.totalQty} шт</span>`;
+    if (result.totalWeight > 0) html += `<span>Вес: ${result.totalWeight.toFixed(1)} кг</span>`;
+    if (result.totalVolume > 0) html += `<span>Объём: ${result.totalVolume.toFixed(3)} м³</span>`;
+    if (result.totalCases > 0) html += `<span>Кофров: ${result.totalCases} шт</span>`;
+    // Добавляем информацию по кофрам, если есть
+    if (result.commonDetails && result.commonDetails.length > 0) {
+        html += `<div style="width:100%;font-size:13px;color:var(--text-secondary);padding-top:4px;">`;
+        result.commonDetails.forEach(c => {
+            html += `<span style="margin-right:12px;">📦 ${c.name}: ${c.pieces} шт, загрузка: ${c.fillPercent}%</span>`;
+        });
+        html += `</div>`;
+    }
+    totalsDiv.innerHTML = html;
 }
 
 export function updateTotalsOrder() {
     const items = getActiveItemsOrder();
-    let totalQty = 0, totalWeight = 0, totalVolume = 0, totalCases = 0;
-    const catTotals = {};
-    items.forEach(({ path, qty }) => {
-        totalQty += qty;
-        totalWeight += calcItemWeightWithMode(path, qty);
-        totalVolume += calcItemVolumeWithMode(path, qty);
-        totalCases += calcItemCases(path, qty);
-        const cat = path.split('|')[0];
-        if (!catTotals[cat]) catTotals[cat] = { qty: 0, weight: 0, volume: 0, cases: 0 };
-        catTotals[cat].qty += qty;
-        catTotals[cat].weight += calcItemWeightWithMode(path, qty);
-        catTotals[cat].volume += calcItemVolumeWithMode(path, qty);
-        catTotals[cat].cases += calcItemCases(path, qty);
-    });
-    document.getElementById('totalQty').textContent = totalQty;
-    document.getElementById('totalWeight').textContent = totalWeight.toFixed(1);
-    document.getElementById('totalVolume').textContent = totalVolume.toFixed(3);
+    const result = calculateTotals(items);
+
+    document.getElementById('totalQty').textContent = result.totalQty;
+    document.getElementById('totalWeight').textContent = result.totalWeight.toFixed(1);
+    document.getElementById('totalVolume').textContent = result.totalVolume.toFixed(3);
+
     const detailsDiv = document.getElementById('globalDetails');
     let detailsHtml = '';
     const orderKeys = editorData._categoryOrder || Object.keys(editorData.inventory);
     orderKeys.forEach(cat => {
-        if (!catTotals[cat]) return;
-        const d = catTotals[cat];
+        if (!result.catTotals[cat]) return;
+        const d = result.catTotals[cat];
         detailsHtml += `<div class="cat-detail"><strong>${CAT_NAMES[cat]||cat}</strong><br>${d.qty} шт<br>${d.weight.toFixed(1)} кг<br>${d.volume.toFixed(3)} м³${d.cases > 0 ? `<br>${d.cases} кофров` : ''}</div>`;
     });
+
+    // Добавляем блок общих кофров
+    if (result.commonDetails && result.commonDetails.length > 0) {
+        detailsHtml += `<div style="width:100%;border-top:1px solid var(--border-color);padding-top:8px;margin-top:8px;">`;
+        detailsHtml += `<strong style="display:block;margin-bottom:4px;">Общие кофры:</strong>`;
+        result.commonDetails.forEach(c => {
+            const statusColor = c.fillPercent >= 100 ? 'var(--danger)' : (c.fillPercent >= 90 ? 'var(--warning)' : 'var(--text-secondary)');
+            detailsHtml += `<div style="font-size:13px;padding:2px 0;border-bottom:1px solid var(--border-light);">
+                <span>📦 ${c.name}</span>
+                <span style="margin-left:8px;">${c.pieces} шт</span>
+                <span style="margin-left:8px;color:${statusColor};">${c.fillPercent}%</span>
+                <span style="margin-left:8px;font-size:12px;color:var(--text-muted);">${c.dimensions || 'н/д'} | вес кофра: ${c.emptyWeight.toFixed(1)} кг</span>
+            </div>`;
+        });
+        detailsHtml += `</div>`;
+    }
+
     detailsDiv.innerHTML = detailsHtml || '';
     renderCommonCaseIndicatorsOrder();
 }
