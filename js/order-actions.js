@@ -53,7 +53,8 @@ import {
     currentOrderCategory,
     renderOrderAll,
     setSearchMode,
-    setSearchQuery
+    setSearchQuery,
+    refreshRow   // <-- добавлен импорт
 } from './order-render.js';
 
 // ============================================================
@@ -118,12 +119,10 @@ function handleContainerClick(e) {
                 showToast(`Превышено количество для "${name}" (доступно ${sq})`, 'warning');
             }
             input.value = val;
-            // Обновляем данные
             setIndividualCaseValues(path, [val]);
             order[path] = val;
             if (val === 0) delete order[path];
             saveOrderData();
-            // Пересчитываем поле кофров с учётом ограничений
             const opt = getSelectedOption(path);
             if (opt && opt.qty > 0) {
                 let casesCount = Math.ceil(val / opt.qty);
@@ -169,7 +168,6 @@ function handleContainerClick(e) {
                 const sq = getStockValue(path);
                 if (pieces > sq) {
                     showToast(`Превышено доступное количество (${sq})`, 'warning');
-                    // Подбираем максимальное количество кофров
                     const maxPieces = sq;
                     const maxVal = Math.floor(maxPieces / opt.qty);
                     if (maxVal < val) {
@@ -203,7 +201,6 @@ function handleContainerClick(e) {
     }
 
     // === ОБРАБОТЧИКИ ДЛЯ МУЛЬТИ-РЕЖИМА (дочерние строки) ===
-    // Кнопки +/− для штук в мультирежиме
     const multiPieceBtn = e.target.closest('.child-multi-piece-btn');
     if (multiPieceBtn) {
         const path = multiPieceBtn.dataset.path;
@@ -219,11 +216,9 @@ function handleContainerClick(e) {
                 showToast(`Превышено количество для "${name}" (доступно ${sq})`, 'warning');
             }
             input.value = val;
-            // Обновляем данные
             const vals = getIndividualCaseValues(path);
             vals[idx] = val;
             setIndividualCaseValues(path, vals);
-            // Пересчитываем поле кофров с учётом ограничений
             const opt = getCaseOptions(path)[idx];
             if (opt && opt.qty > 0) {
                 let casesCount = Math.ceil(val / opt.qty);
@@ -250,7 +245,6 @@ function handleContainerClick(e) {
         return;
     }
 
-    // Кнопки +/− для кофров в мультирежиме
     const multiCaseBtn = e.target.closest('.child-multi-case-btn');
     if (multiCaseBtn) {
         const path = multiCaseBtn.dataset.path;
@@ -311,7 +305,6 @@ function handleContainerClick(e) {
     }
 
     // === ОБРАБОТЧИКИ ДЛЯ ОБЩИХ КОФРОВ ===
-    // Кнопки +/− для количества в общем кофре
     const commonBtn = e.target.closest('.child-common-btn');
     if (commonBtn) {
         const path = commonBtn.dataset.path;
@@ -350,7 +343,6 @@ function handleContainerClick(e) {
         return;
     }
 
-    // Кнопки +/− для "вне кофра"
     const extraBtn = e.target.closest('.child-extra-btn');
     if (extraBtn) {
         const path = extraBtn.dataset.path;
@@ -374,7 +366,6 @@ function handleContainerClick(e) {
         return;
     }
 
-    // Удаление привязки к общему кофру
     const removeBtn = e.target.closest('.remove-common-pack');
     if (removeBtn) {
         const path = removeBtn.dataset.path;
@@ -411,17 +402,17 @@ function handleContainerClick(e) {
         return;
     }
 
+    // ========== ИСПРАВЛЕНИЕ: обработчик case-btn теперь использует refreshRow ==========
     const caseBtn = e.target.closest('.case-btn');
     if (caseBtn) {
         import('./cases.js').then(module => {
             module.openCaseSettingsModal(caseBtn.dataset.path, () => {
-                updateRowOrder(caseBtn.dataset.path);
-                updateTotalsOrder();
-                updateCategoryTotalsOrder(currentOrderCategory);
+                refreshRow(caseBtn.dataset.path);
             });
         });
         return;
     }
+    // ===================================================================================
 
     const noteBtn = e.target.closest('.note-btn');
     if (noteBtn) {
@@ -429,7 +420,6 @@ function handleContainerClick(e) {
         return;
     }
 
-    // Обработка дропдауна кофров (устаревший механизм, но оставлен для совместимости)
     const dropdownBtn = e.target.closest('.case-dropdown-btn');
     if (dropdownBtn) {
         const path = dropdownBtn.dataset.path;
@@ -452,7 +442,6 @@ function handleContainerClick(e) {
 }
 
 function handleContainerInput(e) {
-    // === ОСНОВНОЕ ПОЛЕ ВВОДА (без кофров) ===
     const target = e.target.closest('.qty-input');
     if (target) {
         const path = target.dataset.path;
@@ -466,7 +455,6 @@ function handleContainerInput(e) {
         return;
     }
 
-    // === SINGLE-РЕЖИМ: ввод штук ===
     const singlePieces = e.target.closest('.single-pieces-input');
     if (singlePieces) {
         const path = singlePieces.dataset.path;
@@ -500,7 +488,6 @@ function handleContainerInput(e) {
         return;
     }
 
-    // === SINGLE-РЕЖИМ: ввод кофров ===
     const singleCases = e.target.closest('.single-cases-input');
     if (singleCases) {
         const path = singleCases.dataset.path;
@@ -550,7 +537,6 @@ function handleContainerInput(e) {
         return;
     }
 
-    // === МУЛЬТИ-РЕЖИМ: ввод штук ===
     const multiPieces = e.target.closest('.child-multi-pieces');
     if (multiPieces) {
         const path = multiPieces.dataset.path;
@@ -586,7 +572,6 @@ function handleContainerInput(e) {
         return;
     }
 
-    // === МУЛЬТИ-РЕЖИМ: ввод кофров ===
     const multiCases = e.target.closest('.child-multi-cases');
     if (multiCases) {
         const path = multiCases.dataset.path;
@@ -643,7 +628,6 @@ function handleContainerInput(e) {
         return;
     }
 
-    // === ОБЩИЕ КОФРЫ: ввод количества в кофре ===
     const commonQty = e.target.closest('.child-common-qty');
     if (commonQty) {
         const path = commonQty.dataset.path;
@@ -679,7 +663,6 @@ function handleContainerInput(e) {
         return;
     }
 
-    // === ОБЩИЕ КОФРЫ: ввод "вне кофра" ===
     const extraQty = e.target.closest('.child-extra-qty');
     if (extraQty) {
         const path = extraQty.dataset.path;
@@ -728,9 +711,7 @@ function handleDropdownItemOrder(item) {
     if (idx !== undefined) {
         import('./cases.js').then(module => {
             module.openCaseSettingsModal(path, () => {
-                updateRowOrder(path);
-                updateTotalsOrder();
-                updateCategoryTotalsOrder(currentOrderCategory);
+                refreshRow(path);
             });
         });
         const dropdown = item.closest('.case-dropdown');

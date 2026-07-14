@@ -259,7 +259,7 @@ function buildCategoryHTML(data, path, level) {
 }
 
 // ============================================================
-// ПОСТРОЕНИЕ СТРОКИ
+// ПОСТРОЕНИЕ СТРОКИ (исправлен расчёт веса/объёма)
 // ============================================================
 
 export function buildItemRow(fullPath, level) {
@@ -317,16 +317,20 @@ export function buildItemRow(fullPath, level) {
         caseStatusClass = 'off';
     }
 
+    // ========== ИСПРАВЛЕНИЕ: вес и объём считаем без учёта кофров ==========
     let weightDisplay = '0 кг', volumeDisplay = '0 м³';
     if (props.weight !== undefined && props.weight !== null && props.weight > 0) {
-        const w = calcItemWeightWithMode(fullPath, totalQty);
+        const w = props.weight * totalQty;
         weightDisplay = w.toFixed(1) + ' кг';
     }
     if (props.dimensions && props.dimensions.trim() !== '') {
-        const v = calcItemVolumeWithMode(fullPath, totalQty);
-        volumeDisplay = v.toFixed(3) + ' м³';
+        const unitVol = parseUnitVolume(props.dimensions);
+        if (unitVol > 0) {
+            volumeDisplay = (unitVol * totalQty).toFixed(3) + ' м³';
+        }
     }
-    
+    // =====================================================================
+
     const infoHtml = buildInfoHtml(fullPath, props, mode);
     const escapedName = esc(fullPath.split('|').pop());
     const isAdded = totalQty > 0;
@@ -425,7 +429,7 @@ function renderQtyControls(path) {
 }
 
 // ============================================================
-// ОБНОВЛЕНИЕ СТРОКИ (исправлено: добавлены individualVals)
+// ОБНОВЛЕНИЕ СТРОКИ (исправлен расчёт веса/объёма)
 // ============================================================
 
 export function updateRowOrder(path) {
@@ -436,7 +440,6 @@ export function updateRowOrder(path) {
     const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
     const packing = getOrderPacking(path);
     const hasCommonPacking = packing.length > 0;
-    // Добавлено: получение individualVals
     const individualVals = getIndividualCaseValues(path);
     const totalQty = getTotalQty(path);
 
@@ -469,12 +472,14 @@ export function updateRowOrder(path) {
             const props = getItemProps(path);
             let weightDisplay = '0 кг', volumeDisplay = '0 м³';
             if (props.weight !== undefined && props.weight !== null && props.weight > 0) {
-                const w = calcItemWeightWithMode(path, totalQty);
+                const w = props.weight * totalQty;
                 weightDisplay = w.toFixed(1) + ' кг';
             }
             if (props.dimensions && props.dimensions.trim() !== '') {
-                const v = calcItemVolumeWithMode(path, totalQty);
-                volumeDisplay = v.toFixed(3) + ' м³';
+                const unitVol = parseUnitVolume(props.dimensions);
+                if (unitVol > 0) {
+                    volumeDisplay = (unitVol * totalQty).toFixed(3) + ' м³';
+                }
             }
             weightVolDisplay.textContent = weightDisplay + ' / ' + volumeDisplay;
         }
@@ -488,12 +493,14 @@ export function updateRowOrder(path) {
                     <span>в наличии: <strong>${sq}</strong></span>`;
             const props = getItemProps(path);
             if (props.weight !== undefined && props.weight !== null && props.weight > 0) {
-                const w = calcItemWeightWithMode(path, totalQty);
+                const w = props.weight * totalQty;
                 info += `<span>${w.toFixed(1)} кг</span>`;
             }
             if (props.dimensions && props.dimensions.trim() !== '') {
-                const v = calcItemVolumeWithMode(path, totalQty);
-                info += `<span>${v.toFixed(3)} м³</span>`;
+                const unitVol = parseUnitVolume(props.dimensions);
+                if (unitVol > 0) {
+                    info += `<span>${(unitVol * totalQty).toFixed(3)} м³</span>`;
+                }
             }
             if (packing.length > 0) {
                 const totalPieces = packing.reduce((s, p) => s + (p.pieces || 0), 0);
@@ -563,6 +570,24 @@ export function updateRowOrder(path) {
 }
 
 // ============================================================
+// ПЕРЕРИСОВКА СТРОКИ (новая функция)
+// ============================================================
+
+export function refreshRow(path) {
+    const oldRow = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
+    if (!oldRow) return;
+    const level = path.split('|').length - 1;
+    const newRowHtml = buildItemRow(path, level);
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = newRowHtml;
+    const newRow = tempDiv.firstElementChild;
+    oldRow.replaceWith(newRow);
+    updateChildRowsForPath(path);
+    updateTotalsOrder();
+    updateCategoryTotalsOrder(currentOrderCategory);
+}
+
+// ============================================================
 // ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ: расчёт объёма единицы по строке габаритов "AxBxC"
 // ============================================================
 function parseUnitVolume(dimensions) {
@@ -583,7 +608,7 @@ function calculateTotals(items) {
     let totalVolume = 0;
     let totalCases = 0;
     const catTotals = {};
-    const commonStats = {}; // key: caseId
+    const commonStats = {};
 
     const allCommonCases = getCommonCases();
 
@@ -605,9 +630,7 @@ function calculateTotals(items) {
         let volumeToAdd = 0;
         let casesToAdd = 0;
 
-        // Обработка общих кофров
         if (packing.length > 0) {
-            // Собираем статистику по кофрам
             packing.forEach(p => {
                 if (p.pieces <= 0) return;
                 const caseObj = allCommonCases.find(c => c.id === p.caseId);
@@ -615,7 +638,7 @@ function calculateTotals(items) {
                 if (!commonStats[p.caseId]) {
                     commonStats[p.caseId] = {
                         pieces: 0,
-                        weight: 0, // вес груза в кофре
+                        weight: 0,
                         volume: 0,
                         caseObj: caseObj,
                         unitWeight: props.weight || 0,
@@ -630,30 +653,24 @@ function calculateTotals(items) {
                 stat.volume += p.pieces * unitVolume;
             });
 
-            // Обработка extra (часть груза вне кофра)
             if (extra > 0) {
                 const unitWeight = props.weight || 0;
                 const unitVolume = parseUnitVolume(props.dimensions);
                 weightToAdd += extra * unitWeight;
                 volumeToAdd += extra * unitVolume;
             }
-            // Количество считаем полностью (упаковано в кофры + вне кофра),
-            // иначе итоговое "Итого шт" будет ошибочно занижено для упакованных позиций
             qtyToAdd = qty;
         } else if (isMulti && mode.enabled && individualVals.length > 1) {
-            // Мульти-режим: вес/объём уже считаются через calcItemWeightWithMode
             weightToAdd = calcItemWeightWithMode(path, qty);
             volumeToAdd = calcItemVolumeWithMode(path, qty);
             casesToAdd = calcItemCases(path, qty);
             qtyToAdd = qty;
         } else if (mode.enabled && individualVals.length === 1 && !packing.length && !isMulti) {
-            // single-режим
             weightToAdd = calcItemWeightWithMode(path, qty);
             volumeToAdd = calcItemVolumeWithMode(path, qty);
             casesToAdd = calcItemCases(path, qty);
             qtyToAdd = qty;
         } else {
-            // Без кофров
             const unitWeight = props.weight || 0;
             const unitVolume = parseUnitVolume(props.dimensions);
             weightToAdd = qty * unitWeight;
@@ -672,7 +689,6 @@ function calculateTotals(items) {
         totalCases += casesToAdd;
     });
 
-    // Добавляем вес и объём кофров (один раз для каждого уникального кофра)
     let commonWeight = 0;
     let commonVolume = 0;
     const commonDetails = [];
@@ -699,14 +715,12 @@ function calculateTotals(items) {
         });
     }
 
-    // Добавляем weight/volume из commonStats в общие итоги (вес груза в кофрах)
     for (let caseId in commonStats) {
         const stat = commonStats[caseId];
         totalWeight += stat.weight;
         totalVolume += stat.volume;
     }
 
-    // Добавляем вес кофров к общим итогам
     totalWeight += commonWeight;
     totalVolume += commonVolume;
 
@@ -723,7 +737,7 @@ function calculateTotals(items) {
 }
 
 // ============================================================
-// ИТОГИ (ОБНОВЛЕНЫ С УЧЁТОМ ОБЩИХ КОФРОВ)
+// ИТОГИ
 // ============================================================
 
 export function updateCategoryTotalsOrder(catKey) {

@@ -70,18 +70,13 @@ export function getValue(path) {
     return order[path] || 0;
 }
 
-// Функция для определения мульти-режима (универсальная)
 function isMultiMode(path) {
     const mode = getCaseMode(path);
     const vals = getIndividualCaseValues(path);
-    // Если есть multiSelected и он содержит true — мульти
     if (mode.multiSelected && mode.multiSelected.some(v => v === true)) {
         return true;
     }
-    // Если режим включен и individualVals имеет больше 1 варианта с положительным значением
     if (mode.enabled && vals.length > 1) {
-        // Проверим, есть ли хотя бы один вариант с количеством > 0 или все нули, но режим мульти
-        // Если все нули, но режим мульти включен (например, только что переключились), считаем мульти
         return true;
     }
     return false;
@@ -231,7 +226,7 @@ export function renderCommonCaseIndicatorsOrder() {
 }
 
 // ============================================================
-// РАБОТА С ДОЧЕРНИМИ ЭЛЕМЕНТАМИ (исправлен мульти-режим)
+// РАБОТА С ДОЧЕРНИМИ ЭЛЕМЕНТАМИ (исправлен мульти-режим – единообразные строки)
 // ============================================================
 
 export function updateChildRowsForPath(path) {
@@ -251,7 +246,7 @@ export function updateChildRowsForPath(path) {
     const individualVals = getIndividualCaseValues(path);
     const props = getItemProps(path);
 
-    // === МУЛЬТИ-РЕЖИМ (два поля: штуки и кофры) ===
+    // === МУЛЬТИ-РЕЖИМ (единообразные строки) ===
     if (isMulti && mode.enabled && options.length > 1) {
         const childDiv = document.createElement('div');
         childDiv.className = 'child-row';
@@ -275,20 +270,20 @@ export function updateChildRowsForPath(path) {
             const maxPossible = getStockValue(path);
             const maxCases = opt.maxCases || 0;
 
-            html += `<div class="child-controls" style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid var(--accent);">
+            // ===== Единообразная структура с фиксированными размерами =====
+            html += `<div class="child-controls" style="display:flex;flex-wrap:nowrap;align-items:center;gap:4px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid var(--accent);">
                 <span style="font-weight:500;min-width:70px;font-size:13px;">Вар.${idx+1}</span>
-                <span style="font-size:11px;color:var(--text-secondary);margin-right:2px;">(вм.${opt.qty} шт)</span>
-                <span style="font-size:11px;color:var(--text-secondary);">шт:</span>
-                <button class="btn-c child-multi-piece-btn" style="width:26px;height:26px;font-size:13px;" data-path="${path}" data-idx="${idx}" data-delta="-1">−</button>
-                <input type="number" class="child-multi-pieces" data-path="${path}" data-idx="${idx}" value="${val}" min="0" step="1" max="${maxPossible}" style="width:44px;padding:2px 4px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);text-align:center;font-size:13px;">
-                <button class="btn-c child-multi-piece-btn" style="width:26px;height:26px;font-size:13px;" data-path="${path}" data-idx="${idx}" data-delta="1">+</button>
-                <span style="font-size:11px;color:var(--text-secondary);">кофры:</span>
-                <button class="btn-c child-multi-case-btn" style="width:26px;height:26px;font-size:13px;" data-path="${path}" data-idx="${idx}" data-delta="-1">−</button>
-                <input type="number" class="child-multi-cases" data-path="${path}" data-idx="${idx}" value="${casesCount}" min="0" step="1" style="width:44px;padding:2px 4px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);text-align:center;font-size:13px;">
-                <button class="btn-c child-multi-case-btn" style="width:26px;height:26px;font-size:13px;" data-path="${path}" data-idx="${idx}" data-delta="1">+</button>
-                ${maxCases > 0 ? `<span style="font-size:10px;color:var(--text-muted);">(макс. ${maxCases})</span>` : ''}
-                <span style="font-size:11px;color:var(--text-muted);">${opt.dims || 'н/д'}</span>
-                <span style="font-size:11px;color:var(--text-muted);">вес: ${opt.weight || 0} кг</span>
+                <span style="font-size:11px;color:var(--text-secondary);min-width:40px;">шт:</span>
+                <button class="btn-c child-multi-piece-btn" style="width:26px;height:26px;font-size:13px;flex-shrink:0;" data-path="${path}" data-idx="${idx}" data-delta="-1">−</button>
+                <input type="number" class="child-multi-pieces" data-path="${path}" data-idx="${idx}" value="${val}" min="0" step="1" max="${maxPossible}" style="width:44px;padding:2px 4px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);text-align:center;font-size:13px;flex-shrink:0;">
+                <button class="btn-c child-multi-piece-btn" style="width:26px;height:26px;font-size:13px;flex-shrink:0;" data-path="${path}" data-idx="${idx}" data-delta="1">+</button>
+                <span style="font-size:11px;color:var(--text-secondary);min-width:40px;">кофры:</span>
+                <button class="btn-c child-multi-case-btn" style="width:26px;height:26px;font-size:13px;flex-shrink:0;" data-path="${path}" data-idx="${idx}" data-delta="-1">−</button>
+                <input type="number" class="child-multi-cases" data-path="${path}" data-idx="${idx}" value="${casesCount}" min="0" step="1" style="width:44px;padding:2px 4px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);text-align:center;font-size:13px;flex-shrink:0;">
+                <button class="btn-c child-multi-case-btn" style="width:26px;height:26px;font-size:13px;flex-shrink:0;" data-path="${path}" data-idx="${idx}" data-delta="1">+</button>
+                <span style="font-size:11px;color:var(--text-muted);min-width:70px;">${maxCases > 0 ? `макс.${maxCases}` : ''}</span>
+                <span style="font-size:11px;color:var(--text-muted);min-width:80px;">${opt.dims || 'н/д'}</span>
+                <span style="font-size:11px;color:var(--text-muted);min-width:60px;">вес:${opt.weight || 0}</span>
             </div>`;
         });
 
@@ -348,13 +343,13 @@ export function updateChildRowsForPath(path) {
 
             html += `<div class="child-controls" style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid ${statusColor};">
                 <span style="font-weight:500;min-width:70px;font-size:13px;">${esc(name)}</span>
-                <span style="font-size:11px;color:var(--text-secondary);">(вм.${c?.qty || 0} шт)</span>
+                <span style="font-size:11px;color:var(--text-secondary);min-width:40px;">шт:</span>
                 <button class="btn-c child-common-btn" style="width:26px;height:26px;font-size:13px;" data-path="${path}" data-caseid="${p.caseId}" data-delta="-1">−</button>
                 <input type="number" class="child-common-qty" data-path="${path}" data-caseid="${p.caseId}" value="${qty}" min="0" step="1" max="${maxPack}" style="width:44px;padding:2px 4px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);text-align:center;font-size:13px;">
                 <button class="btn-c child-common-btn" style="width:26px;height:26px;font-size:13px;" data-path="${path}" data-caseid="${p.caseId}" data-delta="1">+</button>
                 ${statusText ? `<span style="font-size:11px;color:${statusColor};">${statusText} (${fillPercent}%)</span>` : ''}
-                <span style="font-size:11px;color:var(--text-muted);">${c?.dimensions || 'н/д'}</span>
-                <span style="font-size:11px;color:var(--text-muted);">вес: ${c?.emptyWeight || 0} кг</span>
+                <span style="font-size:11px;color:var(--text-muted);min-width:70px;">${c?.dimensions || 'н/д'}</span>
+                <span style="font-size:11px;color:var(--text-muted);min-width:60px;">вес:${c?.emptyWeight || 0}</span>
                 <button class="btn btn-sm remove-common-pack" style="background:var(--danger);color:white;padding:0 6px;font-size:11px;border-radius:4px;border:none;cursor:pointer;" data-path="${path}" data-caseid="${p.caseId}">✕</button>
             </div>`;
         });
