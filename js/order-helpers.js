@@ -92,7 +92,9 @@ export function getStockValue(path) {
     const catKey = parts[0];
     const subKey = parts.length > 2 ? parts[1] : null;
     const itemName = subKey ? parts.slice(2).join('|') : parts.slice(1).join('|');
-    return getStock(catKey, subKey, itemName) || 9999;
+    const key = subKey ? catKey + '|' + subKey + '|' + itemName : catKey + '|' + itemName;
+    if (editorData.stock[key] === undefined) return 9999;
+    return editorData.stock[key];
 }
 
 export function setValueOrder(path, val) {
@@ -196,7 +198,36 @@ export function updateLinkCountOrder() {
 }
 
 export function renderCommonCaseIndicatorsOrder() {
-    // Пустая заглушка
+    let indicator = document.getElementById('commonCaseIndicators');
+    if (!indicator) {
+        const linkCount = document.getElementById('linkCount');
+        if (!linkCount?.parentElement) return;
+        indicator = document.createElement('span');
+        indicator.id = 'commonCaseIndicators';
+        indicator.style.cssText = 'font-size:13px;color:var(--text-secondary);margin-left:8px;';
+        linkCount.parentElement.appendChild(indicator);
+    }
+
+    const usedCases = new Map();
+    for (let path in orderPacking) {
+        getOrderPacking(path).forEach(p => {
+            if (p.pieces > 0) {
+                usedCases.set(p.caseId, (usedCases.get(p.caseId) || 0) + p.pieces);
+            }
+        });
+    }
+
+    if (usedCases.size === 0) {
+        indicator.textContent = '';
+        return;
+    }
+
+    const parts = [];
+    usedCases.forEach((pieces, caseId) => {
+        const c = getCommonCases().find(x => x.id === caseId);
+        parts.push(`${c?.name || 'Кофр'}: ${pieces} шт`);
+    });
+    indicator.textContent = '📦 ' + parts.join(' · ');
 }
 
 // ============================================================

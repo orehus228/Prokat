@@ -136,7 +136,7 @@ export function renderOpenOrder(d) {
                     html += `</div>`;
                     html += `</div>`;
                     if (hasDesc) {
-                        html += `<div class="desc-block" style="display:${descOpen ? 'block' : 'none'};margin-left:20px;">${esc(desc)}</div>`;
+                        html += `<div class="desc-block" data-path="${esc(item.path)}" style="display:${descOpen ? 'block' : 'none'};margin-left:20px;">${esc(desc)}</div>`;
                     }
                     html += `</div>`;
                 }
@@ -161,10 +161,10 @@ window.toggleOpenCategory = function(fullPath) {
 window.toggleOpenDesc = function(path) {
     openDescState[path] = !openDescState[path];
     saveOpenState();
-    const block = document.querySelector(`.desc-block[data-path="${esc(path)}"]`);
+    const block = document.querySelector(`.desc-block[data-path="${CSS.escape(path)}"]`);
     if (block) {
         block.style.display = openDescState[path] ? 'block' : 'none';
-        const btn = block.parentElement.querySelector('.desc-toggle');
+        const btn = block.closest('.row')?.querySelector('.desc-toggle');
         if (btn) btn.textContent = openDescState[path] ? '📕' : '📄';
     }
 };

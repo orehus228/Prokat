@@ -1,5 +1,11 @@
 // order.js — Данные заказа (полная версия с синхронизацией путей)
-import { getItemProps, getCommonCases, getCachedCalculation, setCachedCalculation } from './data.js';
+import {
+    getItemProps,
+    getCommonCases,
+    getCachedCalculation,
+    setCachedCalculation,
+    clearCache as clearCalculationCache
+} from './data.js';
 
 export let order = {};
 export let orderSplits = {};
@@ -13,11 +19,20 @@ export let orderExclude = {};
 export let orderExtra = {};
 
 const STORAGE_ORDER_KEY = 'app_order_data';
-let calculationCache = new Map();
 
+// ВАЖНО: реальный кеш расчётов (вес/объём) хранится в data.js
+// (там же его читают/пишут calcItemWeightWithMode/calcItemVolumeWithMode
+// через getCachedCalculation/setCachedCalculation). Раньше здесь был
+// собственный, никогда не используемый Map + clearCache(), из-за чего
+// вызов clearCache() в saveOrderData() чистил "пустышку", а настоящий
+// кеш в data.js не сбрасывался при изменении заказа (упаковка в кофры,
+// распределение по вариантам и т.п. при том же итоговом количестве).
+// Это приводило к тому, что calcItemWeightWithMode/calcItemVolumeWithMode
+// могли возвращать устаревшие (неверные) значения веса/объёма.
 export function clearCache() {
-    calculationCache.clear();
+    clearCalculationCache();
 }
+
 
 export function loadOrderData() {
     try {
@@ -135,17 +150,21 @@ export function updateOrderPaths(oldPath, newPath) {
 // ============================================================
 
 export function getTotalQty(path) {
+    const packing = getOrderPacking(path);
+    if (packing.length > 0) {
+        const extra = getOrderExtra(path);
+        return extra + packing.reduce((s, p) => s + (p.pieces || 0), 0);
+    }
+
+    const mode = getCaseMode(path);
+    const vals = getIndividualCaseValues(path);
+    if (mode.enabled && vals.length > 0) {
+        return vals.reduce((a, b) => a + b, 0);
+    }
+
     let total = order[path] || 0;
     if (orderSplits[path]) {
         total += orderSplits[path].reduce((s, seg) => s + (seg.qty || 0), 0);
-    }
-    const packing = getOrderPacking(path);
-    const extra = getOrderExtra(path);
-    total += packing.reduce((s, p) => s + (p.pieces || 0), 0);
-    total += extra;
-    const vals = getIndividualCaseValues(path);
-    if (vals.length > 0) {
-        total += vals.reduce((a, b) => a + b, 0);
     }
     return total;
 }

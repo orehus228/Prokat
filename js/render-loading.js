@@ -31,6 +31,8 @@ import {
     showConfirm
 } from './ui.js';
 
+import { getActiveItemsOrder } from './order-helpers.js';
+
 // Ключ для сохранения выбранных грузовиков
 const SELECTED_TRUCKS_KEY = 'selected_truck_ids';
 
@@ -67,22 +69,15 @@ export function saveSelectedTrucks() {
 // ПОЛУЧЕНИЕ ДАННЫХ ДЛЯ РАСЧЁТА
 // ============================================================
 function getOrderItemsForLoading() {
-    const items = [];
-    for (let path in order) {
-        const qty = order[path];
-        if (qty > 0) {
-            items.push({ path, qty });
-        }
-    }
-    for (let path in orderSplits) {
-        const segs = orderSplits[path];
-        segs.forEach(seg => {
-            if (seg.qty > 0) {
-                items.push({ path, qty: seg.qty });
-            }
-        });
-    }
-    return items;
+    return getActiveItemsOrder();
+}
+
+function getTruckDimensions(truck) {
+    return {
+        width: truck.width || 0,
+        height: truck.height || 0,
+        depth: truck.length ?? truck.depth ?? 0
+    };
 }
 
 function getItemDimensions(path, qty) {

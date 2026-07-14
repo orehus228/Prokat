@@ -249,8 +249,8 @@ function buildCategoryHTML(data, path, level) {
         keys.forEach(key => {
             const childPath = [...path, key];
             const isSubSub = level >= 2;
-            if (isSubSub) html += `<div class="sub-sub-cat-t">${key}</div>`;
-            else html += `<div class="sub-cat-t">${key}</div>`;
+            if (isSubSub) html += `<div class="sub-sub-cat-t">${esc(key)}</div>`;
+            else html += `<div class="sub-cat-t">${esc(key)}</div>`;
             html += buildCategoryHTML(data[key], childPath, level + 1);
         });
         return html;
@@ -270,22 +270,12 @@ export function buildItemRow(fullPath, level) {
     const hasCase = (props.individualCases && props.individualCases.length > 0) || props.allowCommon;
     const mode = getCaseMode(fullPath);
     const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
-    const hasAlt = !!mode.alt;
     const packing = getOrderPacking(fullPath);
     const hasCommonPacking = packing.length > 0;
     const individualVals = getIndividualCaseValues(fullPath);
     const options = getCaseOptions(fullPath);
 
-    let totalQty = 0;
-    if (isMulti && mode.enabled) {
-        totalQty = individualVals.reduce((a,b) => a + b, 0);
-    } else if (hasCommonPacking) {
-        const extra = getOrderExtra(fullPath);
-        const packed = packing.reduce((s, p) => s + (p.pieces || 0), 0);
-        totalQty = extra + packed;
-    } else {
-        totalQty = order[fullPath] || 0;
-    }
+    let totalQty = getTotalQty(fullPath);
 
     const overstock = totalQty > sq;
     const isInfoOpen = infoBlocksOpen[fullPath] || false;
@@ -383,7 +373,7 @@ export function buildItemRow(fullPath, level) {
     }
     if (hasLink) {
         links[fullPath].forEach(link => {
-            html += `<div style="font-size:13px;color:var(--text-secondary);padding-left:${level*20+20}px;width:100%;flex-basis:100%;">→ ${link.target} (×${link.multiplier})</div>`;
+            html += `<div style="font-size:13px;color:var(--text-secondary);padding-left:${level*20+20}px;width:100%;flex-basis:100%;">→ ${esc(link.target)} (×${esc(String(link.multiplier))})</div>`;
         });
     }
 
@@ -448,17 +438,7 @@ export function updateRowOrder(path) {
     const hasCommonPacking = packing.length > 0;
     // Добавлено: получение individualVals
     const individualVals = getIndividualCaseValues(path);
-    let totalQty = 0;
-    if (isMulti && mode.enabled) {
-        const vals = getIndividualCaseValues(path);
-        totalQty = vals.reduce((a,b) => a + b, 0);
-    } else if (hasCommonPacking) {
-        const extra = getOrderExtra(path);
-        const packed = packing.reduce((s, p) => s + (p.pieces || 0), 0);
-        totalQty = extra + packed;
-    } else {
-        totalQty = order[path] || 0;
-    }
+    const totalQty = getTotalQty(path);
 
     const isAdded = totalQty > 0;
     const isOverstock = totalQty > sq;
@@ -583,6 +563,18 @@ export function updateRowOrder(path) {
 }
 
 // ============================================================
+// ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ: расчёт объёма единицы по строке габаритов "AxBxC"
+// ============================================================
+function parseUnitVolume(dimensions) {
+    if (!dimensions) return 0;
+    const d = dimensions.split('x').map(s => parseFloat(s.trim()));
+    if (d.length === 3 && d.every(v => !isNaN(v) && v > 0)) {
+        return (d[0] * d[1] * d[2]) / 1000000;
+    }
+    return 0;
+}
+
+// ============================================================
 // ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ РАСЧЁТА ИТОГОВ С УЧЁТОМ КОФРОВ
 // ============================================================
 function calculateTotals(items) {
@@ -627,13 +619,7 @@ function calculateTotals(items) {
                         volume: 0,
                         caseObj: caseObj,
                         unitWeight: props.weight || 0,
-                        unitVolume: props.dimensions ? (() => {
-                            const d = props.dimensions.split('x').map(s => parseFloat(s.trim()));
-                            if (d.length === 3 && d.every(v => !isNaN(v) && v > 0)) {
-                                return (d[0]*d[1]*d[2]) / 1000000;
-                            }
-                            return 0;
-                        })() : 0
+                        unitVolume: parseUnitVolume(props.dimensions)
                     };
                 }
                 const stat = commonStats[p.caseId];
@@ -644,22 +630,16 @@ function calculateTotals(items) {
                 stat.volume += p.pieces * unitVolume;
             });
 
-            // Обработка extra
+            // Обработка extra (часть груза вне кофра)
             if (extra > 0) {
                 const unitWeight = props.weight || 0;
-                const unitVolume = props.dimensions ? (() => {
-                    const d = props.dimensions.split('x').map(s => parseFloat(s.trim()));
-                    if (d.length === 3 && d.every(v => !isNaN(v) && v > 0)) {
-                        return (d[0]*d[1]*d[2]) / 1000000;
-                    }
-                    return 0;
-                })() : 0;
+                const unitVolume = parseUnitVolume(props.dimensions);
                 weightToAdd += extra * unitWeight;
                 volumeToAdd += extra * unitVolume;
-                qtyToAdd = extra; // для qty считаем только extra, так как остальное в packing будет учтено в commonStats
-            } else {
-                qtyToAdd = 0; // все позиции упакованы в кофры
             }
+            // Количество считаем полностью (упаковано в кофры + вне кофра),
+            // иначе итоговое "Итого шт" будет ошибочно занижено для упакованных позиций
+            qtyToAdd = qty;
         } else if (isMulti && mode.enabled && individualVals.length > 1) {
             // Мульти-режим: вес/объём уже считаются через calcItemWeightWithMode
             weightToAdd = calcItemWeightWithMode(path, qty);
@@ -675,13 +655,7 @@ function calculateTotals(items) {
         } else {
             // Без кофров
             const unitWeight = props.weight || 0;
-            const unitVolume = props.dimensions ? (() => {
-                const d = props.dimensions.split('x').map(s => parseFloat(s.trim()));
-                if (d.length === 3 && d.every(v => !isNaN(v) && v > 0)) {
-                    return (d[0]*d[1]*d[2]) / 1000000;
-                }
-                return 0;
-            })() : 0;
+            const unitVolume = parseUnitVolume(props.dimensions);
             weightToAdd = qty * unitWeight;
             volumeToAdd = qty * unitVolume;
             qtyToAdd = qty;
@@ -707,13 +681,7 @@ function calculateTotals(items) {
         const caseObj = stat.caseObj;
         const emptyWeight = caseObj.emptyWeight || 0;
         const dims = caseObj.dimensions || '';
-        let emptyVolume = 0;
-        if (dims) {
-            const d = dims.split('x').map(s => parseFloat(s.trim()));
-            if (d.length === 3 && d.every(v => !isNaN(v) && v > 0)) {
-                emptyVolume = (d[0]*d[1]*d[2]) / 1000000;
-            }
-        }
+        const emptyVolume = parseUnitVolume(dims);
         const maxWeight = caseObj.maxWeight || 0;
         const fillPercent = maxWeight > 0 ? Math.min(100, Math.round((stat.weight / maxWeight) * 100)) : 0;
         commonWeight += emptyWeight;
