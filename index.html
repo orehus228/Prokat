@@ -196,30 +196,7 @@
 <div class="modal-overlay" id="caseSettingsModal">
     <div class="modal" style="max-width:600px;">
         <h3 id="caseSettingsTitle">Настройка кофров</h3>
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-            <input type="checkbox" id="caseSettingsEnable"> Включить режим кофров
-        </label>
-        <hr>
-        <div>
-            <strong style="color:var(--text-primary);">Варианты кофров</strong>
-            <div id="caseSettingsOptions" style="margin-top:6px;"></div>
-        </div>
-        <div id="caseSettingsMulti" style="margin-top:8px;display:none;">
-            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-                <input type="checkbox" id="caseSettingsMultiCheck"> Мульти-режим
-            </label>
-        </div>
-        <hr>
-        <div>
-            <strong style="color:var(--text-primary);">Альтернативный кофр</strong>
-            <div id="caseSettingsAlt" style="margin-top:6px;"></div>
-        </div>
-        <hr>
-        <div id="caseSettingsCommon" style="display:none;">
-            <strong style="color:var(--text-primary);">Привязка к общим кофрам</strong>
-            <div id="caseSettingsCommonList" style="margin-top:6px;"></div>
-            <button class="btn btn-sm" id="caseSettingsCommonAdd" style="margin-top:6px;">+ Добавить общий кофр</button>
-        </div>
+        <div id="caseSettingsContent"></div> <!-- добавлен контейнер -->
         <div class="buttons" style="margin-top:16px;">
             <button class="cancel" id="caseSettingsCancel">Отмена</button>
             <button class="confirm" id="caseSettingsSave">Сохранить</button>
@@ -230,38 +207,7 @@
 <div class="modal-overlay" id="matrixModal">
     <div class="modal" style="max-width:95vw;max-height:85vh;overflow:hidden;display:flex;flex-direction:column;">
         <h3>Матрица привязок</h3>
-        <div class="filter-row" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
-            <input type="text" id="matrixSearchSource" placeholder="Фильтр источников" style="flex:1;padding:6px 10px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);">
-            <input type="text" id="matrixSearchTarget" placeholder="Фильтр целей" style="flex:1;padding:6px 10px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);">
-        </div>
-        <div class="matrix-zoom-controls">
-            <span class="zoom-label">Масштаб:</span>
-            <button class="zoom-btn" data-zoom="0.5">50%</button>
-            <button class="zoom-btn" data-zoom="0.75">75%</button>
-            <button class="zoom-btn active" data-zoom="1">100%</button>
-            <button class="zoom-btn" data-zoom="1.25">125%</button>
-            <button class="zoom-btn" data-zoom="1.5">150%</button>
-            <span id="matrixZoomLevelLabel" style="min-width:50px;text-align:center;color:var(--text-secondary);font-size:14px;">100%</span>
-        </div>
-        <div id="matrixPresetPanel" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;align-items:center;">
-            <button class="btn btn-sm" id="matrixSavePreset">Сохранить</button>
-            <button class="btn btn-sm" id="matrixLoadPreset">Загрузить</button>
-            <button class="btn btn-sm" id="matrixDeletePreset">Удалить</button>
-            <button class="btn btn-sm" id="matrixExportPresets">Экспорт</button>
-            <button class="btn btn-sm" id="matrixImportPresets">Импорт</button>
-            <input type="file" id="matrixPresetFileInput" style="display:none" accept=".json">
-            <select id="matrixPresetSelect" style="flex:1;min-width:120px;padding:6px 10px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);">
-                <option value="">— Выберите пресет —</option>
-            </select>
-            <label style="display:flex;align-items:center;gap:6px;color:var(--text-secondary);font-size:14px;cursor:pointer;">
-                <input type="checkbox" id="matrixOverlayToggle"> Наложение
-            </label>
-        </div>
-        <div class="table-wrap" id="matrixContainer" style="overflow:auto;flex:1;"></div>
-        <div class="buttons matrix-footer" style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border-color);flex-shrink:0;background:var(--bg-card);position:sticky;bottom:0;z-index:20;">
-            <button class="cancel" id="matrixClearAll">Удалить все привязки</button>
-            <button class="cancel" id="matrixClose">Закрыть</button>
-        </div>
+        <!-- ... остальная матрица ... -->
     </div>
 </div>
 

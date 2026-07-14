@@ -39,8 +39,8 @@ import {
     order,
     orderExtra,
     setOrderExtra,
-    getOrderExtra,   // <-- добавлено
-    getCommonRoutes  // <-- добавлено на всякий случай, если используется
+    getOrderExtra,
+    getCommonRoutes
 } from './order.js';
 
 // ============================================================
@@ -397,7 +397,7 @@ export function openCaseSettingsModal(path, callback) {
     const mode = getCaseMode(path);
     const individualVals = getIndividualCaseValues(path);
     const packing = getOrderPacking(path);
-    const extra = getOrderExtra(path); // теперь функция импортирована
+    const extra = getOrderExtra(path);
 
     // Определяем текущий режим
     let currentMode = 'off';
@@ -419,8 +419,20 @@ export function openCaseSettingsModal(path, callback) {
         return;
     }
 
-    document.getElementById('caseSettingsTitle').textContent = 'Настройка кофров: ' + path.split('|').pop();
+    // Устанавливаем заголовок (он существует в index.html)
+    const titleEl = document.getElementById('caseSettingsTitle');
+    if (titleEl) {
+        titleEl.textContent = 'Настройка кофров: ' + path.split('|').pop();
+    }
 
+    // Находим контейнер для содержимого
+    const contentDiv = document.getElementById('caseSettingsContent');
+    if (!contentDiv) {
+        showToast('Ошибка: контейнер содержимого не найден', 'error');
+        return;
+    }
+
+    // Генерируем HTML для содержимого
     let html = `
         <div class="case-mode-selector" style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
             <button class="btn btn-sm case-mode-btn ${currentMode === 'off' ? 'active' : ''}" data-mode="off">Без кофров</button>
@@ -428,53 +440,44 @@ export function openCaseSettingsModal(path, callback) {
             ${options.length > 1 ? `<button class="btn btn-sm case-mode-btn ${currentMode === 'multi' ? 'active' : ''}" data-mode="multi">Мультикофры</button>` : ''}
             ${commonCases.length > 0 ? `<button class="btn btn-sm case-mode-btn ${currentMode === 'common' ? 'active' : ''}" data-mode="common">Общие кофры</button>` : ''}
         </div>
-        <div id="caseSettingsContent"></div>
+        <div id="caseSettingsContentInner"></div>
     `;
 
-    const modalBody = modal.querySelector('.modal');
-    const buttonsDiv = modalBody.querySelector('.buttons');
-    const existingContent = modalBody.querySelector('.case-mode-selector');
-    if (existingContent) {
-        const contentWrap = modalBody.querySelector('#caseSettingsContent')?.parentNode;
-        if (contentWrap) {
-            contentWrap.innerHTML = html;
-        } else {
-            modalBody.innerHTML = html + `<div class="buttons" style="margin-top:16px;">
-                <button class="cancel" id="caseSettingsCancel">Отмена</button>
-                <button class="confirm" id="caseSettingsSave">Сохранить</button>
-            </div>`;
-        }
-    } else {
-        modalBody.innerHTML = html + `<div class="buttons" style="margin-top:16px;">
-            <button class="cancel" id="caseSettingsCancel">Отмена</button>
-            <button class="confirm" id="caseSettingsSave">Сохранить</button>
-        </div>`;
-    }
+    contentDiv.innerHTML = html;
 
-    const contentDiv = document.getElementById('caseSettingsContent');
-    if (!contentDiv) return;
+    // Теперь заполняем внутренний контейнер в зависимости от режима
+    const innerDiv = document.getElementById('caseSettingsContentInner');
+    if (!innerDiv) return;
 
-    renderCaseModeContent(currentMode, contentDiv, path, options, individualVals, packing, extra, commonCases, mode);
+    renderCaseModeContent(currentMode, innerDiv, path, options, individualVals, packing, extra, commonCases, mode);
 
+    // Обработчики переключения режимов
     document.querySelectorAll('.case-mode-btn').forEach(btn => {
         btn.addEventListener('click', function(e) {
             const mode = this.dataset.mode;
             document.querySelectorAll('.case-mode-btn').forEach(b => b.classList.remove('active'));
             this.classList.add('active');
-            renderCaseModeContent(mode, contentDiv, path, options, individualVals, packing, extra, commonCases, mode);
+            renderCaseModeContent(mode, innerDiv, path, options, individualVals, packing, extra, commonCases, mode);
         });
     });
 
-    document.getElementById('caseSettingsCancel').onclick = () => {
-        modal.classList.remove('open');
-    };
+    // Обработчики кнопок (уже существуют в index.html, но мы их переопределим)
+    const cancelBtn = document.getElementById('caseSettingsCancel');
+    if (cancelBtn) {
+        cancelBtn.onclick = () => {
+            modal.classList.remove('open');
+        };
+    }
 
-    document.getElementById('caseSettingsSave').onclick = () => {
-        saveCaseSettings(path);
-        modal.classList.remove('open');
-        if (caseSettingsCallback) caseSettingsCallback();
-        showToast('Настройки кофров сохранены', 'success');
-    };
+    const saveBtn = document.getElementById('caseSettingsSave');
+    if (saveBtn) {
+        saveBtn.onclick = () => {
+            saveCaseSettings(path);
+            modal.classList.remove('open');
+            if (caseSettingsCallback) caseSettingsCallback();
+            showToast('Настройки кофров сохранены', 'success');
+        };
+    }
 
     modal.classList.add('open');
     modal.onclick = (e) => {
