@@ -200,7 +200,8 @@ export function getIndividualCaseValues(path) {
 }
 
 export function setIndividualCaseValues(path, vals) {
-    if (vals && vals.length > 0 && vals.some(v => v > 0)) {
+    // Исправлено: сохраняем массив даже если все значения равны 0
+    if (vals && vals.length > 0) {
         individualCaseValues[path] = vals;
     } else {
         delete individualCaseValues[path];
@@ -227,7 +228,6 @@ export function getCaseMode(path) {
 
 export function getCaseOptions(path) {
     const props = getItemProps(path);
-    // Добавляем maxCases
     return (props.individualCases || []).map(c => ({
         qty: Number(c.qty)||0,
         dims: c.dimensions||'',
