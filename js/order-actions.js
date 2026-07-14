@@ -39,7 +39,8 @@ import {
     setValueOrder,
     getActiveItemsOrder,
     updateChildRowsForPath,
-    buildInfoHtml
+    buildInfoHtml,
+    updateAllCommonCaseIndicators
 } from './order-helpers.js';
 
 import {
@@ -55,7 +56,7 @@ import {
     setSearchMode,
     setSearchQuery,
     refreshRow,
-    resetInfoBlocks   // для очистки
+    resetInfoBlocks
 } from './order-render.js';
 
 // ============================================================
@@ -68,22 +69,22 @@ export function setupEventDelegation() {
     if (eventDelegationInitialized) return;
     const container = document.getElementById('categoryContents');
     if (!container) return;
-    
+
     container.removeEventListener('click', handleContainerClick);
     container.addEventListener('click', handleContainerClick);
     container.removeEventListener('input', handleContainerInput);
     container.addEventListener('input', handleContainerInput);
     container.removeEventListener('change', handleContainerChange);
     container.addEventListener('change', handleContainerChange);
-    
-    // Добавляем обработчики для автоповтора (mousedown/mouseup)
+
+    // Автоповтор
     container.removeEventListener('mousedown', handleContainerMouseDown);
     container.addEventListener('mousedown', handleContainerMouseDown);
     container.removeEventListener('mouseup', handleContainerMouseUp);
     container.addEventListener('mouseup', handleContainerMouseUp);
     container.removeEventListener('mouseleave', handleContainerMouseUp);
     container.addEventListener('mouseleave', handleContainerMouseUp);
-    
+
     eventDelegationInitialized = true;
 }
 
@@ -94,11 +95,9 @@ function startRepeat(btn, delta) {
     if (repeatInterval) return;
     repeatTimeout = setTimeout(() => {
         repeatInterval = setInterval(() => {
-            // Эмулируем клик по кнопке
             const path = btn.dataset.path;
             const deltaVal = parseInt(btn.dataset.delta);
             if (!path || isNaN(deltaVal)) return;
-            // Определяем тип кнопки и вызываем соответствующий обработчик
             if (btn.classList.contains('qty-btn')) {
                 handleQtyChange(path, deltaVal);
             } else if (btn.classList.contains('single-piece-btn')) {
@@ -132,7 +131,6 @@ function handleContainerMouseDown(e) {
     const btn = e.target.closest('.btn-c');
     if (!btn) return;
     if (!btn.dataset.delta) return;
-    // Проверяем, что это одна из управляющих кнопок
     if (btn.classList.contains('qty-btn') ||
         btn.classList.contains('single-piece-btn') ||
         btn.classList.contains('single-case-btn') ||
@@ -148,7 +146,7 @@ function handleContainerMouseUp(e) {
     stopRepeat();
 }
 
-// Вспомогательные функции для изменения значений
+// === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ИЗМЕНЕНИЯ ЗНАЧЕНИЙ ===
 function handleQtyChange(path, delta) {
     const row = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
     if (!row) return;
@@ -187,7 +185,6 @@ function handleSinglePieceChange(path, delta) {
     order[path] = val;
     if (val === 0) delete order[path];
     saveOrderData();
-    // Синхронизация кофров
     const opt = getSelectedOption(path);
     if (opt && opt.qty > 0) {
         let casesCount = Math.ceil(val / opt.qty);
@@ -260,9 +257,10 @@ function handleSingleCaseChange(path, delta) {
 }
 
 function handleMultiPieceChange(path, idx, delta) {
-    const row = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
-    if (!row) return;
-    const input = row.querySelector(`.child-multi-pieces[data-idx="${idx}"]`);
+    // Находим дочернюю строку для данного idx
+    const childRow = document.querySelector(`#categoryContents .child-multi-pieces[data-idx="${idx}"]`)?.closest('.child-row');
+    if (!childRow) return;
+    const input = childRow.querySelector(`.child-multi-pieces[data-idx="${idx}"]`);
     if (!input) return;
     let val = parseInt(input.value) || 0;
     val = Math.max(0, val + delta);
@@ -288,7 +286,7 @@ function handleMultiPieceChange(path, idx, delta) {
             setIndividualCaseValues(path, vals);
             showToast(`Достигнут лимит кофров для варианта ${idx+1} (макс. ${maxCases})`, 'warning');
         }
-        const casesInput = row.querySelector(`.child-multi-cases[data-idx="${idx}"]`);
+        const casesInput = childRow.querySelector(`.child-multi-cases[data-idx="${idx}"]`);
         if (casesInput) casesInput.value = casesCount;
     }
     const total = vals.reduce((a,b) => a + b, 0);
@@ -301,9 +299,9 @@ function handleMultiPieceChange(path, idx, delta) {
 }
 
 function handleMultiCaseChange(path, idx, delta) {
-    const row = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
-    if (!row) return;
-    const input = row.querySelector(`.child-multi-cases[data-idx="${idx}"]`);
+    const childRow = document.querySelector(`#categoryContents .child-multi-cases[data-idx="${idx}"]`)?.closest('.child-row');
+    if (!childRow) return;
+    const input = childRow.querySelector(`.child-multi-cases[data-idx="${idx}"]`);
     if (!input) return;
     let val = parseInt(input.value) || 0;
     val = Math.max(0, val + delta);
@@ -325,7 +323,7 @@ function handleMultiCaseChange(path, idx, delta) {
                 val = maxVal;
                 input.value = val;
                 const newPieces = val * opt.qty;
-                const piecesInput = row.querySelector(`.child-multi-pieces[data-idx="${idx}"]`);
+                const piecesInput = childRow.querySelector(`.child-multi-pieces[data-idx="${idx}"]`);
                 if (piecesInput) piecesInput.value = newPieces;
                 const vals = getIndividualCaseValues(path);
                 vals[idx] = newPieces;
@@ -340,7 +338,7 @@ function handleMultiCaseChange(path, idx, delta) {
                 return;
             }
         }
-        const piecesInput = row.querySelector(`.child-multi-pieces[data-idx="${idx}"]`);
+        const piecesInput = childRow.querySelector(`.child-multi-pieces[data-idx="${idx}"]`);
         if (piecesInput) piecesInput.value = pieces;
         const vals = getIndividualCaseValues(path);
         vals[idx] = pieces;
@@ -356,9 +354,9 @@ function handleMultiCaseChange(path, idx, delta) {
 }
 
 function handleCommonQtyChange(path, caseId, delta) {
-    const row = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
-    if (!row) return;
-    const input = row.querySelector(`.child-common-qty[data-caseid="${caseId}"]`);
+    const childRow = document.querySelector(`#categoryContents .child-common-qty[data-caseid="${caseId}"]`)?.closest('.child-row');
+    if (!childRow) return;
+    const input = childRow.querySelector(`.child-common-qty[data-caseid="${caseId}"]`);
     if (!input) return;
     let val = parseInt(input.value) || 0;
     val = Math.max(0, val + delta);
@@ -386,13 +384,15 @@ function handleCommonQtyChange(path, caseId, delta) {
         updateRowOrder(path);
         updateTotalsOrder();
         updateCategoryTotalsOrder(currentOrderCategory);
+        // Обновляем все индикаторы общих кофров
+        updateAllCommonCaseIndicators();
     }
 }
 
 function handleExtraQtyChange(path, delta) {
-    const row = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
-    if (!row) return;
-    const input = row.querySelector('.child-extra-qty');
+    const childRow = document.querySelector(`#categoryContents .child-extra-qty`)?.closest('.child-row');
+    if (!childRow) return;
+    const input = childRow.querySelector('.child-extra-qty');
     if (!input) return;
     let val = parseInt(input.value) || 0;
     val = Math.max(0, val + delta);
@@ -408,6 +408,7 @@ function handleExtraQtyChange(path, delta) {
     updateRowOrder(path);
     updateTotalsOrder();
     updateCategoryTotalsOrder(currentOrderCategory);
+    updateAllCommonCaseIndicators();
 }
 
 // ============================================================
@@ -415,6 +416,7 @@ function handleExtraQtyChange(path, delta) {
 // ============================================================
 
 function handleContainerClick(e) {
+    // Обработка обычных кнопок +/- (без кофров)
     const target = e.target.closest('.qty-btn');
     if (target && !target.closest('.child-controls')) {
         const path = target.dataset.path;
@@ -503,6 +505,7 @@ function handleContainerClick(e) {
         updateRowOrder(path);
         updateTotalsOrder();
         updateCategoryTotalsOrder(currentOrderCategory);
+        updateAllCommonCaseIndicators();
         showToast('Привязка удалена', 'neutral');
         return;
     }
@@ -533,6 +536,7 @@ function handleContainerClick(e) {
         import('./cases.js').then(module => {
             module.openCaseSettingsModal(caseBtn.dataset.path, () => {
                 refreshRow(caseBtn.dataset.path);
+                updateAllCommonCaseIndicators();
             });
         });
         return;
@@ -784,6 +788,7 @@ function handleContainerInput(e) {
             updateRowOrder(path);
             updateTotalsOrder();
             updateCategoryTotalsOrder(currentOrderCategory);
+            updateAllCommonCaseIndicators();
         }
         return;
     }
@@ -799,6 +804,7 @@ function handleContainerInput(e) {
         updateRowOrder(path);
         updateTotalsOrder();
         updateCategoryTotalsOrder(currentOrderCategory);
+        updateAllCommonCaseIndicators();
         return;
     }
 }
@@ -837,6 +843,7 @@ function handleDropdownItemOrder(item) {
         import('./cases.js').then(module => {
             module.openCaseSettingsModal(path, () => {
                 refreshRow(path);
+                updateAllCommonCaseIndicators();
             });
         });
         const dropdown = item.closest('.case-dropdown');
@@ -845,7 +852,7 @@ function handleDropdownItemOrder(item) {
 }
 
 // ============================================================
-// ОЧИСТКА СПИСКА (сброс инфо-блоков)
+// ОЧИСТКА СПИСКА
 // ============================================================
 export async function clearOrderData() {
     const confirmed = await showConfirm('Очистить список?');
@@ -867,11 +874,10 @@ export async function clearOrderData() {
     const searchInput = document.getElementById('searchInput');
     if (searchInput) searchInput.value = '';
 
-    // Сброс инфо-блоков
     resetInfoBlocks();
-
     saveOrderData();
     renderOrderAll();
+    updateAllCommonCaseIndicators();
     showToast('Список очищен', 'success');
 }
 

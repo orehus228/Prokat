@@ -226,6 +226,76 @@ export function renderCommonCaseIndicatorsOrder() {
 }
 
 // ============================================================
+// ГЛОБАЛЬНАЯ СИНХРОНИЗАЦИЯ ИНДИКАТОРОВ ОБЩИХ КОФРОВ
+// ============================================================
+
+export function updateAllCommonCaseIndicators() {
+    const allCommonCases = getCommonCases();
+    // Собираем статистику по каждому кофру: общий вес и общий объём
+    const stats = new Map(); // caseId -> { totalWeight, totalVolume, maxWeight, maxVolume, name }
+    allCommonCases.forEach(c => {
+        stats.set(c.id, {
+            totalWeight: 0,
+            totalVolume: 0,
+            maxWeight: c.maxWeight || 0,
+            maxVolume: c.maxVolume || 0,
+            name: c.name || 'Кофр',
+            dimensions: c.dimensions || ''
+        });
+    });
+
+    // Проходим по всем упаковкам
+    for (let path in orderPacking) {
+        const packing = getOrderPacking(path);
+        const props = getItemProps(path);
+        const unitWeight = props.weight || 0;
+        const unitVolume = parseUnitVolume(props.dimensions);
+        packing.forEach(p => {
+            if (p.pieces <= 0) return;
+            const stat = stats.get(p.caseId);
+            if (!stat) return;
+            stat.totalWeight += p.pieces * unitWeight;
+            stat.totalVolume += p.pieces * unitVolume;
+        });
+    }
+
+    // Обновляем все дочерние строки с индикаторами
+    document.querySelectorAll('.child-row .child-controls').forEach(control => {
+        const caseId = control.dataset.caseid;
+        if (!caseId) return;
+        const stat = stats.get(caseId);
+        if (!stat) return;
+        const fillPercent = stat.maxWeight > 0 ? Math.min(100, Math.round((stat.totalWeight / stat.maxWeight) * 100)) : 0;
+        // Определяем цвет
+        let color = 'var(--text-secondary)';
+        if (fillPercent >= 100) color = 'var(--danger)';
+        else if (fillPercent >= 90) color = 'var(--warning)'; // оранжевый
+        else if (fillPercent >= 80) color = '#d4a017'; // жёлтый
+        // Обновляем левую границу
+        control.style.borderLeftColor = color;
+        // Обновляем текст с процентом
+        let percentSpan = control.querySelector('.case-fill-percent');
+        if (!percentSpan) {
+            percentSpan = document.createElement('span');
+            percentSpan.className = 'case-fill-percent';
+            percentSpan.style.cssText = 'font-size:11px;margin-left:4px;';
+            control.appendChild(percentSpan);
+        }
+        percentSpan.textContent = `${fillPercent}%`;
+        percentSpan.style.color = color;
+    });
+}
+
+function parseUnitVolume(dimensions) {
+    if (!dimensions) return 0;
+    const d = dimensions.split('x').map(s => parseFloat(s.trim()));
+    if (d.length === 3 && d.every(v => !isNaN(v) && v > 0)) {
+        return (d[0] * d[1] * d[2]) / 1000000;
+    }
+    return 0;
+}
+
+// ============================================================
 // РАБОТА С ДОЧЕРНИМИ ЭЛЕМЕНТАМИ (единообразные строки)
 // ============================================================
 
@@ -246,7 +316,7 @@ export function updateChildRowsForPath(path) {
     const individualVals = getIndividualCaseValues(path);
     const props = getItemProps(path);
 
-    // === МУЛЬТИ-РЕЖИМ (единообразные строки) ===
+    // === МУЛЬТИ-РЕЖИМ ===
     if (isMulti && mode.enabled && options.length > 1) {
         const childDiv = document.createElement('div');
         childDiv.className = 'child-row';
@@ -338,15 +408,19 @@ export function updateChildRowsForPath(path) {
             } else if (fillPercent >= 90) {
                 statusColor = 'var(--warning)';
                 statusText = '[Почти]';
+            } else if (fillPercent >= 80) {
+                statusColor = '#d4a017';
+                statusText = '[80%]';
             }
 
-            html += `<div class="child-controls" style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid ${statusColor};">
+            html += `<div class="child-controls" data-caseid="${p.caseId}" style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid ${statusColor};">
                 <span style="font-weight:500;min-width:70px;font-size:13px;">${esc(name)}</span>
                 <span style="font-size:11px;color:var(--text-secondary);min-width:30px;">шт:</span>
                 <button class="btn-c child-common-btn" style="width:26px;height:26px;font-size:13px;" data-path="${path}" data-caseid="${p.caseId}" data-delta="-1">−</button>
                 <input type="number" class="child-common-qty" data-path="${path}" data-caseid="${p.caseId}" value="${qty}" min="0" step="1" max="${maxPack}" style="width:44px;padding:2px 4px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);text-align:center;font-size:13px;">
                 <button class="btn-c child-common-btn" style="width:26px;height:26px;font-size:13px;" data-path="${path}" data-caseid="${p.caseId}" data-delta="1">+</button>
-                ${statusText ? `<span style="font-size:11px;color:${statusColor};">${statusText} (${fillPercent}%)</span>` : ''}
+                ${statusText ? `<span style="font-size:11px;color:${statusColor};">${statusText}</span>` : ''}
+                <span class="case-fill-percent" style="font-size:11px;color:${statusColor};">${fillPercent}%</span>
                 <span style="font-size:11px;color:var(--text-muted);min-width:70px;">${c?.dimensions || 'н/д'}</span>
                 <span style="font-size:11px;color:var(--text-muted);min-width:50px;">вес:${c?.emptyWeight || 0}</span>
                 <button class="btn btn-sm remove-common-pack" style="background:var(--danger);color:white;padding:0 6px;font-size:11px;border-radius:4px;border:none;cursor:pointer;" data-path="${path}" data-caseid="${p.caseId}">✕</button>
@@ -355,6 +429,8 @@ export function updateChildRowsForPath(path) {
 
         childDiv.innerHTML = html;
         parentRow.after(childDiv);
+        // После создания вызываем обновление индикаторов
+        updateAllCommonCaseIndicators();
     }
 }
 
