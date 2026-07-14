@@ -259,7 +259,7 @@ function buildCategoryHTML(data, path, level) {
 }
 
 // ============================================================
-// ПОСТРОЕНИЕ СТРОКИ (исправлен single-режим, добавлена информация о кофрах)
+// ПОСТРОЕНИЕ СТРОКИ
 // ============================================================
 
 export function buildItemRow(fullPath, level) {
@@ -294,7 +294,7 @@ export function buildItemRow(fullPath, level) {
 
     let caseStatusText = 'Кофры';
     let caseStatusClass = '';
-    let extraCaseInfo = ''; // дополнительная информация о кофрах в extra-info
+    let extraCaseInfo = '';
 
     if (hasCommonPacking) {
         caseStatusText = 'Общие';
@@ -391,7 +391,7 @@ export function buildItemRow(fullPath, level) {
 }
 
 // ============================================================
-// РЕНДЕРИНГ КОНТРОЛОВ КОЛИЧЕСТВА (исправлен single-режим)
+// РЕНДЕРИНГ КОНТРОЛОВ КОЛИЧЕСТВА
 // ============================================================
 function renderQtyControls(path) {
     const mode = getCaseMode(path);
@@ -438,7 +438,7 @@ function renderQtyControls(path) {
 }
 
 // ============================================================
-// ОБНОВЛЕНИЕ СТРОКИ
+// ОБНОВЛЕНИЕ СТРОКИ (без полной перерисовки контролов)
 // ============================================================
 
 export function updateRowOrder(path) {
@@ -466,19 +466,31 @@ export function updateRowOrder(path) {
     row.classList.toggle('added', isAdded);
     row.classList.toggle('overstock', isOverstock);
 
-    // Обновляем контролы внутри qty-controls
+    // Обновляем значения в контролах без пересоздания
     const qtyControls = row.querySelector('.qty-controls');
     if (qtyControls) {
-        const path = row.dataset.path;
+        // Находим поля ввода и обновляем их значения
+        const mainInput = qtyControls.querySelector('.qty-input');
+        if (mainInput) {
+            mainInput.value = totalQty;
+        }
+        const singlePieces = qtyControls.querySelector('.single-pieces-input');
+        const singleCases = qtyControls.querySelector('.single-cases-input');
+        if (singlePieces && singleCases) {
+            const opt = getSelectedOption(path);
+            const pieces = getIndividualCaseValues(path)[0] || 0;
+            singlePieces.value = pieces;
+            const casesCount = opt && opt.qty > 0 ? Math.ceil(pieces / opt.qty) : 0;
+            singleCases.value = casesCount;
+        }
+        // Для мульти-режима поля обновляются в дочерних строках, здесь только статическое количество
+        const staticSpan = qtyControls.querySelector('.static-qty');
+        if (staticSpan) {
+            staticSpan.textContent = `${totalQty} шт`;
+        }
+        // Обновляем вес/объём в контролах (если есть)
         const weightVolDisplay = qtyControls.querySelector('.weight-vol-display');
-        const stockInfo = qtyControls.querySelector('.stock-info');
-        qtyControls.innerHTML = `
-            <span class="weight-vol-display" style="display:none !important;"></span>
-            <span class="stock-info" style="display:none !important;"></span>
-            ${renderQtyControls(path)}
-        `;
-        const newWeightVol = qtyControls.querySelector('.weight-vol-display');
-        if (newWeightVol) {
+        if (weightVolDisplay) {
             const props = getItemProps(path);
             let weightDisplay = '0 кг', volumeDisplay = '0 м³';
             if (props.weight !== undefined && props.weight !== null && props.weight > 0) {
@@ -489,10 +501,11 @@ export function updateRowOrder(path) {
                 const v = calcItemVolumeWithMode(path, totalQty);
                 volumeDisplay = v.toFixed(3) + ' м³';
             }
-            newWeightVol.textContent = weightDisplay + ' / ' + volumeDisplay;
+            weightVolDisplay.textContent = weightDisplay + ' / ' + volumeDisplay;
         }
     }
 
+    // Обновляем extra-info
     const extraInfo = row.querySelector('.extra-info');
     if (extraInfo) {
         let info = '';
@@ -531,31 +544,7 @@ export function updateRowOrder(path) {
         extraInfo.innerHTML = info;
     }
 
-    const weightVolDisplay = row.querySelector('.weight-vol-display');
-    if (weightVolDisplay) {
-        const props = getItemProps(path);
-        let weightDisplay = '0 кг', volumeDisplay = '0 м³';
-        if (props.weight !== undefined && props.weight !== null && props.weight > 0) {
-            const w = calcItemWeightWithMode(path, totalQty);
-            weightDisplay = w.toFixed(1) + ' кг';
-        }
-        if (props.dimensions && props.dimensions.trim() !== '') {
-            const v = calcItemVolumeWithMode(path, totalQty);
-            volumeDisplay = v.toFixed(3) + ' м³';
-        }
-        weightVolDisplay.textContent = weightDisplay + ' / ' + volumeDisplay;
-    }
-
-    if (infoBlocksOpen[path]) {
-        const infoBlock = row.querySelector('.row-info');
-        if (infoBlock) {
-            const props = getItemProps(path);
-            const mode = getCaseMode(path);
-            infoBlock.innerHTML = buildInfoHtml(path, props, mode);
-            infoBlock.style.display = 'block';
-        }
-    }
-
+    // Обновляем кнопки
     const linkBtn = row.querySelector('.link-btn');
     if (linkBtn) {
         const hasLink = links[path] && links[path].length > 0;
@@ -598,6 +587,7 @@ export function updateRowOrder(path) {
         caseBtn.className = 'action-btn case-btn ' + (isOn ? 'active ' : '') + statusClass;
     }
 
+    // Обновляем дочерние строки
     updateChildRowsForPath(path);
 }
 
