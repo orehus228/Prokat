@@ -114,7 +114,7 @@ export function renderCommonCaseIndicatorsOrder() {
     indicator.textContent = parts.join(' · ');
 }
 
-// ===== ИСПРАВЛЕННАЯ ФУНКЦИЯ ОКРАШИВАНИЯ =====
+// ===== ИСПРАВЛЕННАЯ ФУНКЦИЯ ОКРАШИВАНИЯ (добавлены классы) =====
 export function updateAllCommonCaseIndicators() {
     const allCommonCases = getCommonCases();
     const stats = new Map();
@@ -141,14 +141,39 @@ export function updateAllCommonCaseIndicators() {
         const stat = stats.get(caseId);
         if (!stat) return;
         const fillPercent = stat.maxWeight > 0 ? Math.min(100, Math.round((stat.totalWeight / stat.maxWeight) * 100)) : 0;
-        let color = 'transparent';
-        if (fillPercent >= 100) color = 'var(--danger)';
-        else if (fillPercent >= 90) color = 'var(--warning)';
-        else if (fillPercent >= 80) color = '#d4a017';
-        // Применяем стили к самой дочерней строке с !important
-        childRow.style.setProperty('background', fillPercent >= 80 ? color : 'var(--bg-secondary)', 'important');
-        childRow.style.setProperty('border-left', fillPercent >= 80 ? `4px solid ${color}` : '1px solid var(--border-light)', 'important');
-        childRow.style.setProperty('transition', 'background 0.3s', 'important');
+        // Удаляем старые классы
+        childRow.classList.remove('case-fill-80', 'case-fill-90', 'case-fill-100');
+        let color = '';
+        if (fillPercent >= 100) {
+            childRow.classList.add('case-fill-100');
+            color = 'var(--danger)';
+        } else if (fillPercent >= 90) {
+            childRow.classList.add('case-fill-90');
+            color = 'var(--warning)';
+        } else if (fillPercent >= 80) {
+            childRow.classList.add('case-fill-80');
+            color = '#d4a017';
+        }
+        // Применяем стили к самой дочерней строке с !important через style
+        if (fillPercent >= 80) {
+            childRow.style.setProperty('background', color, 'important');
+            childRow.style.setProperty('border-left', `4px solid ${color}`, 'important');
+            // Меняем цвет текста на белый для контраста
+            const allSpans = childRow.querySelectorAll('span, input, button:not(.remove-common-pack)');
+            allSpans.forEach(el => {
+                el.style.setProperty('color', '#fff', 'important');
+            });
+            // Кнопка удаления остаётся красной
+            const removeBtn = childRow.querySelector('.remove-common-pack');
+            if (removeBtn) removeBtn.style.color = 'white';
+        } else {
+            childRow.style.setProperty('background', '', 'important');
+            childRow.style.setProperty('border-left', '', 'important');
+            const allSpans = childRow.querySelectorAll('span, input, button:not(.remove-common-pack)');
+            allSpans.forEach(el => {
+                el.style.setProperty('color', '', 'important');
+            });
+        }
         // Обновляем процент
         let percentSpan = controls.querySelector('.case-fill-percent');
         if (!percentSpan) {
@@ -159,15 +184,6 @@ export function updateAllCommonCaseIndicators() {
         }
         percentSpan.textContent = `${fillPercent}%`;
         percentSpan.style.color = fillPercent >= 80 ? '#fff' : 'var(--text-secondary)';
-        // Меняем цвет текста внутри строки для контраста
-        const allSpans = childRow.querySelectorAll('span:not(.case-fill-percent), input, button:not(.remove-common-pack)');
-        allSpans.forEach(el => {
-            if (fillPercent >= 80) el.style.color = '#fff';
-            else el.style.color = '';
-        });
-        // Кнопка удаления остаётся красной
-        const removeBtn = childRow.querySelector('.remove-common-pack');
-        if (removeBtn) removeBtn.style.color = 'white';
     });
 }
 

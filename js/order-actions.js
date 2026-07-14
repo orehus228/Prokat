@@ -151,7 +151,7 @@ function handleSingleCaseChange(path, delta) {
     }
 }
 
-// === МУЛЬТИРЕЖИМ – переписано по аналогии с single ===
+// === МУЛЬТИРЕЖИМ – ИСПРАВЛЕНА СИНХРОНИЗАЦИЯ ===
 function handleMultiPieceChange(path, idx, delta) {
     const row = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
     if (!row) return;
