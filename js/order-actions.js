@@ -103,6 +103,66 @@ function handleContainerClick(e) {
         return;
     }
 
+    // === SINGLE-РЕЖИМ: кнопки +/− для штук ===
+    const singlePieceBtn = e.target.closest('.single-piece-btn');
+    if (singlePieceBtn) {
+        const path = singlePieceBtn.dataset.path;
+        const delta = parseInt(singlePieceBtn.dataset.delta);
+        const input = singlePieceBtn.parentElement.querySelector('.single-pieces-input');
+        if (input) {
+            let val = parseInt(input.value) || 0;
+            val = Math.max(0, val + delta);
+            const sq = getStockValue(path);
+            if (val > sq) {
+                const name = path.split('|').pop();
+                showToast(`Превышено количество для "${name}" (доступно ${sq})`, 'warning');
+            }
+            input.value = val;
+            // Обновляем данные
+            setIndividualCaseValues(path, [val]);
+            order[path] = val;
+            if (val === 0) delete order[path];
+            saveOrderData();
+            // Пересчитываем поле кофров
+            const opt = getSelectedOption(path);
+            if (opt && opt.qty > 0) {
+                const casesInput = singlePieceBtn.parentElement.querySelector('.single-cases-input');
+                if (casesInput) casesInput.value = Math.ceil(val / opt.qty);
+            }
+            updateRowOrder(path);
+            updateTotalsOrder();
+            updateCategoryTotalsOrder(currentOrderCategory);
+        }
+        return;
+    }
+
+    // === SINGLE-РЕЖИМ: кнопки +/− для кофров ===
+    const singleCaseBtn = e.target.closest('.single-case-btn');
+    if (singleCaseBtn) {
+        const path = singleCaseBtn.dataset.path;
+        const delta = parseInt(singleCaseBtn.dataset.delta);
+        const input = singleCaseBtn.parentElement.querySelector('.single-cases-input');
+        if (input) {
+            let val = parseInt(input.value) || 0;
+            val = Math.max(0, val + delta);
+            input.value = val;
+            const opt = getSelectedOption(path);
+            if (opt && opt.qty > 0) {
+                const pieces = val * opt.qty;
+                const piecesInput = singleCaseBtn.parentElement.querySelector('.single-pieces-input');
+                if (piecesInput) piecesInput.value = pieces;
+                setIndividualCaseValues(path, [pieces]);
+                order[path] = pieces;
+                if (pieces === 0) delete order[path];
+                saveOrderData();
+                updateRowOrder(path);
+                updateTotalsOrder();
+                updateCategoryTotalsOrder(currentOrderCategory);
+            }
+        }
+        return;
+    }
+
     // === ОБРАБОТЧИКИ ДЛЯ МУЛЬТИ-РЕЖИМА (дочерние строки) ===
     // Кнопки +/− для штук в мультирежиме
     const multiPieceBtn = e.target.closest('.child-multi-piece-btn');
@@ -327,6 +387,52 @@ function handleContainerInput(e) {
         updateRowOrder(path);
         updateTotalsOrder();
         updateCategoryTotalsOrder(currentOrderCategory);
+        return;
+    }
+
+    // === SINGLE-РЕЖИМ: ввод штук ===
+    const singlePieces = e.target.closest('.single-pieces-input');
+    if (singlePieces) {
+        const path = singlePieces.dataset.path;
+        let val = parseInt(singlePieces.value);
+        if (isNaN(val) || val < 0) val = 0;
+        singlePieces.value = val;
+        setIndividualCaseValues(path, [val]);
+        order[path] = val;
+        if (val === 0) delete order[path];
+        saveOrderData();
+        // Пересчитываем кофры
+        const opt = getSelectedOption(path);
+        if (opt && opt.qty > 0) {
+            const casesInput = singlePieces.parentElement.querySelector('.single-cases-input');
+            if (casesInput) casesInput.value = Math.ceil(val / opt.qty);
+        }
+        updateRowOrder(path);
+        updateTotalsOrder();
+        updateCategoryTotalsOrder(currentOrderCategory);
+        return;
+    }
+
+    // === SINGLE-РЕЖИМ: ввод кофров ===
+    const singleCases = e.target.closest('.single-cases-input');
+    if (singleCases) {
+        const path = singleCases.dataset.path;
+        let val = parseInt(singleCases.value);
+        if (isNaN(val) || val < 0) val = 0;
+        singleCases.value = val;
+        const opt = getSelectedOption(path);
+        if (opt && opt.qty > 0) {
+            const pieces = val * opt.qty;
+            const piecesInput = singleCases.parentElement.querySelector('.single-pieces-input');
+            if (piecesInput) piecesInput.value = pieces;
+            setIndividualCaseValues(path, [pieces]);
+            order[path] = pieces;
+            if (pieces === 0) delete order[path];
+            saveOrderData();
+            updateRowOrder(path);
+            updateTotalsOrder();
+            updateCategoryTotalsOrder(currentOrderCategory);
+        }
         return;
     }
 

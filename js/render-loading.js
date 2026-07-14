@@ -49,7 +49,6 @@ export function loadSelectedTrucks() {
         const saved = localStorage.getItem(SELECTED_TRUCKS_KEY);
         if (saved) {
             selectedTruckIds = JSON.parse(saved);
-            // Фильтруем только существующие ID
             const presets = getTruckPresets();
             selectedTruckIds = selectedTruckIds.filter(id => presets.some(p => p.id === id));
         } else {
@@ -99,7 +98,8 @@ function getItemDimensions(path, qty) {
             const caseObj = getCommonCases().find(c => c.id === p.caseId);
             if (!caseObj) continue;
             const capacity = caseObj.qty || 1;
-            const unitsInThisCase = Math.min(remaining, capacity);
+            // Исправлено: p.pieces вместо p.qty
+            const unitsInThisCase = Math.min(remaining, p.pieces || 0);
             if (unitsInThisCase <= 0) continue;
             const dims = caseObj.dimensions ? caseObj.dimensions.split('x').map(s => parseFloat(s.trim())) : [0,0,0];
             const w = dims[0] || 0;

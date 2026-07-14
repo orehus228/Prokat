@@ -99,7 +99,7 @@ export function toggleInfoBlock(path) {
 }
 
 // ============================================================
-// ЗАГЛУШКА ДЛЯ ИНДИКАТОРОВ
+// ЗАГЛУШКА ДЛЯ ИНДИКАТОРОВ (используется в order-actions)
 // ============================================================
 export function renderCommonCaseIndicatorsOrder() {
     renderIndicators();
@@ -263,17 +263,166 @@ function buildCategoryHTML(data, path, level) {
 // ============================================================
 
 export function buildItemRow(fullPath, level) {
-    // ... (полный код из предыдущей версии, с поддержкой single)
-    // Для краткости я не копирую его сюда, но он уже был отправлен ранее.
-    // Он должен быть здесь полностью.
-}
+    const sq = getStockValue(fullPath);
+    const hasDesc = !!(editorData.specs && editorData.specs[fullPath]);
+    const hasLink = links[fullPath] && links[fullPath].length > 0;
+    const props = getItemProps(fullPath);
+    const hasCase = (props.individualCases && props.individualCases.length > 0) || props.allowCommon;
+    const mode = getCaseMode(fullPath);
+    const isMulti = localStorage.getItem('multi_' + fullPath) === 'true';
+    const hasAlt = !!mode.alt;
+    const packing = getOrderPacking(fullPath);
+    const hasCommonPacking = packing.length > 0;
+    const individualVals = getIndividualCaseValues(fullPath);
+    const options = getCaseOptions(fullPath);
 
-// ============================================================
-// РЕНДЕРИНГ КОНТРОЛОВ КОЛИЧЕСТВА
-// ============================================================
+    let totalQty = 0;
+    if (isMulti && mode.enabled) {
+        totalQty = individualVals.reduce((a,b) => a + b, 0);
+    } else if (hasCommonPacking) {
+        const extra = getOrderExtra(fullPath);
+        // Исправлено: p.pieces вместо p.qty
+        const packed = packing.reduce((s, p) => s + (p.pieces || 0), 0);
+        totalQty = extra + packed;
+    } else {
+        totalQty = order[fullPath] || 0;
+    }
 
-function renderQtyControls(path) {
-    // ... (код из предыдущей версии)
+    const overstock = totalQty > sq;
+    const isInfoOpen = infoBlocksOpen[fullPath] || false;
+    const hasNote = !!(notes[fullPath] && notes[fullPath].trim());
+    const isCaseModeOn = mode.enabled || false;
+
+    let caseStatusText = 'Кофры';
+    let caseStatusClass = '';
+    if (hasCommonPacking) {
+        caseStatusText = 'Общие';
+        caseStatusClass = 'common';
+    } else if (isMulti && options.length > 1) {
+        caseStatusText = 'Мульти';
+        caseStatusClass = 'multi';
+    } else if (hasAlt) {
+        caseStatusText = 'Альт.';
+        caseStatusClass = 'alt';
+    } else if (isCaseModeOn) {
+        caseStatusText = 'Вкл';
+        caseStatusClass = 'on';
+    } else if (hasCase) {
+        caseStatusText = 'Выкл';
+        caseStatusClass = 'off';
+    }
+
+    let weightDisplay = '0 кг', volumeDisplay = '0 м³';
+    if (props.weight !== undefined && props.weight !== null && props.weight > 0) {
+        const w = calcItemWeightWithMode(fullPath, totalQty);
+        weightDisplay = w.toFixed(1) + ' кг';
+    }
+    if (props.dimensions && props.dimensions.trim() !== '') {
+        const v = calcItemVolumeWithMode(fullPath, totalQty);
+        volumeDisplay = v.toFixed(3) + ' м³';
+    }
+    
+    const infoHtml = buildInfoHtml(fullPath, props, mode);
+    const escapedName = esc(fullPath.split('|').pop());
+    const isAdded = totalQty > 0;
+    const rowClass = (isAdded ? 'added' : '') + (overstock ? ' overstock' : '');
+
+    const linkClass = hasLink ? 'active' : '';
+    const noteClass = hasNote ? 'has-note' : '';
+    const caseClass = isCaseModeOn ? 'active' : '';
+
+    let extraInfo = '';
+    if (totalQty > 0 || sq > 0) {
+        extraInfo = `<div class="extra-info">
+            <span><strong>${totalQty}</strong> шт добавлено</span>
+            <span>в наличии: <strong>${sq}</strong></span>
+            ${weightDisplay !== '0 кг' ? `<span>${weightDisplay}</span>` : ''}
+            ${volumeDisplay !== '0 м³' ? `<span>${volumeDisplay}</span>` : ''}
+        </div>`;
+    }
+
+    let html = `<div class="row ${rowClass}" data-path="${esc(fullPath)}" data-search="${fullPath}">
+        <div class="name-area">
+            <span class="name">${escapedName}</span>
+            ${extraInfo}
+        </div>
+        <div class="action-buttons">
+            <button class="action-btn info-btn" data-path="${esc(fullPath)}" title="Информация">Инфо</button>
+            ${hasDesc ? `<button class="action-btn desc-btn" data-path="${esc(fullPath)}">Описание</button>` : ''}
+            <button class="action-btn link-btn ${linkClass}" data-path="${esc(fullPath)}" title="Линк">Линк${hasLink ? ' ✓' : ''}</button>
+            ${hasCase ? `<button class="action-btn case-btn ${caseClass} ${caseStatusClass}" data-path="${esc(fullPath)}" title="Настройка кофров">${caseStatusText}</button>` : ''}
+            <button class="action-btn note-btn ${noteClass}" data-path="${esc(fullPath)}" title="Заметка">Заметка${hasNote ? ' ✓' : ''}</button>
+        </div>
+        <div class="qty-controls">
+            <span class="weight-vol-display" style="display:none !important;">${weightDisplay} / ${volumeDisplay}</span>
+            <span class="stock-info" style="display:none !important;">в наличии: ${sq}</span>
+            <button class="btn-c qty-btn" data-path="${esc(fullPath)}" data-delta="-1">−</button>
+            <input type="number" class="qty-input" value="${totalQty}" min="0" step="1" data-path="${esc(fullPath)}">
+            <button class="btn-c qty-btn" data-path="${esc(fullPath)}" data-delta="1">+</button>
+        </div>
+    </div>`;
+    if (isInfoOpen) {
+        html += `<div class="row-info">${infoHtml}</div>`;
+    }
+    if (hasDesc) {
+        html += `<div class="desc-block" data-path="${esc(fullPath)}">${esc(editorData.specs[fullPath])}</div>`;
+    }
+    if (hasLink) {
+        links[fullPath].forEach(link => {
+            html += `<div style="font-size:13px;color:var(--text-secondary);padding-left:${level*20+20}px;width:100%;flex-basis:100%;">→ ${link.target} (×${link.multiplier})</div>`;
+        });
+    }
+
+    // Дочерние строки для мульти-режима
+    if (isMulti && mode.enabled && options.length > 1) {
+        html += `<div class="child-row" data-parent="${esc(fullPath)}" style="width:100%;flex-basis:100%;">`;
+        html += `<div style="padding:4px 8px;font-size:13px;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">Распределение по вариантам кофров (сумма: ${individualVals.reduce((a,b)=>a+b,0)} шт)</div>`;
+        options.forEach((opt, idx) => {
+            const val = individualVals[idx] || 0;
+            const maxPossible = getStockValue(fullPath);
+            html += `<div class="child-controls">
+                <label>Вариант ${idx+1} (вм. ${opt.qty} шт):</label>
+                <button class="btn-c child-qty-btn" data-path="${esc(fullPath)}" data-idx="${idx}" data-delta="-1">−</button>
+                <input type="number" class="child-qty" data-path="${esc(fullPath)}" data-idx="${idx}" value="${val}" min="0" step="1" max="${maxPossible}">
+                <button class="btn-c child-qty-btn" data-path="${esc(fullPath)}" data-idx="${idx}" data-delta="1">+</button>
+                <span class="child-info">габ: ${opt.dims || 'н/д'}, вес: ${opt.weight || 0} кг</span>
+            </div>`;
+        });
+        html += `</div>`;
+    }
+
+    // Дочерние строки для общих кофров
+    if (hasCommonPacking) {
+        const commonCases = getCommonCases();
+        const extra = getOrderExtra(fullPath);
+        html += `<div class="child-row" data-parent="${esc(fullPath)}" style="width:100%;flex-basis:100%;">`;
+        html += `<div style="padding:4px 8px;font-size:13px;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">Упаковка в общие кофры (вне кофра: ${extra} шт)</div>`;
+        const maxExtra = getStockValue(fullPath);
+        html += `<div class="child-controls">
+            <label>Вне кофра:</label>
+            <button class="btn-c child-extra-btn" data-path="${esc(fullPath)}" data-delta="-1">−</button>
+            <input type="number" class="child-extra-qty" data-path="${esc(fullPath)}" value="${extra}" min="0" step="1" max="${maxExtra}">
+            <button class="btn-c child-extra-btn" data-path="${esc(fullPath)}" data-delta="1">+</button>
+        </div>`;
+        packing.forEach((p, idx) => {
+            const c = commonCases.find(c => c.id === p.caseId);
+            const name = c ? c.name : 'удалённый кофр';
+            // Исправлено: p.pieces вместо p.qty
+            const qty = p.pieces || 0;
+            const maxPack = c ? c.qty : 0;
+            html += `<div class="child-controls">
+                <label>${name} (вм. ${maxPack} шт):</label>
+                <button class="btn-c child-common-btn" data-path="${esc(fullPath)}" data-caseid="${p.caseId}" data-delta="-1">−</button>
+                <input type="number" class="child-common-qty" data-path="${esc(fullPath)}" data-caseid="${p.caseId}" value="${qty}" min="0" step="1" max="${maxPack}">
+                <button class="btn-c child-common-btn" data-path="${esc(fullPath)}" data-caseid="${p.caseId}" data-delta="1">+</button>
+                <span class="child-info">габ: ${c ? c.dimensions || 'н/д' : 'н/д'}, вес: ${c ? c.emptyWeight || 0 : 0} кг</span>
+                <button class="btn btn-sm remove-common-pack" style="background:var(--danger);color:white;padding:0 8px;font-size:12px;" data-path="${esc(fullPath)}" data-caseid="${p.caseId}">✕</button>
+            </div>`;
+        });
+        html += `</div>`;
+    }
+
+    return html;
 }
 
 // ============================================================
@@ -281,22 +430,129 @@ function renderQtyControls(path) {
 // ============================================================
 
 export function updateRowOrder(path) {
-    // ... (код из предыдущей версии)
+    const row = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
+    if (!row) return;
+    const sq = getStockValue(path);
+    const mode = getCaseMode(path);
+    const isMulti = localStorage.getItem('multi_' + path) === 'true';
+    const packing = getOrderPacking(path);
+    const hasCommonPacking = packing.length > 0;
+    let totalQty = 0;
+    if (isMulti && mode.enabled) {
+        const vals = getIndividualCaseValues(path);
+        totalQty = vals.reduce((a,b) => a + b, 0);
+    } else if (hasCommonPacking) {
+        const extra = getOrderExtra(path);
+        // Исправлено: p.pieces вместо p.qty
+        const packed = packing.reduce((s, p) => s + (p.pieces || 0), 0);
+        totalQty = extra + packed;
+    } else {
+        totalQty = order[path] || 0;
+    }
+
+    const isAdded = totalQty > 0;
+    const isOverstock = totalQty > sq;
+    row.classList.toggle('added', isAdded);
+    row.classList.toggle('overstock', isOverstock);
+
+    const qtyInput = row.querySelector('.qty-input');
+    if (qtyInput) {
+        if ((isMulti && mode.enabled) || hasCommonPacking) {
+            qtyInput.style.display = 'none';
+        } else {
+            qtyInput.style.display = 'inline-block';
+            qtyInput.value = totalQty;
+        }
+    }
+
+    const extraInfo = row.querySelector('.extra-info');
+    if (extraInfo) {
+        let info = '';
+        if (totalQty > 0 || sq > 0) {
+            info = `<span><strong>${totalQty}</strong> шт добавлено</span>
+                    <span>в наличии: <strong>${sq}</strong></span>`;
+            const props = getItemProps(path);
+            if (props.weight !== undefined && props.weight !== null && props.weight > 0) {
+                const w = calcItemWeightWithMode(path, totalQty);
+                info += `<span>${w.toFixed(1)} кг</span>`;
+            }
+            if (props.dimensions && props.dimensions.trim() !== '') {
+                const v = calcItemVolumeWithMode(path, totalQty);
+                info += `<span>${v.toFixed(3)} м³</span>`;
+            }
+        }
+        extraInfo.innerHTML = info;
+    }
+
+    const weightVolDisplay = row.querySelector('.weight-vol-display');
+    if (weightVolDisplay) {
+        const props = getItemProps(path);
+        let weightDisplay = '0 кг', volumeDisplay = '0 м³';
+        if (props.weight !== undefined && props.weight !== null && props.weight > 0) {
+            const w = calcItemWeightWithMode(path, totalQty);
+            weightDisplay = w.toFixed(1) + ' кг';
+        }
+        if (props.dimensions && props.dimensions.trim() !== '') {
+            const v = calcItemVolumeWithMode(path, totalQty);
+            volumeDisplay = v.toFixed(3) + ' м³';
+        }
+        weightVolDisplay.textContent = weightDisplay + ' / ' + volumeDisplay;
+    }
+
+    if (infoBlocksOpen[path]) {
+        const infoBlock = row.querySelector('.row-info');
+        if (infoBlock) {
+            const props = getItemProps(path);
+            const mode = getCaseMode(path);
+            infoBlock.innerHTML = buildInfoHtml(path, props, mode);
+            infoBlock.style.display = 'block';
+        }
+    }
+
+    const linkBtn = row.querySelector('.link-btn');
+    if (linkBtn) {
+        const hasLink = links[path] && links[path].length > 0;
+        linkBtn.textContent = 'Линк' + (hasLink ? ' ✓' : '');
+        linkBtn.classList.toggle('active', hasLink);
+    }
+    const noteBtn = row.querySelector('.note-btn');
+    if (noteBtn) {
+        const hasNote = !!(notes[path] && notes[path].trim());
+        noteBtn.textContent = 'Заметка' + (hasNote ? ' ✓' : '');
+        noteBtn.classList.toggle('has-note', hasNote);
+    }
+    const caseBtn = row.querySelector('.case-btn');
+    if (caseBtn) {
+        const mode = getCaseMode(path);
+        const isOn = mode.enabled || false;
+        const isMulti = localStorage.getItem('multi_' + path) === 'true';
+        const hasAlt = !!mode.alt;
+        const packing = getOrderPacking(path);
+        const hasCommonPacking = packing.length > 0;
+        let statusText = 'Кофры';
+        let statusClass = '';
+        if (hasCommonPacking) {
+            statusText = 'Общие';
+            statusClass = 'common';
+        } else if (isMulti) {
+            statusText = 'Мульти';
+            statusClass = 'multi';
+        } else if (hasAlt) {
+            statusText = 'Альт.';
+            statusClass = 'alt';
+        } else if (isOn) {
+            statusText = 'Вкл';
+            statusClass = 'on';
+        } else {
+            statusText = 'Выкл';
+            statusClass = 'off';
+        }
+        caseBtn.textContent = statusText;
+        caseBtn.className = 'action-btn case-btn ' + (isOn ? 'active ' : '') + statusClass;
+    }
+
+    updateChildRowsForPath(path);
 }
-
-// ============================================================
-// ПРИВЯЗКА СОБЫТИЙ К КОНТРОЛАМ
-// ============================================================
-
-function attachControlEvents(path) {
-    // ... (код из предыдущей версии)
-}
-
-function handleQtyInput(e) { /* ... */ }
-function handleSinglePieces(e) { /* ... */ }
-function handleSingleCases(e) { /* ... */ }
-function handleSingleBtnClick(e) { /* ... */ }
-function handleQtyBtnClick(e) { /* ... */ }
 
 // ============================================================
 // ИТОГИ
@@ -430,11 +686,11 @@ export async function openNoteEditorOrder(btn) {
 }
 
 // ============================================================
-// ЗАГЛУШКИ ДЛЯ ИНИЦИАЛИЗАЦИИ
+// ЗАГЛУШКИ ДЛЯ ИНИЦИАЛИЗАЦИИ (вызываются из initOrderUI)
 // ============================================================
 
 export function setupInputListenersOrder() {
-    // Уже настроено через делегирование
+    // Уже настроено через делегирование в initOrderUI
 }
 
 export function setupCaseTogglesOrder() {

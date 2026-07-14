@@ -1,7 +1,6 @@
-// order.js — Данные заказа (полная версия с синхронизацией путей и поддержкой новых режимов)
+// order.js — Данные заказа (полная версия с синхронизацией путей)
 import { getItemProps, getCommonCases, getCachedCalculation, setCachedCalculation } from './data.js';
 
-// Экспортируемые переменные состояния
 export let order = {};
 export let orderSplits = {};
 export let links = {};
@@ -14,8 +13,6 @@ export let orderExclude = {};
 export let orderExtra = {};
 
 const STORAGE_ORDER_KEY = 'app_order_data';
-
-// Локальный кеш
 let calculationCache = new Map();
 
 export function clearCache() {
@@ -37,45 +34,17 @@ export function loadOrderData() {
         caseModes = data.caseModes || {};
         orderExclude = data.orderExclude || {};
         orderExtra = data.orderExtra || {};
-        // Нормализация caseModes
         for (let path in caseModes) {
             const mode = caseModes[path];
             if (mode.enabled === undefined) mode.enabled = false;
             if (mode.alt === undefined) mode.alt = null;
             if (mode.selectedOption === undefined) mode.selectedOption = 0;
             if (mode.accumulate === undefined) mode.accumulate = false;
-            if (mode.criteria === undefined) mode.criteria = 'weight'; // новый параметр
-            // Миграция старых данных: если был режим с enabled и selectedOption, но individualCaseValues пустые,
-            // пытаемся восстановить из order[path]
-            if (mode.enabled && mode.selectedOption !== undefined && individualCaseValues[path] === undefined) {
-                const qty = order[path] || 0;
-                if (qty > 0) {
-                    const options = getCaseOptions(path);
-                    if (options.length > 0 && options[mode.selectedOption]) {
-                        const opt = options[mode.selectedOption];
-                        // Если включён режим одного кофра, переносим количество из order в individualCaseValues
-                        const pieces = qty;
-                        // Проверяем, не является ли это мульти-режимом (если есть несколько вариантов)
-                        // Для простоты считаем, что если individualCaseValues отсутствует, это single
-                        // Но если в orderSplits что-то есть, это старый формат, лучше оставить как есть
-                    }
-                }
-            }
-        }
-        // Также проверяем, если есть orderPacking, то режим common должен быть включён
-        for (let path in orderPacking) {
-            if (orderPacking[path].length > 0) {
-                if (!caseModes[path]) caseModes[path] = { enabled: true, selectedOption: 0, alt: null, accumulate: false, criteria: 'weight' };
-                else caseModes[path].enabled = true;
-            }
-        }
-        // Если есть individualCaseValues, включаем режим
-        for (let path in individualCaseValues) {
-            const vals = individualCaseValues[path];
-            if (vals.length > 0 && vals.some(v => v > 0)) {
-                if (!caseModes[path]) caseModes[path] = { enabled: true, selectedOption: 0, alt: null, accumulate: false, criteria: 'weight' };
-                else caseModes[path].enabled = true;
-            }
+            // Инициализация новых полей
+            if (mode.multiSelected === undefined) mode.multiSelected = [];
+            if (mode.commonSelected === undefined) mode.commonSelected = [];
+            if (mode.useAlt === undefined) mode.useAlt = false;
+            if (mode.criteria === undefined) mode.criteria = 'weight';
         }
     } catch (e) {
         console.warn('Ошибка загрузки данных заказа', e);
@@ -99,7 +68,6 @@ export function saveOrderData() {
     clearCache();
 }
 
-// ===== СИНХРОНИЗАЦИЯ ПУТЕЙ =====
 export function updateAllPaths(oldPrefix, newPrefix) {
     const objectsToUpdate = [
         { obj: order, name: 'order' },
@@ -164,7 +132,7 @@ export function updateOrderPaths(oldPath, newPath) {
 }
 
 // ============================================================
-// ОСТАЛЬНЫЕ ФУНКЦИИ (без изменений)
+// БАЗОВЫЕ ФУНКЦИИ
 // ============================================================
 
 export function getTotalQty(path) {
@@ -174,6 +142,7 @@ export function getTotalQty(path) {
     }
     const packing = getOrderPacking(path);
     const extra = getOrderExtra(path);
+    // Исправлено: p.pieces вместо p.qty
     total += packing.reduce((s, p) => s + (p.pieces || 0), 0);
     total += extra;
     // Добавляем individualCaseValues
@@ -244,7 +213,16 @@ export function setIndividualCaseValues(path, vals) {
 
 export function getCaseMode(path) {
     if (!caseModes[path]) {
-        caseModes[path] = { enabled: false, alt: null, selectedOption: 0, accumulate: false, criteria: 'weight' };
+        caseModes[path] = {
+            enabled: false,
+            alt: null,
+            selectedOption: 0,
+            accumulate: false,
+            multiSelected: [],
+            commonSelected: [],
+            useAlt: false,
+            criteria: 'weight'
+        };
         saveOrderData();
     }
     return caseModes[path];
@@ -296,7 +274,7 @@ export function calcItemWeightWithMode(path, qty) {
     const vals = getIndividualCaseValues(path);
     const extra = getOrderExtra(path);
 
-    // Режим общих кофров
+    // Исправлено: p.pieces вместо p.qty
     if (packing.length > 0) {
         let totalPacked = 0;
         packing.forEach(p => {
@@ -308,12 +286,19 @@ export function calcItemWeightWithMode(path, qty) {
                 totalPacked += p.pieces;
             }
         });
-        // Остаток вне кофров
+        // Остаток вне кофров (уже учтено через extra и individual)
+        // Но в общем режиме extra уже включено в totalQty, поэтому здесь не добавляем повторно
+        // Однако для корректности нужно учесть оставшиеся штуки, которые не попали в кофры
+        // Но логика в этой функции: она получает общее количество qty и должна рассчитать вес с учётом кофров.
+        // У нас есть packing, который содержит распределение по кофрам, и extra — количество вне кофров.
+        // Также может быть individualCaseValues, но в режиме общих кофров они не используются.
+        // Поэтому считаем, что все штуки либо в packing, либо в extra.
+        // Проверим: totalPacked + extra должно равняться qty, но для надёжности добавим остаток.
         const remainder = qty - totalPacked - extra;
         if (remainder > 0) {
             result += remainder * props.weight;
         }
-        // Учитываем extra отдельно
+        // Учтем extra
         if (extra > 0) {
             result += extra * props.weight;
         }
@@ -355,6 +340,7 @@ export function calcItemVolumeWithMode(path, qty) {
     const vals = getIndividualCaseValues(path);
     const extra = getOrderExtra(path);
 
+    // Исправлено: p.pieces вместо p.qty
     if (packing.length > 0) {
         let totalPacked = 0;
         packing.forEach(p => {
@@ -411,14 +397,12 @@ export function calcItemVolumeWithMode(path, qty) {
 }
 
 export function calcItemCases(path, qty) {
-    // Если режим выключен или нет кофров, возвращаем 0
     const mode = getCaseMode(path);
     if (!mode.enabled) return 0;
     const options = getCaseOptions(path);
     if (options.length === 0) return 0;
     const vals = getIndividualCaseValues(path);
     if (vals.length === 0) return 0;
-    // Суммируем кофры по всем вариантам
     let totalCases = 0;
     vals.forEach((v, idx) => {
         if (v <= 0) return;
