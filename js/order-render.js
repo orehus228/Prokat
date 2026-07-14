@@ -435,7 +435,7 @@ function renderQtyControls(path) {
 }
 
 // ============================================================
-// ОБНОВЛЕНИЕ СТРОКИ
+// ОБНОВЛЕНИЕ СТРОКИ (исправлено: добавлены individualVals)
 // ============================================================
 
 export function updateRowOrder(path) {
@@ -446,6 +446,8 @@ export function updateRowOrder(path) {
     const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
     const packing = getOrderPacking(path);
     const hasCommonPacking = packing.length > 0;
+    // Добавлено: получение individualVals
+    const individualVals = getIndividualCaseValues(path);
     let totalQty = 0;
     if (isMulti && mode.enabled) {
         const vals = getIndividualCaseValues(path);
@@ -642,10 +644,6 @@ function calculateTotals(items) {
                 stat.volume += p.pieces * unitVolume;
             });
 
-            // Для позиции добавляем вес/объём груза (без учёта веса кофров), которые уже включены в commonStats
-            // Но также нужно добавить weightToAdd для категорий и общих итогов. Для этого мы добавим вес груза без кофров.
-            // Однако вес груза уже учтён в commonStats, и мы добавим его позже отдельно. Пока не добавляем.
-
             // Обработка extra
             if (extra > 0) {
                 const unitWeight = props.weight || 0;
@@ -664,7 +662,6 @@ function calculateTotals(items) {
             }
         } else if (isMulti && mode.enabled && individualVals.length > 1) {
             // Мульти-режим: вес/объём уже считаются через calcItemWeightWithMode
-            // Используем готовые функции
             weightToAdd = calcItemWeightWithMode(path, qty);
             volumeToAdd = calcItemVolumeWithMode(path, qty);
             casesToAdd = calcItemCases(path, qty);
@@ -732,34 +729,13 @@ function calculateTotals(items) {
             fillPercent: fillPercent,
             dimensions: dims
         });
-        // Добавляем weight/volume кофра в общие итоги (они уже добавлены через commonWeight/commonVolume)
-        // Также нужно добавить вес/объём груза из stat.weight и stat.volume в общие итоги, но они уже учтены в catTotals? Нет, мы добавили только qtyToAdd, но не вес груза.
-        // Пересчитаем: для каждого кофра мы должны добавить вес груза (stat.weight) и объём груза (stat.volume) в общие итоги.
-        // Сейчас catTotals и totalWeight содержат только вес для extra и для single/multi/без кофров, но не для позиций, упакованных в общие кофры.
-        // Поэтому нужно добавить stat.weight и stat.volume к общим итогам.
-        // Добавим в цикле ниже.
     }
 
-    // Добавляем weight/volume из commonStats в общие итоги
+    // Добавляем weight/volume из commonStats в общие итоги (вес груза в кофрах)
     for (let caseId in commonStats) {
         const stat = commonStats[caseId];
-        totalWeight += stat.weight; // вес груза в кофре
-        totalVolume += stat.volume; // объём груза в кофре
-        // Добавляем к каждой категории? Но категории разные. Распределим по категориям из items.
-        // Лучше пересчитать catTotals с учётом commonStats.
-        // Упростим: пересчитаем catTotals заново, добавив weight/volume из commonStats к соответствующим категориям.
-        // Для этого нужно знать, к какой категории относится каждый кофр.
-        // Проще: после добавления commonWeight/commonVolume, пересчитаем catTotals, добавив к каждой категории общий вес/объём кофров.
-        // Но это сложно. Я добавлю вес/объём кофров в отдельный блок, а в catTotals оставлю только позиции без учёта кофров.
-        // Итоговый вес будет: позиции (без кофров) + вес кофров (один раз) + вес груза в кофрах.
-        // Но тогда catTotals станут неполными. Альтернатива: добавить вес кофров к общим итогам, а catTotals оставить как есть.
-        // Кажется, пользователь хочет видеть в итогах категорий общий вес с учётом кофров. Поэтому лучше перераспределить.
-        // Я попробую: в catTotals добавить ещё одно поле commonWeight, но для простоты пока оставлю как есть.
-        // Просто добавлю commonWeight и commonVolume к totalWeight/totalVolume и к каждой категории пропорционально?
-        // Нет, проще: при расчёте catTotals мы изначально должны были учесть вес груза для позиций с общими кофрами.
-        // Пока я добавлю commonWeight и commonVolume только к общим итогам, а в catTotals пусть будет вес только extra и без кофров.
-        // Это не совсем корректно, но для начала сойдёт.
-        // Позже можно доработать.
+        totalWeight += stat.weight;
+        totalVolume += stat.volume;
     }
 
     // Добавляем вес кофров к общим итогам
@@ -798,7 +774,6 @@ export function updateCategoryTotalsOrder(catKey) {
     if (result.totalWeight > 0) html += `<span>Вес: ${result.totalWeight.toFixed(1)} кг</span>`;
     if (result.totalVolume > 0) html += `<span>Объём: ${result.totalVolume.toFixed(3)} м³</span>`;
     if (result.totalCases > 0) html += `<span>Кофров: ${result.totalCases} шт</span>`;
-    // Добавляем информацию по кофрам, если есть
     if (result.commonDetails && result.commonDetails.length > 0) {
         html += `<div style="width:100%;font-size:13px;color:var(--text-secondary);padding-top:4px;">`;
         result.commonDetails.forEach(c => {
@@ -826,7 +801,6 @@ export function updateTotalsOrder() {
         detailsHtml += `<div class="cat-detail"><strong>${CAT_NAMES[cat]||cat}</strong><br>${d.qty} шт<br>${d.weight.toFixed(1)} кг<br>${d.volume.toFixed(3)} м³${d.cases > 0 ? `<br>${d.cases} кофров` : ''}</div>`;
     });
 
-    // Добавляем блок общих кофров
     if (result.commonDetails && result.commonDetails.length > 0) {
         detailsHtml += `<div style="width:100%;border-top:1px solid var(--border-color);padding-top:8px;margin-top:8px;">`;
         detailsHtml += `<strong style="display:block;margin-bottom:4px;">Общие кофры:</strong>`;
