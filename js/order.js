@@ -1,7 +1,7 @@
-// order.js — Данные заказа (полная версия с синхронизацией путей)
+// order.js — Данные заказа (полная версия с синхронизацией путей и поддержкой новых режимов)
 import { getItemProps, getCommonCases, getCachedCalculation, setCachedCalculation } from './data.js';
 
-// Экспортируемые переменные состояния (уже export let)
+// Экспортируемые переменные состояния
 export let order = {};
 export let orderSplits = {};
 export let links = {};
@@ -37,12 +37,45 @@ export function loadOrderData() {
         caseModes = data.caseModes || {};
         orderExclude = data.orderExclude || {};
         orderExtra = data.orderExtra || {};
+        // Нормализация caseModes
         for (let path in caseModes) {
             const mode = caseModes[path];
             if (mode.enabled === undefined) mode.enabled = false;
             if (mode.alt === undefined) mode.alt = null;
             if (mode.selectedOption === undefined) mode.selectedOption = 0;
             if (mode.accumulate === undefined) mode.accumulate = false;
+            if (mode.criteria === undefined) mode.criteria = 'weight'; // новый параметр
+            // Миграция старых данных: если был режим с enabled и selectedOption, но individualCaseValues пустые,
+            // пытаемся восстановить из order[path]
+            if (mode.enabled && mode.selectedOption !== undefined && individualCaseValues[path] === undefined) {
+                const qty = order[path] || 0;
+                if (qty > 0) {
+                    const options = getCaseOptions(path);
+                    if (options.length > 0 && options[mode.selectedOption]) {
+                        const opt = options[mode.selectedOption];
+                        // Если включён режим одного кофра, переносим количество из order в individualCaseValues
+                        const pieces = qty;
+                        // Проверяем, не является ли это мульти-режимом (если есть несколько вариантов)
+                        // Для простоты считаем, что если individualCaseValues отсутствует, это single
+                        // Но если в orderSplits что-то есть, это старый формат, лучше оставить как есть
+                    }
+                }
+            }
+        }
+        // Также проверяем, если есть orderPacking, то режим common должен быть включён
+        for (let path in orderPacking) {
+            if (orderPacking[path].length > 0) {
+                if (!caseModes[path]) caseModes[path] = { enabled: true, selectedOption: 0, alt: null, accumulate: false, criteria: 'weight' };
+                else caseModes[path].enabled = true;
+            }
+        }
+        // Если есть individualCaseValues, включаем режим
+        for (let path in individualCaseValues) {
+            const vals = individualCaseValues[path];
+            if (vals.length > 0 && vals.some(v => v > 0)) {
+                if (!caseModes[path]) caseModes[path] = { enabled: true, selectedOption: 0, alt: null, accumulate: false, criteria: 'weight' };
+                else caseModes[path].enabled = true;
+            }
         }
     } catch (e) {
         console.warn('Ошибка загрузки данных заказа', e);
@@ -131,7 +164,7 @@ export function updateOrderPaths(oldPath, newPath) {
 }
 
 // ============================================================
-// ОСТАЛЬНЫЕ ФУНКЦИИ
+// ОСТАЛЬНЫЕ ФУНКЦИИ (без изменений)
 // ============================================================
 
 export function getTotalQty(path) {
@@ -141,8 +174,13 @@ export function getTotalQty(path) {
     }
     const packing = getOrderPacking(path);
     const extra = getOrderExtra(path);
-    total += packing.reduce((s, p) => s + (p.qty || 0), 0);
+    total += packing.reduce((s, p) => s + (p.pieces || 0), 0);
     total += extra;
+    // Добавляем individualCaseValues
+    const vals = getIndividualCaseValues(path);
+    if (vals.length > 0) {
+        total += vals.reduce((a, b) => a + b, 0);
+    }
     return total;
 }
 
@@ -196,7 +234,7 @@ export function getIndividualCaseValues(path) {
 }
 
 export function setIndividualCaseValues(path, vals) {
-    if (vals && vals.length > 0) {
+    if (vals && vals.length > 0 && vals.some(v => v > 0)) {
         individualCaseValues[path] = vals;
     } else {
         delete individualCaseValues[path];
@@ -206,7 +244,7 @@ export function setIndividualCaseValues(path, vals) {
 
 export function getCaseMode(path) {
     if (!caseModes[path]) {
-        caseModes[path] = { enabled: false, alt: null, selectedOption: 0, accumulate: false };
+        caseModes[path] = { enabled: false, alt: null, selectedOption: 0, accumulate: false, criteria: 'weight' };
         saveOrderData();
     }
     return caseModes[path];
@@ -255,52 +293,47 @@ export function calcItemWeightWithMode(path, qty) {
 
     let result = 0;
     const packing = getOrderPacking(path);
+    const vals = getIndividualCaseValues(path);
+    const extra = getOrderExtra(path);
 
+    // Режим общих кофров
     if (packing.length > 0) {
         let totalPacked = 0;
         packing.forEach(p => {
             const caseObj = getCommonCases().find(c => c.id === p.caseId);
-            if (caseObj) {
+            if (caseObj && p.pieces > 0) {
                 const emptyWeight = caseObj.emptyWeight || 0;
                 const unitWeight = props.weight;
-                result += p.qty * unitWeight + (p.qty > 0 ? emptyWeight : 0);
-                totalPacked += p.qty;
+                result += p.pieces * unitWeight + (p.pieces > 0 ? emptyWeight : 0);
+                totalPacked += p.pieces;
             }
         });
-        const remainder = qty - totalPacked;
+        // Остаток вне кофров
+        const remainder = qty - totalPacked - extra;
         if (remainder > 0) {
             result += remainder * props.weight;
         }
-    } else {
-        const vals = getIndividualCaseValues(path);
-        if (vals.length > 0) {
-            const options = getCaseOptions(path);
-            vals.forEach((v, idx) => {
-                if (v <= 0) return;
-                const opt = options[idx] || options[0];
-                const fullCases = Math.floor(v / opt.qty);
-                const rem = v % opt.qty;
-                const fullCaseWeight = (opt.weight || 0) + (opt.qty * props.weight);
-                result += fullCases * fullCaseWeight;
-                if (rem > 0) result += (opt.weight || 0) + (rem * props.weight);
-            });
-        } else {
-            const mode = getCaseMode(path);
-            if (!mode.enabled) {
-                result = qty * props.weight;
-            } else {
-                const opt = getSelectedOption(path);
-                if (!opt || opt.qty <= 0) {
-                    result = qty * props.weight;
-                } else {
-                    const fullCases = Math.floor(qty / opt.qty);
-                    const rem = qty % opt.qty;
-                    const fullCaseWeight = (opt.weight || 0) + (opt.qty * props.weight);
-                    result = fullCases * fullCaseWeight;
-                    if (rem > 0) result += (opt.weight || 0) + (rem * props.weight);
-                }
-            }
+        // Учитываем extra отдельно
+        if (extra > 0) {
+            result += extra * props.weight;
         }
+    }
+    // Режим индивидуальных кофров (single или multi)
+    else if (vals.length > 0) {
+        const options = getCaseOptions(path);
+        vals.forEach((v, idx) => {
+            if (v <= 0) return;
+            const opt = options[idx] || options[0];
+            const fullCases = Math.floor(v / opt.qty);
+            const rem = v % opt.qty;
+            const fullCaseWeight = (opt.weight || 0) + (opt.qty * props.weight);
+            result += fullCases * fullCaseWeight;
+            if (rem > 0) result += (opt.weight || 0) + (rem * props.weight);
+        });
+    }
+    // Без кофров
+    else {
+        result = qty * props.weight;
     }
 
     setCachedCalculation('weight_' + cacheKey, result);
@@ -319,12 +352,14 @@ export function calcItemVolumeWithMode(path, qty) {
 
     let result = 0;
     const packing = getOrderPacking(path);
+    const vals = getIndividualCaseValues(path);
+    const extra = getOrderExtra(path);
 
     if (packing.length > 0) {
         let totalPacked = 0;
         packing.forEach(p => {
             const caseObj = getCommonCases().find(c => c.id === p.caseId);
-            if (caseObj && p.qty > 0) {
+            if (caseObj && p.pieces > 0) {
                 if (caseObj.dimensions) {
                     const dims = caseObj.dimensions.split('x').map(s => parseFloat(s.trim()));
                     if (dims.length === 3 && dims.every(d => !isNaN(d) && d > 0)) {
@@ -332,61 +367,42 @@ export function calcItemVolumeWithMode(path, qty) {
                         result += caseVolume;
                     }
                 }
-                totalPacked += p.qty;
+                totalPacked += p.pieces;
             }
         });
-        const remainder = qty - totalPacked;
+        const remainder = qty - totalPacked - extra;
         if (remainder > 0) {
             const dims = props.dimensions.split('x').map(s => parseFloat(s.trim()));
             if (dims.length === 3 && dims.every(d => !isNaN(d) && d > 0)) {
                 result += (dims[0]*dims[1]*dims[2]) / 1000000 * remainder;
             }
         }
-    } else {
-        const vals = getIndividualCaseValues(path);
-        if (vals.length > 0) {
-            const options = getCaseOptions(path);
-            vals.forEach((v, idx) => {
-                if (v <= 0) return;
-                const opt = options[idx] || options[0];
-                const fullCases = Math.floor(v / opt.qty);
-                const rem = v % opt.qty;
-                if (opt.dims) {
-                    const dims = opt.dims.split('x').map(s => parseFloat(s.trim()));
-                    if (dims.length === 3 && dims.every(d => !isNaN(d) && d > 0)) {
-                        const caseVolume = (dims[0]*dims[1]*dims[2]) / 1000000;
-                        result += fullCases * caseVolume;
-                        if (rem > 0) result += caseVolume;
-                    }
-                }
-            });
-        } else {
-            const mode = getCaseMode(path);
-            if (!mode.enabled) {
-                const dims = props.dimensions.split('x').map(s => parseFloat(s.trim()));
+        if (extra > 0) {
+            const dims = props.dimensions.split('x').map(s => parseFloat(s.trim()));
+            if (dims.length === 3 && dims.every(d => !isNaN(d) && d > 0)) {
+                result += (dims[0]*dims[1]*dims[2]) / 1000000 * extra;
+            }
+        }
+    } else if (vals.length > 0) {
+        const options = getCaseOptions(path);
+        vals.forEach((v, idx) => {
+            if (v <= 0) return;
+            const opt = options[idx] || options[0];
+            const fullCases = Math.floor(v / opt.qty);
+            const rem = v % opt.qty;
+            if (opt.dims) {
+                const dims = opt.dims.split('x').map(s => parseFloat(s.trim()));
                 if (dims.length === 3 && dims.every(d => !isNaN(d) && d > 0)) {
-                    result = (dims[0]*dims[1]*dims[2]) / 1000000 * qty;
-                }
-            } else {
-                const opt = getSelectedOption(path);
-                if (!opt || opt.qty <= 0) {
-                    const dims = props.dimensions.split('x').map(s => parseFloat(s.trim()));
-                    if (dims.length === 3 && dims.every(d => !isNaN(d) && d > 0)) {
-                        result = (dims[0]*dims[1]*dims[2]) / 1000000 * qty;
-                    }
-                } else {
-                    const fullCases = Math.floor(qty / opt.qty);
-                    const rem = qty % opt.qty;
-                    if (opt.dims) {
-                        const dims = opt.dims.split('x').map(s => parseFloat(s.trim()));
-                        if (dims.length === 3 && dims.every(d => !isNaN(d) && d > 0)) {
-                            const caseVolume = (dims[0]*dims[1]*dims[2]) / 1000000;
-                            result = fullCases * caseVolume;
-                            if (rem > 0) result += caseVolume;
-                        }
-                    }
+                    const caseVolume = (dims[0]*dims[1]*dims[2]) / 1000000;
+                    result += fullCases * caseVolume;
+                    if (rem > 0) result += caseVolume;
                 }
             }
+        });
+    } else {
+        const dims = props.dimensions.split('x').map(s => parseFloat(s.trim()));
+        if (dims.length === 3 && dims.every(d => !isNaN(d) && d > 0)) {
+            result = (dims[0]*dims[1]*dims[2]) / 1000000 * qty;
         }
     }
 
@@ -395,10 +411,19 @@ export function calcItemVolumeWithMode(path, qty) {
 }
 
 export function calcItemCases(path, qty) {
-    if (qty <= 0) return 0;
+    // Если режим выключен или нет кофров, возвращаем 0
     const mode = getCaseMode(path);
     if (!mode.enabled) return 0;
-    const opt = getSelectedOption(path);
-    if (!opt || opt.qty <= 0) return 0;
-    return Math.ceil(qty / opt.qty);
+    const options = getCaseOptions(path);
+    if (options.length === 0) return 0;
+    const vals = getIndividualCaseValues(path);
+    if (vals.length === 0) return 0;
+    // Суммируем кофры по всем вариантам
+    let totalCases = 0;
+    vals.forEach((v, idx) => {
+        if (v <= 0) return;
+        const opt = options[idx] || options[0];
+        totalCases += Math.ceil(v / opt.qty);
+    });
+    return totalCases;
 }

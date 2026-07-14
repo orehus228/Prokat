@@ -99,7 +99,7 @@ export function toggleInfoBlock(path) {
 }
 
 // ============================================================
-// ЗАГЛУШКА ДЛЯ ИНДИКАТОРОВ (используется в order-actions)
+// ЗАГЛУШКА ДЛЯ ИНДИКАТОРОВ
 // ============================================================
 export function renderCommonCaseIndicatorsOrder() {
     renderIndicators();
@@ -259,7 +259,7 @@ function buildCategoryHTML(data, path, level) {
 }
 
 // ============================================================
-// ПОСТРОЕНИЕ СТРОКИ
+// ПОСТРОЕНИЕ СТРОКИ (обновлено для новых режимов)
 // ============================================================
 
 export function buildItemRow(fullPath, level) {
@@ -269,43 +269,59 @@ export function buildItemRow(fullPath, level) {
     const props = getItemProps(fullPath);
     const hasCase = (props.individualCases && props.individualCases.length > 0) || props.allowCommon;
     const mode = getCaseMode(fullPath);
-    const isMulti = localStorage.getItem('multi_' + fullPath) === 'true';
-    const hasAlt = !!mode.alt;
     const packing = getOrderPacking(fullPath);
-    const hasCommonPacking = packing.length > 0;
     const individualVals = getIndividualCaseValues(fullPath);
+    const extra = getOrderExtra(fullPath);
     const options = getCaseOptions(fullPath);
-
-    let totalQty = 0;
-    if (isMulti && mode.enabled) {
-        totalQty = individualVals.reduce((a,b) => a + b, 0);
-    } else if (hasCommonPacking) {
-        const extra = getOrderExtra(fullPath);
-        const packed = packing.reduce((s, p) => s + (p.qty || 0), 0);
-        totalQty = extra + packed;
-    } else {
-        totalQty = order[fullPath] || 0;
-    }
-
+    
+    // Определяем режим и информацию для отображения
+    let totalQty = getTotalQty(fullPath);
+    const isAdded = totalQty > 0;
     const overstock = totalQty > sq;
     const isInfoOpen = infoBlocksOpen[fullPath] || false;
     const hasNote = !!(notes[fullPath] && notes[fullPath].trim());
-    const isCaseModeOn = mode.enabled || false;
-
+    
+    // Определяем статус кофров для кнопки
     let caseStatusText = 'Кофры';
     let caseStatusClass = '';
-    if (hasCommonPacking) {
+    let caseInfo = ''; // дополнительная информация в строке
+    
+    if (packing.length > 0) {
         caseStatusText = 'Общие';
         caseStatusClass = 'common';
-    } else if (isMulti && options.length > 1) {
+        // Показываем краткую информацию о заполненности
+        const commonCases = getCommonCases();
+        let totalWeight = 0;
+        packing.forEach(p => {
+            const c = commonCases.find(c => c.id === p.caseId);
+            if (c && c.maxWeight) {
+                totalWeight += p.pieces * (props.weight || 0);
+            }
+        });
+        if (totalWeight > 0) {
+            caseInfo = `📦 ${packing.length} кофр${packing.length > 1 ? 'а' : ''}`;
+        }
+    } else if (mode.enabled && individualVals.length > 1) {
         caseStatusText = 'Мульти';
         caseStatusClass = 'multi';
-    } else if (hasAlt) {
-        caseStatusText = 'Альт.';
-        caseStatusClass = 'alt';
-    } else if (isCaseModeOn) {
-        caseStatusText = 'Вкл';
-        caseStatusClass = 'on';
+        const totalCases = individualVals.reduce((sum, v, idx) => {
+            if (v <= 0) return sum;
+            const opt = options[idx] || options[0];
+            return sum + Math.ceil(v / opt.qty);
+        }, 0);
+        caseInfo = `🔄 ${totalCases} кофр${totalCases > 1 ? 'а' : ''}`;
+    } else if (mode.enabled && individualVals.length === 1) {
+        const opt = getSelectedOption(fullPath);
+        const val = individualVals[0] || 0;
+        if (opt && val > 0) {
+            const casesCount = Math.ceil(val / opt.qty);
+            caseStatusText = 'Вкл';
+            caseStatusClass = 'on';
+            caseInfo = `📦 ${casesCount} кофр${casesCount > 1 ? 'а' : ''} (${val} шт)`;
+        } else {
+            caseStatusText = 'Выкл';
+            caseStatusClass = 'off';
+        }
     } else if (hasCase) {
         caseStatusText = 'Выкл';
         caseStatusClass = 'off';
@@ -323,12 +339,11 @@ export function buildItemRow(fullPath, level) {
     
     const infoHtml = buildInfoHtml(fullPath, props, mode);
     const escapedName = esc(fullPath.split('|').pop());
-    const isAdded = totalQty > 0;
     const rowClass = (isAdded ? 'added' : '') + (overstock ? ' overstock' : '');
 
     const linkClass = hasLink ? 'active' : '';
     const noteClass = hasNote ? 'has-note' : '';
-    const caseClass = isCaseModeOn ? 'active' : '';
+    const caseClass = mode.enabled ? 'active' : '';
 
     let extraInfo = '';
     if (totalQty > 0 || sq > 0) {
@@ -337,6 +352,7 @@ export function buildItemRow(fullPath, level) {
             <span>в наличии: <strong>${sq}</strong></span>
             ${weightDisplay !== '0 кг' ? `<span>${weightDisplay}</span>` : ''}
             ${volumeDisplay !== '0 м³' ? `<span>${volumeDisplay}</span>` : ''}
+            ${caseInfo ? `<span>${caseInfo}</span>` : ''}
         </div>`;
     }
 
@@ -355,9 +371,13 @@ export function buildItemRow(fullPath, level) {
         <div class="qty-controls">
             <span class="weight-vol-display" style="display:none !important;">${weightDisplay} / ${volumeDisplay}</span>
             <span class="stock-info" style="display:none !important;">в наличии: ${sq}</span>
-            <button class="btn-c qty-btn" data-path="${esc(fullPath)}" data-delta="-1">−</button>
-            <input type="number" class="qty-input" value="${totalQty}" min="0" step="1" data-path="${esc(fullPath)}">
-            <button class="btn-c qty-btn" data-path="${esc(fullPath)}" data-delta="1">+</button>
+            ${(!mode.enabled || individualVals.length === 0 || individualVals.length === 1) && packing.length === 0 ? `
+                <button class="btn-c qty-btn" data-path="${esc(fullPath)}" data-delta="-1">−</button>
+                <input type="number" class="qty-input" value="${totalQty}" min="0" step="1" data-path="${esc(fullPath)}">
+                <button class="btn-c qty-btn" data-path="${esc(fullPath)}" data-delta="1">+</button>
+            ` : `
+                <span style="font-size:13px;color:var(--text-secondary);">${totalQty} шт</span>
+            `}
         </div>
     </div>`;
     if (isInfoOpen) {
@@ -372,53 +392,8 @@ export function buildItemRow(fullPath, level) {
         });
     }
 
-    // Дочерние строки для мульти-режима
-    if (isMulti && mode.enabled && options.length > 1) {
-        html += `<div class="child-row" data-parent="${esc(fullPath)}" style="width:100%;flex-basis:100%;">`;
-        html += `<div style="padding:4px 8px;font-size:13px;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">Распределение по вариантам кофров (сумма: ${individualVals.reduce((a,b)=>a+b,0)} шт)</div>`;
-        options.forEach((opt, idx) => {
-            const val = individualVals[idx] || 0;
-            const maxPossible = getStockValue(fullPath);
-            html += `<div class="child-controls">
-                <label>Вариант ${idx+1} (вм. ${opt.qty} шт):</label>
-                <button class="btn-c child-qty-btn" data-path="${esc(fullPath)}" data-idx="${idx}" data-delta="-1">−</button>
-                <input type="number" class="child-qty" data-path="${esc(fullPath)}" data-idx="${idx}" value="${val}" min="0" step="1" max="${maxPossible}">
-                <button class="btn-c child-qty-btn" data-path="${esc(fullPath)}" data-idx="${idx}" data-delta="1">+</button>
-                <span class="child-info">габ: ${opt.dims || 'н/д'}, вес: ${opt.weight || 0} кг</span>
-            </div>`;
-        });
-        html += `</div>`;
-    }
-
-    // Дочерние строки для общих кофров
-    if (hasCommonPacking) {
-        const commonCases = getCommonCases();
-        const extra = getOrderExtra(fullPath);
-        html += `<div class="child-row" data-parent="${esc(fullPath)}" style="width:100%;flex-basis:100%;">`;
-        html += `<div style="padding:4px 8px;font-size:13px;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">Упаковка в общие кофры (вне кофра: ${extra} шт)</div>`;
-        const maxExtra = getStockValue(fullPath);
-        html += `<div class="child-controls">
-            <label>Вне кофра:</label>
-            <button class="btn-c child-extra-btn" data-path="${esc(fullPath)}" data-delta="-1">−</button>
-            <input type="number" class="child-extra-qty" data-path="${esc(fullPath)}" value="${extra}" min="0" step="1" max="${maxExtra}">
-            <button class="btn-c child-extra-btn" data-path="${esc(fullPath)}" data-delta="1">+</button>
-        </div>`;
-        packing.forEach((p, idx) => {
-            const c = commonCases.find(c => c.id === p.caseId);
-            const name = c ? c.name : 'удалённый кофр';
-            const qty = p.qty || 0;
-            const maxPack = c ? c.qty : 0;
-            html += `<div class="child-controls">
-                <label>${name} (вм. ${maxPack} шт):</label>
-                <button class="btn-c child-common-btn" data-path="${esc(fullPath)}" data-caseid="${p.caseId}" data-delta="-1">−</button>
-                <input type="number" class="child-common-qty" data-path="${esc(fullPath)}" data-caseid="${p.caseId}" value="${qty}" min="0" step="1" max="${maxPack}">
-                <button class="btn-c child-common-btn" data-path="${esc(fullPath)}" data-caseid="${p.caseId}" data-delta="1">+</button>
-                <span class="child-info">габ: ${c ? c.dimensions || 'н/д' : 'н/д'}, вес: ${c ? c.emptyWeight || 0 : 0} кг</span>
-                <button class="btn btn-sm remove-common-pack" style="background:var(--danger);color:white;padding:0 8px;font-size:12px;" data-path="${esc(fullPath)}" data-caseid="${p.caseId}">✕</button>
-            </div>`;
-        });
-        html += `</div>`;
-    }
+    // Дочерние строки (рендерятся через updateChildRowsForPath, но мы вызываем его отдельно)
+    // Здесь не добавляем дочерние строки, чтобы избежать дублирования
 
     return html;
 }
@@ -432,36 +407,46 @@ export function updateRowOrder(path) {
     if (!row) return;
     const sq = getStockValue(path);
     const mode = getCaseMode(path);
-    const isMulti = localStorage.getItem('multi_' + path) === 'true';
+    const individualVals = getIndividualCaseValues(path);
     const packing = getOrderPacking(path);
-    const hasCommonPacking = packing.length > 0;
-    let totalQty = 0;
-    if (isMulti && mode.enabled) {
-        const vals = getIndividualCaseValues(path);
-        totalQty = vals.reduce((a,b) => a + b, 0);
-    } else if (hasCommonPacking) {
-        const extra = getOrderExtra(path);
-        const packed = packing.reduce((s, p) => s + (p.qty || 0), 0);
-        totalQty = extra + packed;
-    } else {
-        totalQty = order[path] || 0;
-    }
-
+    const totalQty = getTotalQty(path);
+    
     const isAdded = totalQty > 0;
     const isOverstock = totalQty > sq;
     row.classList.toggle('added', isAdded);
     row.classList.toggle('overstock', isOverstock);
 
+    // Обновляем контролы количества
     const qtyInput = row.querySelector('.qty-input');
+    const controls = row.querySelector('.qty-controls');
     if (qtyInput) {
-        if ((isMulti && mode.enabled) || hasCommonPacking) {
+        // Если включён режим кофров (кроме off) или есть упаковка, скрываем поле ввода
+        const isCaseMode = (mode.enabled && (individualVals.length > 0 || packing.length > 0));
+        if (isCaseMode || packing.length > 0) {
             qtyInput.style.display = 'none';
+            // Показываем статическое количество
+            let staticSpan = controls.querySelector('.static-qty');
+            if (!staticSpan) {
+                staticSpan = document.createElement('span');
+                staticSpan.className = 'static-qty';
+                staticSpan.style.cssText = 'font-size:13px;color:var(--text-secondary);';
+                controls.prepend(staticSpan);
+            }
+            staticSpan.textContent = `${totalQty} шт`;
+            // Скрываем кнопки +/-
+            const btns = controls.querySelectorAll('.qty-btn');
+            btns.forEach(btn => btn.style.display = 'none');
         } else {
             qtyInput.style.display = 'inline-block';
             qtyInput.value = totalQty;
+            const staticSpan = controls.querySelector('.static-qty');
+            if (staticSpan) staticSpan.remove();
+            const btns = controls.querySelectorAll('.qty-btn');
+            btns.forEach(btn => btn.style.display = 'inline-flex');
         }
     }
 
+    // Обновляем extra-info
     const extraInfo = row.querySelector('.extra-info');
     if (extraInfo) {
         let info = '';
@@ -477,10 +462,31 @@ export function updateRowOrder(path) {
                 const v = calcItemVolumeWithMode(path, totalQty);
                 info += `<span>${v.toFixed(3)} м³</span>`;
             }
+            // Добавляем информацию о кофрах
+            if (packing.length > 0) {
+                info += `<span>📦 ${packing.length} кофр${packing.length > 1 ? 'а' : ''}</span>`;
+            } else if (mode.enabled && individualVals.length > 1) {
+                const options = getCaseOptions(path);
+                let totalCases = 0;
+                individualVals.forEach((v, idx) => {
+                    if (v <= 0) return;
+                    const opt = options[idx] || options[0];
+                    totalCases += Math.ceil(v / opt.qty);
+                });
+                info += `<span>🔄 ${totalCases} кофр${totalCases > 1 ? 'а' : ''}</span>`;
+            } else if (mode.enabled && individualVals.length === 1) {
+                const opt = getSelectedOption(path);
+                const val = individualVals[0] || 0;
+                if (opt && val > 0) {
+                    const casesCount = Math.ceil(val / opt.qty);
+                    info += `<span>📦 ${casesCount} кофр${casesCount > 1 ? 'а' : ''}</span>`;
+                }
+            }
         }
         extraInfo.innerHTML = info;
     }
 
+    // Обновляем вес/объём
     const weightVolDisplay = row.querySelector('.weight-vol-display');
     if (weightVolDisplay) {
         const props = getItemProps(path);
@@ -496,28 +502,7 @@ export function updateRowOrder(path) {
         weightVolDisplay.textContent = weightDisplay + ' / ' + volumeDisplay;
     }
 
-    // Удаляем блок с предупреждением "!" (убрано по требованию)
-    // const oldWarn = row.querySelector('.overstock-warning');
-    // if (oldWarn) oldWarn.remove();
-    // if (isOverstock) {
-    //     const warn = document.createElement('span');
-    //     warn.className = 'overstock-warning';
-    //     warn.textContent = '!';
-    //     warn.title = 'Больше нет (в наличии ' + sq + ')';
-    //     const controls = row.querySelector('.qty-controls');
-    //     if (controls) controls.appendChild(warn);
-    // }
-
-    if (infoBlocksOpen[path]) {
-        const infoBlock = row.querySelector('.row-info');
-        if (infoBlock) {
-            const props = getItemProps(path);
-            const mode = getCaseMode(path);
-            infoBlock.innerHTML = buildInfoHtml(path, props, mode);
-            infoBlock.style.display = 'block';
-        }
-    }
-
+    // Обновляем состояние кнопок
     const linkBtn = row.querySelector('.link-btn');
     if (linkBtn) {
         const hasLink = links[path] && links[path].length > 0;
@@ -534,22 +519,19 @@ export function updateRowOrder(path) {
     if (caseBtn) {
         const mode = getCaseMode(path);
         const isOn = mode.enabled || false;
-        const isMulti = localStorage.getItem('multi_' + path) === 'true';
-        const hasAlt = !!mode.alt;
         const packing = getOrderPacking(path);
-        const hasCommonPacking = packing.length > 0;
+        const individualVals = getIndividualCaseValues(path);
+        const options = getCaseOptions(path);
+        
         let statusText = 'Кофры';
         let statusClass = '';
-        if (hasCommonPacking) {
+        if (packing.length > 0) {
             statusText = 'Общие';
             statusClass = 'common';
-        } else if (isMulti) {
+        } else if (mode.enabled && individualVals.length > 1) {
             statusText = 'Мульти';
             statusClass = 'multi';
-        } else if (hasAlt) {
-            statusText = 'Альт.';
-            statusClass = 'alt';
-        } else if (isOn) {
+        } else if (mode.enabled && individualVals.length === 1) {
             statusText = 'Вкл';
             statusClass = 'on';
         } else {
@@ -560,6 +542,7 @@ export function updateRowOrder(path) {
         caseBtn.className = 'action-btn case-btn ' + (isOn ? 'active ' : '') + statusClass;
     }
 
+    // Обновляем дочерние строки
     updateChildRowsForPath(path);
 }
 
@@ -695,7 +678,7 @@ export async function openNoteEditorOrder(btn) {
 }
 
 // ============================================================
-// ЗАГЛУШКИ ДЛЯ ИНИЦИАЛИЗАЦИИ (вызываются из initOrderUI)
+// ЗАГЛУШКИ ДЛЯ ИНИЦИАЛИЗАЦИИ
 // ============================================================
 
 export function setupInputListenersOrder() {

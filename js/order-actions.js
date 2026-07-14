@@ -78,6 +78,7 @@ export function setupEventDelegation() {
 }
 
 function handleContainerClick(e) {
+    // Обработка кнопок +/− в основном контроле (без кофров)
     const target = e.target.closest('.qty-btn');
     if (target && !target.closest('.child-controls')) {
         const path = target.dataset.path;
@@ -103,6 +104,7 @@ function handleContainerClick(e) {
         return;
     }
 
+    // Обработка кнопок в мультирежиме (варианты кофров)
     const childBtn = e.target.closest('.child-qty-btn');
     if (childBtn) {
         const path = childBtn.dataset.path;
@@ -132,6 +134,7 @@ function handleContainerClick(e) {
         return;
     }
 
+    // Обработка кнопок для общих кофров
     const commonBtn = e.target.closest('.child-common-btn');
     if (commonBtn) {
         const path = commonBtn.dataset.path;
@@ -145,13 +148,23 @@ function handleContainerClick(e) {
             const p = packing.find(p => p.caseId === caseId);
             if (p) {
                 const c = getCommonCases().find(c => c.id === caseId);
-                const maxPack = c ? c.qty : 0;
+                const maxPack = c ? c.qty : Infinity;
+                // Проверяем ограничение по весу/объёму (если заданы)
+                const props = getItemProps(path);
+                const unitWeight = props.weight || 0;
+                const currentWeight = p.pieces * unitWeight;
+                const newWeight = val * unitWeight;
+                if (c && c.maxWeight && newWeight > c.maxWeight) {
+                    showToast(`Превышен максимальный вес кофра "${c.name}" (${c.maxWeight} кг)`, 'warning');
+                    val = Math.min(val, Math.floor(c.maxWeight / unitWeight));
+                    if (val < 0) val = 0;
+                }
                 if (val > maxPack) {
-                    showToast(`Превышена вместимость кофра "${c ? c.name : 'удалённый'}"`, 'warning');
+                    showToast(`Превышена вместимость кофра "${c ? c.name : 'удалённый'}" (${maxPack} шт)`, 'warning');
                     val = Math.min(val, maxPack);
                 }
                 input.value = val;
-                p.qty = val;
+                p.pieces = val;
                 setOrderPacking(path, packing);
                 saveOrderData();
                 updateRowOrder(path);
@@ -162,6 +175,7 @@ function handleContainerClick(e) {
         return;
     }
 
+    // Обработка кнопок для "вне кофра"
     const extraBtn = e.target.closest('.child-extra-btn');
     if (extraBtn) {
         const path = extraBtn.dataset.path;
@@ -185,18 +199,21 @@ function handleContainerClick(e) {
         return;
     }
 
+    // Кнопка "Инфо"
     const infoBtn = e.target.closest('.info-btn');
     if (infoBtn) {
         toggleInfoOrder(infoBtn);
         return;
     }
 
+    // Кнопка "Описание"
     const descBtn = e.target.closest('.desc-btn');
     if (descBtn) {
         toggleDescOrder(descBtn);
         return;
     }
 
+    // Кнопка "Линк"
     const linkBtn = e.target.closest('.link-btn');
     if (linkBtn) {
         import('./cases.js').then(module => {
@@ -205,6 +222,7 @@ function handleContainerClick(e) {
         return;
     }
 
+    // Кнопка "Кофры" (открывает модалку настройки)
     const caseBtn = e.target.closest('.case-btn');
     if (caseBtn) {
         import('./cases.js').then(module => {
@@ -217,12 +235,14 @@ function handleContainerClick(e) {
         return;
     }
 
+    // Кнопка "Заметка"
     const noteBtn = e.target.closest('.note-btn');
     if (noteBtn) {
         openNoteEditorOrder(noteBtn);
         return;
     }
 
+    // Удаление привязки к общему кофру
     const removeBtn = e.target.closest('.remove-common-pack');
     if (removeBtn) {
         const path = removeBtn.dataset.path;
@@ -238,6 +258,7 @@ function handleContainerClick(e) {
         return;
     }
 
+    // Обработка дропдауна кофров (если используется)
     const dropdownBtn = e.target.closest('.case-dropdown-btn');
     if (dropdownBtn) {
         const path = dropdownBtn.dataset.path;
@@ -260,6 +281,7 @@ function handleContainerClick(e) {
 }
 
 function handleContainerInput(e) {
+    // Основной ввод количества (без кофров)
     const target = e.target.closest('.qty-input');
     if (target) {
         const path = target.dataset.path;
@@ -273,6 +295,7 @@ function handleContainerInput(e) {
         return;
     }
 
+    // Ввод в мультирежиме
     const childQty = e.target.closest('.child-qty');
     if (childQty) {
         const path = childQty.dataset.path;
@@ -293,6 +316,7 @@ function handleContainerInput(e) {
         return;
     }
 
+    // Ввод количества в общем кофре
     const childCommon = e.target.closest('.child-common-qty');
     if (childCommon) {
         const path = childCommon.dataset.path;
@@ -303,13 +327,22 @@ function handleContainerInput(e) {
         const p = packing.find(p => p.caseId === caseId);
         if (p) {
             const c = getCommonCases().find(c => c.id === caseId);
-            const maxPack = c ? c.qty : 0;
+            const maxPack = c ? c.qty : Infinity;
+            const props = getItemProps(path);
+            const unitWeight = props.weight || 0;
+            const newWeight = val * unitWeight;
+            if (c && c.maxWeight && newWeight > c.maxWeight) {
+                showToast(`Превышен максимальный вес кофра "${c.name}" (${c.maxWeight} кг)`, 'warning');
+                val = Math.min(val, Math.floor(c.maxWeight / unitWeight));
+                if (val < 0) val = 0;
+                childCommon.value = val;
+            }
             if (val > maxPack) {
-                showToast(`Превышена вместимость кофра "${c ? c.name : 'удалённый'}"`, 'warning');
+                showToast(`Превышена вместимость кофра "${c ? c.name : 'удалённый'}" (${maxPack} шт)`, 'warning');
                 val = Math.min(val, maxPack);
                 childCommon.value = val;
             }
-            p.qty = val;
+            p.pieces = val;
             setOrderPacking(path, packing);
             saveOrderData();
             updateRowOrder(path);
@@ -319,6 +352,7 @@ function handleContainerInput(e) {
         return;
     }
 
+    // Ввод "вне кофра"
     const childExtra = e.target.closest('.child-extra-qty');
     if (childExtra) {
         const path = childExtra.dataset.path;
@@ -333,6 +367,7 @@ function handleContainerInput(e) {
         return;
     }
 
+    // Ввод в случае, если используется поле кофров (для single режима — сейчас не используется)
     const caseInput = e.target.closest('.case-input');
     if (caseInput) {
         const path = caseInput.dataset.path;
@@ -357,7 +392,13 @@ function handleContainerInput(e) {
     }
 }
 
-function handleContainerChange(e) {}
+function handleContainerChange(e) {
+    // Для select и других элементов, если понадобится
+}
+
+// ============================================================
+// ОБРАБОТКА ДРОПДАУНА КОФРОВ (устаревший механизм, оставлен для совместимости)
+// ============================================================
 
 function handleDropdownItemOrder(item) {
     const path = item.dataset.path;
