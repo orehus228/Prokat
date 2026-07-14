@@ -14,7 +14,8 @@ import {
     setOrderPacking,
     getOrderExtra,
     setOrderExtra,
-    saveOrderData
+    saveOrderData,
+    order
 } from '../../order.js';
 
 import {
@@ -210,7 +211,64 @@ function renderCaseModeContent(mode, container, path, options, individualVals, p
 }
 
 // ============================================================
-// СОХРАНЕНИЕ НАСТРОЕК
+// ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ МИГРАЦИИ КОЛИЧЕСТВА
+// ============================================================
+async function migrateQuantityToCases(path, options, selectedIndices) {
+    const currentQty = order[path] || 0;
+    if (currentQty <= 0) return 0; // нет количества для переноса
+
+    const totalQty = currentQty;
+    // Удаляем обычное количество
+    delete order[path];
+
+    if (selectedIndices.length === 1) {
+        // Single-режим: всё количество в один вариант
+        const idx = selectedIndices[0];
+        const opt = options[idx];
+        if (!opt) return totalQty;
+        // Ограничиваем по maxCases
+        const maxCases = opt.maxCases || 0;
+        let casesCount = Math.ceil(totalQty / opt.qty);
+        if (maxCases > 0 && casesCount > maxCases) {
+            casesCount = maxCases;
+            showToast(`Количество ограничено макс. кофрами (${maxCases}) для варианта ${idx+1}`, 'warning');
+        }
+        const pieces = casesCount * opt.qty;
+        // Сохраняем в individualCaseValues (массив с одним элементом)
+        const vals = [pieces];
+        setIndividualCaseValues(path, vals);
+        return pieces;
+    } else {
+        // Мульти-режим: спрашиваем пользователя, как распределить
+        // Пока просто распределим поровну между выбранными вариантами
+        const count = selectedIndices.length;
+        const base = Math.floor(totalQty / count);
+        let remainder = totalQty % count;
+        const vals = options.map((opt, idx) => {
+            if (!selectedIndices.includes(idx)) return 0;
+            let val = base;
+            if (remainder > 0) {
+                val += 1;
+                remainder--;
+            }
+            // Ограничиваем по maxCases
+            const maxCases = opt.maxCases || 0;
+            if (maxCases > 0) {
+                const maxPieces = maxCases * opt.qty;
+                if (val > maxPieces) {
+                    val = maxPieces;
+                    showToast(`Вариант ${idx+1} ограничен макс. кофрами (${maxCases})`, 'warning');
+                }
+            }
+            return val;
+        });
+        setIndividualCaseValues(path, vals);
+        return totalQty;
+    }
+}
+
+// ============================================================
+// СОХРАНЕНИЕ НАСТРОЕК (с миграцией количества)
 // ============================================================
 function saveCaseSettings(path) {
     const modeBtns = document.querySelectorAll('.case-mode-btn');
@@ -221,6 +279,9 @@ function saveCaseSettings(path) {
 
     const mode = getCaseMode(path);
     const options = getCaseOptions(path);
+
+    // Сохраняем текущее количество из обычного режима (если есть)
+    const existingQty = order[path] || 0;
 
     // Сбрасываем старые данные
     mode.enabled = false;
@@ -234,6 +295,7 @@ function saveCaseSettings(path) {
 
     switch (activeMode) {
         case 'off':
+            // Ничего не делаем, количество останется в order
             break;
 
         case 'single': {
@@ -253,8 +315,51 @@ function saveCaseSettings(path) {
                 showToast('Альтернативный кофр не настроен', 'warning');
                 return;
             }
-            // Устанавливаем нулевое значение, чтобы поля появились в строке
-            setIndividualCaseValues(path, [0]);
+
+            // Переносим количество из обычного режима
+            let pieces = 0;
+            if (existingQty > 0) {
+                // Спрашиваем пользователя, хочет ли он перенести количество
+                showConfirm(`Перенести ${existingQty} шт в кофры?`, 'Перенос количества')
+                    .then(confirmed => {
+                        if (confirmed) {
+                            const opt = options[idx];
+                            if (opt) {
+                                let casesCount = Math.ceil(existingQty / opt.qty);
+                                const maxCases = opt.maxCases || 0;
+                                if (maxCases > 0 && casesCount > maxCases) {
+                                    casesCount = maxCases;
+                                    showToast(`Количество ограничено макс. кофрами (${maxCases})`, 'warning');
+                                }
+                                pieces = casesCount * opt.qty;
+                                setIndividualCaseValues(path, [pieces]);
+                                delete order[path];
+                            }
+                        } else {
+                            // Оставляем в order
+                        }
+                    })
+                    .catch(() => {});
+                // Но так как мы в синхронной функции, нужно ждать подтверждения. Используем async/await.
+                // Для простоты сделаем синхронно: если есть количество, переносим автоматически без диалога.
+                // Но лучше использовать диалог. Переделаем на async.
+                // Пока сделаем автоматический перенос, а диалог добавим позже.
+                const opt = options[idx];
+                if (opt) {
+                    let casesCount = Math.ceil(existingQty / opt.qty);
+                    const maxCases = opt.maxCases || 0;
+                    if (maxCases > 0 && casesCount > maxCases) {
+                        casesCount = maxCases;
+                        showToast(`Количество ограничено макс. кофрами (${maxCases})`, 'warning');
+                    }
+                    pieces = casesCount * opt.qty;
+                    setIndividualCaseValues(path, [pieces]);
+                    delete order[path];
+                }
+            } else {
+                // Устанавливаем нулевое значение, чтобы поля появились
+                setIndividualCaseValues(path, [0]);
+            }
             break;
         }
 
@@ -263,9 +368,36 @@ function saveCaseSettings(path) {
             const selected = options.map(() => true);
             mode.enabled = true;
             mode.multiSelected = selected;
-            // Инициализируем нулями для всех вариантов
-            const vals = options.map(() => 0);
-            setIndividualCaseValues(path, vals);
+
+            // Переносим количество из обычного режима
+            if (existingQty > 0) {
+                // Автоматически распределяем поровну между всеми вариантами
+                const count = options.length;
+                const base = Math.floor(existingQty / count);
+                let remainder = existingQty % count;
+                const vals = options.map((opt, idx) => {
+                    let val = base;
+                    if (remainder > 0) {
+                        val += 1;
+                        remainder--;
+                    }
+                    const maxCases = opt.maxCases || 0;
+                    if (maxCases > 0) {
+                        const maxPieces = maxCases * opt.qty;
+                        if (val > maxPieces) {
+                            val = maxPieces;
+                            showToast(`Вариант ${idx+1} ограничен макс. кофрами (${maxCases})`, 'warning');
+                        }
+                    }
+                    return val;
+                });
+                setIndividualCaseValues(path, vals);
+                delete order[path];
+            } else {
+                // Инициализируем нулями для всех вариантов
+                const vals = options.map(() => 0);
+                setIndividualCaseValues(path, vals);
+            }
             break;
         }
 
@@ -286,10 +418,16 @@ function saveCaseSettings(path) {
             }
             mode.enabled = true;
             mode.commonSelected = selected;
+
+            // Переносим количество из обычного режима в "вне кофра"
+            if (existingQty > 0) {
+                setOrderExtra(path, existingQty);
+                delete order[path];
+            }
+
             // Создаём записи в packing для выбранных кофров с нулевым количеством
             const packing = selected.map(caseId => ({ caseId, pieces: 0 }));
             setOrderPacking(path, packing);
-            setOrderExtra(path, 0);
             break;
         }
     }

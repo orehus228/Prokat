@@ -56,7 +56,7 @@ import {
 
 export function getValue(path) {
     const mode = getCaseMode(path);
-    const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
+    const isMulti = isMultiMode(path);
     if (mode.enabled && isMulti) {
         const vals = getIndividualCaseValues(path);
         return vals.reduce((a,b) => a + b, 0);
@@ -70,6 +70,23 @@ export function getValue(path) {
     return order[path] || 0;
 }
 
+// Функция для определения мульти-режима (универсальная)
+function isMultiMode(path) {
+    const mode = getCaseMode(path);
+    const vals = getIndividualCaseValues(path);
+    // Если есть multiSelected и он содержит true — мульти
+    if (mode.multiSelected && mode.multiSelected.some(v => v === true)) {
+        return true;
+    }
+    // Если режим включен и individualVals имеет больше 1 варианта с положительным значением
+    if (mode.enabled && vals.length > 1) {
+        // Проверим, есть ли хотя бы один вариант с количеством > 0 или все нули, но режим мульти
+        // Если все нули, но режим мульти включен (например, только что переключились), считаем мульти
+        return true;
+    }
+    return false;
+}
+
 export function getStockValue(path) {
     const parts = path.split('|');
     const catKey = parts[0];
@@ -81,7 +98,7 @@ export function getStockValue(path) {
 export function setValueOrder(path, val) {
     val = Math.max(0, parseInt(val) || 0);
     const mode = getCaseMode(path);
-    const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
+    const isMulti = isMultiMode(path);
     if (mode.enabled && isMulti) {
         showToast('В мульти-режиме меняйте количество в дочерних полях', 'warning');
         return;
@@ -183,7 +200,7 @@ export function renderCommonCaseIndicatorsOrder() {
 }
 
 // ============================================================
-// РАБОТА С ДОЧЕРНИМИ ЭЛЕМЕНТАМИ (улучшенный внешний вид)
+// РАБОТА С ДОЧЕРНИМИ ЭЛЕМЕНТАМИ (исправлен мульти-режим)
 // ============================================================
 
 export function updateChildRowsForPath(path) {
@@ -197,7 +214,7 @@ export function updateChildRowsForPath(path) {
     }
     const mode = getCaseMode(path);
     const options = getCaseOptions(path);
-    const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
+    const isMulti = isMultiMode(path);
     const packing = getOrderPacking(path);
     const hasCommonPacking = packing.length > 0;
     const individualVals = getIndividualCaseValues(path);
@@ -334,7 +351,7 @@ export function buildInfoHtml(path, props, mode) {
     const individualVals = getIndividualCaseValues(path);
     const packing = getOrderPacking(path);
     const extra = getOrderExtra(path);
-    const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
+    const isMulti = isMultiMode(path);
 
     if (packing.length > 0) {
         html += `<div style="width:100%;"><strong>Общие кофры:</strong></div>`;
@@ -354,7 +371,6 @@ export function buildInfoHtml(path, props, mode) {
     } else if (mode.enabled && isMulti && individualVals.length > 1) {
         html += `<div style="width:100%;"><strong>Мультикофры:</strong></div>`;
         options.forEach((opt, idx) => {
-            if (!mode.multiSelected[idx]) return;
             const val = individualVals[idx] || 0;
             if (val > 0) {
                 const casesCount = Math.ceil(val / opt.qty);
