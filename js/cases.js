@@ -1,4 +1,4 @@
-// cases.js — Полная версия со всеми экспортами (свойства, матрица, общие кофры, настройка кофров)
+// cases.js — Полная версия со всеми функциями
 import {
     getItemProps,
     setItemProps,
@@ -59,7 +59,6 @@ let matrixFullNames = true;
 const MATRIX_PRESETS_KEY = STORAGE_KEYS.MATRIX_PRESETS || 'matrix_presets';
 const MATRIX_FULLNAMES_KEY = 'matrix_full_names';
 
-// Загрузка состояния полных названий
 function loadMatrixFullNames() {
     try {
         const val = localStorage.getItem(MATRIX_FULLNAMES_KEY);
@@ -80,25 +79,295 @@ function saveMatrixFullNames() {
 // МОДАЛКА СВОЙСТВ ПОЗИЦИИ
 // ============================================================
 export function openPropsModalEditor(catKey, subKey, itemName, onSaveCallback) {
-    // ... (полный код, уже был ранее)
-    // Для краткости я пропускаю этот блок, но он должен быть здесь полностью.
-    // В реальном файле он есть.
+    currentPropsPath = { catKey, subKey, itemName, onSaveCallback };
+    const props = getItemProps(catKey, subKey, itemName);
+
+    document.getElementById('propsTitle').textContent = 'Свойства: ' + itemName;
+    document.getElementById('propWeight').value = props.weight || '';
+    document.getElementById('propDimensions').value = props.dimensions || '';
+    document.getElementById('propVolume').value = props.volume || '';
+    document.getElementById('propAllowCommon').checked = !!props.allowCommon;
+
+    const containerInd = document.getElementById('individualCasesContainer');
+    containerInd.innerHTML = '';
+    const individualCases = props.individualCases || [];
+    if (individualCases.length === 0) {
+        addIndividualCaseVariant();
+    } else {
+        individualCases.forEach(c => {
+            addIndividualCaseVariant(c.qty, c.dimensions, c.weight, c.maxCases || 0);
+        });
+    }
+
+    const containerCom = document.getElementById('commonCasesContainer');
+    containerCom.innerHTML = '';
+    const commonCases = props.commonCases || [];
+    if (commonCases.length === 0) {
+        addCommonCaseVariant();
+    } else {
+        commonCases.forEach(opt => {
+            addCommonCaseVariant(opt.caseId, opt.qty);
+        });
+    }
+
+    document.getElementById('propsModal').classList.add('open');
 }
 
-// ... (все вспомогательные функции для свойств: addIndividualCaseVariant, addCommonCaseVariant, initPropsSaveHandler, initPropsCancelHandler и т.д.)
-// Они остаются без изменений, я их не копирую для экономии места, но они должны присутствовать.
+function addIndividualCaseVariant(qty, dim, weight, maxCases) {
+    const container = document.getElementById('individualCasesContainer');
+    const group = document.createElement('div');
+    group.className = 'case-variant-group';
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'remove-variant';
+    removeBtn.textContent = '✕';
+    removeBtn.addEventListener('click', () => {
+        if (container.children.length <= 1) {
+            showToast('Нельзя удалить последний вариант', 'warning');
+            return;
+        }
+        group.remove();
+    });
+    group.appendChild(removeBtn);
+    const id = 'ind_' + Date.now() + '_' + (variantCounter++);
+    group.innerHTML += `
+        <label>Кол-во в кофре (шт):</label>
+        <input type="number" class="ind-qty" data-id="${id}" value="${qty !== undefined ? qty : ''}" placeholder="0" min="1">
+        <label>Габариты кофра (Д×Ш×В, см):</label>
+        <input type="text" class="ind-dim" data-id="${id}" value="${dim !== undefined ? dim : ''}" placeholder="120x80x60">
+        <label>Вес пустого кофра (кг):</label>
+        <input type="number" class="ind-weight" data-id="${id}" step="0.1" value="${weight !== undefined ? weight : ''}" placeholder="0.0" min="0">
+        <label>Максимум кофров (0 = без ограничений):</label>
+        <input type="number" class="ind-max-cases" data-id="${id}" step="1" min="0" value="${maxCases !== undefined ? maxCases : 0}" placeholder="0">
+    `;
+    container.appendChild(group);
+}
+
+export function addIndividualCaseVariantBtn() {
+    addIndividualCaseVariant();
+}
+
+function addCommonCaseVariant(caseId, qty) {
+    const container = document.getElementById('commonCasesContainer');
+    const group = document.createElement('div');
+    group.className = 'case-variant-group';
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'remove-variant';
+    removeBtn.textContent = '✕';
+    removeBtn.addEventListener('click', () => { group.remove(); });
+    group.appendChild(removeBtn);
+    const id = 'com_' + Date.now() + '_' + (variantCounter++);
+    const commonCases = getCommonCases();
+    let selectHtml = `<select class="com-case-select" data-id="${id}" style="width:100%;padding:6px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:6px;color:var(--text-primary);margin-bottom:6px;">`;
+    selectHtml += `<option value="">— Выберите общий кофр —</option>`;
+    commonCases.forEach(c => {
+        const selected = (c.id === caseId) ? 'selected' : '';
+        selectHtml += `<option value="${c.id}" ${selected}>${c.name} (вместимость: ${c.qty} шт, макс. вес: ${c.maxWeight || 0} кг)</option>`;
+    });
+    selectHtml += `</select>`;
+    group.innerHTML += `
+        <label>Выберите общий кофр:</label>
+        ${selectHtml}
+        <label>Количество единиц позиции в кофре (шт):</label>
+        <input type="number" class="com-qty" data-id="${id}" value="${qty !== undefined ? qty : ''}" placeholder="0" min="1">
+        <button class="btn btn-green" style="width:auto;padding:2px 8px;font-size:12px;margin-top:4px;" onclick="addNewCaseFromProps(this)">+ Новый кофр</button>
+    `;
+    container.appendChild(group);
+}
+
+export function addCommonCaseVariantBtn() {
+    addCommonCaseVariant();
+}
+
+export function addNewCaseFromProps(btn) {
+    const group = btn.closest('.case-variant-group');
+    openCasesManagerModal(() => {
+        document.querySelectorAll('.com-case-select').forEach(sel => {
+            const currentVal = sel.value;
+            const commonCases = getCommonCases();
+            sel.innerHTML = '<option value="">— Выберите общий кофр —</option>';
+            commonCases.forEach(c => {
+                const selected = (c.id === currentVal) ? 'selected' : '';
+                sel.innerHTML += `<option value="${c.id}" ${selected}>${c.name} (вместимость: ${c.qty} шт, макс. вес: ${c.maxWeight || 0} кг)</option>`;
+            });
+        });
+        showToast('Список общих кофров обновлён', 'neutral');
+    });
+}
+
+export function initPropsSaveHandler() {
+    const confirmBtn = document.getElementById('propsConfirm');
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', () => {
+            if (!currentPropsPath) return;
+            const { catKey, subKey, itemName, onSaveCallback } = currentPropsPath;
+            const weight = parseFloat(document.getElementById('propWeight').value);
+            const dimensions = document.getElementById('propDimensions').value.trim();
+            const volume = parseFloat(document.getElementById('propVolume').value);
+            const allowCommon = document.getElementById('propAllowCommon').checked;
+            const props = {};
+            if (!isNaN(weight) && weight > 0) props.weight = weight;
+            if (dimensions) props.dimensions = dimensions;
+            if (!isNaN(volume) && volume > 0) props.volume = volume;
+            props.allowCommon = allowCommon;
+
+            const individualCases = [];
+            document.querySelectorAll('#individualCasesContainer .case-variant-group').forEach(group => {
+                const qtyInput = group.querySelector('.ind-qty');
+                const dimInput = group.querySelector('.ind-dim');
+                const weightInput = group.querySelector('.ind-weight');
+                const maxCasesInput = group.querySelector('.ind-max-cases');
+                const qty = parseInt(qtyInput ? qtyInput.value : 0);
+                const dim = dimInput ? dimInput.value.trim() : '';
+                const w = parseFloat(weightInput ? weightInput.value : 0);
+                const maxCases = parseInt(maxCasesInput ? maxCasesInput.value : 0);
+                if (qty > 0 || dim || w > 0) {
+                    individualCases.push({ qty, dimensions: dim, weight: isNaN(w) ? 0 : w, maxCases: isNaN(maxCases) ? 0 : maxCases });
+                }
+            });
+            if (individualCases.length > 0) props.individualCases = individualCases;
+            else delete props.individualCases;
+
+            const commonCases = [];
+            document.querySelectorAll('#commonCasesContainer .case-variant-group').forEach(group => {
+                const select = group.querySelector('.com-case-select');
+                const qtyInput = group.querySelector('.com-qty');
+                const caseId = select ? select.value : '';
+                const qty = parseInt(qtyInput ? qtyInput.value : 0);
+                if (caseId && !isNaN(qty) && qty > 0) {
+                    commonCases.push({ caseId, qty });
+                }
+            });
+            if (commonCases.length > 0) props.commonCases = commonCases;
+            else delete props.commonCases;
+
+            setItemProps(catKey, subKey, itemName, props);
+            document.getElementById('propsModal').classList.remove('open');
+            currentPropsPath = null;
+            if (onSaveCallback) onSaveCallback();
+            showToast('Свойства сохранены', 'success');
+        });
+    }
+}
+
+export function initPropsCancelHandler() {
+    const cancelBtn = document.getElementById('propsCancel');
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => {
+            document.getElementById('propsModal').classList.remove('open');
+            currentPropsPath = null;
+        });
+    }
+}
 
 // ============================================================
 // МОДАЛКА УПРАВЛЕНИЯ ОБЩИМИ КОФРАМИ
 // ============================================================
 export function openCasesManagerModal(callback) {
-    // ... (полный код, уже был ранее)
+    casesManagerCallback = callback || null;
+    renderCasesList();
+    document.getElementById('casesManagerModal').classList.add('open');
+}
+
+function renderCasesList() {
+    const container = document.getElementById('casesList');
+    const cases = getCommonCases();
+    if (cases.length === 0) {
+        container.innerHTML = '<div class="empty-message">Нет общих кофров</div>';
+        return;
+    }
+    let html = '';
+    cases.forEach(c => {
+        html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-bottom:1px solid var(--border-color);gap:10px;">
+            <div><strong>${esc(c.name)}</strong><br>
+            <span style="font-size:13px;color:var(--text-secondary);">Вместимость: ${c.qty} шт, Габ: ${c.dimensions || 'н/д'}, Вес пустого: ${c.emptyWeight || 0} кг, Макс. вес: ${c.maxWeight || 0} кг, Макс. объём: ${c.maxVolume || 0} м³</span></div>
+            <div>
+                <button class="btn btn-sm" style="width:auto;padding:2px 8px;font-size:12px;" onclick="window.editCase('${c.id}')">✏️</button>
+                <button class="btn btn-sm" style="width:auto;padding:2px 8px;font-size:12px;background:var(--danger);color:white;" onclick="window.deleteCase('${c.id}')">✕</button>
+            </div>
+        </div>`;
+    });
+    container.innerHTML = html;
+}
+
+function editCase(id) {
+    const cases = getCommonCases();
+    const c = cases.find(c => c.id === id);
+    if (!c) return;
+    document.getElementById('newCaseName').value = c.name || '';
+    document.getElementById('newCaseQty').value = c.qty || '';
+    document.getElementById('newCaseDim').value = c.dimensions || '';
+    document.getElementById('newCaseWeight').value = c.emptyWeight || '';
+    document.getElementById('newCaseMaxWeight').value = c.maxWeight || '';
+    document.getElementById('newCaseMaxVolume').value = c.maxVolume || '';
+    const addBtn = document.getElementById('casesManagerAdd');
+    addBtn.textContent = 'Обновить';
+    addBtn.dataset.editId = id;
+}
+
+async function deleteCase(id) {
+    const confirmed = await showConfirm('Удалить этот кофр?');
+    if (!confirmed) return;
+    deleteCommonCase(id);
+    renderCasesList();
+    showToast('Кофр удалён', 'neutral');
+}
+
+export function initCasesManagerHandlers() {
+    const addBtn = document.getElementById('casesManagerAdd');
+    addBtn.addEventListener('click', function() {
+        const name = document.getElementById('newCaseName').value.trim();
+        const qty = parseInt(document.getElementById('newCaseQty').value);
+        const dimensions = document.getElementById('newCaseDim').value.trim();
+        const emptyWeight = parseFloat(document.getElementById('newCaseWeight').value);
+        const maxWeight = parseFloat(document.getElementById('newCaseMaxWeight').value);
+        const maxVolume = parseFloat(document.getElementById('newCaseMaxVolume').value);
+        if (!name) { showToast('Введите название кофра', 'warning'); return; }
+        if (isNaN(qty) || qty <= 0) { showToast('Вместимость должна быть положительным числом', 'warning'); return; }
+        const editId = this.dataset.editId;
+        if (editId) {
+            updateCommonCase(editId, { name, qty, dimensions, emptyWeight: isNaN(emptyWeight)?0:emptyWeight, maxWeight: isNaN(maxWeight)?0:maxWeight, maxVolume: isNaN(maxVolume)?0:maxVolume });
+            showToast('Кофр обновлён', 'success');
+        } else {
+            const newCase = {
+                id: 'case_' + Date.now(),
+                name, qty, dimensions, emptyWeight: isNaN(emptyWeight)?0:emptyWeight, maxWeight: isNaN(maxWeight)?0:maxWeight, maxVolume: isNaN(maxVolume)?0:maxVolume
+            };
+            addCommonCase(newCase);
+            showToast('Кофр добавлен', 'success');
+        }
+        document.getElementById('newCaseName').value = '';
+        document.getElementById('newCaseQty').value = '';
+        document.getElementById('newCaseDim').value = '';
+        document.getElementById('newCaseWeight').value = '';
+        document.getElementById('newCaseMaxWeight').value = '';
+        document.getElementById('newCaseMaxVolume').value = '';
+        this.textContent = '+ Добавить';
+        delete this.dataset.editId;
+        renderCasesList();
+        if (casesManagerCallback) casesManagerCallback();
+    });
+}
+
+export function initCasesManagerCloseHandler() {
+    document.getElementById('casesManagerClose').addEventListener('click', () => {
+        document.getElementById('casesManagerModal').classList.remove('open');
+        if (casesManagerCallback) casesManagerCallback();
+    });
+}
+
+export function initCasesManagerOverlayClose() {
+    const overlay = document.getElementById('casesManagerModal');
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+            document.getElementById('casesManagerModal').classList.remove('open');
+            if (casesManagerCallback) casesManagerCallback();
+        }
+    });
 }
 
 // ============================================================
 // МАТРИЦА ПРИВЯЗОК (ПОЛНАЯ ВЕРСИЯ)
 // ============================================================
-
 function getMatrixPresets() {
     try {
         const raw = localStorage.getItem(MATRIX_PRESETS_KEY);
@@ -167,7 +436,6 @@ function renderMatrix() {
     allTargets = unique;
     if (tgtFilter) allTargets = allTargets.filter(t => t.name.toLowerCase().includes(tgtFilter));
 
-    // Базовые размеры
     const baseColWidth = 90;
     const baseFontSize = 13;
     const basePadding = 4;
@@ -180,7 +448,6 @@ function renderMatrix() {
     const sourceWidth = matrixFullNames ? 250 : 120;
 
     let html = `<div class="matrix-table-wrapper"><table class="matrix-table" style="font-size:${fontSize}px; table-layout:fixed; width:100%;">`;
-    // Заголовки
     html += `<thead><tr><th class="matrix-header" style="width:${sourceWidth}px; min-width:${sourceWidth}px; max-width:${sourceWidth}px; padding:${padding}px; height:${height}px; font-size:${fontSize}px; position:sticky; left:0; z-index:25;">Источник \\ Цель</th>`;
     allTargets.forEach(target => {
         const displayName = matrixFullNames ? target.name : truncateName(target.name);
@@ -243,7 +510,6 @@ function renderMatrix() {
     html += '</tbody></table></div>';
     container.innerHTML = html;
 
-    // Переключатель полных названий
     const zoomControls = document.querySelector('.matrix-zoom-controls');
     if (zoomControls && !document.getElementById('matrixNameToggle')) {
         const toggleDiv = document.createElement('div');
@@ -433,9 +699,6 @@ function updateLinkCountOrder() {
     if (el) el.textContent = `(${count} активных)`;
 }
 
-// ============================================================
-// ОСНОВНАЯ ФУНКЦИЯ ОТКРЫТИЯ МАТРИЦЫ
-// ============================================================
 export function openMatrixModal(sourcePath, showPresets = true, category = null) {
     const modal = document.getElementById('matrixModal');
     if (!modal) {
@@ -466,9 +729,6 @@ export function openMatrixModal(sourcePath, showPresets = true, category = null)
     modal.classList.add('open');
 }
 
-// ============================================================
-// ИНИЦИАЛИЗАЦИЯ ОБРАБОТЧИКОВ МАТРИЦЫ
-// ============================================================
 export function initMatrixHandlers() {
     const closeBtn = document.getElementById('matrixClose');
     if (closeBtn) {
@@ -537,9 +797,6 @@ export function initMatrixHandlers() {
     }
 }
 
-// ============================================================
-// ГЛОБАЛЬНЫЕ ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ МАТРИЦЫ (окна)
-// ============================================================
 window.toggleMatrixCategory = function(catId, catName) {
     const tbody = document.getElementById(catId);
     const toggle = document.getElementById('toggle_' + catId);
@@ -590,8 +847,273 @@ window.editMatrixCell = async function(td, src, target) {
 // МОДАЛКА НАСТРОЙКИ КОФРОВ (НОВАЯ ВЕРСИЯ)
 // ============================================================
 export function openCaseSettingsModal(path, callback) {
-    // ... (код из предыдущей версии, уже отправлен)
-    // Я пропускаю его для экономии места, но он должен быть здесь.
+    currentCaseSettingsPath = path;
+    caseSettingsCallback = callback || null;
+
+    const props = getItemProps(path);
+    const options = getCaseOptions(path);
+    const commonCases = getCommonCases();
+    const mode = getCaseMode(path);
+    const individualVals = getIndividualCaseValues(path);
+    const packing = getOrderPacking(path);
+    const extra = getOrderExtra(path);
+
+    let currentMode = 'off';
+    if (packing.length > 0 || extra > 0) {
+        currentMode = 'common';
+    } else if (individualVals.length > 1 && mode.enabled) {
+        currentMode = 'multi';
+    } else if (individualVals.length === 1 && mode.enabled) {
+        currentMode = 'single';
+    } else if (mode.enabled && mode.selectedOption !== undefined) {
+        currentMode = 'single';
+    } else {
+        currentMode = 'off';
+    }
+
+    if (mode.alt && mode.useAlt) {
+        currentMode = 'single';
+    }
+
+    const modal = document.getElementById('caseSettingsModal');
+    if (!modal) {
+        showToast('Модалка настройки кофров не найдена', 'error');
+        return;
+    }
+
+    const titleEl = document.getElementById('caseSettingsTitle');
+    if (titleEl) {
+        titleEl.textContent = 'Настройка кофров: ' + path.split('|').pop();
+    }
+
+    const contentDiv = document.getElementById('caseSettingsContent');
+    if (!contentDiv) {
+        showToast('Ошибка: контейнер содержимого не найден', 'error');
+        return;
+    }
+
+    let html = `
+        <div class="case-mode-selector" style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+            <button class="btn btn-sm case-mode-btn ${currentMode === 'off' ? 'active' : ''}" data-mode="off">Без кофров</button>
+            ${options.length > 0 ? `<button class="btn btn-sm case-mode-btn ${currentMode === 'single' ? 'active' : ''}" data-mode="single">Один кофр</button>` : ''}
+            ${options.length > 1 ? `<button class="btn btn-sm case-mode-btn ${currentMode === 'multi' ? 'active' : ''}" data-mode="multi">Мультикофры</button>` : ''}
+            ${props.allowCommon && commonCases.length > 0 ? `<button class="btn btn-sm case-mode-btn ${currentMode === 'common' ? 'active' : ''}" data-mode="common">Общие кофры</button>` : ''}
+        </div>
+        <div id="caseSettingsContentInner"></div>
+    `;
+
+    contentDiv.innerHTML = html;
+    const innerDiv = document.getElementById('caseSettingsContentInner');
+    if (!innerDiv) return;
+
+    renderCaseModeContent(currentMode, innerDiv, path, options, individualVals, packing, extra, commonCases, mode, props);
+
+    document.querySelectorAll('.case-mode-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            const mode = this.dataset.mode;
+            document.querySelectorAll('.case-mode-btn').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            renderCaseModeContent(mode, innerDiv, path, options, individualVals, packing, extra, commonCases, mode, props);
+        });
+    });
+
+    const cancelBtn = document.getElementById('caseSettingsCancel');
+    if (cancelBtn) {
+        cancelBtn.onclick = () => {
+            modal.classList.remove('open');
+        };
+    }
+
+    const saveBtn = document.getElementById('caseSettingsSave');
+    if (saveBtn) {
+        saveBtn.onclick = () => {
+            saveCaseSettings(path);
+            modal.classList.remove('open');
+            if (caseSettingsCallback) caseSettingsCallback();
+            showToast('Настройки кофров сохранены', 'success');
+        };
+    }
+
+    modal.classList.add('open');
+    modal.onclick = (e) => {
+        if (e.target === modal) {
+            modal.classList.remove('open');
+        }
+    };
+}
+
+function renderCaseModeContent(mode, container, path, options, individualVals, packing, extra, commonCases, modeData, props) {
+    let html = '';
+    switch (mode) {
+        case 'off':
+            html = `<div style="color:var(--text-secondary);padding:10px 0;">Режим кофров отключён. Позиция будет учитываться без упаковки.</div>`;
+            break;
+
+        case 'single':
+            if (!options || options.length === 0) {
+                html = `<div style="color:var(--text-muted);">Нет индивидуальных кофров для этой позиции. Добавьте их в редакторе склада.</div>`;
+                break;
+            }
+            const selectedIdx = modeData.selectedOption !== undefined ? modeData.selectedOption : 0;
+            html = `<div style="margin-bottom:10px;"><strong>Выберите вариант кофра:</strong></div>`;
+            options.forEach((opt, idx) => {
+                const checked = idx === selectedIdx ? 'checked' : '';
+                html += `<div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+                    <input type="radio" name="singleOption" value="${idx}" ${checked}>
+                    <span>Вариант ${idx+1}: вместимость ${opt.qty} шт, габ: ${opt.dims || 'н/д'}, вес пустого: ${opt.weight || 0} кг</span>
+                </div>`;
+            });
+            if (modeData.alt) {
+                const useAlt = modeData.useAlt || false;
+                html += `<div style="margin-top:12px;">
+                    <label style="display:flex;align-items:center;gap:6px;">
+                        <input type="checkbox" id="useAltCheck" ${useAlt ? 'checked' : ''}> Использовать альтернативный кофр
+                    </label>
+                    <div style="font-size:13px;color:var(--text-secondary);padding-left:20px;">
+                        Вместимость: ${modeData.alt.qty || 0} шт, габ: ${modeData.alt.dims || 'н/д'}, вес пустого: ${modeData.alt.weight || 0} кг
+                    </div>
+                </div>`;
+            }
+            break;
+
+        case 'multi':
+            if (!options || options.length < 2) {
+                html = `<div style="color:var(--text-muted);">Для мультирежима нужно минимум 2 варианта кофров. Добавьте их в редакторе склада.</div>`;
+                break;
+            }
+            let multiSelected = modeData.multiSelected || [];
+            if (multiSelected.length === 0 && individualVals.length > 0) {
+                multiSelected = individualVals.map(v => v > 0);
+            }
+            if (multiSelected.length === 0) {
+                multiSelected = options.map(() => false);
+            }
+            html = `<div style="margin-bottom:10px;"><strong>Выберите варианты для использования:</strong></div>`;
+            options.forEach((opt, idx) => {
+                const checked = multiSelected[idx] ? 'checked' : '';
+                html += `<div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+                    <input type="checkbox" class="multi-option-check" data-idx="${idx}" ${checked}>
+                    <span>Вариант ${idx+1}: вместимость ${opt.qty} шт, габ: ${opt.dims || 'н/д'}, вес пустого: ${opt.weight || 0} кг</span>
+                </div>`;
+            });
+            break;
+
+        case 'common':
+            if (!props.allowCommon) {
+                html = `<div style="color:var(--text-muted);">Эта позиция не имеет привилегии на использование общих кофров. Разрешите в свойствах позиции.</div>`;
+                break;
+            }
+            if (!commonCases || commonCases.length === 0) {
+                html = `<div style="color:var(--text-muted);">Нет общих кофров. Создайте их в редакторе склада или через кнопку "Общие кофры" на главной странице.</div>`;
+                break;
+            }
+            let commonSelected = modeData.commonSelected || [];
+            if (commonSelected.length === 0 && packing.length > 0) {
+                commonSelected = packing.map(p => p.caseId);
+            }
+            html = `<div style="margin-bottom:10px;"><strong>Выберите общие кофры для использования:</strong></div>`;
+            commonCases.forEach(c => {
+                const checked = commonSelected.includes(c.id) ? 'checked' : '';
+                html += `<div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+                    <input type="checkbox" class="common-case-check" data-caseid="${c.id}" ${checked}>
+                    <span><strong>${esc(c.name)}</strong> (вм. ${c.qty} шт, макс. вес: ${c.maxWeight || 0} кг)</span>
+                </div>`;
+            });
+            break;
+    }
+
+    container.innerHTML = html;
+}
+
+function saveCaseSettings(path) {
+    const modeBtns = document.querySelectorAll('.case-mode-btn');
+    let activeMode = 'off';
+    modeBtns.forEach(btn => {
+        if (btn.classList.contains('active')) activeMode = btn.dataset.mode;
+    });
+
+    const mode = getCaseMode(path);
+    const options = getCaseOptions(path);
+
+    const oldAlt = mode.alt || null;
+    mode.enabled = false;
+    mode.selectedOption = 0;
+    mode.useAlt = false;
+    mode.multiSelected = [];
+    mode.commonSelected = [];
+    setIndividualCaseValues(path, []);
+    setOrderPacking(path, []);
+    setOrderExtra(path, 0);
+
+    switch (activeMode) {
+        case 'off':
+            break;
+
+        case 'single': {
+            const radio = document.querySelector('input[name="singleOption"]:checked');
+            if (!radio) {
+                showToast('Выберите вариант кофра', 'warning');
+                return;
+            }
+            const idx = parseInt(radio.value);
+            const useAltCheck = document.getElementById('useAltCheck');
+            const useAlt = useAltCheck ? useAltCheck.checked : false;
+
+            mode.enabled = true;
+            mode.selectedOption = idx;
+            mode.useAlt = useAlt;
+            if (useAlt && !mode.alt) {
+                showToast('Альтернативный кофр не настроен', 'warning');
+                return;
+            }
+            break;
+        }
+
+        case 'multi': {
+            const checkboxes = document.querySelectorAll('.multi-option-check');
+            const selected = [];
+            let hasSelected = false;
+            checkboxes.forEach(cb => {
+                const idx = parseInt(cb.dataset.idx);
+                const checked = cb.checked;
+                selected[idx] = checked;
+                if (checked) hasSelected = true;
+            });
+            if (!hasSelected) {
+                showToast('Выберите хотя бы один вариант', 'warning');
+                return;
+            }
+            mode.enabled = true;
+            mode.multiSelected = selected;
+            const vals = selected.map(s => s ? 0 : -1);
+            setIndividualCaseValues(path, vals);
+            break;
+        }
+
+        case 'common': {
+            const checkboxes = document.querySelectorAll('.common-case-check');
+            const selected = [];
+            let hasSelected = false;
+            checkboxes.forEach(cb => {
+                const caseId = cb.dataset.caseid;
+                if (cb.checked) {
+                    selected.push(caseId);
+                    hasSelected = true;
+                }
+            });
+            if (!hasSelected) {
+                showToast('Выберите хотя бы один общий кофр', 'warning');
+                return;
+            }
+            mode.enabled = true;
+            mode.commonSelected = selected;
+            setOrderPacking(path, []);
+            setOrderExtra(path, 0);
+            break;
+        }
+    }
+
+    saveOrderData();
 }
 
 // ============================================================
