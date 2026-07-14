@@ -55,7 +55,6 @@ import {
 // ============================================================
 
 export function getValue(path) {
-    // Новая логика: используем getTotalQty из order.js, которая учитывает все режимы
     return getTotalQty(path);
 }
 
@@ -70,11 +69,20 @@ export function getStockValue(path) {
 export function setValueOrder(path, val) {
     val = Math.max(0, parseInt(val) || 0);
     const mode = getCaseMode(path);
-    const isMulti = localStorage.getItem('multi_' + path) === 'true';
-    const vals = getIndividualCaseValues(path);
     const packing = getOrderPacking(path);
-    
-    // Если есть упаковка в общие кофры или мультирежим, запрещаем прямое изменение
+    const vals = getIndividualCaseValues(path);
+
+    // Если включён режим одного кофра (single) — обновляем через отдельные функции
+    if (mode.enabled && vals.length === 1 && !packing.length && !mode.multiSelected) {
+        // Обновление происходит через обработчики single-полей
+        // Здесь просто сохраняем в order для совместимости
+        order[path] = val;
+        if (val === 0) delete order[path];
+        saveOrderData();
+        return;
+    }
+
+    // Если есть упаковка или мультирежим — запрещаем прямое изменение
     if (packing.length > 0) {
         showToast('В режиме общих кофров меняйте количество в дочерних полях', 'warning');
         return;
@@ -83,26 +91,7 @@ export function setValueOrder(path, val) {
         showToast('В мульти-режиме меняйте количество в дочерних полях', 'warning');
         return;
     }
-    if (mode.enabled && vals.length === 1) {
-        // Режим одного кофра — обновляем individualCaseValues
-        const opt = getSelectedOption(path);
-        if (opt && opt.qty > 0) {
-            // Проверяем, не превышает ли количество доступных кофров
-            // Для индивидуальных кофров ограничений нет
-            setIndividualCaseValues(path, [val]);
-            order[path] = val;
-            if (val === 0) {
-                delete order[path];
-                setIndividualCaseValues(path, []);
-            }
-            saveOrderData();
-        } else {
-            showToast('Ошибка: не выбран вариант кофра', 'error');
-        }
-        return;
-    }
-    
-    // Без кофров
+
     if (order[path] === val) return;
     order[path] = val;
     if (val === 0) delete order[path];
@@ -159,14 +148,12 @@ export function invalidateFlatItemsCache() {
 }
 
 // ============================================================
-// ПОЛУЧЕНИЕ АКТИВНЫХ ПОЗИЦИЙ (обновлено с учётом новых режимов)
+// ПОЛУЧЕНИЕ АКТИВНЫХ ПОЗИЦИЙ
 // ============================================================
 
 export function getActiveItemsOrder() {
     const items = [];
     const allPaths = new Set();
-    
-    // Собираем все пути из всех источников
     for (let p in order) allPaths.add(p);
     for (let p in orderExtra) allPaths.add(p);
     for (let p in orderPacking) allPaths.add(p);
@@ -177,7 +164,6 @@ export function getActiveItemsOrder() {
     for (let p in orderSplits) {
         if (orderSplits[p].some(seg => seg.qty > 0)) allPaths.add(p);
     }
-    
     allPaths.forEach(path => {
         const qty = getTotalQty(path);
         if (qty > 0) items.push({ path, qty });
@@ -202,13 +188,13 @@ export function renderCommonCaseIndicatorsOrder() {
 }
 
 // ============================================================
-// РАБОТА С ДОЧЕРНИМИ ЭЛЕМЕНТАМИ (обновлено для новых режимов)
+// РАБОТА С ДОЧЕРНИМИ ЭЛЕМЕНТАМИ (обновлено для multi и common)
 // ============================================================
 
 export function updateChildRowsForPath(path) {
     const parentRow = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
     if (!parentRow) return;
-    
+
     // Удаляем старые дочерние строки
     let next = parentRow.nextElementSibling;
     while (next && next.classList.contains('child-row')) {
@@ -216,19 +202,22 @@ export function updateChildRowsForPath(path) {
         next = next.nextElementSibling;
         toRemove.remove();
     }
-    
+
     const mode = getCaseMode(path);
     const options = getCaseOptions(path);
-    const isMulti = mode.enabled && options.length > 1;
     const packing = getOrderPacking(path);
-    const hasCommonPacking = packing.length > 0;
     const individualVals = getIndividualCaseValues(path);
     const extra = getOrderExtra(path);
-    
+    const commonCases = getCommonCases();
+    const props = getItemProps(path);
+
     // Режим мультикофров
-    if (isMulti && mode.enabled && options.length > 1) {
+    if (mode.enabled && mode.multiSelected && mode.multiSelected.some(v => v === true) && individualVals.length > 1) {
+        const selectedIndices = mode.multiSelected.map((selected, idx) => selected ? idx : -1).filter(idx => idx !== -1);
+        if (selectedIndices.length === 0) return;
+
         const childDiv = document.createElement('div');
-        childDiv.className = 'child-row';
+        childDiv.className = 'child-row multi-child';
         childDiv.dataset.parent = path;
         childDiv.style.width = '100%';
         childDiv.style.flexBasis = '100%';
@@ -236,37 +225,45 @@ export function updateChildRowsForPath(path) {
         childDiv.style.background = 'var(--bg-secondary)';
         childDiv.style.borderRadius = '6px';
         childDiv.style.margin = '4px 0';
-        
+        childDiv.style.border = '1px solid var(--border-light)';
+
         let html = `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px;font-size:13px;color:var(--text-secondary);">
             <strong>Распределение по вариантам кофров</strong>
             <span style="margin-left:auto;">Итого: ${individualVals.reduce((a,b) => a + b, 0)} шт</span>
         </div>`;
-        
-        options.forEach((opt, idx) => {
+
+        selectedIndices.forEach(idx => {
+            const opt = options[idx];
             const val = individualVals[idx] || 0;
-            const maxPossible = getStockValue(path);
             const casesCount = Math.ceil(val / opt.qty);
-            html += `<div class="child-controls" style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;">
+            const maxPossible = getStockValue(path);
+
+            html += `<div class="child-controls" style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid var(--accent);">
                 <span style="font-weight:500;min-width:80px;font-size:13px;">Вар.${idx+1}</span>
                 <span style="font-size:12px;color:var(--text-secondary);margin-right:4px;">(вм.${opt.qty} шт)</span>
-                <button class="btn-c child-qty-btn" style="width:28px;height:28px;font-size:14px;" data-path="${path}" data-idx="${idx}" data-delta="-1">−</button>
-                <input type="number" class="child-qty" data-path="${path}" data-idx="${idx}" value="${val}" min="0" step="1" max="${maxPossible}" style="width:50px;padding:2px 4px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);text-align:center;font-size:13px;">
-                <button class="btn-c child-qty-btn" style="width:28px;height:28px;font-size:14px;" data-path="${path}" data-idx="${idx}" data-delta="1">+</button>
-                <span style="font-size:12px;color:var(--text-secondary);margin-left:4px;">(${casesCount} кофр${casesCount > 1 ? 'а' : ''})</span>
+                <span style="font-size:12px;color:var(--text-secondary);">шт:</span>
+                <button class="btn-c child-multi-piece-btn" style="width:28px;height:28px;font-size:14px;" data-path="${path}" data-idx="${idx}" data-delta="-1">−</button>
+                <input type="number" class="child-multi-pieces" data-path="${path}" data-idx="${idx}" value="${val}" min="0" step="1" max="${maxPossible}" style="width:50px;padding:2px 4px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);text-align:center;font-size:13px;">
+                <button class="btn-c child-multi-piece-btn" style="width:28px;height:28px;font-size:14px;" data-path="${path}" data-idx="${idx}" data-delta="1">+</button>
+                <span style="font-size:12px;color:var(--text-secondary);">кофры:</span>
+                <button class="btn-c child-multi-case-btn" style="width:28px;height:28px;font-size:14px;" data-path="${path}" data-idx="${idx}" data-delta="-1">−</button>
+                <input type="number" class="child-multi-cases" data-path="${path}" data-idx="${idx}" value="${casesCount}" min="0" step="1" style="width:50px;padding:2px 4px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);text-align:center;font-size:13px;">
+                <button class="btn-c child-multi-case-btn" style="width:28px;height:28px;font-size:14px;" data-path="${path}" data-idx="${idx}" data-delta="1">+</button>
                 <span style="font-size:11px;color:var(--text-muted);">габ:${opt.dims || 'н/д'}</span>
             </div>`;
         });
-        
-        // Чекбокс "разрешить вне кофра" пока не реализован
+
         childDiv.innerHTML = html;
         parentRow.after(childDiv);
     }
-    
+
     // Режим общих кофров
-    if (hasCommonPacking) {
-        const commonCases = getCommonCases();
+    if (mode.enabled && mode.commonSelected && mode.commonSelected.length > 0 && props.allowCommon) {
+        const selectedCases = mode.commonSelected.map(id => commonCases.find(c => c.id === id)).filter(c => c !== undefined);
+        if (selectedCases.length === 0) return;
+
         const childDiv = document.createElement('div');
-        childDiv.className = 'child-row';
+        childDiv.className = 'child-row common-child';
         childDiv.dataset.parent = path;
         childDiv.style.width = '100%';
         childDiv.style.flexBasis = '100%';
@@ -274,30 +271,36 @@ export function updateChildRowsForPath(path) {
         childDiv.style.background = 'var(--bg-secondary)';
         childDiv.style.borderRadius = '6px';
         childDiv.style.margin = '4px 0';
-        
+        childDiv.style.border = '1px solid var(--border-light)';
+
         let html = `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px;font-size:13px;color:var(--text-secondary);">
             <strong>Упаковка в общие кофры</strong>
             <span style="margin-left:auto;">Вне кофра: ${extra} шт</span>
         </div>`;
-        
+
         // Строка "вне кофра"
         const maxExtra = getStockValue(path);
-        html += `<div class="child-controls" style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;">
+        html += `<div class="child-controls" style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid var(--text-muted);">
             <span style="font-weight:500;min-width:80px;font-size:13px;">Вне кофра</span>
             <button class="btn-c child-extra-btn" style="width:28px;height:28px;font-size:14px;" data-path="${path}" data-delta="-1">−</button>
             <input type="number" class="child-extra-qty" data-path="${path}" value="${extra}" min="0" step="1" max="${maxExtra}" style="width:50px;padding:2px 4px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);text-align:center;font-size:13px;">
             <button class="btn-c child-extra-btn" style="width:28px;height:28px;font-size:14px;" data-path="${path}" data-delta="1">+</button>
         </div>`;
-        
+
         // Строки для каждого общего кофра
-        packing.forEach((p, idx) => {
-            const c = commonCases.find(c => c.id === p.caseId);
-            const name = c ? c.name : 'удалённый кофр';
-            const qty = p.pieces || 0;
-            const maxPack = c ? c.qty : Infinity;
-            const filledWeight = qty * (getItemProps(path).weight || 0);
-            const maxWeight = c?.maxWeight || Infinity;
-            const fillPercent = maxWeight > 0 ? Math.round((filledWeight / maxWeight) * 100) : 0;
+        const piecesMap = {};
+        packing.forEach(p => { piecesMap[p.caseId] = p.pieces || 0; });
+
+        selectedCases.forEach(c => {
+            const qty = piecesMap[c.id] || 0;
+            const maxPack = c.qty || Infinity;
+            const unitWeight = props.weight || 0;
+            const filledWeight = qty * unitWeight;
+            const maxWeight = c.maxWeight || Infinity;
+            let fillPercent = 0;
+            if (maxWeight > 0) {
+                fillPercent = Math.min(100, Math.round((filledWeight / maxWeight) * 100));
+            }
             let statusColor = 'var(--text-secondary)';
             let statusText = '';
             if (fillPercent >= 100) {
@@ -307,18 +310,18 @@ export function updateChildRowsForPath(path) {
                 statusColor = 'var(--warning)';
                 statusText = '🟡 Почти заполнен';
             }
-            
+
             html += `<div class="child-controls" style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid ${statusColor};">
-                <span style="font-weight:500;min-width:80px;font-size:13px;">${esc(name)}</span>
-                <span style="font-size:12px;color:var(--text-secondary);">(вм.${c?.qty || 0} шт)</span>
-                <button class="btn-c child-common-btn" style="width:28px;height:28px;font-size:14px;" data-path="${path}" data-caseid="${p.caseId}" data-delta="-1">−</button>
-                <input type="number" class="child-common-qty" data-path="${path}" data-caseid="${p.caseId}" value="${qty}" min="0" step="1" max="${maxPack}" style="width:50px;padding:2px 4px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);text-align:center;font-size:13px;">
-                <button class="btn-c child-common-btn" style="width:28px;height:28px;font-size:14px;" data-path="${path}" data-caseid="${p.caseId}" data-delta="1">+</button>
+                <span style="font-weight:500;min-width:80px;font-size:13px;">${esc(c.name)}</span>
+                <span style="font-size:12px;color:var(--text-secondary);">(вм.${c.qty} шт)</span>
+                <button class="btn-c child-common-btn" style="width:28px;height:28px;font-size:14px;" data-path="${path}" data-caseid="${c.id}" data-delta="-1">−</button>
+                <input type="number" class="child-common-qty" data-path="${path}" data-caseid="${c.id}" value="${qty}" min="0" step="1" max="${maxPack}" style="width:50px;padding:2px 4px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);text-align:center;font-size:13px;">
+                <button class="btn-c child-common-btn" style="width:28px;height:28px;font-size:14px;" data-path="${path}" data-caseid="${c.id}" data-delta="1">+</button>
                 ${statusText ? `<span style="font-size:12px;color:${statusColor};">${statusText} (${fillPercent}%)</span>` : ''}
-                <button class="btn btn-sm remove-common-pack" style="background:var(--danger);color:white;padding:0 6px;font-size:11px;border-radius:4px;border:none;cursor:pointer;" data-path="${path}" data-caseid="${p.caseId}">✕</button>
+                <button class="btn btn-sm remove-common-pack" style="background:var(--danger);color:white;padding:0 6px;font-size:11px;border-radius:4px;border:none;cursor:pointer;" data-path="${path}" data-caseid="${c.id}">✕</button>
             </div>`;
         });
-        
+
         childDiv.innerHTML = html;
         parentRow.after(childDiv);
     }
@@ -342,9 +345,8 @@ export function buildInfoHtml(path, props, mode) {
     const individualVals = getIndividualCaseValues(path);
     const packing = getOrderPacking(path);
     const extra = getOrderExtra(path);
-    
+
     if (packing.length > 0) {
-        // Режим общих кофров
         html += `<div style="width:100%;"><strong>Общие кофры:</strong></div>`;
         const commonCases = getCommonCases();
         packing.forEach(p => {
@@ -359,28 +361,32 @@ export function buildInfoHtml(path, props, mode) {
                 • Вне кофра: ${extra} шт
             </div>`;
         }
-    } else if (options.length > 0 && individualVals.length > 0) {
-        // Индивидуальные кофры
-        html += `<div style="width:100%;"><strong>Индивидуальные кофры:</strong></div>`;
-        if (individualVals.length === 1 && mode.enabled) {
-            // Один кофр
-            const opt = getSelectedOption(path);
-            const val = individualVals[0] || 0;
-            const casesCount = Math.ceil(val / (opt?.qty || 1));
+    } else if (mode.enabled && mode.multiSelected && mode.multiSelected.some(v => v === true) && individualVals.length > 1) {
+        html += `<div style="width:100%;"><strong>Мультикофры:</strong></div>`;
+        options.forEach((opt, idx) => {
+            if (!mode.multiSelected[idx]) return;
+            const val = individualVals[idx] || 0;
+            if (val > 0) {
+                const casesCount = Math.ceil(val / opt.qty);
+                html += `<div style="padding-left:12px;font-size:13px;color:var(--text-secondary);">
+                    • Вариант ${idx+1}: ${val} шт (${casesCount} кофр${casesCount > 1 ? 'а' : ''})
+                </div>`;
+            }
+        });
+    } else if (mode.enabled && individualVals.length === 1 && !packing.length && !mode.multiSelected) {
+        html += `<div style="width:100%;"><strong>Один кофр:</strong></div>`;
+        const opt = getSelectedOption(path);
+        const val = individualVals[0] || 0;
+        if (val > 0 && opt) {
+            const casesCount = Math.ceil(val / opt.qty);
             html += `<div style="padding-left:12px;font-size:13px;color:var(--text-secondary);">
                 • Вариант ${(mode.selectedOption || 0) + 1}: ${val} шт (${casesCount} кофр${casesCount > 1 ? 'а' : ''})
             </div>`;
-        } else {
-            // Мульти
-            options.forEach((opt, idx) => {
-                const val = individualVals[idx] || 0;
-                if (val > 0) {
-                    const casesCount = Math.ceil(val / opt.qty);
-                    html += `<div style="padding-left:12px;font-size:13px;color:var(--text-secondary);">
-                        • Вариант ${idx+1}: ${val} шт (${casesCount} кофр${casesCount > 1 ? 'а' : ''}, вместимость ${opt.qty} шт)
-                    </div>`;
-                }
-            });
+        }
+        if (mode.alt && mode.useAlt) {
+            html += `<div style="padding-left:12px;font-size:13px;color:var(--text-secondary);">
+                • Альтернативный: вместимость ${mode.alt.qty || 0} шт
+            </div>`;
         }
     }
 
@@ -388,8 +394,9 @@ export function buildInfoHtml(path, props, mode) {
     html += `<div style="width:100%;padding-left:12px;font-size:13px;color:var(--text-secondary);">
         <span>Режим: ${mode.enabled ? '✅ Включён' : 'не активирован'}</span>
         ${packing.length > 0 ? `<span style="margin-left:12px;">📦 Общие кофры (${packing.length} шт)</span>` : ''}
-        ${individualVals.length > 1 ? `<span style="margin-left:12px;">🔄 Мульти-режим</span>` : ''}
-        ${individualVals.length === 1 && mode.enabled ? `<span style="margin-left:12px;">📦 Один кофр</span>` : ''}
+        ${mode.multiSelected && mode.multiSelected.some(v => v === true) ? `<span style="margin-left:12px;">🔄 Мульти-режим</span>` : ''}
+        ${individualVals.length === 1 && mode.enabled && !packing.length && !mode.multiSelected ? `<span style="margin-left:12px;">📦 Один кофр</span>` : ''}
+        ${mode.alt && mode.useAlt ? `<span style="margin-left:12px;">🔀 Альтернативный кофр</span>` : ''}
     </div>`;
 
     html += `</div>`;

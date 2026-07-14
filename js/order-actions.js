@@ -78,7 +78,6 @@ export function setupEventDelegation() {
 }
 
 function handleContainerClick(e) {
-    // Обработка кнопок +/− в основном контроле (без кофров)
     const target = e.target.closest('.qty-btn');
     if (target && !target.closest('.child-controls')) {
         const path = target.dataset.path;
@@ -104,13 +103,14 @@ function handleContainerClick(e) {
         return;
     }
 
-    // Обработка кнопок в мультирежиме (варианты кофров)
-    const childBtn = e.target.closest('.child-qty-btn');
-    if (childBtn) {
-        const path = childBtn.dataset.path;
-        const idx = parseInt(childBtn.dataset.idx);
-        const delta = parseInt(childBtn.dataset.delta);
-        const input = childBtn.parentElement.querySelector('.child-qty');
+    // === ОБРАБОТЧИКИ ДЛЯ МУЛЬТИ-РЕЖИМА (дочерние строки) ===
+    // Кнопки +/− для штук в мультирежиме
+    const multiPieceBtn = e.target.closest('.child-multi-piece-btn');
+    if (multiPieceBtn) {
+        const path = multiPieceBtn.dataset.path;
+        const idx = parseInt(multiPieceBtn.dataset.idx);
+        const delta = parseInt(multiPieceBtn.dataset.delta);
+        const input = multiPieceBtn.parentElement.querySelector('.child-multi-pieces');
         if (input) {
             let val = parseInt(input.value) || 0;
             val = Math.max(0, val + delta);
@@ -120,9 +120,16 @@ function handleContainerClick(e) {
                 showToast(`Превышено количество для "${name}" (доступно ${sq})`, 'warning');
             }
             input.value = val;
+            // Обновляем данные
             const vals = getIndividualCaseValues(path);
             vals[idx] = val;
             setIndividualCaseValues(path, vals);
+            // Пересчитываем поле кофров
+            const opt = getCaseOptions(path)[idx];
+            if (opt && opt.qty > 0) {
+                const casesInput = multiPieceBtn.parentElement.querySelector('.child-multi-cases');
+                if (casesInput) casesInput.value = Math.ceil(val / opt.qty);
+            }
             const total = vals.reduce((a,b) => a + b, 0);
             order[path] = total;
             if (total === 0) delete order[path];
@@ -134,7 +141,41 @@ function handleContainerClick(e) {
         return;
     }
 
-    // Обработка кнопок для общих кофров
+    // Кнопки +/− для кофров в мультирежиме
+    const multiCaseBtn = e.target.closest('.child-multi-case-btn');
+    if (multiCaseBtn) {
+        const path = multiCaseBtn.dataset.path;
+        const idx = parseInt(multiCaseBtn.dataset.idx);
+        const delta = parseInt(multiCaseBtn.dataset.delta);
+        const input = multiCaseBtn.parentElement.querySelector('.child-multi-cases');
+        if (input) {
+            let val = parseInt(input.value) || 0;
+            val = Math.max(0, val + delta);
+            const opt = getCaseOptions(path)[idx];
+            if (opt && opt.qty > 0) {
+                const pieces = val * opt.qty;
+                const piecesInput = multiCaseBtn.parentElement.querySelector('.child-multi-pieces');
+                if (piecesInput) {
+                    piecesInput.value = pieces;
+                    // Обновляем данные
+                    const vals = getIndividualCaseValues(path);
+                    vals[idx] = pieces;
+                    setIndividualCaseValues(path, vals);
+                    const total = vals.reduce((a,b) => a + b, 0);
+                    order[path] = total;
+                    if (total === 0) delete order[path];
+                    saveOrderData();
+                    updateRowOrder(path);
+                    updateTotalsOrder();
+                    updateCategoryTotalsOrder(currentOrderCategory);
+                }
+            }
+        }
+        return;
+    }
+
+    // === ОБРАБОТЧИКИ ДЛЯ ОБЩИХ КОФРОВ ===
+    // Кнопки +/− для количества в общем кофре
     const commonBtn = e.target.closest('.child-common-btn');
     if (commonBtn) {
         const path = commonBtn.dataset.path;
@@ -149,10 +190,8 @@ function handleContainerClick(e) {
             if (p) {
                 const c = getCommonCases().find(c => c.id === caseId);
                 const maxPack = c ? c.qty : Infinity;
-                // Проверяем ограничение по весу/объёму (если заданы)
                 const props = getItemProps(path);
                 const unitWeight = props.weight || 0;
-                const currentWeight = p.pieces * unitWeight;
                 const newWeight = val * unitWeight;
                 if (c && c.maxWeight && newWeight > c.maxWeight) {
                     showToast(`Превышен максимальный вес кофра "${c.name}" (${c.maxWeight} кг)`, 'warning');
@@ -175,7 +214,7 @@ function handleContainerClick(e) {
         return;
     }
 
-    // Обработка кнопок для "вне кофра"
+    // Кнопки +/− для "вне кофра"
     const extraBtn = e.target.closest('.child-extra-btn');
     if (extraBtn) {
         const path = extraBtn.dataset.path;
@@ -199,49 +238,6 @@ function handleContainerClick(e) {
         return;
     }
 
-    // Кнопка "Инфо"
-    const infoBtn = e.target.closest('.info-btn');
-    if (infoBtn) {
-        toggleInfoOrder(infoBtn);
-        return;
-    }
-
-    // Кнопка "Описание"
-    const descBtn = e.target.closest('.desc-btn');
-    if (descBtn) {
-        toggleDescOrder(descBtn);
-        return;
-    }
-
-    // Кнопка "Линк"
-    const linkBtn = e.target.closest('.link-btn');
-    if (linkBtn) {
-        import('./cases.js').then(module => {
-            module.openMatrixModal(linkBtn.dataset.path, false, currentOrderCategory);
-        });
-        return;
-    }
-
-    // Кнопка "Кофры" (открывает модалку настройки)
-    const caseBtn = e.target.closest('.case-btn');
-    if (caseBtn) {
-        import('./cases.js').then(module => {
-            module.openCaseSettingsModal(caseBtn.dataset.path, () => {
-                updateRowOrder(caseBtn.dataset.path);
-                updateTotalsOrder();
-                updateCategoryTotalsOrder(currentOrderCategory);
-            });
-        });
-        return;
-    }
-
-    // Кнопка "Заметка"
-    const noteBtn = e.target.closest('.note-btn');
-    if (noteBtn) {
-        openNoteEditorOrder(noteBtn);
-        return;
-    }
-
     // Удаление привязки к общему кофру
     const removeBtn = e.target.closest('.remove-common-pack');
     if (removeBtn) {
@@ -258,7 +254,46 @@ function handleContainerClick(e) {
         return;
     }
 
-    // Обработка дропдауна кофров (если используется)
+    // === ОБЫЧНЫЕ КНОПКИ (инфо, описание, линк, кофры, заметка) ===
+    const infoBtn = e.target.closest('.info-btn');
+    if (infoBtn) {
+        toggleInfoOrder(infoBtn);
+        return;
+    }
+
+    const descBtn = e.target.closest('.desc-btn');
+    if (descBtn) {
+        toggleDescOrder(descBtn);
+        return;
+    }
+
+    const linkBtn = e.target.closest('.link-btn');
+    if (linkBtn) {
+        import('./cases.js').then(module => {
+            module.openMatrixModal(linkBtn.dataset.path, false, currentOrderCategory);
+        });
+        return;
+    }
+
+    const caseBtn = e.target.closest('.case-btn');
+    if (caseBtn) {
+        import('./cases.js').then(module => {
+            module.openCaseSettingsModal(caseBtn.dataset.path, () => {
+                updateRowOrder(caseBtn.dataset.path);
+                updateTotalsOrder();
+                updateCategoryTotalsOrder(currentOrderCategory);
+            });
+        });
+        return;
+    }
+
+    const noteBtn = e.target.closest('.note-btn');
+    if (noteBtn) {
+        openNoteEditorOrder(noteBtn);
+        return;
+    }
+
+    // Обработка дропдауна кофров (устаревший механизм, но оставлен для совместимости)
     const dropdownBtn = e.target.closest('.case-dropdown-btn');
     if (dropdownBtn) {
         const path = dropdownBtn.dataset.path;
@@ -281,7 +316,7 @@ function handleContainerClick(e) {
 }
 
 function handleContainerInput(e) {
-    // Основной ввод количества (без кофров)
+    // === ОСНОВНОЕ ПОЛЕ ВВОДА (без кофров) ===
     const target = e.target.closest('.qty-input');
     if (target) {
         const path = target.dataset.path;
@@ -295,17 +330,23 @@ function handleContainerInput(e) {
         return;
     }
 
-    // Ввод в мультирежиме
-    const childQty = e.target.closest('.child-qty');
-    if (childQty) {
-        const path = childQty.dataset.path;
-        const idx = parseInt(childQty.dataset.idx);
-        let val = parseInt(childQty.value);
+    // === МУЛЬТИ-РЕЖИМ: ввод штук ===
+    const multiPieces = e.target.closest('.child-multi-pieces');
+    if (multiPieces) {
+        const path = multiPieces.dataset.path;
+        const idx = parseInt(multiPieces.dataset.idx);
+        let val = parseInt(multiPieces.value);
         if (isNaN(val) || val < 0) val = 0;
-        childQty.value = val;
+        multiPieces.value = val;
         const vals = getIndividualCaseValues(path);
         vals[idx] = val;
         setIndividualCaseValues(path, vals);
+        // Пересчитываем кофры
+        const opt = getCaseOptions(path)[idx];
+        if (opt && opt.qty > 0) {
+            const casesInput = multiPieces.parentElement.querySelector('.child-multi-cases');
+            if (casesInput) casesInput.value = Math.ceil(val / opt.qty);
+        }
         const total = vals.reduce((a,b) => a + b, 0);
         order[path] = total;
         if (total === 0) delete order[path];
@@ -316,12 +357,39 @@ function handleContainerInput(e) {
         return;
     }
 
-    // Ввод количества в общем кофре
-    const childCommon = e.target.closest('.child-common-qty');
-    if (childCommon) {
-        const path = childCommon.dataset.path;
-        const caseId = childCommon.dataset.caseid;
-        let val = parseInt(childCommon.value);
+    // === МУЛЬТИ-РЕЖИМ: ввод кофров ===
+    const multiCases = e.target.closest('.child-multi-cases');
+    if (multiCases) {
+        const path = multiCases.dataset.path;
+        const idx = parseInt(multiCases.dataset.idx);
+        let val = parseInt(multiCases.value);
+        if (isNaN(val) || val < 0) val = 0;
+        multiCases.value = val;
+        const opt = getCaseOptions(path)[idx];
+        if (opt && opt.qty > 0) {
+            const pieces = val * opt.qty;
+            const piecesInput = multiCases.parentElement.querySelector('.child-multi-pieces');
+            if (piecesInput) piecesInput.value = pieces;
+            const vals = getIndividualCaseValues(path);
+            vals[idx] = pieces;
+            setIndividualCaseValues(path, vals);
+            const total = vals.reduce((a,b) => a + b, 0);
+            order[path] = total;
+            if (total === 0) delete order[path];
+            saveOrderData();
+            updateRowOrder(path);
+            updateTotalsOrder();
+            updateCategoryTotalsOrder(currentOrderCategory);
+        }
+        return;
+    }
+
+    // === ОБЩИЕ КОФРЫ: ввод количества в кофре ===
+    const commonQty = e.target.closest('.child-common-qty');
+    if (commonQty) {
+        const path = commonQty.dataset.path;
+        const caseId = commonQty.dataset.caseid;
+        let val = parseInt(commonQty.value);
         if (isNaN(val) || val < 0) val = 0;
         const packing = getOrderPacking(path);
         const p = packing.find(p => p.caseId === caseId);
@@ -335,12 +403,12 @@ function handleContainerInput(e) {
                 showToast(`Превышен максимальный вес кофра "${c.name}" (${c.maxWeight} кг)`, 'warning');
                 val = Math.min(val, Math.floor(c.maxWeight / unitWeight));
                 if (val < 0) val = 0;
-                childCommon.value = val;
+                commonQty.value = val;
             }
             if (val > maxPack) {
                 showToast(`Превышена вместимость кофра "${c ? c.name : 'удалённый'}" (${maxPack} шт)`, 'warning');
                 val = Math.min(val, maxPack);
-                childCommon.value = val;
+                commonQty.value = val;
             }
             p.pieces = val;
             setOrderPacking(path, packing);
@@ -352,13 +420,13 @@ function handleContainerInput(e) {
         return;
     }
 
-    // Ввод "вне кофра"
-    const childExtra = e.target.closest('.child-extra-qty');
-    if (childExtra) {
-        const path = childExtra.dataset.path;
-        let val = parseInt(childExtra.value);
+    // === ОБЩИЕ КОФРЫ: ввод "вне кофра" ===
+    const extraQty = e.target.closest('.child-extra-qty');
+    if (extraQty) {
+        const path = extraQty.dataset.path;
+        let val = parseInt(extraQty.value);
         if (isNaN(val) || val < 0) val = 0;
-        childExtra.value = val;
+        extraQty.value = val;
         setOrderExtra(path, val);
         saveOrderData();
         updateRowOrder(path);
@@ -366,38 +434,14 @@ function handleContainerInput(e) {
         updateCategoryTotalsOrder(currentOrderCategory);
         return;
     }
-
-    // Ввод в случае, если используется поле кофров (для single режима — сейчас не используется)
-    const caseInput = e.target.closest('.case-input');
-    if (caseInput) {
-        const path = caseInput.dataset.path;
-        let val = parseInt(caseInput.value);
-        if (isNaN(val) || val < 0) val = 0;
-        caseInput.value = val;
-        const mode = getCaseMode(path);
-        if (mode.enabled) {
-            const opt = getSelectedOption(path);
-            if (opt && opt.qty > 0) {
-                const newQty = val * opt.qty;
-                order[path] = newQty;
-                if (newQty === 0) delete order[path];
-                saveOrderData();
-                updateRowOrder(path);
-                updateTotalsOrder();
-                updateCategoryTotalsOrder(currentOrderCategory);
-            }
-        }
-        renderCommonCaseIndicatorsOrder();
-        return;
-    }
 }
 
 function handleContainerChange(e) {
-    // Для select и других элементов, если понадобится
+    // Для select и других элементов
 }
 
 // ============================================================
-// ОБРАБОТКА ДРОПДАУНА КОФРОВ (устаревший механизм, оставлен для совместимости)
+// ОБРАБОТКА ДРОПДАУНА КОФРОВ (устаревший механизм)
 // ============================================================
 
 function handleDropdownItemOrder(item) {
@@ -417,24 +461,23 @@ function handleDropdownItemOrder(item) {
         return;
     }
     if (isAlt) {
-        showToast('Альтернативный кофр (будет реализован позже)');
+        // Альтернативный кофр теперь управляется через модалку
+        showToast('Альтернативный кофр настраивается в модалке', 'neutral');
         const dropdown = item.closest('.case-dropdown');
         if (dropdown) dropdown.classList.remove('open');
         return;
     }
     if (idx !== undefined) {
-        mode.enabled = true;
-        mode.selectedOption = idx;
-        mode.alt = null;
-        saveOrderData();
-        updateRowOrder(path);
-        updateTotalsOrder();
-        updateCategoryTotalsOrder(currentOrderCategory);
-        showToast('Выбран вариант кофра, режим включён');
+        // Включаем режим одного кофра через модалку — здесь просто открываем модалку
+        import('./cases.js').then(module => {
+            module.openCaseSettingsModal(path, () => {
+                updateRowOrder(path);
+                updateTotalsOrder();
+                updateCategoryTotalsOrder(currentOrderCategory);
+            });
+        });
         const dropdown = item.closest('.case-dropdown');
         if (dropdown) dropdown.classList.remove('open');
-        renderCommonCaseIndicatorsOrder();
-        showToast('Теперь выберите количество в кофре', 'neutral');
     }
 }
 
@@ -445,7 +488,6 @@ export async function clearOrderData() {
     const confirmed = await showConfirm('Очистить список?');
     if (!confirmed) return;
 
-    // Очищаем все данные заказа
     for (let key in order) delete order[key];
     for (let key in orderSplits) delete orderSplits[key];
     for (let key in links) delete links[key];
@@ -457,17 +499,13 @@ export async function clearOrderData() {
     for (let key in orderExclude) delete orderExclude[key];
     for (let key in orderExtra) delete orderExtra[key];
 
-    // Сбрасываем поиск
     setSearchMode(false);
     setSearchQuery('');
     const searchInput = document.getElementById('searchInput');
     if (searchInput) searchInput.value = '';
 
     saveOrderData();
-
-    // Полная перерисовка страницы заказа
     renderOrderAll();
-
     showToast('Список очищен', 'success');
 }
 
