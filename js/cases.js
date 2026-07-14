@@ -1,4 +1,4 @@
-// cases.js — Полная версия со всеми функциями
+// cases.js — Полная версия со всеми функциями (исправлена ошибка с matrixSearchSource)
 import {
     getItemProps,
     setItemProps,
@@ -414,8 +414,8 @@ function renderMatrix() {
         container.innerHTML = '<p style="color:var(--text-muted);">Нет позиций</p>';
         return;
     }
-    const srcFilter = document.getElementById('matrixSearchSource').value.toLowerCase();
-    const tgtFilter = document.getElementById('matrixSearchTarget').value.toLowerCase();
+    const srcFilter = document.getElementById('matrixSearchSource')?.value?.toLowerCase() || '';
+    const tgtFilter = document.getElementById('matrixSearchTarget')?.value?.toLowerCase() || '';
 
     const catMap = {};
     allPaths.forEach(p => {
@@ -699,27 +699,39 @@ function updateLinkCountOrder() {
     if (el) el.textContent = `(${count} активных)`;
 }
 
+// ============================================================
+// ОСНОВНАЯ ФУНКЦИЯ ОТКРЫТИЯ МАТРИЦЫ (с проверкой наличия элементов)
+// ============================================================
 export function openMatrixModal(sourcePath, showPresets = true, category = null) {
     const modal = document.getElementById('matrixModal');
     if (!modal) {
         showToast('Матрица привязок не найдена', 'error');
         return;
     }
+
+    // Проверяем наличие элементов фильтров
+    const srcInput = document.getElementById('matrixSearchSource');
+    const tgtInput = document.getElementById('matrixSearchTarget');
+    if (!srcInput || !tgtInput) {
+        showToast('Ошибка: элементы фильтров матрицы не найдены в DOM', 'error');
+        return;
+    }
+
     if (sourcePath) {
-        document.getElementById('matrixSearchSource').value = sourcePath.split('|').pop();
+        srcInput.value = sourcePath.split('|').pop();
         scrollToPath = sourcePath;
         const catName = category || (sourcePath.split('|')[0]);
         if (catName && !openCategories.includes(catName)) {
             openCategories.push(catName);
         }
     } else {
-        document.getElementById('matrixSearchSource').value = '';
+        srcInput.value = '';
         scrollToPath = null;
         if (category && !openCategories.includes(category)) {
             openCategories.push(category);
         }
     }
-    document.getElementById('matrixSearchTarget').value = '';
+    tgtInput.value = '';
     matrixZoomLevel = 1;
     applyMatrixZoom();
     renderMatrix();
