@@ -51,7 +51,7 @@ import {
 } from './order.js';
 
 // ============================================================
-// БАЗОВЫЕ ФУНКЦИИ ДОСТУПА К ДАННЫМ
+// БАЗОВЫЕ ФУНКЦИИ
 // ============================================================
 
 export function getValue(path) {
@@ -231,8 +231,7 @@ export function renderCommonCaseIndicatorsOrder() {
 
 export function updateAllCommonCaseIndicators() {
     const allCommonCases = getCommonCases();
-    // Собираем статистику по каждому кофру: общий вес и общий объём
-    const stats = new Map(); // caseId -> { totalWeight, totalVolume, maxWeight, maxVolume, name }
+    const stats = new Map();
     allCommonCases.forEach(c => {
         stats.set(c.id, {
             totalWeight: 0,
@@ -244,7 +243,6 @@ export function updateAllCommonCaseIndicators() {
         });
     });
 
-    // Проходим по всем упаковкам
     for (let path in orderPacking) {
         const packing = getOrderPacking(path);
         const props = getItemProps(path);
@@ -259,21 +257,24 @@ export function updateAllCommonCaseIndicators() {
         });
     }
 
-    // Обновляем все дочерние строки с индикаторами
-    document.querySelectorAll('.child-row .child-controls').forEach(control => {
+    // Обновляем все дочерние строки общих кофров
+    document.querySelectorAll('.child-row .child-controls[data-caseid]').forEach(control => {
         const caseId = control.dataset.caseid;
-        if (!caseId) return;
         const stat = stats.get(caseId);
         if (!stat) return;
         const fillPercent = stat.maxWeight > 0 ? Math.min(100, Math.round((stat.totalWeight / stat.maxWeight) * 100)) : 0;
-        // Определяем цвет
         let color = 'var(--text-secondary)';
         if (fillPercent >= 100) color = 'var(--danger)';
-        else if (fillPercent >= 90) color = 'var(--warning)'; // оранжевый
-        else if (fillPercent >= 80) color = '#d4a017'; // жёлтый
-        // Обновляем левую границу
-        control.style.borderLeftColor = color;
-        // Обновляем текст с процентом
+        else if (fillPercent >= 90) color = 'var(--warning)';
+        else if (fillPercent >= 80) color = '#d4a017';
+
+        // Окрашиваем всю строку (child-row)
+        const childRow = control.closest('.child-row');
+        if (childRow) {
+            childRow.style.background = fillPercent >= 80 ? color : '';
+            childRow.style.opacity = fillPercent >= 80 ? '0.9' : '1';
+        }
+        // Обновляем процент
         let percentSpan = control.querySelector('.case-fill-percent');
         if (!percentSpan) {
             percentSpan = document.createElement('span');
@@ -296,7 +297,7 @@ function parseUnitVolume(dimensions) {
 }
 
 // ============================================================
-// РАБОТА С ДОЧЕРНИМИ ЭЛЕМЕНТАМИ (единообразные строки)
+// РАБОТА С ДОЧЕРНИМИ ЭЛЕМЕНТАМИ
 // ============================================================
 
 export function updateChildRowsForPath(path) {
@@ -316,7 +317,7 @@ export function updateChildRowsForPath(path) {
     const individualVals = getIndividualCaseValues(path);
     const props = getItemProps(path);
 
-    // === МУЛЬТИ-РЕЖИМ ===
+    // МУЛЬТИ
     if (isMulti && mode.enabled && options.length > 1) {
         const childDiv = document.createElement('div');
         childDiv.className = 'child-row';
@@ -360,7 +361,7 @@ export function updateChildRowsForPath(path) {
         parentRow.after(childDiv);
     }
 
-    // === ОБЩИЕ КОФРЫ ===
+    // ОБЩИЕ КОФРЫ
     if (hasCommonPacking) {
         const commonCases = getCommonCases();
         const extra = getOrderExtra(path);
@@ -374,6 +375,7 @@ export function updateChildRowsForPath(path) {
         childDiv.style.borderRadius = '6px';
         childDiv.style.margin = '4px 0';
         childDiv.style.border = '1px solid var(--border-light)';
+        childDiv.style.transition = 'background 0.3s';
 
         let html = `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px;font-size:13px;color:var(--text-secondary);">
             <strong>Упаковка в общие кофры</strong>
@@ -400,36 +402,41 @@ export function updateChildRowsForPath(path) {
             if (maxWeight > 0) {
                 fillPercent = Math.min(100, Math.round((filledWeight / maxWeight) * 100));
             }
-            let statusColor = 'var(--text-secondary)';
+            // Цвет для фона всей строки и для текста
+            let bgColor = 'transparent';
+            let textColor = 'var(--text-secondary)';
             let statusText = '';
             if (fillPercent >= 100) {
-                statusColor = 'var(--danger)';
+                bgColor = 'var(--danger)';
+                textColor = '#fff';
                 statusText = '[Заполнен]';
             } else if (fillPercent >= 90) {
-                statusColor = 'var(--warning)';
+                bgColor = 'var(--warning)';
+                textColor = '#fff';
                 statusText = '[Почти]';
             } else if (fillPercent >= 80) {
-                statusColor = '#d4a017';
+                bgColor = '#d4a017';
+                textColor = '#fff';
                 statusText = '[80%]';
             }
 
-            html += `<div class="child-controls" data-caseid="${p.caseId}" style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid ${statusColor};">
-                <span style="font-weight:500;min-width:70px;font-size:13px;">${esc(name)}</span>
-                <span style="font-size:11px;color:var(--text-secondary);min-width:30px;">шт:</span>
+            html += `<div class="child-controls" data-caseid="${p.caseId}" style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid ${fillPercent >= 80 ? bgColor : 'var(--text-muted)'};">
+                <span style="font-weight:500;min-width:70px;font-size:13px;color:${fillPercent >= 80 ? '#fff' : 'var(--text-primary)'};">${esc(name)}</span>
+                <span style="font-size:11px;color:${fillPercent >= 80 ? '#fff' : 'var(--text-secondary)'};min-width:30px;">шт:</span>
                 <button class="btn-c child-common-btn" style="width:26px;height:26px;font-size:13px;" data-path="${path}" data-caseid="${p.caseId}" data-delta="-1">−</button>
                 <input type="number" class="child-common-qty" data-path="${path}" data-caseid="${p.caseId}" value="${qty}" min="0" step="1" max="${maxPack}" style="width:44px;padding:2px 4px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);text-align:center;font-size:13px;">
                 <button class="btn-c child-common-btn" style="width:26px;height:26px;font-size:13px;" data-path="${path}" data-caseid="${p.caseId}" data-delta="1">+</button>
-                ${statusText ? `<span style="font-size:11px;color:${statusColor};">${statusText}</span>` : ''}
-                <span class="case-fill-percent" style="font-size:11px;color:${statusColor};">${fillPercent}%</span>
-                <span style="font-size:11px;color:var(--text-muted);min-width:70px;">${c?.dimensions || 'н/д'}</span>
-                <span style="font-size:11px;color:var(--text-muted);min-width:50px;">вес:${c?.emptyWeight || 0}</span>
+                ${statusText ? `<span style="font-size:11px;color:${fillPercent >= 80 ? '#fff' : 'var(--text-secondary)'};">${statusText}</span>` : ''}
+                <span class="case-fill-percent" style="font-size:11px;color:${fillPercent >= 80 ? '#fff' : 'var(--text-secondary)'};">${fillPercent}%</span>
+                <span style="font-size:11px;color:${fillPercent >= 80 ? '#fff' : 'var(--text-muted)'};min-width:70px;">${c?.dimensions || 'н/д'}</span>
+                <span style="font-size:11px;color:${fillPercent >= 80 ? '#fff' : 'var(--text-muted)'};min-width:50px;">вес:${c?.emptyWeight || 0}</span>
                 <button class="btn btn-sm remove-common-pack" style="background:var(--danger);color:white;padding:0 6px;font-size:11px;border-radius:4px;border:none;cursor:pointer;" data-path="${path}" data-caseid="${p.caseId}">✕</button>
             </div>`;
         });
 
         childDiv.innerHTML = html;
         parentRow.after(childDiv);
-        // После создания вызываем обновление индикаторов
+        // Обновляем индикаторы
         updateAllCommonCaseIndicators();
     }
 }
@@ -511,9 +518,7 @@ export function buildInfoHtml(path, props, mode) {
 }
 
 // ============================================================
-// ИНИЦИАЛИЗАЦИЯ (заглушка)
+// ИНИЦИАЛИЗАЦИЯ
 // ============================================================
 
-export function initOrderHelpers() {
-    // Пустая функция для совместимости
-}
+export function initOrderHelpers() {}

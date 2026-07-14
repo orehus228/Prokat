@@ -59,7 +59,8 @@ import {
     renderCommonCaseIndicatorsOrder as renderIndicators,
     updateChildRowsForPath,
     buildInfoHtml,
-    initOrderHelpers
+    initOrderHelpers,
+    updateAllCommonCaseIndicators
 } from './order-helpers.js';
 
 // ============================================================
@@ -98,12 +99,10 @@ export function toggleInfoBlock(path) {
     infoBlocksOpen[path] = !infoBlocksOpen[path];
 }
 
-// Сброс состояния инфо-блоков при очистке
 export function resetInfoBlocks() {
     for (let key in infoBlocksOpen) {
         delete infoBlocksOpen[key];
     }
-    // Удаляем все row-info из DOM
     document.querySelectorAll('.row-info').forEach(el => el.remove());
     document.querySelectorAll('.info-btn').forEach(btn => {
         btn.textContent = 'Инфо';
@@ -236,6 +235,7 @@ export function renderOrderCategory(catKey, filterQuery = '') {
         document.getElementById('detailToggle').textContent = 'Подробно';
     }
     renderCommonCaseIndicatorsOrder();
+    updateAllCommonCaseIndicators();
 }
 
 // ============================================================
@@ -271,7 +271,7 @@ function buildCategoryHTML(data, path, level) {
 }
 
 // ============================================================
-// ПОСТРОЕНИЕ СТРОКИ (исправлен расчёт веса/объёма, убраны эмодзи)
+// ПОСТРОЕНИЕ СТРОКИ
 // ============================================================
 
 export function buildItemRow(fullPath, level) {
@@ -329,17 +329,15 @@ export function buildItemRow(fullPath, level) {
         caseStatusClass = 'off';
     }
 
-    // ========== РАЗДЕЛЬНЫЙ РАСЧЁТ: вес без кофра и с кофром ==========
+    // Раздельный вес и объём
     let weightWithoutCase = 0, weightWithCase = 0;
     let volumeOnlyCases = 0;
 
     if (props.weight !== undefined && props.weight !== null && props.weight > 0) {
         weightWithoutCase = props.weight * totalQty;
-        // Вес с кофром вычисляем через calcItemWeightWithMode
         weightWithCase = calcItemWeightWithMode(fullPath, totalQty);
     }
 
-    // Объём только кофров (если есть)
     if (hasCommonPacking) {
         const commonCases = getCommonCases();
         packing.forEach(p => {
@@ -377,7 +375,7 @@ export function buildItemRow(fullPath, level) {
 
     let weightDisplay = '0 кг';
     if (weightWithoutCase > 0 || weightWithCase > 0) {
-        weightDisplay = `${weightWithoutCase.toFixed(1)} / ${weightWithCase.toFixed(1)} кг`; // "без кофра / с кофром"
+        weightDisplay = `${weightWithoutCase.toFixed(1)} / ${weightWithCase.toFixed(1)} кг`;
     }
     let volumeDisplay = volumeOnlyCases > 0 ? volumeOnlyCases.toFixed(3) + ' м³' : '0 м³';
 
@@ -479,10 +477,10 @@ function renderQtyControls(path) {
 }
 
 // ============================================================
-// ОБНОВЛЕНИЕ СТРОКИ (синхронизация контролов, раздельный вес/объём)
+// ОБНОВЛЕНИЕ СТРОКИ (с параметром rebuildChildren)
 // ============================================================
 
-export function updateRowOrder(path) {
+export function updateRowOrder(path, rebuildChildren = true) {
     const row = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
     if (!row) return;
     const sq = getStockValue(path);
@@ -685,11 +683,13 @@ export function updateRowOrder(path) {
         caseBtn.className = 'action-btn case-btn ' + (isOn ? 'active ' : '') + statusClass;
     }
 
-    updateChildRowsForPath(path);
+    if (rebuildChildren) {
+        updateChildRowsForPath(path);
+    }
 }
 
 // ============================================================
-// ПЕРЕРИСОВКА СТРОКИ (новая функция)
+// ПЕРЕРИСОВКА СТРОКИ
 // ============================================================
 
 export function refreshRow(path) {
@@ -704,10 +704,11 @@ export function refreshRow(path) {
     updateChildRowsForPath(path);
     updateTotalsOrder();
     updateCategoryTotalsOrder(currentOrderCategory);
+    updateAllCommonCaseIndicators();
 }
 
 // ============================================================
-// ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ: расчёт объёма единицы по строке габаритов "AxBxC"
+// ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ: расчёт объёма единицы
 // ============================================================
 function parseUnitVolume(dimensions) {
     if (!dimensions) return 0;
@@ -719,7 +720,7 @@ function parseUnitVolume(dimensions) {
 }
 
 // ============================================================
-// ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ РАСЧЁТА ИТОГОВ С УЧЁТОМ КОФРОВ
+// ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ РАСЧЁТА ИТОГОВ
 // ============================================================
 function calculateTotals(items) {
     let totalQty = 0;
@@ -906,7 +907,7 @@ export function updateTotalsOrder() {
         detailsHtml += `<div style="width:100%;border-top:1px solid var(--border-color);padding-top:8px;margin-top:8px;">`;
         detailsHtml += `<strong style="display:block;margin-bottom:4px;">Общие кофры:</strong>`;
         result.commonDetails.forEach(c => {
-            const statusColor = c.fillPercent >= 100 ? 'var(--danger)' : (c.fillPercent >= 90 ? 'var(--warning)' : 'var(--text-secondary)');
+            const statusColor = c.fillPercent >= 100 ? 'var(--danger)' : (c.fillPercent >= 90 ? 'var(--warning)' : (c.fillPercent >= 80 ? '#d4a017' : 'var(--text-secondary)'));
             detailsHtml += `<div style="font-size:13px;padding:2px 0;border-bottom:1px solid var(--border-light);">
                 <span>[Кофр] ${c.name}</span>
                 <span style="margin-left:8px;">${c.pieces} шт</span>
@@ -947,21 +948,19 @@ export function clearSearchOrder() {
 }
 
 // ============================================================
-// ОБРАБОТЧИКИ КНОПОК (инфо, описание, заметка)
+// ОБРАБОТЧИКИ КНОПОК
 // ============================================================
 
 export function toggleInfoOrder(btn) {
     const path = btn.dataset.path;
     const row = btn.closest('.row');
     let infoBlock = row.querySelector('.row-info');
-    // Если блок уже есть, удаляем его и сбрасываем состояние
     if (infoBlock) {
         infoBlock.remove();
         infoBlocksOpen[path] = false;
         btn.textContent = 'Инфо';
         return;
     }
-    // Иначе создаём новый
     infoBlock = document.createElement('div');
     infoBlock.className = 'row-info';
     const props = getItemProps(path);
@@ -997,16 +996,11 @@ export async function openNoteEditorOrder(btn) {
 }
 
 // ============================================================
-// ЗАГЛУШКИ ДЛЯ ИНИЦИАЛИЗАЦИИ (вызываются из initOrderUI)
+// ЗАГЛУШКИ
 // ============================================================
 
-export function setupInputListenersOrder() {
-    // Уже настроено через делегирование в initOrderUI
-}
-
-export function setupCaseTogglesOrder() {
-    // Уже настроено через делегирование
-}
+export function setupInputListenersOrder() {}
+export function setupCaseTogglesOrder() {}
 
 // ============================================================
 // РЕНДЕР ВСЕГО
@@ -1032,10 +1026,11 @@ export function renderOrderAll() {
         document.getElementById('globalDetails').classList.remove('open');
         document.getElementById('detailToggle').textContent = 'Подробно';
     }
+    updateAllCommonCaseIndicators();
 }
 
 // ============================================================
-// ИНИЦИАЛИЗАЦИЯ UI ЗАКАЗА
+// ИНИЦИАЛИЗАЦИЯ UI
 // ============================================================
 
 export function initOrderUI() {

@@ -77,7 +77,6 @@ export function setupEventDelegation() {
     container.removeEventListener('change', handleContainerChange);
     container.addEventListener('change', handleContainerChange);
 
-    // Автоповтор
     container.removeEventListener('mousedown', handleContainerMouseDown);
     container.addEventListener('mousedown', handleContainerMouseDown);
     container.removeEventListener('mouseup', handleContainerMouseUp);
@@ -162,7 +161,7 @@ function handleQtyChange(path, delta) {
     }
     inp.value = val;
     setValueOrder(path, val);
-    updateRowOrder(path);
+    updateRowOrder(path, false);
     updateTotalsOrder();
     updateCategoryTotalsOrder(currentOrderCategory);
 }
@@ -202,7 +201,7 @@ function handleSinglePieceChange(path, delta) {
         const casesInput = row.querySelector('.single-cases-input');
         if (casesInput) casesInput.value = casesCount;
     }
-    updateRowOrder(path);
+    updateRowOrder(path, false);
     updateTotalsOrder();
     updateCategoryTotalsOrder(currentOrderCategory);
 }
@@ -238,7 +237,7 @@ function handleSingleCaseChange(path, delta) {
                 order[path] = newPieces;
                 if (newPieces === 0) delete order[path];
                 saveOrderData();
-                updateRowOrder(path);
+                updateRowOrder(path, false);
                 updateTotalsOrder();
                 updateCategoryTotalsOrder(currentOrderCategory);
                 return;
@@ -250,14 +249,13 @@ function handleSingleCaseChange(path, delta) {
         order[path] = pieces;
         if (pieces === 0) delete order[path];
         saveOrderData();
-        updateRowOrder(path);
+        updateRowOrder(path, false);
         updateTotalsOrder();
         updateCategoryTotalsOrder(currentOrderCategory);
     }
 }
 
 function handleMultiPieceChange(path, idx, delta) {
-    // Находим дочернюю строку для данного idx
     const childRow = document.querySelector(`#categoryContents .child-multi-pieces[data-idx="${idx}"]`)?.closest('.child-row');
     if (!childRow) return;
     const input = childRow.querySelector(`.child-multi-pieces[data-idx="${idx}"]`);
@@ -293,9 +291,10 @@ function handleMultiPieceChange(path, idx, delta) {
     order[path] = total;
     if (total === 0) delete order[path];
     saveOrderData();
-    updateRowOrder(path);
+    updateRowOrder(path, false);
     updateTotalsOrder();
     updateCategoryTotalsOrder(currentOrderCategory);
+    updateAllCommonCaseIndicators();
 }
 
 function handleMultiCaseChange(path, idx, delta) {
@@ -332,9 +331,10 @@ function handleMultiCaseChange(path, idx, delta) {
                 order[path] = total;
                 if (total === 0) delete order[path];
                 saveOrderData();
-                updateRowOrder(path);
+                updateRowOrder(path, false);
                 updateTotalsOrder();
                 updateCategoryTotalsOrder(currentOrderCategory);
+                updateAllCommonCaseIndicators();
                 return;
             }
         }
@@ -347,9 +347,10 @@ function handleMultiCaseChange(path, idx, delta) {
         order[path] = total;
         if (total === 0) delete order[path];
         saveOrderData();
-        updateRowOrder(path);
+        updateRowOrder(path, false);
         updateTotalsOrder();
         updateCategoryTotalsOrder(currentOrderCategory);
+        updateAllCommonCaseIndicators();
     }
 }
 
@@ -381,10 +382,9 @@ function handleCommonQtyChange(path, caseId, delta) {
         p.pieces = val;
         setOrderPacking(path, packing);
         saveOrderData();
-        updateRowOrder(path);
+        updateRowOrder(path, false);
         updateTotalsOrder();
         updateCategoryTotalsOrder(currentOrderCategory);
-        // Обновляем все индикаторы общих кофров
         updateAllCommonCaseIndicators();
     }
 }
@@ -405,7 +405,7 @@ function handleExtraQtyChange(path, delta) {
     input.value = val;
     setOrderExtra(path, val);
     saveOrderData();
-    updateRowOrder(path);
+    updateRowOrder(path, false);
     updateTotalsOrder();
     updateCategoryTotalsOrder(currentOrderCategory);
     updateAllCommonCaseIndicators();
@@ -416,7 +416,6 @@ function handleExtraQtyChange(path, delta) {
 // ============================================================
 
 function handleContainerClick(e) {
-    // Обработка обычных кнопок +/- (без кофров)
     const target = e.target.closest('.qty-btn');
     if (target && !target.closest('.child-controls')) {
         const path = target.dataset.path;
@@ -427,7 +426,6 @@ function handleContainerClick(e) {
         return;
     }
 
-    // SINGLE-РЕЖИМ
     const singlePieceBtn = e.target.closest('.single-piece-btn');
     if (singlePieceBtn) {
         const path = singlePieceBtn.dataset.path;
@@ -448,7 +446,6 @@ function handleContainerClick(e) {
         return;
     }
 
-    // МУЛЬТИ-РЕЖИМ
     const multiPieceBtn = e.target.closest('.child-multi-piece-btn');
     if (multiPieceBtn) {
         const path = multiPieceBtn.dataset.path;
@@ -471,7 +468,6 @@ function handleContainerClick(e) {
         return;
     }
 
-    // ОБЩИЕ КОФРЫ
     const commonBtn = e.target.closest('.child-common-btn');
     if (commonBtn) {
         const path = commonBtn.dataset.path;
@@ -493,7 +489,6 @@ function handleContainerClick(e) {
         return;
     }
 
-    // Удаление привязки общих кофров
     const removeBtn = e.target.closest('.remove-common-pack');
     if (removeBtn) {
         const path = removeBtn.dataset.path;
@@ -502,7 +497,7 @@ function handleContainerClick(e) {
         const newPacking = packing.filter(p => p.caseId !== caseId);
         setOrderPacking(path, newPacking);
         saveOrderData();
-        updateRowOrder(path);
+        updateRowOrder(path, false);
         updateTotalsOrder();
         updateCategoryTotalsOrder(currentOrderCategory);
         updateAllCommonCaseIndicators();
@@ -510,7 +505,6 @@ function handleContainerClick(e) {
         return;
     }
 
-    // ОБЫЧНЫЕ КНОПКИ
     const infoBtn = e.target.closest('.info-btn');
     if (infoBtn) {
         toggleInfoOrder(infoBtn);
@@ -548,7 +542,6 @@ function handleContainerClick(e) {
         return;
     }
 
-    // Дропдаун кофров (устаревший)
     const dropdownBtn = e.target.closest('.case-dropdown-btn');
     if (dropdownBtn) {
         const path = dropdownBtn.dataset.path;
@@ -578,7 +571,7 @@ function handleContainerInput(e) {
         if (isNaN(val) || val < 0) val = 0;
         target.value = val;
         setValueOrder(path, val);
-        updateRowOrder(path);
+        updateRowOrder(path, false);
         updateTotalsOrder();
         updateCategoryTotalsOrder(currentOrderCategory);
         return;
@@ -611,7 +604,7 @@ function handleContainerInput(e) {
             const casesInput = singlePieces.parentElement.querySelector('.single-cases-input');
             if (casesInput) casesInput.value = casesCount;
         }
-        updateRowOrder(path);
+        updateRowOrder(path, false);
         updateTotalsOrder();
         updateCategoryTotalsOrder(currentOrderCategory);
         return;
@@ -647,7 +640,7 @@ function handleContainerInput(e) {
                     order[path] = newPieces;
                     if (newPieces === 0) delete order[path];
                     saveOrderData();
-                    updateRowOrder(path);
+                    updateRowOrder(path, false);
                     updateTotalsOrder();
                     updateCategoryTotalsOrder(currentOrderCategory);
                     return;
@@ -659,7 +652,7 @@ function handleContainerInput(e) {
             order[path] = pieces;
             if (pieces === 0) delete order[path];
             saveOrderData();
-            updateRowOrder(path);
+            updateRowOrder(path, false);
             updateTotalsOrder();
             updateCategoryTotalsOrder(currentOrderCategory);
         }
@@ -695,9 +688,10 @@ function handleContainerInput(e) {
         order[path] = total;
         if (total === 0) delete order[path];
         saveOrderData();
-        updateRowOrder(path);
+        updateRowOrder(path, false);
         updateTotalsOrder();
         updateCategoryTotalsOrder(currentOrderCategory);
+        updateAllCommonCaseIndicators();
         return;
     }
 
@@ -735,9 +729,10 @@ function handleContainerInput(e) {
                     order[path] = total;
                     if (total === 0) delete order[path];
                     saveOrderData();
-                    updateRowOrder(path);
+                    updateRowOrder(path, false);
                     updateTotalsOrder();
                     updateCategoryTotalsOrder(currentOrderCategory);
+                    updateAllCommonCaseIndicators();
                     return;
                 }
             }
@@ -750,9 +745,10 @@ function handleContainerInput(e) {
             order[path] = total;
             if (total === 0) delete order[path];
             saveOrderData();
-            updateRowOrder(path);
+            updateRowOrder(path, false);
             updateTotalsOrder();
             updateCategoryTotalsOrder(currentOrderCategory);
+            updateAllCommonCaseIndicators();
         }
         return;
     }
@@ -785,7 +781,7 @@ function handleContainerInput(e) {
             p.pieces = val;
             setOrderPacking(path, packing);
             saveOrderData();
-            updateRowOrder(path);
+            updateRowOrder(path, false);
             updateTotalsOrder();
             updateCategoryTotalsOrder(currentOrderCategory);
             updateAllCommonCaseIndicators();
@@ -801,7 +797,7 @@ function handleContainerInput(e) {
         extraQty.value = val;
         setOrderExtra(path, val);
         saveOrderData();
-        updateRowOrder(path);
+        updateRowOrder(path, false);
         updateTotalsOrder();
         updateCategoryTotalsOrder(currentOrderCategory);
         updateAllCommonCaseIndicators();
@@ -809,9 +805,7 @@ function handleContainerInput(e) {
     }
 }
 
-function handleContainerChange(e) {
-    // Для select и других элементов
-}
+function handleContainerChange(e) {}
 
 // ============================================================
 // ОБРАБОТКА ДРОПДАУНА КОФРОВ (устаревший механизм)
@@ -826,7 +820,7 @@ function handleDropdownItemOrder(item) {
     if (isAccumulate) {
         mode.accumulate = !mode.accumulate;
         saveOrderData();
-        updateRowOrder(path);
+        updateRowOrder(path, false);
         updateTotalsOrder();
         updateCategoryTotalsOrder(currentOrderCategory);
         showToast(mode.accumulate ? 'Режим "Копиться в кофре" включён' : 'Режим "Копиться в кофре" выключен');
