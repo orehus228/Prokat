@@ -259,7 +259,7 @@ function buildCategoryHTML(data, path, level) {
 }
 
 // ============================================================
-// ПОСТРОЕНИЕ СТРОКИ
+// ПОСТРОЕНИЕ СТРОКИ (исправлено isMulti)
 // ============================================================
 
 export function buildItemRow(fullPath, level) {
@@ -269,7 +269,8 @@ export function buildItemRow(fullPath, level) {
     const props = getItemProps(fullPath);
     const hasCase = (props.individualCases && props.individualCases.length > 0) || props.allowCommon;
     const mode = getCaseMode(fullPath);
-    const isMulti = localStorage.getItem('multi_' + fullPath) === 'true';
+    // Исправлено: isMulti теперь проверяет mode.multiSelected
+    const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
     const hasAlt = !!mode.alt;
     const packing = getOrderPacking(fullPath);
     const hasCommonPacking = packing.length > 0;
@@ -281,7 +282,6 @@ export function buildItemRow(fullPath, level) {
         totalQty = individualVals.reduce((a,b) => a + b, 0);
     } else if (hasCommonPacking) {
         const extra = getOrderExtra(fullPath);
-        // Исправлено: p.pieces вместо p.qty
         const packed = packing.reduce((s, p) => s + (p.pieces || 0), 0);
         totalQty = extra + packed;
     } else {
@@ -356,9 +356,7 @@ export function buildItemRow(fullPath, level) {
         <div class="qty-controls">
             <span class="weight-vol-display" style="display:none !important;">${weightDisplay} / ${volumeDisplay}</span>
             <span class="stock-info" style="display:none !important;">в наличии: ${sq}</span>
-            <button class="btn-c qty-btn" data-path="${esc(fullPath)}" data-delta="-1">−</button>
-            <input type="number" class="qty-input" value="${totalQty}" min="0" step="1" data-path="${esc(fullPath)}">
-            <button class="btn-c qty-btn" data-path="${esc(fullPath)}" data-delta="1">+</button>
+            ${renderQtyControls(fullPath)}
         </div>
     </div>`;
     if (isInfoOpen) {
@@ -373,60 +371,60 @@ export function buildItemRow(fullPath, level) {
         });
     }
 
-    // Дочерние строки для мульти-режима
-    if (isMulti && mode.enabled && options.length > 1) {
-        html += `<div class="child-row" data-parent="${esc(fullPath)}" style="width:100%;flex-basis:100%;">`;
-        html += `<div style="padding:4px 8px;font-size:13px;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">Распределение по вариантам кофров (сумма: ${individualVals.reduce((a,b)=>a+b,0)} шт)</div>`;
-        options.forEach((opt, idx) => {
-            const val = individualVals[idx] || 0;
-            const maxPossible = getStockValue(fullPath);
-            html += `<div class="child-controls">
-                <label>Вариант ${idx+1} (вм. ${opt.qty} шт):</label>
-                <button class="btn-c child-qty-btn" data-path="${esc(fullPath)}" data-idx="${idx}" data-delta="-1">−</button>
-                <input type="number" class="child-qty" data-path="${esc(fullPath)}" data-idx="${idx}" value="${val}" min="0" step="1" max="${maxPossible}">
-                <button class="btn-c child-qty-btn" data-path="${esc(fullPath)}" data-idx="${idx}" data-delta="1">+</button>
-                <span class="child-info">габ: ${opt.dims || 'н/д'}, вес: ${opt.weight || 0} кг</span>
-            </div>`;
-        });
-        html += `</div>`;
-    }
-
-    // Дочерние строки для общих кофров
-    if (hasCommonPacking) {
-        const commonCases = getCommonCases();
-        const extra = getOrderExtra(fullPath);
-        html += `<div class="child-row" data-parent="${esc(fullPath)}" style="width:100%;flex-basis:100%;">`;
-        html += `<div style="padding:4px 8px;font-size:13px;color:var(--text-secondary);border-bottom:1px solid var(--border-light);">Упаковка в общие кофры (вне кофра: ${extra} шт)</div>`;
-        const maxExtra = getStockValue(fullPath);
-        html += `<div class="child-controls">
-            <label>Вне кофра:</label>
-            <button class="btn-c child-extra-btn" data-path="${esc(fullPath)}" data-delta="-1">−</button>
-            <input type="number" class="child-extra-qty" data-path="${esc(fullPath)}" value="${extra}" min="0" step="1" max="${maxExtra}">
-            <button class="btn-c child-extra-btn" data-path="${esc(fullPath)}" data-delta="1">+</button>
-        </div>`;
-        packing.forEach((p, idx) => {
-            const c = commonCases.find(c => c.id === p.caseId);
-            const name = c ? c.name : 'удалённый кофр';
-            // Исправлено: p.pieces вместо p.qty
-            const qty = p.pieces || 0;
-            const maxPack = c ? c.qty : 0;
-            html += `<div class="child-controls">
-                <label>${name} (вм. ${maxPack} шт):</label>
-                <button class="btn-c child-common-btn" data-path="${esc(fullPath)}" data-caseid="${p.caseId}" data-delta="-1">−</button>
-                <input type="number" class="child-common-qty" data-path="${esc(fullPath)}" data-caseid="${p.caseId}" value="${qty}" min="0" step="1" max="${maxPack}">
-                <button class="btn-c child-common-btn" data-path="${esc(fullPath)}" data-caseid="${p.caseId}" data-delta="1">+</button>
-                <span class="child-info">габ: ${c ? c.dimensions || 'н/д' : 'н/д'}, вес: ${c ? c.emptyWeight || 0 : 0} кг</span>
-                <button class="btn btn-sm remove-common-pack" style="background:var(--danger);color:white;padding:0 8px;font-size:12px;" data-path="${esc(fullPath)}" data-caseid="${p.caseId}">✕</button>
-            </div>`;
-        });
-        html += `</div>`;
-    }
+    // Дочерние строки для мульти-режима (генерируются через updateChildRowsForPath, который вызывается отдельно)
+    // Поэтому здесь они не добавляются — обновляются в updateRowOrder
 
     return html;
 }
 
 // ============================================================
-// ОБНОВЛЕНИЕ СТРОКИ
+// РЕНДЕРИНГ КОНТРОЛОВ КОЛИЧЕСТВА (исправлено isMulti)
+// ============================================================
+function renderQtyControls(path) {
+    const mode = getCaseMode(path);
+    const individualVals = getIndividualCaseValues(path);
+    const packing = getOrderPacking(path);
+    const options = getCaseOptions(path);
+    const totalQty = getTotalQty(path);
+    // Исправлено: isMulti через mode.multiSelected
+    const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
+
+    // Режим без кофров или выключен
+    if (!mode.enabled || (!packing.length && individualVals.length === 0 && !isMulti)) {
+        return `
+            <button class="btn-c qty-btn" data-path="${path}" data-delta="-1">−</button>
+            <input type="number" class="qty-input" value="${totalQty}" min="0" step="1" data-path="${path}">
+            <button class="btn-c qty-btn" data-path="${path}" data-delta="1">+</button>
+        `;
+    }
+
+    // Режим "Один кофр" — два поля (штуки и кофры) синхронизированы
+    if (mode.enabled && individualVals.length === 1 && !packing.length && !isMulti) {
+        const opt = getSelectedOption(path);
+        const pieces = individualVals[0] || 0;
+        const casesCount = opt && opt.qty > 0 ? Math.ceil(pieces / opt.qty) : 0;
+        return `
+            <div style="display:flex;align-items:center;gap:4px;">
+                <span style="font-size:12px;color:var(--text-secondary);">шт:</span>
+                <button class="btn-c single-piece-btn" data-path="${path}" data-delta="-1" style="width:28px;height:28px;font-size:14px;">−</button>
+                <input type="number" class="single-pieces-input" value="${pieces}" min="0" step="1" data-path="${path}" style="width:50px;padding:2px;text-align:center;font-size:13px;">
+                <button class="btn-c single-piece-btn" data-path="${path}" data-delta="1" style="width:28px;height:28px;font-size:14px;">+</button>
+                <span style="font-size:12px;color:var(--text-secondary);">кофры:</span>
+                <button class="btn-c single-case-btn" data-path="${path}" data-delta="-1" style="width:28px;height:28px;font-size:14px;">−</button>
+                <input type="number" class="single-cases-input" value="${casesCount}" min="0" step="1" data-path="${path}" style="width:50px;padding:2px;text-align:center;font-size:13px;">
+                <button class="btn-c single-case-btn" data-path="${path}" data-delta="1" style="width:28px;height:28px;font-size:14px;">+</button>
+            </div>
+        `;
+    }
+
+    // Режимы multi и common — показываем статическое количество
+    return `
+        <span style="font-size:13px;color:var(--text-secondary);">${totalQty} шт</span>
+    `;
+}
+
+// ============================================================
+// ОБНОВЛЕНИЕ СТРОКИ (исправлено isMulti)
 // ============================================================
 
 export function updateRowOrder(path) {
@@ -434,7 +432,8 @@ export function updateRowOrder(path) {
     if (!row) return;
     const sq = getStockValue(path);
     const mode = getCaseMode(path);
-    const isMulti = localStorage.getItem('multi_' + path) === 'true';
+    // Исправлено: isMulti через mode.multiSelected
+    const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
     const packing = getOrderPacking(path);
     const hasCommonPacking = packing.length > 0;
     let totalQty = 0;
@@ -443,7 +442,6 @@ export function updateRowOrder(path) {
         totalQty = vals.reduce((a,b) => a + b, 0);
     } else if (hasCommonPacking) {
         const extra = getOrderExtra(path);
-        // Исправлено: p.pieces вместо p.qty
         const packed = packing.reduce((s, p) => s + (p.pieces || 0), 0);
         totalQty = extra + packed;
     } else {
@@ -455,13 +453,35 @@ export function updateRowOrder(path) {
     row.classList.toggle('added', isAdded);
     row.classList.toggle('overstock', isOverstock);
 
-    const qtyInput = row.querySelector('.qty-input');
-    if (qtyInput) {
-        if ((isMulti && mode.enabled) || hasCommonPacking) {
-            qtyInput.style.display = 'none';
-        } else {
-            qtyInput.style.display = 'inline-block';
-            qtyInput.value = totalQty;
+    // Обновляем контролы внутри qty-controls
+    const qtyControls = row.querySelector('.qty-controls');
+    if (qtyControls) {
+        // Перерисовываем контролы
+        const path = row.dataset.path;
+        // Сохраняем ссылку на существующие элементы, чтобы не потерять обработчики
+        // Но лучше заменить содержимое и затем навесить обработчики через делегирование
+        // Так как обработчики в order-actions.js используют делегирование, можно просто заменить HTML
+        const weightVolDisplay = qtyControls.querySelector('.weight-vol-display');
+        const stockInfo = qtyControls.querySelector('.stock-info');
+        qtyControls.innerHTML = `
+            <span class="weight-vol-display" style="display:none !important;"></span>
+            <span class="stock-info" style="display:none !important;"></span>
+            ${renderQtyControls(path)}
+        `;
+        // Обновляем вес/объём
+        const newWeightVol = qtyControls.querySelector('.weight-vol-display');
+        if (newWeightVol) {
+            const props = getItemProps(path);
+            let weightDisplay = '0 кг', volumeDisplay = '0 м³';
+            if (props.weight !== undefined && props.weight !== null && props.weight > 0) {
+                const w = calcItemWeightWithMode(path, totalQty);
+                weightDisplay = w.toFixed(1) + ' кг';
+            }
+            if (props.dimensions && props.dimensions.trim() !== '') {
+                const v = calcItemVolumeWithMode(path, totalQty);
+                volumeDisplay = v.toFixed(3) + ' м³';
+            }
+            newWeightVol.textContent = weightDisplay + ' / ' + volumeDisplay;
         }
     }
 
@@ -525,7 +545,7 @@ export function updateRowOrder(path) {
     if (caseBtn) {
         const mode = getCaseMode(path);
         const isOn = mode.enabled || false;
-        const isMulti = localStorage.getItem('multi_' + path) === 'true';
+        const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
         const hasAlt = !!mode.alt;
         const packing = getOrderPacking(path);
         const hasCommonPacking = packing.length > 0;
@@ -551,6 +571,7 @@ export function updateRowOrder(path) {
         caseBtn.className = 'action-btn case-btn ' + (isOn ? 'active ' : '') + statusClass;
     }
 
+    // Обновляем дочерние строки (в order-helpers.js уже использует mode.multiSelected)
     updateChildRowsForPath(path);
 }
 

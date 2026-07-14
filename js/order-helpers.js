@@ -56,7 +56,7 @@ import {
 
 export function getValue(path) {
     const mode = getCaseMode(path);
-    const isMulti = localStorage.getItem('multi_' + path) === 'true';
+    const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
     if (mode.enabled && isMulti) {
         const vals = getIndividualCaseValues(path);
         return vals.reduce((a,b) => a + b, 0);
@@ -81,7 +81,7 @@ export function getStockValue(path) {
 export function setValueOrder(path, val) {
     val = Math.max(0, parseInt(val) || 0);
     const mode = getCaseMode(path);
-    const isMulti = localStorage.getItem('multi_' + path) === 'true';
+    const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
     if (mode.enabled && isMulti) {
         showToast('В мульти-режиме меняйте количество в дочерних полях', 'warning');
         return;
@@ -184,7 +184,7 @@ export function renderCommonCaseIndicatorsOrder() {
 }
 
 // ============================================================
-// РАБОТА С ДОЧЕРНИМИ ЭЛЕМЕНТАМИ (исправлена для мульти-режима)
+// РАБОТА С ДОЧЕРНИМИ ЭЛЕМЕНТАМИ
 // ============================================================
 
 export function updateChildRowsForPath(path) {
@@ -198,7 +198,7 @@ export function updateChildRowsForPath(path) {
     }
     const mode = getCaseMode(path);
     const options = getCaseOptions(path);
-    const isMulti = localStorage.getItem('multi_' + path) === 'true';
+    const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
     const packing = getOrderPacking(path);
     const hasCommonPacking = packing.length > 0;
     const individualVals = getIndividualCaseValues(path);
@@ -329,6 +329,7 @@ export function buildInfoHtml(path, props, mode) {
     const individualVals = getIndividualCaseValues(path);
     const packing = getOrderPacking(path);
     const extra = getOrderExtra(path);
+    const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
 
     if (packing.length > 0) {
         html += `<div style="width:100%;"><strong>Общие кофры:</strong></div>`;
@@ -345,7 +346,7 @@ export function buildInfoHtml(path, props, mode) {
                 • Вне кофра: ${extra} шт
             </div>`;
         }
-    } else if (mode.enabled && mode.multiSelected && mode.multiSelected.some(v => v === true) && individualVals.length > 1) {
+    } else if (mode.enabled && isMulti && individualVals.length > 1) {
         html += `<div style="width:100%;"><strong>Мультикофры:</strong></div>`;
         options.forEach((opt, idx) => {
             if (!mode.multiSelected[idx]) return;
@@ -357,7 +358,7 @@ export function buildInfoHtml(path, props, mode) {
                 </div>`;
             }
         });
-    } else if (mode.enabled && individualVals.length === 1 && !packing.length && !mode.multiSelected) {
+    } else if (mode.enabled && individualVals.length === 1 && !packing.length && !isMulti) {
         html += `<div style="width:100%;"><strong>Один кофр:</strong></div>`;
         const opt = getSelectedOption(path);
         const val = individualVals[0] || 0;
@@ -378,8 +379,8 @@ export function buildInfoHtml(path, props, mode) {
     html += `<div style="width:100%;padding-left:12px;font-size:13px;color:var(--text-secondary);">
         <span>Режим: ${mode.enabled ? '✅ Включён' : 'не активирован'}</span>
         ${packing.length > 0 ? `<span style="margin-left:12px;">📦 Общие кофры (${packing.length} шт)</span>` : ''}
-        ${mode.multiSelected && mode.multiSelected.some(v => v === true) ? `<span style="margin-left:12px;">🔄 Мульти-режим</span>` : ''}
-        ${individualVals.length === 1 && mode.enabled && !packing.length && !mode.multiSelected ? `<span style="margin-left:12px;">📦 Один кофр</span>` : ''}
+        ${isMulti ? `<span style="margin-left:12px;">🔄 Мульти-режим</span>` : ''}
+        ${individualVals.length === 1 && mode.enabled && !packing.length && !isMulti ? `<span style="margin-left:12px;">📦 Один кофр</span>` : ''}
         ${mode.alt && mode.useAlt ? `<span style="margin-left:12px;">🔀 Альтернативный кофр</span>` : ''}
     </div>`;
 
