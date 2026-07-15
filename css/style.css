@@ -923,6 +923,7 @@ body {
     gap: 8px;
     padding: 4px 8px;
     flex-wrap: wrap;
+    transition: background-color 0.5s, border-left-color 0.5s;
 }
 .child-row .child-controls label {
     font-size: 13px;
@@ -943,38 +944,6 @@ body {
     font-size: 12px;
     color: var(--text-muted);
     margin-left: 8px;
-}
-
-/* ===== КЛАССЫ ДЛЯ ОКРАСКИ ДОЧЕРНИХ СТРОК (С !important) ===== */
-#categoryContents .child-row.case-fill-80 {
-    background-color: #d4a017 !important;
-    border-left-color: #d4a017 !important;
-}
-#categoryContents .child-row.case-fill-90 {
-    background-color: var(--warning) !important;
-    border-left-color: var(--warning) !important;
-}
-#categoryContents .child-row.case-fill-100 {
-    background-color: var(--danger) !important;
-    border-left-color: var(--danger) !important;
-}
-
-/* Чтобы текст был читаемым на цветном фоне */
-#categoryContents .child-row.case-fill-80 span,
-#categoryContents .child-row.case-fill-80 input,
-#categoryContents .child-row.case-fill-80 button:not(.remove-common-pack),
-#categoryContents .child-row.case-fill-90 span,
-#categoryContents .child-row.case-fill-90 input,
-#categoryContents .child-row.case-fill-90 button:not(.remove-common-pack),
-#categoryContents .child-row.case-fill-100 span,
-#categoryContents .child-row.case-fill-100 input,
-#categoryContents .child-row.case-fill-100 button:not(.remove-common-pack) {
-    color: #fff !important;
-}
-#categoryContents .child-row.case-fill-80 .case-fill-percent,
-#categoryContents .child-row.case-fill-90 .case-fill-percent,
-#categoryContents .child-row.case-fill-100 .case-fill-percent {
-    color: #fff !important;
 }
 
 /* ===== МОДАЛКИ ===== */

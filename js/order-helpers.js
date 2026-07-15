@@ -1,4 +1,4 @@
-// order-helpers.js — с гарантированным применением классов
+// order-helpers.js — окрашивание теперь применяется к .child-controls
 import { editorData, getStock, getItemProps, getCommonCases, saveEditorData } from './data.js';
 import { CAT_NAMES } from './config.js';
 import { esc, showToast, showPrompt, showConfirm, debounce } from './ui.js';
@@ -114,7 +114,7 @@ export function renderCommonCaseIndicatorsOrder() {
     indicator.textContent = parts.join(' · ');
 }
 
-// ===== ФУНКЦИЯ ДЛЯ ВЫЧИСЛЕНИЯ ЦВЕТА ПО ПРОЦЕНТУ =====
+// ===== ФУНКЦИЯ ДЛЯ ВЫЧИСЛЕНИЯ ЦВЕТА ПО ПРОЦЕНТУ (ПЛАВНЫЙ ГРАДИЕНТ) =====
 export function getColorByPercent(percent) {
     let r, g, b;
     if (percent < 80) {
@@ -176,9 +176,8 @@ export function updateCommonCasesButton() {
     btn.style.borderColor = color;
 }
 
-// ===== ОБНОВЛЕННАЯ ФУНКЦИЯ ОКРАШИВАНИЯ (С ГАРАНТИРОВАННЫМ ВЫПОЛНЕНИЕМ) =====
+// ===== ОБНОВЛЕННАЯ ФУНКЦИЯ ОКРАШИВАНИЯ (ОКРАШИВАЕТ .child-controls) =====
 export function updateAllCommonCaseIndicators() {
-    // Небольшая задержка, чтобы DOM успел обновиться
     setTimeout(() => {
         const allCommonCases = getCommonCases();
         const stats = new Map();
@@ -200,21 +199,16 @@ export function updateAllCommonCaseIndicators() {
         }
         const container = document.getElementById('categoryContents');
         if (!container) return;
-        container.querySelectorAll('.child-row').forEach(childRow => {
-            const controls = childRow.querySelector('.child-controls[data-caseid]');
-            if (!controls) return;
+        // Ищем все .child-controls с data-caseid
+        container.querySelectorAll('.child-controls[data-caseid]').forEach(controls => {
             const caseId = controls.dataset.caseid;
             const stat = stats.get(caseId);
             if (!stat) return;
             const fillPercent = stat.maxWeight > 0 ? Math.min(100, Math.round((stat.totalWeight / stat.maxWeight) * 100)) : 0;
-            
-            // Удаляем старые классы
-            childRow.classList.remove('case-fill-80', 'case-fill-90', 'case-fill-100');
-            // Добавляем новый класс
-            if (fillPercent >= 100) childRow.classList.add('case-fill-100');
-            else if (fillPercent >= 90) childRow.classList.add('case-fill-90');
-            else if (fillPercent >= 80) childRow.classList.add('case-fill-80');
-            
+            const color = getColorByPercent(fillPercent);
+            // Устанавливаем фон и левую границу напрямую через style (плавный градиент)
+            controls.style.backgroundColor = color;
+            controls.style.borderLeftColor = color;
             // Обновляем текст процента
             let percentSpan = controls.querySelector('.case-fill-percent');
             if (!percentSpan) {
@@ -224,6 +218,17 @@ export function updateAllCommonCaseIndicators() {
                 controls.appendChild(percentSpan);
             }
             percentSpan.textContent = `${fillPercent}%`;
+            // Цвет текста белый, если фон тёмный
+            const brightness = (parseInt(color.slice(1,2), 16) * 299 + parseInt(color.slice(3,4), 16) * 587 + parseInt(color.slice(5,6), 16) * 114) / 1000;
+            percentSpan.style.color = brightness > 128 ? '#000' : '#fff';
+            // Также меняем цвет текста внутри controls для контраста
+            const allSpans = controls.querySelectorAll('span:not(.case-fill-percent), input, button:not(.remove-common-pack)');
+            allSpans.forEach(el => {
+                el.style.color = brightness > 128 ? '#000' : '#fff';
+            });
+            // Кнопка удаления остаётся красной
+            const removeBtn = controls.querySelector('.remove-common-pack');
+            if (removeBtn) removeBtn.style.color = 'white';
         });
         updateCommonCasesButton();
     }, 50);
@@ -259,7 +264,6 @@ export function updateChildRowsForPath(path) {
         childDiv.style.borderRadius = '6px';
         childDiv.style.margin = '4px 0';
         childDiv.style.border = '1px solid var(--border-light)';
-        // Не задаём фон, чтобы классы могли переопределить
         let html = `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px;font-size:13px;color:var(--text-secondary);">
             <strong>Распределение по вариантам кофров</strong>
             <span style="margin-left:auto;">Итого: ${individualVals.reduce((a,b) => a + b, 0)} шт</span>
@@ -301,8 +305,6 @@ export function updateChildRowsForPath(path) {
         childDiv.style.borderRadius = '6px';
         childDiv.style.margin = '4px 0';
         childDiv.style.border = '1px solid var(--border-light)';
-        childDiv.style.transition = 'background-color 0.5s, border-left-color 0.5s';
-        // Не задаём фон, чтобы классы могли переопределить
         let html = `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px;font-size:13px;color:var(--text-secondary);">
             <strong>Упаковка в общие кофры</strong>
             <span style="margin-left:auto;">Вне кофра: ${extra} шт</span>
