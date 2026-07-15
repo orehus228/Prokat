@@ -1,4 +1,4 @@
-// order-helpers.js — полная версия с улучшенной окраской
+// order-helpers.js — с гарантированным применением классов
 import { editorData, getStock, getItemProps, getCommonCases, saveEditorData } from './data.js';
 import { CAT_NAMES } from './config.js';
 import { esc, showToast, showPrompt, showConfirm, debounce } from './ui.js';
@@ -176,10 +176,10 @@ export function updateCommonCasesButton() {
     btn.style.borderColor = color;
 }
 
-// ===== ОБНОВЛЕННАЯ ФУНКЦИЯ ОКРАШИВАНИЯ (С ИСПОЛЬЗОВАНИЕМ requestAnimationFrame) =====
+// ===== ОБНОВЛЕННАЯ ФУНКЦИЯ ОКРАШИВАНИЯ (С ГАРАНТИРОВАННЫМ ВЫПОЛНЕНИЕМ) =====
 export function updateAllCommonCaseIndicators() {
-    // Используем requestAnimationFrame, чтобы дождаться завершения рендера DOM
-    requestAnimationFrame(() => {
+    // Небольшая задержка, чтобы DOM успел обновиться
+    setTimeout(() => {
         const allCommonCases = getCommonCases();
         const stats = new Map();
         allCommonCases.forEach(c => {
@@ -198,8 +198,9 @@ export function updateAllCommonCaseIndicators() {
                 stat.totalVolume += p.pieces * unitVolume;
             });
         }
-        // Обновляем каждую дочернюю строку
-        document.querySelectorAll('.child-row').forEach(childRow => {
+        const container = document.getElementById('categoryContents');
+        if (!container) return;
+        container.querySelectorAll('.child-row').forEach(childRow => {
             const controls = childRow.querySelector('.child-controls[data-caseid]');
             if (!controls) return;
             const caseId = controls.dataset.caseid;
@@ -209,11 +210,10 @@ export function updateAllCommonCaseIndicators() {
             
             // Удаляем старые классы
             childRow.classList.remove('case-fill-80', 'case-fill-90', 'case-fill-100');
-            // Добавляем новый класс в зависимости от процента
+            // Добавляем новый класс
             if (fillPercent >= 100) childRow.classList.add('case-fill-100');
             else if (fillPercent >= 90) childRow.classList.add('case-fill-90');
             else if (fillPercent >= 80) childRow.classList.add('case-fill-80');
-            // Если <80%, класс не добавляем, фон остаётся стандартным
             
             // Обновляем текст процента
             let percentSpan = controls.querySelector('.case-fill-percent');
@@ -224,11 +224,9 @@ export function updateAllCommonCaseIndicators() {
                 controls.appendChild(percentSpan);
             }
             percentSpan.textContent = `${fillPercent}%`;
-            // Цвет текста процента автоматически меняется через CSS (белый на цветном фоне)
         });
-        // Обновляем кнопку в редакторе
         updateCommonCasesButton();
-    });
+    }, 50);
 }
 
 function parseUnitVolume(dimensions) {
@@ -258,10 +256,10 @@ export function updateChildRowsForPath(path) {
         childDiv.style.width = '100%';
         childDiv.style.flexBasis = '100%';
         childDiv.style.padding = '6px 12px';
-        childDiv.style.background = 'var(--bg-secondary)';
         childDiv.style.borderRadius = '6px';
         childDiv.style.margin = '4px 0';
         childDiv.style.border = '1px solid var(--border-light)';
+        // Не задаём фон, чтобы классы могли переопределить
         let html = `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px;font-size:13px;color:var(--text-secondary);">
             <strong>Распределение по вариантам кофров</strong>
             <span style="margin-left:auto;">Итого: ${individualVals.reduce((a,b) => a + b, 0)} шт</span>
@@ -300,11 +298,11 @@ export function updateChildRowsForPath(path) {
         childDiv.style.width = '100%';
         childDiv.style.flexBasis = '100%';
         childDiv.style.padding = '6px 12px';
-        childDiv.style.background = 'var(--bg-secondary)';
         childDiv.style.borderRadius = '6px';
         childDiv.style.margin = '4px 0';
         childDiv.style.border = '1px solid var(--border-light)';
         childDiv.style.transition = 'background-color 0.5s, border-left-color 0.5s';
+        // Не задаём фон, чтобы классы могли переопределить
         let html = `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px;font-size:13px;color:var(--text-secondary);">
             <strong>Упаковка в общие кофры</strong>
             <span style="margin-left:auto;">Вне кофра: ${extra} шт</span>
@@ -340,7 +338,7 @@ export function updateChildRowsForPath(path) {
         });
         childDiv.innerHTML = html;
         parentRow.after(childDiv);
-        // Обновляем индикаторы сразу после создания
+        // Явно вызываем обновление индикаторов после создания
         updateAllCommonCaseIndicators();
     }
 }
