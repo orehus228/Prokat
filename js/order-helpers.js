@@ -1,4 +1,4 @@
-// order-helpers.js — полная версия с плавным градиентом и индикацией кнопки
+// order-helpers.js — полная версия с классами для окраски
 import { editorData, getStock, getItemProps, getCommonCases, saveEditorData } from './data.js';
 import { CAT_NAMES } from './config.js';
 import { esc, showToast, showPrompt, showConfirm, debounce } from './ui.js';
@@ -114,9 +114,8 @@ export function renderCommonCaseIndicatorsOrder() {
     indicator.textContent = parts.join(' · ');
 }
 
-// ===== ФУНКЦИЯ ДЛЯ ВЫЧИСЛЕНИЯ ЦВЕТА ПО ПРОЦЕНТУ (ПЛАВНЫЙ ГРАДИЕНТ) =====
+// ===== ФУНКЦИЯ ДЛЯ ВЫЧИСЛЕНИЯ ЦВЕТА ПО ПРОЦЕНТУ =====
 export function getColorByPercent(percent) {
-    // 0-79% зелёный, 80-89% жёлтый, 90-99% оранжевый, 100% красный
     let r, g, b;
     if (percent < 80) {
         const t = percent / 80;
@@ -148,6 +147,7 @@ export function updateCommonCasesButton() {
         btn.textContent = 'Общие кофры (0)';
         btn.style.backgroundColor = '';
         btn.style.color = '';
+        btn.style.borderColor = '';
         return;
     }
     const stats = new Map();
@@ -176,7 +176,7 @@ export function updateCommonCasesButton() {
     btn.style.borderColor = color;
 }
 
-// ===== ОБНОВЛЕННАЯ ФУНКЦИЯ ОКРАШИВАНИЯ (ПЛАВНЫЙ ГРАДИЕНТ) =====
+// ===== ОБНОВЛЕННАЯ ФУНКЦИЯ ОКРАШИВАНИЯ (С ИСПОЛЬЗОВАНИЕМ КЛАССОВ) =====
 export function updateAllCommonCaseIndicators() {
     const allCommonCases = getCommonCases();
     const stats = new Map();
@@ -204,11 +204,15 @@ export function updateAllCommonCaseIndicators() {
         const stat = stats.get(caseId);
         if (!stat) return;
         const fillPercent = stat.maxWeight > 0 ? Math.min(100, Math.round((stat.totalWeight / stat.maxWeight) * 100)) : 0;
-        const color = getColorByPercent(fillPercent);
-        // Применяем фон и границу с плавным переходом
-        childRow.style.transition = 'background-color 0.5s, border-left-color 0.5s';
-        childRow.style.backgroundColor = color;
-        childRow.style.borderLeftColor = color;
+        
+        // Удаляем старые классы
+        childRow.classList.remove('case-fill-80', 'case-fill-90', 'case-fill-100');
+        // Добавляем новый класс в зависимости от процента
+        if (fillPercent >= 100) childRow.classList.add('case-fill-100');
+        else if (fillPercent >= 90) childRow.classList.add('case-fill-90');
+        else if (fillPercent >= 80) childRow.classList.add('case-fill-80');
+        // Если <80%, класс не добавляем, фон остаётся стандартным
+        
         // Обновляем текст процента
         let percentSpan = controls.querySelector('.case-fill-percent');
         if (!percentSpan) {
@@ -218,16 +222,7 @@ export function updateAllCommonCaseIndicators() {
             controls.appendChild(percentSpan);
         }
         percentSpan.textContent = `${fillPercent}%`;
-        // Цвет текста белый, если фон тёмный
-        const brightness = (parseInt(color.slice(1,2), 16) * 299 + parseInt(color.slice(3,4), 16) * 587 + parseInt(color.slice(5,6), 16) * 114) / 1000;
-        const textColor = brightness > 128 ? '#000' : '#fff';
-        percentSpan.style.color = textColor;
-        const allSpans = childRow.querySelectorAll('span:not(.case-fill-percent), input, button:not(.remove-common-pack)');
-        allSpans.forEach(el => {
-            el.style.color = textColor;
-        });
-        const removeBtn = childRow.querySelector('.remove-common-pack');
-        if (removeBtn) removeBtn.style.color = 'white';
+        // Цвет текста процента автоматически меняется через CSS (белый на цветном фоне)
     });
     // Обновляем кнопку в редакторе
     updateCommonCasesButton();
