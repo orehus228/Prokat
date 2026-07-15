@@ -1,4 +1,4 @@
-// order-helpers.js — полная версия с классами для окраски
+// order-helpers.js — полная версия с улучшенной окраской
 import { editorData, getStock, getItemProps, getCommonCases, saveEditorData } from './data.js';
 import { CAT_NAMES } from './config.js';
 import { esc, showToast, showPrompt, showConfirm, debounce } from './ui.js';
@@ -176,56 +176,59 @@ export function updateCommonCasesButton() {
     btn.style.borderColor = color;
 }
 
-// ===== ОБНОВЛЕННАЯ ФУНКЦИЯ ОКРАШИВАНИЯ (С ИСПОЛЬЗОВАНИЕМ КЛАССОВ) =====
+// ===== ОБНОВЛЕННАЯ ФУНКЦИЯ ОКРАШИВАНИЯ (С ИСПОЛЬЗОВАНИЕМ requestAnimationFrame) =====
 export function updateAllCommonCaseIndicators() {
-    const allCommonCases = getCommonCases();
-    const stats = new Map();
-    allCommonCases.forEach(c => {
-        stats.set(c.id, { totalWeight: 0, totalVolume: 0, maxWeight: c.maxWeight || 0, maxVolume: c.maxVolume || 0, name: c.name || 'Кофр', dimensions: c.dimensions || '' });
-    });
-    for (let path in orderPacking) {
-        const packing = getOrderPacking(path);
-        const props = getItemProps(path);
-        const unitWeight = props.weight || 0;
-        const unitVolume = parseUnitVolume(props.dimensions);
-        packing.forEach(p => {
-            if (p.pieces <= 0) return;
-            const stat = stats.get(p.caseId);
-            if (!stat) return;
-            stat.totalWeight += p.pieces * unitWeight;
-            stat.totalVolume += p.pieces * unitVolume;
+    // Используем requestAnimationFrame, чтобы дождаться завершения рендера DOM
+    requestAnimationFrame(() => {
+        const allCommonCases = getCommonCases();
+        const stats = new Map();
+        allCommonCases.forEach(c => {
+            stats.set(c.id, { totalWeight: 0, totalVolume: 0, maxWeight: c.maxWeight || 0, maxVolume: c.maxVolume || 0, name: c.name || 'Кофр', dimensions: c.dimensions || '' });
         });
-    }
-    // Обновляем каждую дочернюю строку
-    document.querySelectorAll('.child-row').forEach(childRow => {
-        const controls = childRow.querySelector('.child-controls[data-caseid]');
-        if (!controls) return;
-        const caseId = controls.dataset.caseid;
-        const stat = stats.get(caseId);
-        if (!stat) return;
-        const fillPercent = stat.maxWeight > 0 ? Math.min(100, Math.round((stat.totalWeight / stat.maxWeight) * 100)) : 0;
-        
-        // Удаляем старые классы
-        childRow.classList.remove('case-fill-80', 'case-fill-90', 'case-fill-100');
-        // Добавляем новый класс в зависимости от процента
-        if (fillPercent >= 100) childRow.classList.add('case-fill-100');
-        else if (fillPercent >= 90) childRow.classList.add('case-fill-90');
-        else if (fillPercent >= 80) childRow.classList.add('case-fill-80');
-        // Если <80%, класс не добавляем, фон остаётся стандартным
-        
-        // Обновляем текст процента
-        let percentSpan = controls.querySelector('.case-fill-percent');
-        if (!percentSpan) {
-            percentSpan = document.createElement('span');
-            percentSpan.className = 'case-fill-percent';
-            percentSpan.style.cssText = 'font-size:11px;margin-left:4px;';
-            controls.appendChild(percentSpan);
+        for (let path in orderPacking) {
+            const packing = getOrderPacking(path);
+            const props = getItemProps(path);
+            const unitWeight = props.weight || 0;
+            const unitVolume = parseUnitVolume(props.dimensions);
+            packing.forEach(p => {
+                if (p.pieces <= 0) return;
+                const stat = stats.get(p.caseId);
+                if (!stat) return;
+                stat.totalWeight += p.pieces * unitWeight;
+                stat.totalVolume += p.pieces * unitVolume;
+            });
         }
-        percentSpan.textContent = `${fillPercent}%`;
-        // Цвет текста процента автоматически меняется через CSS (белый на цветном фоне)
+        // Обновляем каждую дочернюю строку
+        document.querySelectorAll('.child-row').forEach(childRow => {
+            const controls = childRow.querySelector('.child-controls[data-caseid]');
+            if (!controls) return;
+            const caseId = controls.dataset.caseid;
+            const stat = stats.get(caseId);
+            if (!stat) return;
+            const fillPercent = stat.maxWeight > 0 ? Math.min(100, Math.round((stat.totalWeight / stat.maxWeight) * 100)) : 0;
+            
+            // Удаляем старые классы
+            childRow.classList.remove('case-fill-80', 'case-fill-90', 'case-fill-100');
+            // Добавляем новый класс в зависимости от процента
+            if (fillPercent >= 100) childRow.classList.add('case-fill-100');
+            else if (fillPercent >= 90) childRow.classList.add('case-fill-90');
+            else if (fillPercent >= 80) childRow.classList.add('case-fill-80');
+            // Если <80%, класс не добавляем, фон остаётся стандартным
+            
+            // Обновляем текст процента
+            let percentSpan = controls.querySelector('.case-fill-percent');
+            if (!percentSpan) {
+                percentSpan = document.createElement('span');
+                percentSpan.className = 'case-fill-percent';
+                percentSpan.style.cssText = 'font-size:11px;margin-left:4px;';
+                controls.appendChild(percentSpan);
+            }
+            percentSpan.textContent = `${fillPercent}%`;
+            // Цвет текста процента автоматически меняется через CSS (белый на цветном фоне)
+        });
+        // Обновляем кнопку в редакторе
+        updateCommonCasesButton();
     });
-    // Обновляем кнопку в редакторе
-    updateCommonCasesButton();
 }
 
 function parseUnitVolume(dimensions) {
