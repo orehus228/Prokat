@@ -226,7 +226,6 @@ function handleMultiCaseChange(path, idx, delta) {
         }
         const inputPieces = childRow.querySelector(`.child-multi-pieces[data-idx="${idx}"]`);
         if (inputPieces) inputPieces.value = pieces;
-        // Явно синхронизируем поле кофров
         inputCases.value = val;
         const vals = getIndividualCaseValues(path);
         vals[idx] = pieces;
@@ -302,7 +301,7 @@ function handleContainerClick(e) {
     const multiCaseBtn = e.target.closest('.child-multi-case-btn'); if (multiCaseBtn) { const path = multiCaseBtn.dataset.path; const idx = parseInt(multiCaseBtn.dataset.idx); const delta = parseInt(multiCaseBtn.dataset.delta); if (path && !isNaN(idx) && !isNaN(delta)) handleMultiCaseChange(path, idx, delta); return; }
     const commonBtn = e.target.closest('.child-common-btn'); if (commonBtn) { const path = commonBtn.dataset.path; const caseId = commonBtn.dataset.caseid; const delta = parseInt(commonBtn.dataset.delta); if (path && caseId && !isNaN(delta)) handleCommonQtyChange(path, caseId, delta); return; }
     const extraBtn = e.target.closest('.child-extra-btn'); if (extraBtn) { const path = extraBtn.dataset.path; const delta = parseInt(extraBtn.dataset.delta); if (path && !isNaN(delta)) handleExtraQtyChange(path, delta); return; }
-    const removeBtn = e.target.closest('.remove-common-pack'); if (removeBtn) { const path = removeBtn.dataset.path; const caseId = removeBtn.dataset.caseid; const packing = getOrderPacking(path); const newPacking = packing.filter(p => p.caseId !== caseId); setOrderPacking(path, newPacking); saveOrderData(); updateRowOrder(path, false); updateTotalsOrder(); updateCategoryTotalsOrder(currentOrderCategory); updateAllCommonCaseIndicators(); showToast('Привязка удалена', 'neutral'); return; }
+    // Удалён обработчик для .remove-common-pack, так как кнопка больше не рендерится
     const infoBtn = e.target.closest('.info-btn'); if (infoBtn) { toggleInfoOrder(infoBtn); return; }
     const descBtn = e.target.closest('.desc-btn'); if (descBtn) { toggleDescOrder(descBtn); return; }
     const linkBtn = e.target.closest('.link-btn'); if (linkBtn) { import('./cases.js').then(module => { module.openMatrixModal(linkBtn.dataset.path, false, currentOrderCategory); }); return; }

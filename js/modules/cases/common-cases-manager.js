@@ -1,18 +1,23 @@
-// modules/cases/common-cases-manager.js — Управление общими кофрами
+// modules/cases/common-cases-manager.js — Управление общими кофрами с индикацией заполнения
 import {
     getCommonCases,
     addCommonCase,
     updateCommonCase,
     deleteCommonCase,
-    saveEditorData
+    saveEditorData,
+    getItemProps
 } from '../../data.js';
-
+import {
+    getOrderPacking,
+    orderPacking
+} from '../../order.js';
 import {
     esc,
     showToast,
     showPrompt,
     showConfirm
 } from '../../ui.js';
+import { getColorByPercent } from '../../order-helpers.js';
 
 let casesManagerCallback = null;
 
@@ -32,11 +37,40 @@ function renderCasesList() {
         container.innerHTML = '<div class="empty-message">Нет общих кофров</div>';
         return;
     }
+    // Собираем статистику заполнения для каждого кофра
+    const stats = new Map();
+    cases.forEach(c => {
+        stats.set(c.id, { totalWeight: 0, maxWeight: c.maxWeight || 0, name: c.name });
+    });
+    for (let path in orderPacking) {
+        const packing = getOrderPacking(path);
+        const props = getItemProps(path);
+        const unitWeight = props.weight || 0;
+        packing.forEach(p => {
+            if (p.pieces <= 0) return;
+            const stat = stats.get(p.caseId);
+            if (stat) stat.totalWeight += p.pieces * unitWeight;
+        });
+    }
+
     let html = '';
     cases.forEach(c => {
+        const stat = stats.get(c.id);
+        const fillPercent = stat && stat.maxWeight > 0 ? Math.min(100, Math.round((stat.totalWeight / stat.maxWeight) * 100)) : 0;
+        const { r, g, b } = getColorByPercent(fillPercent);
+        const color = `rgb(${r}, ${g}, ${b})`;
         html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-bottom:1px solid var(--border-color);gap:10px;">
-            <div><strong>${esc(c.name)}</strong><br>
-            <span style="font-size:13px;color:var(--text-secondary);">Вместимость: ${c.qty} шт, Габ: ${c.dimensions || 'н/д'}, Вес пустого: ${c.emptyWeight || 0} кг, Макс. вес: ${c.maxWeight || 0} кг, Макс. объём: ${c.maxVolume || 0} м³</span></div>
+            <div style="flex:1;">
+                <strong>${esc(c.name)}</strong>
+                <br>
+                <span style="font-size:13px;color:var(--text-secondary);">Вместимость: ${c.qty} шт, Габ: ${c.dimensions || 'н/д'}, Вес пустого: ${c.emptyWeight || 0} кг, Макс. вес: ${c.maxWeight || 0} кг, Макс. объём: ${c.maxVolume || 0} м³</span>
+                <div style="margin-top:4px;display:flex;align-items:center;gap:8px;">
+                    <div style="flex:1;height:6px;background:var(--bg-input);border-radius:3px;overflow:hidden;">
+                        <div style="width:${fillPercent}%;height:100%;background:${color};border-radius:3px;transition:width 0.3s;"></div>
+                    </div>
+                    <span style="font-size:12px;color:${color};font-weight:bold;min-width:40px;">${fillPercent}%</span>
+                </div>
+            </div>
             <div>
                 <button class="btn btn-sm" style="width:auto;padding:2px 8px;font-size:12px;" onclick="window.editCase('${c.id}')">✏️</button>
                 <button class="btn btn-sm" style="width:auto;padding:2px 8px;font-size:12px;background:var(--danger);color:white;" onclick="window.deleteCase('${c.id}')">✕</button>
@@ -46,7 +80,6 @@ function renderCasesList() {
     container.innerHTML = html;
 }
 
-// Экспортируем функции для глобального доступа
 export function editCase(id) {
     const cases = getCommonCases();
     const c = cases.find(c => c.id === id);

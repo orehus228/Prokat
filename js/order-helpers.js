@@ -1,4 +1,4 @@
-// order-helpers.js — мягкая индикация с полупрозрачным фоном, серая полоска
+// order-helpers.js — мягкая индикация, исправленный градиент, без кнопки удаления
 import { editorData, getStock, getItemProps, getCommonCases, saveEditorData } from './data.js';
 import { CAT_NAMES } from './config.js';
 import { esc, showToast, showPrompt, showConfirm, debounce } from './ui.js';
@@ -114,25 +114,29 @@ export function renderCommonCaseIndicatorsOrder() {
     indicator.textContent = parts.join(' · ');
 }
 
-// ===== ФУНКЦИЯ ДЛЯ ВЫЧИСЛЕНИЯ ЦВЕТА (RGB) =====
+// ===== ИСПРАВЛЕННЫЙ ГРАДИЕНТ (зелёный → жёлтый → красный) =====
 export function getColorByPercent(percent) {
     let r, g, b;
     if (percent < 80) {
+        // Зелёный (от тёмного к яркому)
         const t = percent / 80;
-        r = Math.round(76 + (255 - 76) * t * 0.5);
+        r = Math.round(76 + (200 - 76) * t * 0.6);
         g = Math.round(175 + (235 - 175) * t);
-        b = Math.round(76 + (0 - 76) * t * 0.3);
+        b = Math.round(76 + (0 - 76) * t * 0.2);
     } else if (percent < 90) {
+        // Переход зелёный → жёлтый
         const t = (percent - 80) / 10;
-        r = Math.round(76 + (255 - 76) * t);
-        g = Math.round(175 + (235 - 175) * t);
-        b = Math.round(76 + (0 - 76) * t);
+        r = Math.round(200 + (255 - 200) * t);
+        g = Math.round(235 + (235 - 235) * t);
+        b = Math.round(0 + (0 - 0) * t);
     } else if (percent < 100) {
+        // Переход жёлтый → красный
         const t = (percent - 90) / 10;
         r = 255;
         g = Math.round(235 + (165 - 235) * t);
-        b = 0;
+        b = Math.round(0 + (0 - 0) * t);
     } else {
+        // 100% красный
         r = 244; g = 67; b = 54;
     }
     return { r: Math.min(255, Math.round(r)), g: Math.min(255, Math.round(g)), b: Math.min(255, Math.round(b)) };
@@ -177,7 +181,7 @@ export function updateCommonCasesButton() {
     btn.style.borderColor = color;
 }
 
-// ===== ОБНОВЛЕННАЯ ФУНКЦИЯ ОКРАШИВАНИЯ (МЯГКИЙ ПОЛУПРОЗРАЧНЫЙ ФОН, СЕРАЯ ПОЛОСКА) =====
+// ===== ОБНОВЛЕННАЯ ФУНКЦИЯ ОКРАШИВАНИЯ (МЯГКИЙ ПОЛУПРОЗРАЧНЫЙ ФОН, БЕЗ КНОПКИ УДАЛЕНИЯ) =====
 export function updateAllCommonCaseIndicators() {
     setTimeout(() => {
         const allCommonCases = getCommonCases();
@@ -206,10 +210,10 @@ export function updateAllCommonCaseIndicators() {
             if (!stat) return;
             const fillPercent = stat.maxWeight > 0 ? Math.min(100, Math.round((stat.totalWeight / stat.maxWeight) * 100)) : 0;
             const { r, g, b } = getColorByPercent(fillPercent);
-            // Мягкий полупрозрачный фон (альфа 0.25)
-            const bgColor = `rgba(${r}, ${g}, ${b}, 0.25)`;
+            // Мягкий полупрозрачный фон (альфа 0.2)
+            const bgColor = `rgba(${r}, ${g}, ${b}, 0.2)`;
             controls.style.backgroundColor = bgColor;
-            // НЕ трогаем border-left – оставляем серую полоску (она задана в CSS)
+            // border-left не трогаем — остаётся серая полоска
             // обновляем текст процента
             let percentSpan = controls.querySelector('.case-fill-percent');
             if (!percentSpan) {
@@ -219,21 +223,16 @@ export function updateAllCommonCaseIndicators() {
                 controls.appendChild(percentSpan);
             }
             percentSpan.textContent = `${fillPercent}%`;
-            // Контрастный текст с тенью для читаемости
+            // Контрастный текст с тенью
             percentSpan.style.color = '#fff';
             percentSpan.style.textShadow = '0 0 6px rgba(0,0,0,0.9), 0 0 2px rgba(0,0,0,0.8)';
-            // Остальные элементы внутри controls делаем белыми с тенью, чтобы были видны на полупрозрачном фоне
-            const allSpans = controls.querySelectorAll('span:not(.case-fill-percent), input, button:not(.remove-common-pack)');
+            // Все элементы внутри controls делаем белыми с тенью
+            const allSpans = controls.querySelectorAll('span:not(.case-fill-percent), input, button');
             allSpans.forEach(el => {
                 el.style.color = '#fff';
                 el.style.textShadow = '0 0 6px rgba(0,0,0,0.9), 0 0 2px rgba(0,0,0,0.8)';
             });
-            // Кнопка удаления остаётся красной
-            const removeBtn = controls.querySelector('.remove-common-pack');
-            if (removeBtn) {
-                removeBtn.style.color = 'white';
-                removeBtn.style.textShadow = '0 0 4px rgba(0,0,0,0.5)';
-            }
+            // Кнопка удаления УБРАНА – мы не рендерим её, поэтому она не появится
         });
         updateCommonCasesButton();
     }, 50);
@@ -331,6 +330,7 @@ export function updateChildRowsForPath(path) {
             const maxWeight = c?.maxWeight || Infinity;
             let fillPercent = 0;
             if (maxWeight > 0) fillPercent = Math.min(100, Math.round((filledWeight / maxWeight) * 100));
+            // Убрали кнопку remove-common-pack
             html += `<div class="child-controls" data-caseid="${p.caseId}" style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid var(--text-muted);">
                 <span style="font-weight:500;min-width:70px;font-size:13px;">${esc(name)}</span>
                 <span style="font-size:11px;color:var(--text-secondary);min-width:30px;">шт:</span>
@@ -340,12 +340,10 @@ export function updateChildRowsForPath(path) {
                 <span class="case-fill-percent" style="font-size:11px;color:var(--text-secondary);font-weight:bold;">${fillPercent}%</span>
                 <span style="font-size:11px;color:var(--text-muted);min-width:70px;">${c?.dimensions || 'н/д'}</span>
                 <span style="font-size:11px;color:var(--text-muted);min-width:50px;">вес:${c?.emptyWeight || 0}</span>
-                <button class="btn btn-sm remove-common-pack" style="background:var(--danger);color:white;padding:0 6px;font-size:11px;border-radius:4px;border:none;cursor:pointer;" data-path="${path}" data-caseid="${p.caseId}">✕</button>
             </div>`;
         });
         childDiv.innerHTML = html;
         parentRow.after(childDiv);
-        // Обновляем индикаторы сразу после создания
         updateAllCommonCaseIndicators();
     }
 }
