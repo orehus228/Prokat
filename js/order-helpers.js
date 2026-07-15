@@ -1,4 +1,4 @@
-// order-helpers.js — Базовые утилиты для страницы заказа
+// order-helpers.js — полная версия с плавным градиентом и индикацией кнопки
 import { editorData, getStock, getItemProps, getCommonCases, saveEditorData } from './data.js';
 import { CAT_NAMES } from './config.js';
 import { esc, showToast, showPrompt, showConfirm, debounce } from './ui.js';
@@ -114,7 +114,69 @@ export function renderCommonCaseIndicatorsOrder() {
     indicator.textContent = parts.join(' · ');
 }
 
-// ===== ОБНОВЛЕННАЯ ФУНКЦИЯ ОКРАШИВАНИЯ (через классы) =====
+// ===== ФУНКЦИЯ ДЛЯ ВЫЧИСЛЕНИЯ ЦВЕТА ПО ПРОЦЕНТУ (ПЛАВНЫЙ ГРАДИЕНТ) =====
+export function getColorByPercent(percent) {
+    // 0-79% зелёный, 80-89% жёлтый, 90-99% оранжевый, 100% красный
+    let r, g, b;
+    if (percent < 80) {
+        const t = percent / 80;
+        r = Math.round(76 + (255 - 76) * t * 0.5);
+        g = Math.round(175 + (235 - 175) * t);
+        b = Math.round(76 + (0 - 76) * t * 0.3);
+    } else if (percent < 90) {
+        const t = (percent - 80) / 10;
+        r = Math.round(76 + (255 - 76) * t);
+        g = Math.round(175 + (235 - 175) * t);
+        b = Math.round(76 + (0 - 76) * t);
+    } else if (percent < 100) {
+        const t = (percent - 90) / 10;
+        r = 255;
+        g = Math.round(235 + (165 - 235) * t);
+        b = 0;
+    } else {
+        r = 244; g = 67; b = 54;
+    }
+    return `rgb(${Math.min(255, Math.round(r))}, ${Math.min(255, Math.round(g))}, ${Math.min(255, Math.round(b))})`;
+}
+
+// ===== ОБНОВЛЕНИЕ КНОПКИ "ОБЩИЕ КОФРЫ" В РЕДАКТОРЕ =====
+export function updateCommonCasesButton() {
+    const btn = document.getElementById('manageCasesBtn');
+    if (!btn) return;
+    const allCommonCases = getCommonCases();
+    if (allCommonCases.length === 0) {
+        btn.textContent = 'Общие кофры (0)';
+        btn.style.backgroundColor = '';
+        btn.style.color = '';
+        return;
+    }
+    const stats = new Map();
+    allCommonCases.forEach(c => stats.set(c.id, { totalWeight: 0, maxWeight: c.maxWeight || 0 }));
+    for (let path in orderPacking) {
+        const packing = getOrderPacking(path);
+        const props = getItemProps(path);
+        const unitWeight = props.weight || 0;
+        packing.forEach(p => {
+            const stat = stats.get(p.caseId);
+            if (stat) stat.totalWeight += p.pieces * unitWeight;
+        });
+    }
+    let totalFill = 0, count = 0;
+    stats.forEach(stat => {
+        if (stat.maxWeight > 0) {
+            totalFill += Math.min(100, (stat.totalWeight / stat.maxWeight) * 100);
+            count++;
+        }
+    });
+    const avgFill = count > 0 ? totalFill / count : 0;
+    const color = getColorByPercent(avgFill);
+    btn.textContent = `Общие кофры (${Math.round(avgFill)}%)`;
+    btn.style.backgroundColor = color;
+    btn.style.color = '#fff';
+    btn.style.borderColor = color;
+}
+
+// ===== ОБНОВЛЕННАЯ ФУНКЦИЯ ОКРАШИВАНИЯ (ПЛАВНЫЙ ГРАДИЕНТ) =====
 export function updateAllCommonCaseIndicators() {
     const allCommonCases = getCommonCases();
     const stats = new Map();
@@ -134,6 +196,7 @@ export function updateAllCommonCaseIndicators() {
             stat.totalVolume += p.pieces * unitVolume;
         });
     }
+    // Обновляем каждую дочернюю строку
     document.querySelectorAll('.child-row').forEach(childRow => {
         const controls = childRow.querySelector('.child-controls[data-caseid]');
         if (!controls) return;
@@ -141,13 +204,12 @@ export function updateAllCommonCaseIndicators() {
         const stat = stats.get(caseId);
         if (!stat) return;
         const fillPercent = stat.maxWeight > 0 ? Math.min(100, Math.round((stat.totalWeight / stat.maxWeight) * 100)) : 0;
-        // Удаляем старые классы
-        childRow.classList.remove('case-fill-80', 'case-fill-90', 'case-fill-100');
-        // Добавляем новый класс
-        if (fillPercent >= 100) childRow.classList.add('case-fill-100');
-        else if (fillPercent >= 90) childRow.classList.add('case-fill-90');
-        else if (fillPercent >= 80) childRow.classList.add('case-fill-80');
-        // Обновляем процент
+        const color = getColorByPercent(fillPercent);
+        // Применяем фон и границу с плавным переходом
+        childRow.style.transition = 'background-color 0.5s, border-left-color 0.5s';
+        childRow.style.backgroundColor = color;
+        childRow.style.borderLeftColor = color;
+        // Обновляем текст процента
         let percentSpan = controls.querySelector('.case-fill-percent');
         if (!percentSpan) {
             percentSpan = document.createElement('span');
@@ -156,8 +218,19 @@ export function updateAllCommonCaseIndicators() {
             controls.appendChild(percentSpan);
         }
         percentSpan.textContent = `${fillPercent}%`;
-        // Цвет текста процента оставляем по умолчанию (будет задан в CSS)
+        // Цвет текста белый, если фон тёмный
+        const brightness = (parseInt(color.slice(1,2), 16) * 299 + parseInt(color.slice(3,4), 16) * 587 + parseInt(color.slice(5,6), 16) * 114) / 1000;
+        const textColor = brightness > 128 ? '#000' : '#fff';
+        percentSpan.style.color = textColor;
+        const allSpans = childRow.querySelectorAll('span:not(.case-fill-percent), input, button:not(.remove-common-pack)');
+        allSpans.forEach(el => {
+            el.style.color = textColor;
+        });
+        const removeBtn = childRow.querySelector('.remove-common-pack');
+        if (removeBtn) removeBtn.style.color = 'white';
     });
+    // Обновляем кнопку в редакторе
+    updateCommonCasesButton();
 }
 
 function parseUnitVolume(dimensions) {
@@ -233,7 +306,7 @@ export function updateChildRowsForPath(path) {
         childDiv.style.borderRadius = '6px';
         childDiv.style.margin = '4px 0';
         childDiv.style.border = '1px solid var(--border-light)';
-        childDiv.style.transition = 'background 0.3s';
+        childDiv.style.transition = 'background-color 0.5s, border-left-color 0.5s';
         let html = `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px;font-size:13px;color:var(--text-secondary);">
             <strong>Упаковка в общие кофры</strong>
             <span style="margin-left:auto;">Вне кофра: ${extra} шт</span>
@@ -269,6 +342,7 @@ export function updateChildRowsForPath(path) {
         });
         childDiv.innerHTML = html;
         parentRow.after(childDiv);
+        // Обновляем индикаторы сразу после создания
         updateAllCommonCaseIndicators();
     }
 }
