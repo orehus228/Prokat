@@ -1,4 +1,4 @@
-// order-helpers.js — полная версия с мягкими цветами для общих кофров
+// order-helpers.js — мягкая индикация с полупрозрачным фоном, серая полоска
 import { editorData, getStock, getItemProps, getCommonCases, saveEditorData } from './data.js';
 import { CAT_NAMES } from './config.js';
 import { esc, showToast, showPrompt, showConfirm, debounce } from './ui.js';
@@ -114,35 +114,28 @@ export function renderCommonCaseIndicatorsOrder() {
     indicator.textContent = parts.join(' · ');
 }
 
-// ===== ФУНКЦИЯ ДЛЯ ВЫЧИСЛЕНИЯ ЦВЕТА ПО ПРОЦЕНТУ (СПОКОЙНЫЕ ТОНА) =====
+// ===== ФУНКЦИЯ ДЛЯ ВЫЧИСЛЕНИЯ ЦВЕТА (RGB) =====
 export function getColorByPercent(percent) {
-    // Спокойные, приглушённые цвета, соответствующие стилю added/overstock
     let r, g, b;
     if (percent < 80) {
-        // Зелёный (как в added)
         const t = percent / 80;
-        r = Math.round(26 + (58 - 26) * t);
-        g = Math.round(42 + (122 - 42) * t);
-        b = Math.round(26 + (58 - 26) * t);
+        r = Math.round(76 + (255 - 76) * t * 0.5);
+        g = Math.round(175 + (235 - 175) * t);
+        b = Math.round(76 + (0 - 76) * t * 0.3);
     } else if (percent < 90) {
-        // Жёлтый (приглушённый)
         const t = (percent - 80) / 10;
-        r = Math.round(58 + (138 - 58) * t);
-        g = Math.round(122 + (122 - 122) * t);
-        b = Math.round(26 + (58 - 26) * t);
+        r = Math.round(76 + (255 - 76) * t);
+        g = Math.round(175 + (235 - 175) * t);
+        b = Math.round(76 + (0 - 76) * t);
     } else if (percent < 100) {
-        // Оранжевый (приглушённый)
         const t = (percent - 90) / 10;
-        r = Math.round(138 + (160 - 138) * t);
-        g = Math.round(122 + (90 - 122) * t);
-        b = Math.round(58 + (50 - 58) * t);
+        r = 255;
+        g = Math.round(235 + (165 - 235) * t);
+        b = 0;
     } else {
-        // Красный (как в overstock)
-        r = 160;
-        g = 90;
-        b = 90;
+        r = 244; g = 67; b = 54;
     }
-    return `rgb(${Math.min(255, Math.round(r))}, ${Math.min(255, Math.round(g))}, ${Math.min(255, Math.round(b))})`;
+    return { r: Math.min(255, Math.round(r)), g: Math.min(255, Math.round(g)), b: Math.min(255, Math.round(b)) };
 }
 
 // ===== ОБНОВЛЕНИЕ КНОПКИ "ОБЩИЕ КОФРЫ" В РЕДАКТОРЕ =====
@@ -176,14 +169,15 @@ export function updateCommonCasesButton() {
         }
     });
     const avgFill = count > 0 ? totalFill / count : 0;
-    const color = getColorByPercent(avgFill);
+    const { r, g, b } = getColorByPercent(avgFill);
+    const color = `rgb(${r}, ${g}, ${b})`;
     btn.textContent = `Общие кофры (${Math.round(avgFill)}%)`;
     btn.style.backgroundColor = color;
     btn.style.color = '#fff';
     btn.style.borderColor = color;
 }
 
-// ===== ОБНОВЛЕННАЯ ФУНКЦИЯ ОКРАШИВАНИЯ (ОКРАШИВАЕТ .child-controls) =====
+// ===== ОБНОВЛЕННАЯ ФУНКЦИЯ ОКРАШИВАНИЯ (МЯГКИЙ ПОЛУПРОЗРАЧНЫЙ ФОН, СЕРАЯ ПОЛОСКА) =====
 export function updateAllCommonCaseIndicators() {
     setTimeout(() => {
         const allCommonCases = getCommonCases();
@@ -211,30 +205,35 @@ export function updateAllCommonCaseIndicators() {
             const stat = stats.get(caseId);
             if (!stat) return;
             const fillPercent = stat.maxWeight > 0 ? Math.min(100, Math.round((stat.totalWeight / stat.maxWeight) * 100)) : 0;
-            const color = getColorByPercent(fillPercent);
-            // Устанавливаем фон и левую границу напрямую через style (плавный градиент)
-            controls.style.backgroundColor = color;
-            controls.style.borderLeftColor = color;
-            // Обновляем текст процента
+            const { r, g, b } = getColorByPercent(fillPercent);
+            // Мягкий полупрозрачный фон (альфа 0.25)
+            const bgColor = `rgba(${r}, ${g}, ${b}, 0.25)`;
+            controls.style.backgroundColor = bgColor;
+            // НЕ трогаем border-left – оставляем серую полоску (она задана в CSS)
+            // обновляем текст процента
             let percentSpan = controls.querySelector('.case-fill-percent');
             if (!percentSpan) {
                 percentSpan = document.createElement('span');
                 percentSpan.className = 'case-fill-percent';
-                percentSpan.style.cssText = 'font-size:11px;margin-left:4px;';
+                percentSpan.style.cssText = 'font-size:11px;margin-left:4px;font-weight:bold;';
                 controls.appendChild(percentSpan);
             }
             percentSpan.textContent = `${fillPercent}%`;
-            // Цвет текста белый, если фон тёмный
-            const brightness = (parseInt(color.slice(1,2), 16) * 299 + parseInt(color.slice(3,4), 16) * 587 + parseInt(color.slice(5,6), 16) * 114) / 1000;
-            percentSpan.style.color = brightness > 128 ? '#000' : '#fff';
-            // Также меняем цвет текста внутри controls для контраста
+            // Контрастный текст с тенью для читаемости
+            percentSpan.style.color = '#fff';
+            percentSpan.style.textShadow = '0 0 6px rgba(0,0,0,0.9), 0 0 2px rgba(0,0,0,0.8)';
+            // Остальные элементы внутри controls делаем белыми с тенью, чтобы были видны на полупрозрачном фоне
             const allSpans = controls.querySelectorAll('span:not(.case-fill-percent), input, button:not(.remove-common-pack)');
             allSpans.forEach(el => {
-                el.style.color = brightness > 128 ? '#000' : '#fff';
+                el.style.color = '#fff';
+                el.style.textShadow = '0 0 6px rgba(0,0,0,0.9), 0 0 2px rgba(0,0,0,0.8)';
             });
             // Кнопка удаления остаётся красной
             const removeBtn = controls.querySelector('.remove-common-pack');
-            if (removeBtn) removeBtn.style.color = 'white';
+            if (removeBtn) {
+                removeBtn.style.color = 'white';
+                removeBtn.style.textShadow = '0 0 4px rgba(0,0,0,0.5)';
+            }
         });
         updateCommonCasesButton();
     }, 50);
@@ -279,7 +278,7 @@ export function updateChildRowsForPath(path) {
             const casesCount = Math.ceil(val / opt.qty);
             const maxPossible = getStockValue(path);
             const maxCases = opt.maxCases || 0;
-            html += `<div class="child-controls" style="display:flex;flex-wrap:nowrap;align-items:center;gap:4px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid var(--accent);">
+            html += `<div class="child-controls" style="display:flex;flex-wrap:nowrap;align-items:center;gap:4px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid var(--text-muted);">
                 <span style="font-weight:500;min-width:70px;font-size:13px;">Вар.${idx+1}</span>
                 <span style="font-size:11px;color:var(--text-secondary);min-width:30px;">шт:</span>
                 <button class="btn-c child-multi-piece-btn" style="width:26px;height:26px;font-size:13px;flex-shrink:0;" data-path="${path}" data-idx="${idx}" data-delta="-1">−</button>
@@ -338,7 +337,7 @@ export function updateChildRowsForPath(path) {
                 <button class="btn-c child-common-btn" style="width:26px;height:26px;font-size:13px;" data-path="${path}" data-caseid="${p.caseId}" data-delta="-1">−</button>
                 <input type="number" class="child-common-qty" data-path="${path}" data-caseid="${p.caseId}" value="${qty}" min="0" step="1" max="${maxPack}" style="width:44px;padding:2px 4px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);text-align:center;font-size:13px;">
                 <button class="btn-c child-common-btn" style="width:26px;height:26px;font-size:13px;" data-path="${path}" data-caseid="${p.caseId}" data-delta="1">+</button>
-                <span class="case-fill-percent" style="font-size:11px;color:var(--text-secondary);">${fillPercent}%</span>
+                <span class="case-fill-percent" style="font-size:11px;color:var(--text-secondary);font-weight:bold;">${fillPercent}%</span>
                 <span style="font-size:11px;color:var(--text-muted);min-width:70px;">${c?.dimensions || 'н/д'}</span>
                 <span style="font-size:11px;color:var(--text-muted);min-width:50px;">вес:${c?.emptyWeight || 0}</span>
                 <button class="btn btn-sm remove-common-pack" style="background:var(--danger);color:white;padding:0 6px;font-size:11px;border-radius:4px;border:none;cursor:pointer;" data-path="${path}" data-caseid="${p.caseId}">✕</button>
@@ -346,7 +345,7 @@ export function updateChildRowsForPath(path) {
         });
         childDiv.innerHTML = html;
         parentRow.after(childDiv);
-        // Явно вызываем обновление индикаторов после создания
+        // Обновляем индикаторы сразу после создания
         updateAllCommonCaseIndicators();
     }
 }
