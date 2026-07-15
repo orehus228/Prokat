@@ -1,4 +1,4 @@
-// order-helpers.js — окрашивание теперь применяется к .child-controls
+// order-helpers.js — полная версия с мягкими цветами для общих кофров
 import { editorData, getStock, getItemProps, getCommonCases, saveEditorData } from './data.js';
 import { CAT_NAMES } from './config.js';
 import { esc, showToast, showPrompt, showConfirm, debounce } from './ui.js';
@@ -114,26 +114,33 @@ export function renderCommonCaseIndicatorsOrder() {
     indicator.textContent = parts.join(' · ');
 }
 
-// ===== ФУНКЦИЯ ДЛЯ ВЫЧИСЛЕНИЯ ЦВЕТА ПО ПРОЦЕНТУ (ПЛАВНЫЙ ГРАДИЕНТ) =====
+// ===== ФУНКЦИЯ ДЛЯ ВЫЧИСЛЕНИЯ ЦВЕТА ПО ПРОЦЕНТУ (СПОКОЙНЫЕ ТОНА) =====
 export function getColorByPercent(percent) {
+    // Спокойные, приглушённые цвета, соответствующие стилю added/overstock
     let r, g, b;
     if (percent < 80) {
+        // Зелёный (как в added)
         const t = percent / 80;
-        r = Math.round(76 + (255 - 76) * t * 0.5);
-        g = Math.round(175 + (235 - 175) * t);
-        b = Math.round(76 + (0 - 76) * t * 0.3);
+        r = Math.round(26 + (58 - 26) * t);
+        g = Math.round(42 + (122 - 42) * t);
+        b = Math.round(26 + (58 - 26) * t);
     } else if (percent < 90) {
+        // Жёлтый (приглушённый)
         const t = (percent - 80) / 10;
-        r = Math.round(76 + (255 - 76) * t);
-        g = Math.round(175 + (235 - 175) * t);
-        b = Math.round(76 + (0 - 76) * t);
+        r = Math.round(58 + (138 - 58) * t);
+        g = Math.round(122 + (122 - 122) * t);
+        b = Math.round(26 + (58 - 26) * t);
     } else if (percent < 100) {
+        // Оранжевый (приглушённый)
         const t = (percent - 90) / 10;
-        r = 255;
-        g = Math.round(235 + (165 - 235) * t);
-        b = 0;
+        r = Math.round(138 + (160 - 138) * t);
+        g = Math.round(122 + (90 - 122) * t);
+        b = Math.round(58 + (50 - 58) * t);
     } else {
-        r = 244; g = 67; b = 54;
+        // Красный (как в overstock)
+        r = 160;
+        g = 90;
+        b = 90;
     }
     return `rgb(${Math.min(255, Math.round(r))}, ${Math.min(255, Math.round(g))}, ${Math.min(255, Math.round(b))})`;
 }
@@ -199,7 +206,6 @@ export function updateAllCommonCaseIndicators() {
         }
         const container = document.getElementById('categoryContents');
         if (!container) return;
-        // Ищем все .child-controls с data-caseid
         container.querySelectorAll('.child-controls[data-caseid]').forEach(controls => {
             const caseId = controls.dataset.caseid;
             const stat = stats.get(caseId);
