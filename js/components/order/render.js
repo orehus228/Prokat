@@ -8,11 +8,11 @@ import {
   getTotalQty,
   getLinks,
   getNotes,
-  getCaseMode,
   setOrderValue,
   setNote,
 } from '../../services/order-data.js';
 import {
+  getCaseMode,
   getCaseOptions,
   getSelectedOption,
   getItemPropsByPath,
