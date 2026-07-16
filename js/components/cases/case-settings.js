@@ -6,9 +6,6 @@ import {
   setItemProps,
 } from '../../data/editor-data.js';
 import {
-  getCaseMode,
-  getCaseOptions,
-  getSelectedOption,
   setIndividualCaseValues,
   getIndividualCaseValues,
   getOrderPacking,
@@ -18,7 +15,12 @@ import {
   setOrderValue,
   getTotalQty,
 } from '../../services/order-data.js';
-import { getItemPropsByPath } from '../../services/calculations.js';
+import {
+  getCaseMode,
+  getCaseOptions,
+  getSelectedOption,
+  getItemPropsByPath,
+} from '../../services/calculations.js';
 import { showToast } from '../../ui/toast.js';
 import { showPrompt, showConfirm } from '../../ui/modal.js';
 import { esc, getElement } from '../../ui/dom.js';
