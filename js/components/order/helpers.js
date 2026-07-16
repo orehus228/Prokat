@@ -7,10 +7,10 @@ import {
   getOrderExtra,
   getTotalQty,
   getLinks,
-  getCaseMode,
   setOrderValue,
 } from '../../services/order-data.js';
 import {
+  getCaseMode,
   getCaseOptions,
   getSelectedOption,
   getItemPropsByPath,
