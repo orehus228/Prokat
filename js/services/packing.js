@@ -1,7 +1,17 @@
 // services/packing.js
 import { getItemPropsByPath, parseUnitVolume } from './calculations.js';
 import { getCommonCases, getItemProps } from '../data/editor-data.js';
-import { getOrderPacking, getIndividualCaseValues, getCaseMode, getCaseOptions, getSelectedOption, getOrderExtra } from './order-data.js';
+import {
+  getOrderPacking,
+  getIndividualCaseValues,
+  getOrderExtra,
+} from './order-data.js';
+// Импорты из calculations.js
+import {
+  getCaseMode,
+  getCaseOptions,
+  getSelectedOption,
+} from './calculations.js';
 
 // ============================================================
 // ПОЛУЧЕНИЕ ГАБАРИТОВ ДЛЯ КАЖДОЙ ЕДИНИЦЫ ГРУЗА
