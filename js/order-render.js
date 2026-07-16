@@ -4,7 +4,10 @@ import {
     getStock,
     getItemProps,
     getCommonCases,
-    saveEditorData
+    saveEditorData,
+    getProjects,
+    getProject,
+    saveProject
 } from './data.js';
 
 import {
@@ -48,6 +51,7 @@ import {
     orderExtra,
     orderProject,
     setOrderProject,
+    getOrderProject,
     resetOrderProject
 } from './order.js';
 
@@ -997,26 +1001,106 @@ export async function openNoteEditorOrder(btn) {
 }
 
 // ============================================================
-// НОВАЯ ФУНКЦИЯ ДЛЯ ЗАГРУЗКИ/СОХРАНЕНИЯ ДАННЫХ ПРОЕКТА В UI
+// НОВАЯ ФУНКЦИЯ ЗАГРУЗКИ ДАННЫХ ПРОЕКТА В ИНТЕРФЕЙС
 // ============================================================
-
-function loadProjectFields() {
-    const nameInput = document.getElementById('pProjectName');
-    const startInput = document.getElementById('pStartDate');
-    const endInput = document.getElementById('pEndDate');
-    if (nameInput) nameInput.value = orderProject.name || '';
-    if (startInput) startInput.value = orderProject.start_date || '';
-    if (endInput) endInput.value = orderProject.end_date || '';
+function loadProjectDataIntoUI() {
+    const project = getOrderProject();
+    document.getElementById('pProjectName').value = project.name || '';
+    document.getElementById('pStartDate').value = project.start_date || '';
+    document.getElementById('pEndDate').value = project.end_date || '';
+    const statusSelect = document.getElementById('pProjectStatus');
+    if (statusSelect) statusSelect.value = project.status || 'planned';
+    // Обновляем список существующих проектов для привязки
+    populateProjectSelect();
 }
 
-function saveProjectFields() {
-    const nameInput = document.getElementById('pProjectName');
-    const startInput = document.getElementById('pStartDate');
-    const endInput = document.getElementById('pEndDate');
-    if (nameInput) orderProject.name = nameInput.value.trim();
-    if (startInput) orderProject.start_date = startInput.value;
-    if (endInput) orderProject.end_date = endInput.value;
-    setOrderProject(orderProject);
+function populateProjectSelect() {
+    const select = document.getElementById('pProjectSelect');
+    if (!select) return;
+    const projects = getProjects();
+    const currentProjectId = orderProject.id;
+    select.innerHTML = '<option value="">— Выберите существующий проект —</option>';
+    projects.forEach(p => {
+        const selected = (p.id === currentProjectId) ? 'selected' : '';
+        select.innerHTML += `<option value="${p.id}" ${selected}>${esc(p.name)} (${p.start_date} – ${p.end_date})</option>`;
+    });
+}
+
+// ============================================================
+// ОБРАБОТЧИКИ ДЛЯ ПОЛЕЙ ПРОЕКТА
+// ============================================================
+function setupProjectUIHandlers() {
+    // Выбор существующего проекта
+    document.getElementById('pProjectSelect')?.addEventListener('change', function() {
+        const projectId = this.value;
+        if (!projectId) return;
+        const project = getProject(projectId);
+        if (project) {
+            document.getElementById('pProjectName').value = project.name || '';
+            document.getElementById('pStartDate').value = project.start_date || '';
+            document.getElementById('pEndDate').value = project.end_date || '';
+            const statusSelect = document.getElementById('pProjectStatus');
+            if (statusSelect) statusSelect.value = project.status || 'planned';
+            // Сохраняем в orderProject
+            setOrderProject({
+                id: project.id,
+                name: project.name,
+                start_date: project.start_date,
+                end_date: project.end_date,
+                status: project.status || 'planned'
+            });
+            showToast(`Проект "${project.name}" загружен`, 'success');
+        }
+    });
+
+    // Изменение полей проекта – сохраняем в orderProject
+    const fields = ['pProjectName', 'pStartDate', 'pEndDate'];
+    fields.forEach(id => {
+        document.getElementById(id)?.addEventListener('change', function() {
+            const name = document.getElementById('pProjectName').value.trim();
+            const start = document.getElementById('pStartDate').value;
+            const end = document.getElementById('pEndDate').value;
+            const status = document.getElementById('pProjectStatus')?.value || 'planned';
+            // Если имя пустое – не сохраняем как проект, но сохраняем в orderProject
+            if (!name) {
+                setOrderProject({ id: null, name: '', start_date: start, end_date: end, status: status });
+                return;
+            }
+            // Если есть имя – создаём или обновляем проект
+            let projectId = orderProject.id;
+            if (!projectId) {
+                // Создаём новый проект
+                const newProject = saveProject({ name, start_date: start, end_date: end, status });
+                projectId = newProject.id;
+            } else {
+                // Обновляем существующий
+                const existing = getProject(projectId);
+                if (existing) {
+                    saveProject({ id: projectId, name, start_date: start, end_date: end, status });
+                } else {
+                    // Если проекта с таким ID нет – создаём новый
+                    const newProject = saveProject({ name, start_date: start, end_date: end, status });
+                    projectId = newProject.id;
+                }
+            }
+            setOrderProject({ id: projectId, name, start_date: start, end_date: end, status });
+            populateProjectSelect();
+        });
+    });
+
+    // Статус
+    document.getElementById('pProjectStatus')?.addEventListener('change', function() {
+        const status = this.value;
+        const name = document.getElementById('pProjectName').value.trim();
+        const start = document.getElementById('pStartDate').value;
+        const end = document.getElementById('pEndDate').value;
+        if (name && orderProject.id) {
+            saveProject({ id: orderProject.id, name, start_date: start, end_date: end, status });
+            setOrderProject({ ...orderProject, status });
+        } else {
+            setOrderProject({ ...orderProject, status });
+        }
+    });
 }
 
 // ============================================================
@@ -1027,7 +1111,7 @@ export function setupInputListenersOrder() {}
 export function setupCaseTogglesOrder() {}
 
 // ============================================================
-// РЕНДЕР ВСЕГО (с загрузкой данных проекта)
+// РЕНДЕР ВСЕГО
 // ============================================================
 
 export function renderOrderAll() {
@@ -1036,18 +1120,10 @@ export function renderOrderAll() {
     document.getElementById('pComment').value = localStorage.getItem('last_comment') || '';
     const savedDate = localStorage.getItem('last_date');
     if (savedDate) document.getElementById('pDate').value = savedDate;
-    
-    // Загружаем данные проекта в поля
-    loadProjectFields();
-    
-    // Обработчики для сохранения данных проекта при изменении полей
-    const nameInput = document.getElementById('pProjectName');
-    const startInput = document.getElementById('pStartDate');
-    const endInput = document.getElementById('pEndDate');
-    if (nameInput) nameInput.addEventListener('change', saveProjectFields);
-    if (startInput) startInput.addEventListener('change', saveProjectFields);
-    if (endInput) endInput.addEventListener('change', saveProjectFields);
-    
+    // Загружаем данные проекта
+    loadProjectDataIntoUI();
+    // Настраиваем обработчики
+    setupProjectUIHandlers();
     if (!currentOrderCategory || !editorData.inventory[currentOrderCategory]) {
         const first = editorData._categoryOrder?.[0] || Object.keys(editorData.inventory)[0];
         if (first) currentOrderCategory = first;

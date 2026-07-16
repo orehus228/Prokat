@@ -1,525 +1,1169 @@
-// order.js — Данные заказа (полная версия с синхронизацией путей)
+// order-render.js — Отрисовка страницы создания заказа (рендеринг)
 import {
+    editorData,
+    getStock,
     getItemProps,
     getCommonCases,
-    getCachedCalculation,
-    setCachedCalculation,
-    clearCache as clearCalculationCache,
-    getAvailableQuantity,
-    getStockValue,
+    saveEditorData,
     getProjects,
-    saveProject,
-    addProjectItem,
-    clearProjectItems
+    getProject,
+    saveProject
 } from './data.js';
 
-export let order = {};
-export let orderSplits = {};
-export let links = {};
-export let notes = {};
-export let orderPacking = {};
-export let individualCaseValues = {};
-export let commonRoutes = {};
-export let caseModes = {};
-export let orderExclude = {};
-export let orderExtra = {};
+import {
+    CAT_NAMES
+} from './config.js';
 
-// НОВЫЙ ОБЪЕКТ ДЛЯ ПРОЕКТА
-export let orderProject = {
-    id: null,
-    name: '',
-    start_date: '',
-    end_date: '',
-    status: 'planned' // planned, active, completed
-};
+import {
+    esc,
+    showToast,
+    showPrompt,
+    showConfirm,
+    debounce
+} from './ui.js';
 
-const STORAGE_ORDER_KEY = 'app_order_data';
+import {
+    order,
+    orderSplits,
+    links,
+    notes,
+    caseModes,
+    saveOrderData,
+    getTotalQty,
+    getSegmentsSum,
+    calcItemWeightWithMode,
+    calcItemVolumeWithMode,
+    calcItemCases,
+    loadOrderData,
+    getOrderPacking,
+    setOrderPacking,
+    getOrderExtra,
+    setOrderExtra,
+    getCommonRoutes,
+    setCommonRoutes,
+    getIndividualCaseValues,
+    setIndividualCaseValues,
+    getCaseMode,
+    getCaseOptions,
+    getSelectedOption,
+    updateOrderPaths,
+    orderExclude,
+    orderExtra,
+    orderProject,
+    setOrderProject,
+    getOrderProject,
+    resetOrderProject
+} from './order.js';
 
-export function clearCache() {
-    clearCalculationCache();
+import {
+    getValue,
+    getStockValue,
+    setValueOrder,
+    buildFlatItemsList,
+    invalidateFlatItemsCache,
+    getActiveItemsOrder,
+    updateLinkCountOrder,
+    renderCommonCaseIndicatorsOrder as renderIndicators,
+    updateChildRowsForPath,
+    buildInfoHtml,
+    initOrderHelpers,
+    updateAllCommonCaseIndicators,
+    updateCommonCasesButton,
+    getColorByPercent
+} from './order-helpers.js';
+
+// ============================================================
+// СОСТОЯНИЕ СТРАНИЦЫ ЗАКАЗА
+// ============================================================
+
+export let currentOrderCategory = 'sound';
+export let showPropsOrder = false;
+export let searchModeOrder = false;
+export let searchQueryOrder = '';
+export let detailsOpenOrder = false;
+export const infoBlocksOpen = {};
+
+// ============================================================
+// ФУНКЦИИ ДЛЯ ИЗМЕНЕНИЯ СОСТОЯНИЯ
+// ============================================================
+
+export function setCurrentCategory(cat) {
+    currentOrderCategory = cat;
 }
 
-export function loadOrderData() {
-    try {
-        const raw = localStorage.getItem(STORAGE_ORDER_KEY);
-        if (!raw) return;
-        const data = JSON.parse(raw);
-        order = data.order || {};
-        orderSplits = data.orderSplits || {};
-        links = data.links || {};
-        notes = data.notes || {};
-        orderPacking = data.orderPacking || {};
-        individualCaseValues = data.individualCaseValues || {};
-        commonRoutes = data.commonRoutes || {};
-        caseModes = data.caseModes || {};
-        orderExclude = data.orderExclude || {};
-        orderExtra = data.orderExtra || {};
-        // Загружаем данные проекта
-        orderProject = data.orderProject || { id: null, name: '', start_date: '', end_date: '', status: 'planned' };
-        for (let path in caseModes) {
-            const mode = caseModes[path];
-            if (mode.enabled === undefined) mode.enabled = false;
-            if (mode.alt === undefined) mode.alt = null;
-            if (mode.selectedOption === undefined) mode.selectedOption = 0;
-            if (mode.accumulate === undefined) mode.accumulate = false;
-            if (mode.multiSelected === undefined) mode.multiSelected = [];
-            if (mode.commonSelected === undefined) mode.commonSelected = [];
-            if (mode.useAlt === undefined) mode.useAlt = false;
-            if (mode.criteria === undefined) mode.criteria = 'weight';
-        }
-    } catch (e) {
-        console.warn('Ошибка загрузки данных заказа', e);
+export function setSearchMode(mode) {
+    searchModeOrder = mode;
+}
+
+export function setSearchQuery(query) {
+    searchQueryOrder = query;
+}
+
+export function toggleDetailsOpen() {
+    detailsOpenOrder = !detailsOpenOrder;
+    localStorage.setItem('detailsOpenOrder', JSON.stringify(detailsOpenOrder));
+}
+
+export function toggleInfoBlock(path) {
+    infoBlocksOpen[path] = !infoBlocksOpen[path];
+}
+
+export function resetInfoBlocks() {
+    for (let key in infoBlocksOpen) {
+        delete infoBlocksOpen[key];
     }
-}
-
-export function saveOrderData() {
-    const data = {
-        order,
-        orderSplits,
-        links,
-        notes,
-        orderPacking,
-        individualCaseValues,
-        commonRoutes,
-        caseModes,
-        orderExclude,
-        orderExtra,
-        orderProject
-    };
-    localStorage.setItem(STORAGE_ORDER_KEY, JSON.stringify(data));
-    clearCache();
-}
-
-export function updateAllPaths(oldPrefix, newPrefix) {
-    const objectsToUpdate = [
-        { obj: order, name: 'order' },
-        { obj: orderSplits, name: 'orderSplits' },
-        { obj: links, name: 'links' },
-        { obj: notes, name: 'notes' },
-        { obj: orderPacking, name: 'orderPacking' },
-        { obj: individualCaseValues, name: 'individualCaseValues' },
-        { obj: commonRoutes, name: 'commonRoutes' },
-        { obj: caseModes, name: 'caseModes' },
-        { obj: orderExclude, name: 'orderExclude' },
-        { obj: orderExtra, name: 'orderExtra' }
-    ];
-
-    objectsToUpdate.forEach(({ obj, name }) => {
-        const keys = Object.keys(obj);
-        keys.forEach(oldKey => {
-            if (oldKey.startsWith(oldPrefix)) {
-                const newKey = oldKey.replace(oldPrefix, newPrefix);
-                obj[newKey] = obj[oldKey];
-                delete obj[oldKey];
-                if (name === 'orderSplits' && Array.isArray(obj[newKey])) {
-                    obj[newKey].forEach(seg => {
-                        if (seg.path && seg.path.startsWith(oldPrefix)) {
-                            seg.path = seg.path.replace(oldPrefix, newPrefix);
-                        }
-                    });
-                }
-                if (name === 'links' && Array.isArray(obj[newKey])) {
-                    obj[newKey].forEach(link => {
-                        if (link.target && link.target.startsWith(oldPrefix)) {
-                            link.target = link.target.replace(oldPrefix, newPrefix);
-                        }
-                    });
-                }
-                if (name === 'commonRoutes' && Array.isArray(obj[newKey])) {
-                    obj[newKey].forEach(route => {
-                        if (route.target && route.target.startsWith(oldPrefix)) {
-                            route.target = route.target.replace(oldPrefix, newPrefix);
-                        }
-                    });
-                }
-            }
-        });
+    document.querySelectorAll('.row-info').forEach(el => el.remove());
+    document.querySelectorAll('.info-btn').forEach(btn => {
+        btn.textContent = 'Инфо';
     });
-    saveOrderData();
-}
-
-export function updateOrderPaths(oldPath, newPath) {
-    if (oldPath === newPath) return;
-    const objectsToUpdate = [
-        order, orderSplits, links, notes, orderPacking,
-        individualCaseValues, commonRoutes, caseModes, orderExclude, orderExtra
-    ];
-    objectsToUpdate.forEach(obj => {
-        if (obj[oldPath] !== undefined) {
-            obj[newPath] = obj[oldPath];
-            delete obj[oldPath];
-        }
-    });
-    saveOrderData();
 }
 
 // ============================================================
-// БАЗОВЫЕ ФУНКЦИИ
+// ЗАГЛУШКА ДЛЯ ИНДИКАТОРОВ
+// ============================================================
+export function renderCommonCaseIndicatorsOrder() {
+    renderIndicators();
+}
+
+// ============================================================
+// ОТРИСОВКА ВКЛАДОК КАТЕГОРИЙ
 // ============================================================
 
-export function getTotalQty(path) {
-    const packing = getOrderPacking(path);
-    if (packing.length > 0) {
-        const extra = getOrderExtra(path);
-        return extra + packing.reduce((s, p) => s + (p.pieces || 0), 0);
+export function renderOrderTabs() {
+    const container = document.getElementById('categoryTabs');
+    container.innerHTML = '';
+    let orderKeys = editorData._categoryOrder || Object.keys(editorData.inventory);
+    orderKeys = orderKeys.filter(key => editorData.inventory && editorData.inventory[key] !== undefined);
+    if (orderKeys.length === 0) {
+        container.innerHTML = '<div class="empty-message">Нет категорий</div>';
+        return;
     }
-
-    const mode = getCaseMode(path);
-    const vals = getIndividualCaseValues(path);
-    if (mode.enabled && vals.length > 0) {
-        return vals.reduce((a, b) => a + b, 0);
+    orderKeys.forEach(key => {
+        const tab = document.createElement('div');
+        tab.className = 'category-tab' + (key === currentOrderCategory ? ' active' : '');
+        tab.textContent = CAT_NAMES[key] || key;
+        tab.dataset.cat = key;
+        tab.addEventListener('click', () => {
+            if (searchModeOrder) { document.getElementById('searchInput').value = ''; searchModeOrder = false; searchQueryOrder = ''; }
+            currentOrderCategory = key;
+            renderOrderTabs();
+            renderOrderCategory(key);
+            setupInputListenersOrder();
+            setupCaseTogglesOrder();
+            updateTotalsOrder();
+            updateLinkCountOrder();
+            renderCommonCaseIndicatorsOrder();
+        });
+        container.appendChild(tab);
+    });
+    if (!orderKeys.includes(currentOrderCategory)) {
+        currentOrderCategory = orderKeys[0];
     }
-
-    let total = order[path] || 0;
-    if (orderSplits[path]) {
-        total += orderSplits[path].reduce((s, seg) => s + (seg.qty || 0), 0);
-    }
-    return total;
 }
 
-export function getSegmentsSum(path) {
-    if (!orderSplits[path]) return 0;
-    return orderSplits[path].reduce((s, seg) => s + (seg.qty || 0), 0);
-}
+// ============================================================
+// РЕНДЕРИНГ КАТЕГОРИИ
+// ============================================================
 
-export function getOrderPacking(path) {
-    return orderPacking[path] || [];
-}
+export function renderOrderCategory(catKey, filterQuery = '') {
+    const container = document.getElementById('categoryContents');
+    const wrapper = document.createElement('div');
+    wrapper.className = 'category-content active';
+    container.innerHTML = '';
+    container.appendChild(wrapper);
 
-export function setOrderPacking(path, packing) {
-    if (packing && packing.length > 0) {
-        orderPacking[path] = packing;
+    const query = (filterQuery || searchQueryOrder || '').toLowerCase().trim();
+    const isSearchMode = !!query;
+
+    if (isSearchMode) {
+        const allPaths = buildFlatItemsList();
+        const filteredPaths = allPaths.filter(path => {
+            const name = path.split('|').pop().toLowerCase();
+            const spec = (editorData.specs && editorData.specs[path] || '').toLowerCase();
+            return name.includes(query) || spec.includes(query);
+        });
+        if (filteredPaths.length === 0) {
+            wrapper.innerHTML = '<div class="empty-message">Ничего не найдено</div>';
+            return;
+        }
+        const grouped = {};
+        filteredPaths.forEach(path => {
+            const cat = path.split('|')[0];
+            if (!grouped[cat]) grouped[cat] = [];
+            grouped[cat].push(path);
+        });
+        let html = '';
+        const orderKeys = editorData._categoryOrder || Object.keys(editorData.inventory);
+        orderKeys.forEach(cat => {
+            if (!grouped[cat]) return;
+            html += `<div class="sub-cat-t">${CAT_NAMES[cat]||cat}</div>`;
+            grouped[cat].forEach(path => {
+                html += buildItemRow(path, 1);
+            });
+        });
+        wrapper.innerHTML = html;
+        searchModeOrder = true;
+        currentOrderCategory = 'all';
     } else {
-        delete orderPacking[path];
+        searchModeOrder = false;
+        if (catKey === 'all') {
+            const first = editorData._categoryOrder?.[0] || Object.keys(editorData.inventory)[0];
+            if (first) {
+                currentOrderCategory = first;
+                renderOrderCategory(first);
+            } else {
+                wrapper.innerHTML = '<div class="empty-message">Нет категорий</div>';
+            }
+            return;
+        }
+        const catData = editorData.inventory[catKey];
+        if (!catData) {
+            wrapper.innerHTML = '<div class="empty-message">Категория пуста</div>';
+            return;
+        }
+        wrapper.innerHTML = buildCategoryHTML(catData, [catKey], 0);
+        currentOrderCategory = catKey;
     }
-    saveOrderData();
-}
 
-export function getOrderExtra(path) {
-    return orderExtra[path] || 0;
-}
+    setupInputListenersOrder();
+    setupCaseTogglesOrder();
 
-export function setOrderExtra(path, val) {
-    val = Math.max(0, parseInt(val) || 0);
-    if (val > 0) {
-        orderExtra[path] = val;
+    document.querySelectorAll('#categoryContents .row').forEach(row => {
+        const path = row.dataset.path;
+        if (path) { updateRowOrder(path); }
+    });
+
+    if (!searchModeOrder) updateCategoryTotalsOrder(catKey);
+    updateTotalsOrder();
+    updateLinkCountOrder();
+    if (detailsOpenOrder) {
+        document.getElementById('globalDetails').classList.add('open');
+        document.getElementById('detailToggle').textContent = 'Скрыть';
     } else {
-        delete orderExtra[path];
+        document.getElementById('globalDetails').classList.remove('open');
+        document.getElementById('detailToggle').textContent = 'Подробно';
     }
-    saveOrderData();
+    renderCommonCaseIndicatorsOrder();
+    updateAllCommonCaseIndicators();
 }
 
-export function getCommonRoutes(path) {
-    return commonRoutes[path] || [];
-}
+// ============================================================
+// РЕКУРСИВНЫЙ ОБХОД КАТЕГОРИИ
+// ============================================================
 
-export function setCommonRoutes(path, route) {
-    if (route && route.length > 0) {
-        commonRoutes[path] = route;
-    } else {
-        delete commonRoutes[path];
+function buildCategoryHTML(data, path, level) {
+    if (level > 15) {
+        console.warn('Превышена глубина обхода', path);
+        return '';
     }
-    saveOrderData();
-}
-
-export function getIndividualCaseValues(path) {
-    return individualCaseValues[path] || [];
-}
-
-export function setIndividualCaseValues(path, vals) {
-    if (vals && vals.length > 0) {
-        individualCaseValues[path] = vals;
-    } else {
-        delete individualCaseValues[path];
-    }
-    saveOrderData();
-}
-
-export function getCaseMode(path) {
-    if (!caseModes[path]) {
-        caseModes[path] = {
-            enabled: false,
-            alt: null,
-            selectedOption: 0,
-            accumulate: false,
-            multiSelected: [],
-            commonSelected: [],
-            useAlt: false,
-            criteria: 'weight'
-        };
-        saveOrderData();
-    }
-    return caseModes[path];
-}
-
-export function getCaseOptions(path) {
-    const props = getItemProps(path);
-    return (props.individualCases || []).map(c => ({
-        qty: Number(c.qty)||0,
-        dims: c.dimensions||'',
-        weight: Number(c.weight)||0,
-        maxCases: Number(c.maxCases)||0
-    }));
-}
-
-export function getSelectedOption(path) {
-    const mode = getCaseMode(path);
-    const options = getCaseOptions(path);
-    if (options.length === 0) return null;
-    const idx = mode.selectedOption || 0;
-    if (idx >= options.length) return options[0];
-    return options[idx];
-}
-
-export function isExcludedFromLoading(path) {
-    return !!orderExclude[path];
-}
-
-export function setExcludeFromLoading(path, exclude) {
-    if (exclude) {
-        orderExclude[path] = true;
-    } else {
-        delete orderExclude[path];
-    }
-    saveOrderData();
-}
-
-function getCacheKey(path, qty, mode) {
-    return `${path}|${qty}|${mode.enabled}|${mode.selectedOption}|${mode.alt ? 'alt' : 'none'}|${mode.accumulate}`;
-}
-
-export function calcItemWeightWithMode(path, qty) {
-    if (qty <= 0) return 0;
-    const props = getItemProps(path);
-    if (!props.weight) return 0;
-
-    const mode = getCaseMode(path);
-    const cacheKey = getCacheKey(path, qty, mode);
-    const cached = getCachedCalculation('weight_' + cacheKey);
-    if (cached !== undefined) return cached;
-
-    let result = 0;
-    const packing = getOrderPacking(path);
-    const vals = getIndividualCaseValues(path);
-    const extra = getOrderExtra(path);
-
-    if (packing.length > 0) {
-        let totalPacked = 0;
-        packing.forEach(p => {
-            const caseObj = getCommonCases().find(c => c.id === p.caseId);
-            if (caseObj && p.pieces > 0) {
-                const emptyWeight = caseObj.emptyWeight || 0;
-                const unitWeight = props.weight;
-                result += p.pieces * unitWeight + (p.pieces > 0 ? emptyWeight : 0);
-                totalPacked += p.pieces;
+    let html = '';
+    if (Array.isArray(data)) {
+        data.forEach(item => {
+            if (typeof item === 'string') {
+                const fullPath = path.length ? path.join('|') + '|' + item : item;
+                html += buildItemRow(fullPath, level);
             }
         });
-        const remainder = qty - totalPacked - extra;
-        if (remainder > 0) {
-            result += remainder * props.weight;
-        }
-        if (extra > 0) {
-            result += extra * props.weight;
-        }
+        return html;
+    } else if (data && typeof data === 'object') {
+        const keys = Object.keys(data).filter(k => !k.startsWith('_'));
+        keys.forEach(key => {
+            const childPath = [...path, key];
+            const isSubSub = level >= 2;
+            if (isSubSub) html += `<div class="sub-sub-cat-t">${esc(key)}</div>`;
+            else html += `<div class="sub-cat-t">${esc(key)}</div>`;
+            html += buildCategoryHTML(data[key], childPath, level + 1);
+        });
+        return html;
     }
-    else if (vals.length > 0) {
-        const options = getCaseOptions(path);
-        vals.forEach((v, idx) => {
-            if (v <= 0) return;
+    return '';
+}
+
+// ============================================================
+// ПОСТРОЕНИЕ СТРОКИ
+// ============================================================
+
+export function buildItemRow(fullPath, level) {
+    const sq = getStockValue(fullPath);
+    const hasDesc = !!(editorData.specs && editorData.specs[fullPath]);
+    const hasLink = links[fullPath] && links[fullPath].length > 0;
+    const props = getItemProps(fullPath);
+    const hasCase = (props.individualCases && props.individualCases.length > 0) || props.allowCommon;
+    const mode = getCaseMode(fullPath);
+    const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
+    const packing = getOrderPacking(fullPath);
+    const hasCommonPacking = packing.length > 0;
+    const individualVals = getIndividualCaseValues(fullPath);
+    const options = getCaseOptions(fullPath);
+
+    let totalQty = getTotalQty(fullPath);
+
+    const overstock = totalQty > sq;
+    const isInfoOpen = infoBlocksOpen[fullPath] || false;
+    const hasNote = !!(notes[fullPath] && notes[fullPath].trim());
+    const isCaseModeOn = mode.enabled || false;
+
+    let caseStatusText = 'Кофры';
+    let caseStatusClass = '';
+    let extraCaseInfo = '';
+
+    if (hasCommonPacking) {
+        caseStatusText = 'Общие';
+        caseStatusClass = 'common';
+        const totalPieces = packing.reduce((s, p) => s + (p.pieces || 0), 0);
+        extraCaseInfo = `[Кофр] ${packing.length} шт (${totalPieces} шт)`;
+    } else if (isMulti && options.length > 1) {
+        caseStatusText = 'Мульти';
+        caseStatusClass = 'multi';
+        const totalCases = individualVals.reduce((sum, v, idx) => {
+            if (v <= 0) return sum;
             const opt = options[idx] || options[0];
-            const fullCases = Math.floor(v / opt.qty);
-            const rem = v % opt.qty;
-            const fullCaseWeight = (opt.weight || 0) + (opt.qty * props.weight);
-            result += fullCases * fullCaseWeight;
-            if (rem > 0) result += (opt.weight || 0) + (rem * props.weight);
+            return sum + Math.ceil(v / opt.qty);
+        }, 0);
+        extraCaseInfo = `[Мульти] ${totalCases} кофр${totalCases>1?'а':''}`;
+    } else if (mode.enabled && individualVals.length === 1 && !packing.length && !isMulti) {
+        const opt = getSelectedOption(fullPath);
+        const val = individualVals[0] || 0;
+        if (opt && val > 0) {
+            const casesCount = Math.ceil(val / opt.qty);
+            caseStatusText = 'Вкл';
+            caseStatusClass = 'on';
+            extraCaseInfo = `[Кофр] ${casesCount} шт`;
+        } else {
+            caseStatusText = 'Выкл';
+            caseStatusClass = 'off';
+        }
+    } else if (hasCase) {
+        caseStatusText = 'Выкл';
+        caseStatusClass = 'off';
+    }
+
+    // Раздельный вес и объём
+    let weightWithoutCase = 0, weightWithCase = 0;
+    let volumeOnlyCases = 0;
+
+    if (props.weight !== undefined && props.weight !== null && props.weight > 0) {
+        weightWithoutCase = props.weight * totalQty;
+        weightWithCase = calcItemWeightWithMode(fullPath, totalQty);
+    }
+
+    if (hasCommonPacking) {
+        const commonCases = getCommonCases();
+        packing.forEach(p => {
+            const c = commonCases.find(c => c.id === p.caseId);
+            if (c && p.pieces > 0) {
+                const dims = c.dimensions ? c.dimensions.split('x').map(s => parseFloat(s.trim())) : [0,0,0];
+                if (dims.length === 3 && dims.every(d => d > 0)) {
+                    volumeOnlyCases += (dims[0]*dims[1]*dims[2]) / 1000000;
+                }
+            }
+        });
+    } else if (isMulti && mode.enabled && individualVals.length > 1) {
+        options.forEach((opt, idx) => {
+            const val = individualVals[idx] || 0;
+            if (val > 0) {
+                const dims = opt.dims ? opt.dims.split('x').map(s => parseFloat(s.trim())) : [0,0,0];
+                if (dims.length === 3 && dims.every(d => d > 0)) {
+                    const fullCases = Math.floor(val / opt.qty);
+                    const rem = val % opt.qty;
+                    volumeOnlyCases += (fullCases + (rem > 0 ? 1 : 0)) * (dims[0]*dims[1]*dims[2]) / 1000000;
+                }
+            }
+        });
+    } else if (mode.enabled && individualVals.length === 1 && !packing.length && !isMulti) {
+        const opt = getSelectedOption(fullPath);
+        const val = individualVals[0] || 0;
+        if (opt && val > 0) {
+            const dims = opt.dims ? opt.dims.split('x').map(s => parseFloat(s.trim())) : [0,0,0];
+            if (dims.length === 3 && dims.every(d => d > 0)) {
+                const casesCount = Math.ceil(val / opt.qty);
+                volumeOnlyCases = casesCount * (dims[0]*dims[1]*dims[2]) / 1000000;
+            }
+        }
+    }
+
+    let weightDisplay = '0 кг';
+    if (weightWithoutCase > 0 || weightWithCase > 0) {
+        weightDisplay = `${weightWithoutCase.toFixed(1)} / ${weightWithCase.toFixed(1)} кг`;
+    }
+    let volumeDisplay = volumeOnlyCases > 0 ? volumeOnlyCases.toFixed(3) + ' м³' : '0 м³';
+
+    const infoHtml = buildInfoHtml(fullPath, props, mode);
+    const escapedName = esc(fullPath.split('|').pop());
+    const isAdded = totalQty > 0;
+    const rowClass = (isAdded ? 'added' : '') + (overstock ? ' overstock' : '');
+
+    const linkClass = hasLink ? 'active' : '';
+    const noteClass = hasNote ? 'has-note' : '';
+    const caseClass = isCaseModeOn ? 'active' : '';
+
+    let extraInfo = '';
+    if (totalQty > 0 || sq > 0) {
+        extraInfo = `<div class="extra-info">
+            <span><strong>${totalQty}</strong> шт добавлено</span>
+            <span>в наличии: <strong>${sq}</strong></span>
+            ${weightDisplay !== '0 кг' ? `<span>${weightDisplay}</span>` : ''}
+            ${volumeDisplay !== '0 м³' ? `<span>${volumeDisplay}</span>` : ''}
+            ${extraCaseInfo ? `<span>${extraCaseInfo}</span>` : ''}
+        </div>`;
+    }
+
+    let html = `<div class="row ${rowClass}" data-path="${esc(fullPath)}" data-search="${fullPath}">
+        <div class="name-area">
+            <span class="name">${escapedName}</span>
+            ${extraInfo}
+        </div>
+        <div class="action-buttons">
+            <button class="action-btn info-btn" data-path="${esc(fullPath)}" title="Информация">Инфо</button>
+            ${hasDesc ? `<button class="action-btn desc-btn" data-path="${esc(fullPath)}">Описание</button>` : ''}
+            <button class="action-btn link-btn ${linkClass}" data-path="${esc(fullPath)}" title="Линк">Линк${hasLink ? ' ✓' : ''}</button>
+            ${hasCase ? `<button class="action-btn case-btn ${caseClass} ${caseStatusClass}" data-path="${esc(fullPath)}" title="Настройка кофров">${caseStatusText}</button>` : ''}
+            <button class="action-btn note-btn ${noteClass}" data-path="${esc(fullPath)}" title="Заметка">Заметка${hasNote ? ' ✓' : ''}</button>
+        </div>
+        <div class="qty-controls">
+            <span class="weight-vol-display" style="display:none !important;">${weightDisplay} / ${volumeDisplay}</span>
+            <span class="stock-info" style="display:none !important;">в наличии: ${sq}</span>
+            ${renderQtyControls(fullPath)}
+        </div>
+    </div>`;
+    if (isInfoOpen) {
+        html += `<div class="row-info">${infoHtml}</div>`;
+    }
+    if (hasDesc) {
+        html += `<div class="desc-block" data-path="${esc(fullPath)}">${esc(editorData.specs[fullPath])}</div>`;
+    }
+    if (hasLink) {
+        links[fullPath].forEach(link => {
+            html += `<div style="font-size:13px;color:var(--text-secondary);padding-left:${level*20+20}px;width:100%;flex-basis:100%;">→ ${esc(link.target)} (×${esc(String(link.multiplier))})</div>`;
         });
     }
-    else {
-        result = qty * props.weight;
-    }
 
-    setCachedCalculation('weight_' + cacheKey, result);
-    return result;
+    return html;
 }
 
-export function calcItemVolumeWithMode(path, qty) {
-    if (qty <= 0) return 0;
-    const props = getItemProps(path);
-    if (!props.dimensions) return 0;
-
+// ============================================================
+// РЕНДЕРИНГ КОНТРОЛОВ КОЛИЧЕСТВА
+// ============================================================
+function renderQtyControls(path) {
     const mode = getCaseMode(path);
-    const cacheKey = getCacheKey(path, qty, mode);
-    const cached = getCachedCalculation('volume_' + cacheKey);
-    if (cached !== undefined) return cached;
-
-    let result = 0;
+    const individualVals = getIndividualCaseValues(path);
     const packing = getOrderPacking(path);
-    const vals = getIndividualCaseValues(path);
-    const extra = getOrderExtra(path);
+    const options = getCaseOptions(path);
+    const totalQty = getTotalQty(path);
+    const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
 
-    if (packing.length > 0) {
-        let totalPacked = 0;
-        packing.forEach(p => {
-            const caseObj = getCommonCases().find(c => c.id === p.caseId);
-            if (caseObj && p.pieces > 0) {
-                if (caseObj.dimensions) {
-                    const dims = caseObj.dimensions.split('x').map(s => parseFloat(s.trim()));
-                    if (dims.length === 3 && dims.every(d => !isNaN(d) && d > 0)) {
-                        const caseVolume = (dims[0]*dims[1]*dims[2]) / 1000000;
-                        result += caseVolume;
+    if (!mode.enabled || (!packing.length && individualVals.length === 0 && !isMulti)) {
+        return `
+            <button class="btn-c qty-btn" data-path="${path}" data-delta="-1">−</button>
+            <input type="number" class="qty-input" value="${totalQty}" min="0" step="1" data-path="${path}">
+            <button class="btn-c qty-btn" data-path="${path}" data-delta="1">+</button>
+        `;
+    }
+
+    if (mode.enabled && individualVals.length === 1 && !packing.length && !isMulti) {
+        const opt = getSelectedOption(path);
+        const pieces = individualVals[0] || 0;
+        const casesCount = opt && opt.qty > 0 ? Math.ceil(pieces / opt.qty) : 0;
+        const maxCases = opt?.maxCases || 0;
+        return `
+            <div style="display:flex;align-items:center;gap:4px;">
+                <span style="font-size:12px;color:var(--text-secondary);">шт:</span>
+                <button class="btn-c single-piece-btn" data-path="${path}" data-delta="-1" style="width:28px;height:28px;font-size:14px;">−</button>
+                <input type="number" class="single-pieces-input" value="${pieces}" min="0" step="1" data-path="${path}" style="width:50px;padding:2px;text-align:center;font-size:13px;">
+                <button class="btn-c single-piece-btn" data-path="${path}" data-delta="1" style="width:28px;height:28px;font-size:14px;">+</button>
+                <span style="font-size:12px;color:var(--text-secondary);">кофры:</span>
+                <button class="btn-c single-case-btn" data-path="${path}" data-delta="-1" style="width:28px;height:28px;font-size:14px;">−</button>
+                <input type="number" class="single-cases-input" value="${casesCount}" min="0" step="1" data-path="${path}" style="width:50px;padding:2px;text-align:center;font-size:13px;">
+                <button class="btn-c single-case-btn" data-path="${path}" data-delta="1" style="width:28px;height:28px;font-size:14px;">+</button>
+                ${maxCases > 0 ? `<span style="font-size:11px;color:var(--text-muted);">(макс. ${maxCases})</span>` : ''}
+            </div>
+        `;
+    }
+
+    return `
+        <span style="font-size:13px;color:var(--text-secondary);">${totalQty} шт</span>
+    `;
+}
+
+// ============================================================
+// ОБНОВЛЕНИЕ СТРОКИ
+// ============================================================
+
+export function updateRowOrder(path, rebuildChildren = true) {
+    const row = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
+    if (!row) return;
+    const sq = getStockValue(path);
+    const mode = getCaseMode(path);
+    const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
+    const packing = getOrderPacking(path);
+    const hasCommonPacking = packing.length > 0;
+    const individualVals = getIndividualCaseValues(path);
+    const totalQty = getTotalQty(path);
+
+    const isAdded = totalQty > 0;
+    const isOverstock = totalQty > sq;
+    row.classList.toggle('added', isAdded);
+    row.classList.toggle('overstock', isOverstock);
+
+    const qtyControls = row.querySelector('.qty-controls');
+    if (qtyControls) {
+        const mainInput = qtyControls.querySelector('.qty-input');
+        if (mainInput) {
+            mainInput.value = totalQty;
+        }
+        const singlePieces = qtyControls.querySelector('.single-pieces-input');
+        const singleCases = qtyControls.querySelector('.single-cases-input');
+        if (singlePieces && singleCases) {
+            const opt = getSelectedOption(path);
+            const pieces = getIndividualCaseValues(path)[0] || 0;
+            singlePieces.value = pieces;
+            const casesCount = opt && opt.qty > 0 ? Math.ceil(pieces / opt.qty) : 0;
+            singleCases.value = casesCount;
+        }
+        const staticSpan = qtyControls.querySelector('.static-qty');
+        if (staticSpan) {
+            staticSpan.textContent = `${totalQty} шт`;
+        }
+        const weightVolDisplay = qtyControls.querySelector('.weight-vol-display');
+        if (weightVolDisplay) {
+            const props = getItemProps(path);
+            let weightWithoutCase = 0, weightWithCase = 0;
+            let volumeOnlyCases = 0;
+            if (props.weight !== undefined && props.weight !== null && props.weight > 0) {
+                weightWithoutCase = props.weight * totalQty;
+                weightWithCase = calcItemWeightWithMode(path, totalQty);
+            }
+            if (hasCommonPacking) {
+                const commonCases = getCommonCases();
+                packing.forEach(p => {
+                    const c = commonCases.find(c => c.id === p.caseId);
+                    if (c && p.pieces > 0) {
+                        const dims = c.dimensions ? c.dimensions.split('x').map(s => parseFloat(s.trim())) : [0,0,0];
+                        if (dims.length === 3 && dims.every(d => d > 0)) {
+                            volumeOnlyCases += (dims[0]*dims[1]*dims[2]) / 1000000;
+                        }
+                    }
+                });
+            } else if (isMulti && mode.enabled && individualVals.length > 1) {
+                const options = getCaseOptions(path);
+                options.forEach((opt, idx) => {
+                    const val = individualVals[idx] || 0;
+                    if (val > 0) {
+                        const dims = opt.dims ? opt.dims.split('x').map(s => parseFloat(s.trim())) : [0,0,0];
+                        if (dims.length === 3 && dims.every(d => d > 0)) {
+                            const fullCases = Math.floor(val / opt.qty);
+                            const rem = val % opt.qty;
+                            volumeOnlyCases += (fullCases + (rem > 0 ? 1 : 0)) * (dims[0]*dims[1]*dims[2]) / 1000000;
+                        }
+                    }
+                });
+            } else if (mode.enabled && individualVals.length === 1 && !packing.length && !isMulti) {
+                const opt = getSelectedOption(path);
+                const val = individualVals[0] || 0;
+                if (opt && val > 0) {
+                    const dims = opt.dims ? opt.dims.split('x').map(s => parseFloat(s.trim())) : [0,0,0];
+                    if (dims.length === 3 && dims.every(d => d > 0)) {
+                        const casesCount = Math.ceil(val / opt.qty);
+                        volumeOnlyCases = casesCount * (dims[0]*dims[1]*dims[2]) / 1000000;
                     }
                 }
-                totalPacked += p.pieces;
             }
-        });
-        const remainder = qty - totalPacked - extra;
-        if (remainder > 0) {
-            const dims = props.dimensions.split('x').map(s => parseFloat(s.trim()));
-            if (dims.length === 3 && dims.every(d => !isNaN(d) && d > 0)) {
-                result += (dims[0]*dims[1]*dims[2]) / 1000000 * remainder;
+            let weightDisplay = '0 кг';
+            if (weightWithoutCase > 0 || weightWithCase > 0) {
+                weightDisplay = `${weightWithoutCase.toFixed(1)} / ${weightWithCase.toFixed(1)} кг`;
             }
+            let volumeDisplay = volumeOnlyCases > 0 ? volumeOnlyCases.toFixed(3) + ' м³' : '0 м³';
+            weightVolDisplay.textContent = weightDisplay + ' / ' + volumeDisplay;
         }
-        if (extra > 0) {
-            const dims = props.dimensions.split('x').map(s => parseFloat(s.trim()));
-            if (dims.length === 3 && dims.every(d => !isNaN(d) && d > 0)) {
-                result += (dims[0]*dims[1]*dims[2]) / 1000000 * extra;
+    }
+
+    const extraInfo = row.querySelector('.extra-info');
+    if (extraInfo) {
+        let info = '';
+        if (totalQty > 0 || sq > 0) {
+            info = `<span><strong>${totalQty}</strong> шт добавлено</span>
+                    <span>в наличии: <strong>${sq}</strong></span>`;
+            const props = getItemProps(path);
+            if (props.weight !== undefined && props.weight !== null && props.weight > 0) {
+                const wWithout = props.weight * totalQty;
+                const wWith = calcItemWeightWithMode(path, totalQty);
+                info += `<span>${wWithout.toFixed(1)} / ${wWith.toFixed(1)} кг</span>`;
             }
-        }
-    } else if (vals.length > 0) {
-        const options = getCaseOptions(path);
-        vals.forEach((v, idx) => {
-            if (v <= 0) return;
-            const opt = options[idx] || options[0];
-            const fullCases = Math.floor(v / opt.qty);
-            const rem = v % opt.qty;
-            if (opt.dims) {
-                const dims = opt.dims.split('x').map(s => parseFloat(s.trim()));
-                if (dims.length === 3 && dims.every(d => !isNaN(d) && d > 0)) {
-                    const caseVolume = (dims[0]*dims[1]*dims[2]) / 1000000;
-                    result += fullCases * caseVolume;
-                    if (rem > 0) result += caseVolume;
+            if (props.dimensions && props.dimensions.trim() !== '') {
+                let vol = 0;
+                if (hasCommonPacking) {
+                    const commonCases = getCommonCases();
+                    packing.forEach(p => {
+                        const c = commonCases.find(c => c.id === p.caseId);
+                        if (c && p.pieces > 0) {
+                            const dims = c.dimensions ? c.dimensions.split('x').map(s => parseFloat(s.trim())) : [0,0,0];
+                            if (dims.length === 3 && dims.every(d => d > 0)) {
+                                vol += (dims[0]*dims[1]*dims[2]) / 1000000;
+                            }
+                        }
+                    });
+                } else if (isMulti && mode.enabled && individualVals.length > 1) {
+                    const options = getCaseOptions(path);
+                    options.forEach((opt, idx) => {
+                        const val = individualVals[idx] || 0;
+                        if (val > 0) {
+                            const dims = opt.dims ? opt.dims.split('x').map(s => parseFloat(s.trim())) : [0,0,0];
+                            if (dims.length === 3 && dims.every(d => d > 0)) {
+                                const fullCases = Math.floor(val / opt.qty);
+                                const rem = val % opt.qty;
+                                vol += (fullCases + (rem > 0 ? 1 : 0)) * (dims[0]*dims[1]*dims[2]) / 1000000;
+                            }
+                        }
+                    });
+                } else if (mode.enabled && individualVals.length === 1 && !packing.length && !isMulti) {
+                    const opt = getSelectedOption(path);
+                    const val = individualVals[0] || 0;
+                    if (opt && val > 0) {
+                        const dims = opt.dims ? opt.dims.split('x').map(s => parseFloat(s.trim())) : [0,0,0];
+                        if (dims.length === 3 && dims.every(d => d > 0)) {
+                            const casesCount = Math.ceil(val / opt.qty);
+                            vol = casesCount * (dims[0]*dims[1]*dims[2]) / 1000000;
+                        }
+                    }
+                }
+                if (vol > 0) info += `<span>${vol.toFixed(3)} м³</span>`;
+            }
+            if (packing.length > 0) {
+                const totalPieces = packing.reduce((s, p) => s + (p.pieces || 0), 0);
+                info += `<span>[Кофр] ${packing.length} шт (${totalPieces} шт)</span>`;
+            } else if (isMulti) {
+                const totalCases = individualVals.reduce((sum, v, idx) => {
+                    if (v <= 0) return sum;
+                    const opt = getCaseOptions(path)[idx] || getCaseOptions(path)[0];
+                    return sum + Math.ceil(v / opt.qty);
+                }, 0);
+                info += `<span>[Мульти] ${totalCases} кофр${totalCases>1?'а':''}</span>`;
+            } else if (mode.enabled && individualVals.length === 1 && !packing.length && !isMulti) {
+                const opt = getSelectedOption(path);
+                const val = individualVals[0] || 0;
+                if (opt && val > 0) {
+                    const casesCount = Math.ceil(val / opt.qty);
+                    info += `<span>[Кофр] ${casesCount} шт</span>`;
                 }
             }
-        });
-    } else {
-        const dims = props.dimensions.split('x').map(s => parseFloat(s.trim()));
-        if (dims.length === 3 && dims.every(d => !isNaN(d) && d > 0)) {
-            result = (dims[0]*dims[1]*dims[2]) / 1000000 * qty;
         }
+        extraInfo.innerHTML = info;
     }
 
-    setCachedCalculation('volume_' + cacheKey, result);
-    return result;
-}
-
-export function calcItemCases(path, qty) {
-    const mode = getCaseMode(path);
-    if (!mode.enabled) return 0;
-    const options = getCaseOptions(path);
-    if (options.length === 0) return 0;
-    const vals = getIndividualCaseValues(path);
-    if (vals.length === 0) return 0;
-    let totalCases = 0;
-    vals.forEach((v, idx) => {
-        if (v <= 0) return;
-        const opt = options[idx] || options[0];
-        totalCases += Math.ceil(v / opt.qty);
-    });
-    return totalCases;
-}
-
-// ============================================================
-// НОВЫЕ ФУНКЦИИ ДЛЯ РАБОТЫ С ПРОЕКТОМ В ЗАКАЗЕ
-// ============================================================
-
-export function setOrderProject(projectData) {
-    Object.assign(orderProject, projectData);
-    saveOrderData();
-}
-
-export function clearOrderProject() {
-    orderProject.id = null;
-    orderProject.name = '';
-    orderProject.start_date = '';
-    orderProject.end_date = '';
-    orderProject.status = 'planned';
-    saveOrderData();
-}
-
-export function syncOrderWithProject() {
-    // Если у заказа есть id проекта, обновляем данные проекта из orderProject
-    if (orderProject.id) {
-        const existing = getProjects().find(p => p.id === orderProject.id);
-        if (existing) {
-            // Обновляем данные проекта из orderProject (даты, статус, название)
-            existing.name = orderProject.name || existing.name;
-            existing.start_date = orderProject.start_date || existing.start_date;
-            existing.end_date = orderProject.end_date || existing.end_date;
-            existing.status = orderProject.status || existing.status;
-            saveProject(existing);
+    const linkBtn = row.querySelector('.link-btn');
+    if (linkBtn) {
+        const hasLink = links[path] && links[path].length > 0;
+        linkBtn.textContent = 'Линк' + (hasLink ? ' ✓' : '');
+        linkBtn.classList.toggle('active', hasLink);
+    }
+    const noteBtn = row.querySelector('.note-btn');
+    if (noteBtn) {
+        const hasNote = !!(notes[path] && notes[path].trim());
+        noteBtn.textContent = 'Заметка' + (hasNote ? ' ✓' : '');
+        noteBtn.classList.toggle('has-note', hasNote);
+    }
+    const caseBtn = row.querySelector('.case-btn');
+    if (caseBtn) {
+        const mode = getCaseMode(path);
+        const isOn = mode.enabled || false;
+        const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
+        const hasAlt = !!mode.alt;
+        const packing = getOrderPacking(path);
+        const hasCommonPacking = packing.length > 0;
+        let statusText = 'Кофры';
+        let statusClass = '';
+        if (hasCommonPacking) {
+            statusText = 'Общие';
+            statusClass = 'common';
+        } else if (isMulti) {
+            statusText = 'Мульти';
+            statusClass = 'multi';
+        } else if (hasAlt) {
+            statusText = 'Альт.';
+            statusClass = 'alt';
+        } else if (isOn) {
+            statusText = 'Вкл';
+            statusClass = 'on';
         } else {
-            // Проект был удалён – создаём заново
-            const newProject = { ...orderProject };
-            saveProject(newProject);
+            statusText = 'Выкл';
+            statusClass = 'off';
         }
+        caseBtn.textContent = statusText;
+        caseBtn.className = 'action-btn case-btn ' + (isOn ? 'active ' : '') + statusClass;
+    }
+
+    if (rebuildChildren) {
+        updateChildRowsForPath(path);
     }
 }
 
-export function saveOrderAsProject() {
-    // Сохраняем текущий заказ как проект (если у него есть имя и даты)
-    if (!orderProject.name || !orderProject.start_date || !orderProject.end_date) {
-        console.warn('Не все данные проекта заполнены');
-        return null;
+// ============================================================
+// ПЕРЕРИСОВКА СТРОКИ
+// ============================================================
+
+export function refreshRow(path) {
+    const oldRow = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
+    if (!oldRow) return;
+    const level = path.split('|').length - 1;
+    const newRowHtml = buildItemRow(path, level);
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = newRowHtml;
+    const newRow = tempDiv.firstElementChild;
+    oldRow.replaceWith(newRow);
+    updateChildRowsForPath(path);
+    updateTotalsOrder();
+    updateCategoryTotalsOrder(currentOrderCategory);
+    updateAllCommonCaseIndicators();
+}
+
+// ============================================================
+// ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ: расчёт объёма единицы
+// ============================================================
+function parseUnitVolume(dimensions) {
+    if (!dimensions) return 0;
+    const d = dimensions.split('x').map(s => parseFloat(s.trim()));
+    if (d.length === 3 && d.every(v => !isNaN(v) && v > 0)) {
+        return (d[0] * d[1] * d[2]) / 1000000;
     }
-    // Сохраняем проект
-    const project = saveProject(orderProject);
-    // Очищаем старые позиции проекта
-    clearProjectItems(project.id);
-    // Сохраняем все позиции заказа
-    for (let path in order) {
-        const qty = order[path];
-        if (qty > 0) {
-            addProjectItem(project.id, path, qty);
+    return 0;
+}
+
+// ============================================================
+// ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ РАСЧЁТА ИТОГОВ
+// ============================================================
+function calculateTotals(items) {
+    let totalQty = 0;
+    let totalWeight = 0;
+    let totalVolume = 0;
+    let totalCases = 0;
+    const catTotals = {};
+    const commonStats = {};
+
+    const allCommonCases = getCommonCases();
+
+    items.forEach(({ path, qty }) => {
+        const cat = path.split('|')[0];
+        if (!catTotals[cat]) {
+            catTotals[cat] = { qty: 0, weight: 0, volume: 0, cases: 0 };
         }
-    }
-    // Также сохраняем позиции из orderPacking, orderExtra и т.д. (можно расширить)
-    for (let path in orderPacking) {
-        const packing = orderPacking[path];
-        const totalPieces = packing.reduce((s, p) => s + (p.pieces || 0), 0);
-        if (totalPieces > 0) {
-            addProjectItem(project.id, path, totalPieces);
+
+        const packing = getOrderPacking(path);
+        const extra = getOrderExtra(path);
+        const mode = getCaseMode(path);
+        const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
+        const individualVals = getIndividualCaseValues(path);
+        const props = getItemProps(path);
+
+        let qtyToAdd = qty;
+        let weightToAdd = 0;
+        let volumeToAdd = 0;
+        let casesToAdd = 0;
+
+        if (packing.length > 0) {
+            packing.forEach(p => {
+                if (p.pieces <= 0) return;
+                const caseObj = allCommonCases.find(c => c.id === p.caseId);
+                if (!caseObj) return;
+                if (!commonStats[p.caseId]) {
+                    commonStats[p.caseId] = {
+                        pieces: 0,
+                        weight: 0,
+                        volume: 0,
+                        caseObj: caseObj,
+                        unitWeight: props.weight || 0,
+                        unitVolume: parseUnitVolume(props.dimensions)
+                    };
+                }
+                const stat = commonStats[p.caseId];
+                stat.pieces += p.pieces;
+                stat.weight += p.pieces * stat.unitWeight;
+                stat.volume += p.pieces * stat.unitVolume;
+            });
+
+            if (extra > 0) {
+                weightToAdd += extra * (props.weight || 0);
+                volumeToAdd += extra * parseUnitVolume(props.dimensions);
+            }
+            qtyToAdd = qty;
+        } else if (isMulti && mode.enabled && individualVals.length > 1) {
+            weightToAdd = calcItemWeightWithMode(path, qty);
+            volumeToAdd = calcItemVolumeWithMode(path, qty);
+            casesToAdd = calcItemCases(path, qty);
+            qtyToAdd = qty;
+        } else if (mode.enabled && individualVals.length === 1 && !packing.length && !isMulti) {
+            weightToAdd = calcItemWeightWithMode(path, qty);
+            volumeToAdd = calcItemVolumeWithMode(path, qty);
+            casesToAdd = calcItemCases(path, qty);
+            qtyToAdd = qty;
+        } else {
+            weightToAdd = qty * (props.weight || 0);
+            volumeToAdd = qty * parseUnitVolume(props.dimensions);
+            qtyToAdd = qty;
         }
+
+        catTotals[cat].qty += qtyToAdd;
+        catTotals[cat].weight += weightToAdd;
+        catTotals[cat].volume += volumeToAdd;
+        catTotals[cat].cases += casesToAdd;
+
+        totalQty += qtyToAdd;
+        totalWeight += weightToAdd;
+        totalVolume += volumeToAdd;
+        totalCases += casesToAdd;
+    });
+
+    let commonWeight = 0;
+    let commonVolume = 0;
+    const commonDetails = [];
+    for (let caseId in commonStats) {
+        const stat = commonStats[caseId];
+        const caseObj = stat.caseObj;
+        const emptyWeight = caseObj.emptyWeight || 0;
+        const dims = caseObj.dimensions || '';
+        const emptyVolume = parseUnitVolume(dims);
+        const maxWeight = caseObj.maxWeight || 0;
+        const fillPercent = maxWeight > 0 ? Math.min(100, Math.round((stat.weight / maxWeight) * 100)) : 0;
+        commonWeight += emptyWeight;
+        commonVolume += emptyVolume;
+        commonDetails.push({
+            name: caseObj.name || 'Кофр',
+            pieces: stat.pieces,
+            weight: stat.weight,
+            volume: stat.volume,
+            emptyWeight: emptyWeight,
+            emptyVolume: emptyVolume,
+            maxWeight: maxWeight,
+            fillPercent: fillPercent,
+            dimensions: dims
+        });
     }
-    for (let path in orderExtra) {
-        const extra = orderExtra[path];
-        if (extra > 0) {
-            addProjectItem(project.id, path, extra);
-        }
+
+    for (let caseId in commonStats) {
+        const stat = commonStats[caseId];
+        totalWeight += stat.weight;
+        totalVolume += stat.volume;
     }
-    // Обновляем orderProject.id
-    orderProject.id = project.id;
+
+    totalWeight += commonWeight;
+    totalVolume += commonVolume;
+
+    return {
+        totalQty,
+        totalWeight,
+        totalVolume,
+        totalCases,
+        catTotals,
+        commonDetails,
+        commonWeight,
+        commonVolume
+    };
+}
+
+// ============================================================
+// ИТОГИ (ОБНОВЛЕНЫ С ЦВЕТОВОЙ ИНДИКАЦИЕЙ)
+// ============================================================
+
+export function updateCategoryTotalsOrder(catKey) {
+    const container = document.querySelector('#categoryContents .category-content.active');
+    if (!container || searchModeOrder) return;
+    let totalsDiv = container.querySelector('.category-totals');
+    if (!totalsDiv) {
+        totalsDiv = document.createElement('div');
+        totalsDiv.className = 'category-totals';
+        container.appendChild(totalsDiv);
+    }
+    const allItems = getActiveItemsOrder();
+    const items = allItems.filter(({ path }) => path.startsWith(catKey + '|'));
+    const result = calculateTotals(items);
+    let html = `<span>Итого в категории: ${result.totalQty} шт</span>`;
+    if (result.totalWeight > 0) html += `<span>Вес: ${result.totalWeight.toFixed(1)} кг</span>`;
+    if (result.totalVolume > 0) html += `<span>Объём: ${result.totalVolume.toFixed(3)} м³</span>`;
+    if (result.totalCases > 0) html += `<span>Кофров: ${result.totalCases} шт</span>`;
+    if (result.commonDetails && result.commonDetails.length > 0) {
+        html += `<div style="width:100%;font-size:13px;color:var(--text-secondary);padding-top:4px;">`;
+        result.commonDetails.forEach(c => {
+            const color = getColorByPercent(c.fillPercent);
+            html += `<span style="margin-right:12px;">[Кофр] ${c.name}: ${c.pieces} шт, загрузка: <span style="color:${color};font-weight:bold;">${c.fillPercent}%</span></span>`;
+        });
+        html += `</div>`;
+    }
+    totalsDiv.innerHTML = html;
+}
+
+export function updateTotalsOrder() {
+    const items = getActiveItemsOrder();
+    const result = calculateTotals(items);
+
+    document.getElementById('totalQty').textContent = result.totalQty;
+    document.getElementById('totalWeight').textContent = result.totalWeight.toFixed(1);
+    document.getElementById('totalVolume').textContent = result.totalVolume.toFixed(3);
+
+    const detailsDiv = document.getElementById('globalDetails');
+    let detailsHtml = '';
+    const orderKeys = editorData._categoryOrder || Object.keys(editorData.inventory);
+    orderKeys.forEach(cat => {
+        if (!result.catTotals[cat]) return;
+        const d = result.catTotals[cat];
+        detailsHtml += `<div class="cat-detail"><strong>${CAT_NAMES[cat]||cat}</strong><br>${d.qty} шт<br>${d.weight.toFixed(1)} кг<br>${d.volume.toFixed(3)} м³${d.cases > 0 ? `<br>${d.cases} кофров` : ''}</div>`;
+    });
+
+    if (result.commonDetails && result.commonDetails.length > 0) {
+        detailsHtml += `<div style="width:100%;border-top:1px solid var(--border-color);padding-top:8px;margin-top:8px;">`;
+        detailsHtml += `<strong style="display:block;margin-bottom:4px;">Общие кофры:</strong>`;
+        result.commonDetails.forEach(c => {
+            const color = getColorByPercent(c.fillPercent);
+            detailsHtml += `<div style="font-size:13px;padding:2px 0;border-bottom:1px solid var(--border-light);display:flex;align-items:center;gap:8px;">
+                <span>[Кофр] ${c.name}</span>
+                <span>${c.pieces} шт</span>
+                <span style="color:${color};font-weight:bold;">${c.fillPercent}%</span>
+                <span style="font-size:12px;color:var(--text-muted);">${c.dimensions || 'н/д'} | вес: ${c.emptyWeight.toFixed(1)} кг</span>
+            </div>`;
+        });
+        detailsHtml += `</div>`;
+    }
+
+    detailsDiv.innerHTML = detailsHtml || '';
+    renderCommonCaseIndicatorsOrder();
+    updateCommonCasesButton();
+}
+
+// ============================================================
+// ПОИСК
+// ============================================================
+
+const debouncedSearch = debounce(applySearchOrder, 300);
+
+export function applySearchOrder() {
+    const query = document.getElementById('searchInput').value.toLowerCase().trim();
+    searchQueryOrder = query;
+    renderOrderCategory('all', query);
+}
+
+export function clearSearchOrder() {
+    document.getElementById('searchInput').value = '';
+    searchQueryOrder = '';
+    searchModeOrder = false;
+    const first = editorData._categoryOrder?.[0] || Object.keys(editorData.inventory)[0];
+    if (first) {
+        currentOrderCategory = first;
+        renderOrderCategory(first);
+    } else {
+        renderOrderCategory(null);
+    }
+}
+
+// ============================================================
+// ОБРАБОТЧИКИ КНОПОК
+// ============================================================
+
+export function toggleInfoOrder(btn) {
+    const path = btn.dataset.path;
+    const row = btn.closest('.row');
+    let infoBlock = row.querySelector('.row-info');
+    if (infoBlock) {
+        infoBlock.remove();
+        infoBlocksOpen[path] = false;
+        btn.textContent = 'Инфо';
+        return;
+    }
+    infoBlock = document.createElement('div');
+    infoBlock.className = 'row-info';
+    const props = getItemProps(path);
+    const mode = getCaseMode(path);
+    infoBlock.innerHTML = buildInfoHtml(path, props, mode);
+    row.appendChild(infoBlock);
+    infoBlocksOpen[path] = true;
+    btn.textContent = 'Скрыть';
+}
+
+export function toggleDescOrder(btn) {
+    const path = btn.dataset.path;
+    const block = document.querySelector(`.desc-block[data-path="${path}"]`);
+    if (block) {
+        block.classList.toggle('open');
+        btn.textContent = block.classList.contains('open') ? 'Скрыть описание' : 'Описание';
+    }
+}
+
+export async function openNoteEditorOrder(btn) {
+    const path = btn.dataset.path;
+    const current = notes[path] || '';
+    const newNote = await showPrompt('Редактировать заметку', 'Заметка:', current);
+    if (newNote === null) return;
+    if (newNote.trim() === '') {
+        delete notes[path];
+    } else {
+        notes[path] = newNote.trim();
+    }
     saveOrderData();
-    return project;
+    updateRowOrder(path);
+    showToast('Заметка сохранена', 'neutral');
 }
 
-export function loadProjectIntoOrder(projectId) {
-    const project = getProjects().find(p => p.id === projectId);
-    if (!project) return null;
-    // Загружаем данные проекта в orderProject
-    orderProject.id = project.id;
-    orderProject.name = project.name;
-    orderProject.start_date = project.start_date;
-    orderProject.end_date = project.end_date;
-    orderProject.status = project.status;
-    // Загружаем позиции
-    const items = getProjectItems(projectId);
-    // Очищаем текущий заказ
-    for (let key in order) delete order[key];
-    items.forEach(item => {
-        if (item.quantity > 0) {
-            order[item.equipment_path] = item.quantity;
+// ============================================================
+// НОВАЯ ФУНКЦИЯ ЗАГРУЗКИ ДАННЫХ ПРОЕКТА В ИНТЕРФЕЙС
+// ============================================================
+function loadProjectDataIntoUI() {
+    const project = getOrderProject();
+    document.getElementById('pProjectName').value = project.name || '';
+    document.getElementById('pStartDate').value = project.start_date || '';
+    document.getElementById('pEndDate').value = project.end_date || '';
+    const statusSelect = document.getElementById('pProjectStatus');
+    if (statusSelect) statusSelect.value = project.status || 'planned';
+    // Обновляем список существующих проектов для привязки
+    populateProjectSelect();
+}
+
+function populateProjectSelect() {
+    const select = document.getElementById('pProjectSelect');
+    if (!select) return;
+    const projects = getProjects();
+    const currentProjectId = orderProject.id;
+    select.innerHTML = '<option value="">— Выберите существующий проект —</option>';
+    projects.forEach(p => {
+        const selected = (p.id === currentProjectId) ? 'selected' : '';
+        select.innerHTML += `<option value="${p.id}" ${selected}>${esc(p.name)} (${p.start_date} – ${p.end_date})</option>`;
+    });
+}
+
+// ============================================================
+// ОБРАБОТЧИКИ ДЛЯ ПОЛЕЙ ПРОЕКТА
+// ============================================================
+function setupProjectUIHandlers() {
+    // Выбор существующего проекта
+    document.getElementById('pProjectSelect')?.addEventListener('change', function() {
+        const projectId = this.value;
+        if (!projectId) return;
+        const project = getProject(projectId);
+        if (project) {
+            document.getElementById('pProjectName').value = project.name || '';
+            document.getElementById('pStartDate').value = project.start_date || '';
+            document.getElementById('pEndDate').value = project.end_date || '';
+            const statusSelect = document.getElementById('pProjectStatus');
+            if (statusSelect) statusSelect.value = project.status || 'planned';
+            // Сохраняем в orderProject
+            setOrderProject({
+                id: project.id,
+                name: project.name,
+                start_date: project.start_date,
+                end_date: project.end_date,
+                status: project.status || 'planned'
+            });
+            showToast(`Проект "${project.name}" загружен`, 'success');
         }
     });
-    saveOrderData();
-    return project;
+
+    // Изменение полей проекта – сохраняем в orderProject
+    const fields = ['pProjectName', 'pStartDate', 'pEndDate'];
+    fields.forEach(id => {
+        document.getElementById(id)?.addEventListener('change', function() {
+            const name = document.getElementById('pProjectName').value.trim();
+            const start = document.getElementById('pStartDate').value;
+            const end = document.getElementById('pEndDate').value;
+            const status = document.getElementById('pProjectStatus')?.value || 'planned';
+            // Если имя пустое – не сохраняем как проект, но сохраняем в orderProject
+            if (!name) {
+                setOrderProject({ id: null, name: '', start_date: start, end_date: end, status: status });
+                return;
+            }
+            // Если есть имя – создаём или обновляем проект
+            let projectId = orderProject.id;
+            if (!projectId) {
+                // Создаём новый проект
+                const newProject = saveProject({ name, start_date: start, end_date: end, status });
+                projectId = newProject.id;
+            } else {
+                // Обновляем существующий
+                const existing = getProject(projectId);
+                if (existing) {
+                    saveProject({ id: projectId, name, start_date: start, end_date: end, status });
+                } else {
+                    // Если проекта с таким ID нет – создаём новый
+                    const newProject = saveProject({ name, start_date: start, end_date: end, status });
+                    projectId = newProject.id;
+                }
+            }
+            setOrderProject({ id: projectId, name, start_date: start, end_date: end, status });
+            populateProjectSelect();
+        });
+    });
+
+    // Статус
+    document.getElementById('pProjectStatus')?.addEventListener('change', function() {
+        const status = this.value;
+        const name = document.getElementById('pProjectName').value.trim();
+        const start = document.getElementById('pStartDate').value;
+        const end = document.getElementById('pEndDate').value;
+        if (name && orderProject.id) {
+            saveProject({ id: orderProject.id, name, start_date: start, end_date: end, status });
+            setOrderProject({ ...orderProject, status });
+        } else {
+            setOrderProject({ ...orderProject, status });
+        }
+    });
+}
+
+// ============================================================
+// ЗАГЛУШКИ
+// ============================================================
+
+export function setupInputListenersOrder() {}
+export function setupCaseTogglesOrder() {}
+
+// ============================================================
+// РЕНДЕР ВСЕГО
+// ============================================================
+
+export function renderOrderAll() {
+    invalidateFlatItemsCache();
+    loadOrderData();
+    document.getElementById('pComment').value = localStorage.getItem('last_comment') || '';
+    const savedDate = localStorage.getItem('last_date');
+    if (savedDate) document.getElementById('pDate').value = savedDate;
+    // Загружаем данные проекта
+    loadProjectDataIntoUI();
+    // Настраиваем обработчики
+    setupProjectUIHandlers();
+    if (!currentOrderCategory || !editorData.inventory[currentOrderCategory]) {
+        const first = editorData._categoryOrder?.[0] || Object.keys(editorData.inventory)[0];
+        if (first) currentOrderCategory = first;
+    }
+    renderOrderTabs();
+    renderOrderCategory(currentOrderCategory);
+    detailsOpenOrder = localStorage.getItem('detailsOpenOrder') === 'true';
+    if (detailsOpenOrder) {
+        document.getElementById('globalDetails').classList.add('open');
+        document.getElementById('detailToggle').textContent = 'Скрыть';
+    } else {
+        document.getElementById('globalDetails').classList.remove('open');
+        document.getElementById('detailToggle').textContent = 'Подробно';
+    }
+    updateAllCommonCaseIndicators();
+    updateCommonCasesButton();
+}
+
+// ============================================================
+// ИНИЦИАЛИЗАЦИЯ UI
+// ============================================================
+
+export function initOrderUI() {
+    detailsOpenOrder = localStorage.getItem('detailsOpenOrder') === 'true';
+
+    document.getElementById('detailToggle')?.addEventListener('click', function() {
+        const details = document.getElementById('globalDetails');
+        details.classList.toggle('open');
+        detailsOpenOrder = details.classList.contains('open');
+        localStorage.setItem('detailsOpenOrder', JSON.stringify(detailsOpenOrder));
+        this.textContent = detailsOpenOrder ? 'Скрыть' : 'Подробно';
+    });
+
+    document.getElementById('searchInput')?.addEventListener('input', debouncedSearch);
+    document.getElementById('clearSearchBtn')?.addEventListener('click', clearSearchOrder);
+
+    document.getElementById('pDate')?.addEventListener('change', function() {
+        localStorage.setItem('last_date', this.value);
+    });
+    document.getElementById('pComment')?.addEventListener('input', function() {
+        localStorage.setItem('last_comment', this.value);
+    });
 }
