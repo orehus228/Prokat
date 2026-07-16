@@ -14,7 +14,6 @@ import {
   updateAllPathsOnCategoryRename,
   updateOrderPaths,
 } from '../services/order-data.js';
-import { convertOldItemProps } from '../core/cleanup.js';
 
 // ============================================================
 // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ РАБОТЫ С ПУТЯМИ
