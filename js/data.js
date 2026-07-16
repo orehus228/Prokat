@@ -41,7 +41,6 @@ function resetToEmpty() {
         _categoryOrder: [],
         commonCases: [],
         truckPresets: [...DEFAULT_TRUCK_PRESETS],
-        // НОВЫЕ ПОЛЯ ДЛЯ ПРОЕКТОВ
         projects: [],
         projectItems: []
     };
@@ -109,7 +108,6 @@ function normalizeAllData() {
         editorData._categoryOrder = Object.keys(editorData.inventory);
     }
 
-    // Инициализация новых полей, если их нет
     if (!editorData.projects) editorData.projects = [];
     if (!editorData.projectItems) editorData.projectItems = [];
 }
@@ -236,6 +234,15 @@ export function getStockKey(catKey, subKey, itemName) {
 export function getStock(catKey, subKey, itemName) {
     const key = getStockKey(catKey, subKey, itemName);
     return editorData.stock[key] !== undefined ? editorData.stock[key] : 0;
+}
+
+// НОВАЯ ФУНКЦИЯ: получение количества по полному пути
+export function getStockValue(path) {
+    const parts = path.split('|');
+    const catKey = parts[0];
+    const subKey = parts.length > 2 ? parts[1] : null;
+    const itemName = subKey ? parts.slice(2).join('|') : parts.slice(1).join('|');
+    return getStock(catKey, subKey, itemName);
 }
 
 export function setStock(catKey, subKey, itemName, val) {
@@ -509,7 +516,6 @@ export function saveProject(project) {
 
 export function deleteProject(id) {
     editorData.projects = editorData.projects.filter(p => p.id !== id);
-    // Удаляем все связанные позиции
     editorData.projectItems = editorData.projectItems.filter(item => item.project_id !== id);
     saveEditorData();
 }
@@ -539,8 +545,11 @@ export function clearProjectItems(projectId) {
     saveEditorData();
 }
 
+// Функция проверки доступности (исправлена с использованием getStockValue)
 export function getAvailableQuantity(equipmentPath, startDate, endDate, requestedQty, currentProjectId = null) {
-    if (!startDate || !endDate) return { available: requestedQty, conflicts: [], allocated: 0, totalStock: getStockValue(equipmentPath) };
+    if (!startDate || !endDate) {
+        return { available: requestedQty, conflicts: [], allocated: 0, totalStock: getStockValue(equipmentPath) };
+    }
 
     const projects = getProjects();
     const allItems = getProjectItems();
@@ -548,7 +557,6 @@ export function getAvailableQuantity(equipmentPath, startDate, endDate, requeste
     const nStart = new Date(startDate).getTime();
     const nEnd = new Date(endDate).getTime();
 
-    // Находим пересекающиеся проекты (кроме текущего и завершённых)
     const overlapping = projects.filter(p => {
         if (p.id === currentProjectId) return false;
         if (p.status === 'completed') return false;
