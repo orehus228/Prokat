@@ -1,0 +1,805 @@
+// components/editor/render.js
+import { getState, saveState } from '../../core/state.js';
+import { CAT_NAMES } from '../../core/config.js';
+import {
+  getStock,
+  setStock,
+  getSpec,
+  setSpec,
+  getItemProps,
+  setItemProps,
+  getCommonCases,
+} from '../../data/editor-data.js';
+import {
+  renameCategory,
+  renameSubgroup,
+  renameItem,
+  moveItem,
+  resetAllData,
+} from '../../data/editor-data.js';
+import { esc, getElement, createElement } from '../../ui/dom.js';
+import { showToast, queueToast } from '../../ui/toast.js';
+import { showPrompt, showConfirm } from '../../ui/modal.js';
+import { openPropsModalEditor } from '../cases/props-modal.js';
+import { openCasesManagerModal } from '../cases/common-manager.js';
+
+// ============================================================
+// СОСТОЯНИЕ РЕДАКТОРА
+// ============================================================
+
+let currentCategory = null;
+
+// ============================================================
+// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+// ============================================================
+
+function getStockKey(catKey, subKey, itemName) {
+  if (subKey) return catKey + '|' + subKey + '|' + itemName;
+  return catKey + '|' + itemName;
+}
+
+function moveItemWithinGroup(catKey, subKey, itemName, direction) {
+  const state = getState();
+  let targetArray = subKey ? state.inventory[catKey][subKey] : state.inventory[catKey];
+  if (!Array.isArray(targetArray)) {
+    showToast('Ошибка: не массив', 'error');
+    return;
+  }
+  const idx = targetArray.indexOf(itemName);
+  if (idx === -1) {
+    showToast('Позиция не найдена', 'error');
+    return;
+  }
+  const newIdx = idx + direction;
+  if (newIdx < 0 || newIdx >= targetArray.length) {
+    showToast('Край списка', 'warning');
+    return;
+  }
+  [targetArray[idx], targetArray[newIdx]] = [targetArray[newIdx], targetArray[idx]];
+  saveState();
+  renderEditorCategory(catKey);
+  showToast('Позиция перемещена', 'success');
+}
+
+// ============================================================
+// ОТРИСОВКА ВКЛАДОК
+// ============================================================
+
+export function renderEditorTabs() {
+  const container = document.getElementById('editorTabs');
+  if (!container) return;
+  container.innerHTML = '';
+  const state = getState();
+  const order = state._categoryOrder || Object.keys(state.inventory);
+  if (order.length === 0) {
+    container.innerHTML = '<div style="color:var(--text-muted);padding:12px;">Нет категорий. Создайте первую.</div>';
+    return;
+  }
+  order.forEach(key => {
+    if (!state.inventory[key]) return;
+    const tab = document.createElement('div');
+    tab.className = 'category-tab' + (key === currentCategory ? ' active' : '');
+    const label = state.catNames[key] || key;
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = label;
+    tab.appendChild(nameSpan);
+    const actions = document.createElement('div');
+    actions.className = 'tab-actions';
+    const upBtn = document.createElement('button');
+    upBtn.textContent = '▲';
+    upBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      moveCategory(key, -1);
+    });
+    actions.appendChild(upBtn);
+    const downBtn = document.createElement('button');
+    downBtn.textContent = '▼';
+    downBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      moveCategory(key, 1);
+    });
+    actions.appendChild(downBtn);
+    const renameBtn = document.createElement('button');
+    renameBtn.textContent = '✏️';
+    renameBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      renameCategoryHandler(key);
+    });
+    actions.appendChild(renameBtn);
+    const delBtn = document.createElement('button');
+    delBtn.textContent = '✕';
+    delBtn.className = 'danger';
+    delBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      deleteCategory(key);
+    });
+    actions.appendChild(delBtn);
+    tab.appendChild(actions);
+    tab.dataset.cat = key;
+    tab.addEventListener('click', (e) => {
+      if (!e.target.closest('button')) {
+        currentCategory = key;
+        renderEditorTabs();
+        renderEditorCategory(key);
+      }
+    });
+    container.appendChild(tab);
+  });
+  if (!order.includes(currentCategory) && order.length > 0) {
+    currentCategory = order[0];
+    renderEditorTabs();
+    renderEditorCategory(currentCategory);
+  }
+}
+
+// ============================================================
+// ФУНКЦИИ УПРАВЛЕНИЯ КАТЕГОРИЯМИ
+// ============================================================
+
+function moveCategory(key, dir) {
+  const state = getState();
+  const order = state._categoryOrder;
+  const idx = order.indexOf(key);
+  if (idx === -1) return;
+  const newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= order.length) return;
+  [order[idx], order[newIdx]] = [order[newIdx], order[idx]];
+  saveState();
+  renderEditorAll();
+}
+
+async function renameCategoryHandler(key) {
+  const newName = await showPrompt('Переименовать категорию', 'Новое название:', key);
+  if (!newName || newName === key) return;
+  try {
+    renameCategory(key, newName);
+    if (currentCategory === key) currentCategory = newName;
+    renderEditorAll();
+    showToast('Категория переименована', 'success');
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+}
+
+async function deleteCategory(key) {
+  const confirmed = await showConfirm(`Удалить категорию "${key}"? Все позиции будут удалены.`);
+  if (!confirmed) return;
+  const state = getState();
+  delete state.inventory[key];
+  const idx = state._categoryOrder.indexOf(key);
+  if (idx !== -1) state._categoryOrder.splice(idx, 1);
+  const prefix = key + '|';
+  for (let k in state.stock) if (k.startsWith(prefix)) delete state.stock[k];
+  for (let k in state.specs) if (k.startsWith(prefix)) delete state.specs[k];
+  for (let k in state.itemProps) if (k.startsWith(prefix)) delete state.itemProps[k];
+  if (currentCategory === key) {
+    currentCategory = state._categoryOrder.length > 0 ? state._categoryOrder[0] : null;
+  }
+  saveState();
+  renderEditorAll();
+  showToast('Категория удалена', 'success');
+}
+
+// ============================================================
+// ОТРИСОВКА СОДЕРЖИМОГО КАТЕГОРИИ
+// ============================================================
+
+export function renderEditorCategory(catKey) {
+  const container = document.getElementById('editorContents');
+  if (!container) return;
+  container.innerHTML = '';
+  const state = getState();
+  if (!catKey || !state.inventory[catKey]) {
+    container.innerHTML = '<div style="color:var(--text-muted);padding:20px;text-align:center;">Выберите категорию или создайте новую</div>';
+    return;
+  }
+  const catData = state.inventory[catKey];
+
+  if (Array.isArray(catData)) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'category-content active';
+    const listDiv = document.createElement('div');
+    listDiv.className = 'subgroup';
+    listDiv.style.border = 'none';
+    const header = document.createElement('div');
+    header.className = 'subgroup-header';
+    header.innerHTML = `<span class="name">${state.catNames[catKey] || catKey}</span>`;
+    const addBtn = document.createElement('button');
+    addBtn.className = 'add-item';
+    addBtn.textContent = '+ Добавить позицию';
+    addBtn.addEventListener('click', async () => {
+      const val = await showPrompt('Введите название новой позиции', 'Название:', '', 'Введите название...');
+      if (val && val.trim()) {
+        catData.push(val.trim());
+        saveState();
+        renderEditorCategory(catKey);
+        showToast('Позиция добавлена', 'success');
+      }
+    });
+    listDiv.appendChild(header);
+    const itemsDiv = document.createElement('div');
+    itemsDiv.className = 'items-list';
+    if (catData.length === 0) itemsDiv.innerHTML = '<div class="empty-message">Нет позиций</div>';
+    else {
+      catData.forEach((item) => {
+        const row = createItemRowEditor(catKey, null, item);
+        itemsDiv.appendChild(row);
+      });
+    }
+    listDiv.appendChild(itemsDiv);
+    listDiv.appendChild(addBtn);
+    wrapper.appendChild(listDiv);
+    container.appendChild(wrapper);
+    return;
+  }
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'category-content active';
+  const keys = Object.keys(catData).filter(k => !k.startsWith('_'));
+  let orderKeys = catData._subOrder || [];
+  if (orderKeys.length === 0) {
+    orderKeys = keys.sort();
+    catData._subOrder = orderKeys;
+    saveState();
+  } else {
+    keys.forEach(k => {
+      if (!orderKeys.includes(k)) orderKeys.push(k);
+    });
+    catData._subOrder = orderKeys;
+    saveState();
+  }
+
+  orderKeys.forEach(subKey => {
+    const subItems = catData[subKey];
+    if (!Array.isArray(subItems)) return;
+    const subgroup = document.createElement('div');
+    subgroup.className = 'subgroup';
+    const header = document.createElement('div');
+    header.className = 'subgroup-header';
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'name';
+    nameSpan.textContent = subKey;
+    nameSpan.title = 'Двойной клик для переименования';
+    nameSpan.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      renameSubgroupHandler(catKey, subKey);
+    });
+    header.appendChild(nameSpan);
+    const controls = document.createElement('div');
+    controls.className = 'controls';
+    const renameBtn = document.createElement('button');
+    renameBtn.textContent = '✏️';
+    renameBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      renameSubgroupHandler(catKey, subKey);
+    });
+    controls.appendChild(renameBtn);
+    const upBtn = document.createElement('button');
+    upBtn.textContent = '▲';
+    upBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      moveSubgroup(catKey, subKey, -1);
+    });
+    controls.appendChild(upBtn);
+    const downBtn = document.createElement('button');
+    downBtn.textContent = '▼';
+    downBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      moveSubgroup(catKey, subKey, 1);
+    });
+    controls.appendChild(downBtn);
+    const delBtn = document.createElement('button');
+    delBtn.textContent = '✕';
+    delBtn.className = 'danger';
+    delBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const confirmed = await showConfirm(`Удалить подгруппу "${subKey}"?`);
+      if (!confirmed) return;
+      delete catData[subKey];
+      const idx = catData._subOrder.indexOf(subKey);
+      if (idx !== -1) catData._subOrder.splice(idx, 1);
+      const prefix = catKey + '|' + subKey + '|';
+      const state = getState();
+      for (let k in state.stock) if (k.startsWith(prefix)) delete state.stock[k];
+      for (let k in state.specs) if (k.startsWith(prefix)) delete state.specs[k];
+      for (let k in state.itemProps) if (k.startsWith(prefix)) delete state.itemProps[k];
+      saveState();
+      renderEditorCategory(catKey);
+      showToast('Подгруппа удалена', 'success');
+    });
+    controls.appendChild(delBtn);
+    header.appendChild(controls);
+    subgroup.appendChild(header);
+    const itemsDiv = document.createElement('div');
+    itemsDiv.className = 'items-list';
+    if (subItems.length === 0) itemsDiv.innerHTML = '<div class="empty-message">Нет позиций</div>';
+    else {
+      subItems.forEach((item) => {
+        const row = createItemRowEditor(catKey, subKey, item);
+        itemsDiv.appendChild(row);
+      });
+    }
+    subgroup.appendChild(itemsDiv);
+    const addBtn = document.createElement('button');
+    addBtn.className = 'add-item';
+    addBtn.textContent = '+ Добавить позицию';
+    addBtn.addEventListener('click', async () => {
+      const val = await showPrompt('Введите название новой позиции', 'Название:', '', 'Введите название...');
+      if (val && val.trim()) {
+        subItems.push(val.trim());
+        saveState();
+        renderEditorCategory(catKey);
+        showToast('Позиция добавлена', 'success');
+      }
+    });
+    subgroup.appendChild(addBtn);
+    wrapper.appendChild(subgroup);
+  });
+
+  const addSubBtn = document.createElement('button');
+  addSubBtn.className = 'add-subgroup';
+  addSubBtn.textContent = '+ Добавить подгруппу';
+  addSubBtn.addEventListener('click', async () => {
+    const val = await showPrompt('Введите название новой подгруппы', 'Название:', '', 'Введите название...');
+    if (val && val.trim()) {
+      const newKey = val.trim();
+      if (catData[newKey]) {
+        showToast('Уже существует', 'warning');
+        return;
+      }
+      catData[newKey] = [];
+      if (!catData._subOrder) catData._subOrder = [];
+      catData._subOrder.push(newKey);
+      saveState();
+      renderEditorCategory(catKey);
+      showToast('Подгруппа добавлена', 'success');
+    }
+  });
+  wrapper.appendChild(addSubBtn);
+  container.appendChild(wrapper);
+}
+
+// ============================================================
+// СОЗДАНИЕ СТРОКИ ПОЗИЦИИ В РЕДАКТОРЕ
+// ============================================================
+
+function createItemRowEditor(catKey, subKey, itemName) {
+  const row = document.createElement('div');
+  row.className = 'item-row';
+  const mainLine = document.createElement('div');
+  mainLine.className = 'main-line';
+  mainLine.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:4px 0;';
+
+  const nameDiv = document.createElement('span');
+  nameDiv.className = 'name';
+  nameDiv.style.cssText = 'flex:1 1 180px;font-size:14px;';
+  nameDiv.textContent = itemName;
+  nameDiv.title = 'Двойной клик для переименования';
+  nameDiv.addEventListener('dblclick', () => {
+    renameItemHandler(catKey, subKey, itemName);
+  });
+  mainLine.appendChild(nameDiv);
+
+  const qtyInput = document.createElement('input');
+  qtyInput.type = 'number';
+  qtyInput.className = 'qty';
+  qtyInput.style.cssText = 'width:70px;padding:4px 6px;border:1px solid var(--border-light);border-radius:4px;font-size:14px;text-align:center;background:var(--bg-input);color:var(--text-primary);flex-shrink:0;';
+  qtyInput.value = getStock(catKey, subKey, itemName);
+  qtyInput.addEventListener('change', () => {
+    let val = parseInt(qtyInput.value, 10);
+    if (isNaN(val) || val < 0) val = 0;
+    qtyInput.value = val;
+    setStock(catKey, subKey, itemName, val);
+  });
+  mainLine.appendChild(qtyInput);
+
+  const specInput = document.createElement('input');
+  specInput.type = 'text';
+  specInput.className = 'spec';
+  specInput.style.cssText = 'flex:2 1 200px;padding:4px 6px;border:1px solid var(--border-light);border-radius:4px;font-size:13px;min-width:120px;background:var(--bg-input);color:var(--text-primary);';
+  specInput.placeholder = 'Комментарий...';
+  specInput.value = getSpec(catKey, subKey, itemName);
+  specInput.addEventListener('change', () => {
+    setSpec(catKey, subKey, itemName, specInput.value);
+  });
+  mainLine.appendChild(specInput);
+
+  const actions = document.createElement('div');
+  actions.className = 'actions';
+  actions.style.cssText = 'display:flex;gap:4px;flex-shrink:0;';
+  const upBtn = document.createElement('button');
+  upBtn.textContent = '⬆';
+  upBtn.className = 'move';
+  upBtn.style.cssText = 'background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:16px;padding:0 4px;';
+  upBtn.addEventListener('click', () => {
+    moveItemWithinGroup(catKey, subKey, itemName, -1);
+  });
+  actions.appendChild(upBtn);
+  const downBtn = document.createElement('button');
+  downBtn.textContent = '⬇';
+  downBtn.className = 'move';
+  downBtn.style.cssText = 'background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:16px;padding:0 4px;';
+  downBtn.addEventListener('click', () => {
+    moveItemWithinGroup(catKey, subKey, itemName, 1);
+  });
+  actions.appendChild(downBtn);
+  const propsBtn = document.createElement('button');
+  propsBtn.className = 'props';
+  propsBtn.textContent = '📦';
+  propsBtn.title = 'Свойства';
+  propsBtn.style.cssText = 'background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:16px;padding:0 4px;';
+  propsBtn.addEventListener('click', () => {
+    openPropsModalEditor(catKey, subKey, itemName, () => {
+      renderEditorCategory(catKey);
+    });
+  });
+  actions.appendChild(propsBtn);
+  const moveBtn = document.createElement('button');
+  moveBtn.className = 'move';
+  moveBtn.textContent = '↗';
+  moveBtn.title = 'Переместить';
+  moveBtn.style.cssText = 'background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:16px;padding:0 4px;';
+  moveBtn.addEventListener('click', () => {
+    moveItemHandler(catKey, subKey, itemName);
+  });
+  actions.appendChild(moveBtn);
+  const renameBtn = document.createElement('button');
+  renameBtn.textContent = '✏️';
+  renameBtn.style.cssText = 'background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:16px;padding:0 4px;';
+  renameBtn.addEventListener('click', () => {
+    renameItemHandler(catKey, subKey, itemName);
+  });
+  actions.appendChild(renameBtn);
+  const delBtn = document.createElement('button');
+  delBtn.textContent = '✕';
+  delBtn.style.cssText = 'background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px;padding:0 4px;';
+  delBtn.addEventListener('click', async () => {
+    const confirmed = await showConfirm(`Удалить позицию "${itemName}"?`);
+    if (!confirmed) return;
+    const state = getState();
+    let targetArray = subKey ? state.inventory[catKey][subKey] : state.inventory[catKey];
+    const idx = targetArray.indexOf(itemName);
+    if (idx !== -1) {
+      targetArray.splice(idx, 1);
+      const key = getStockKey(catKey, subKey, itemName);
+      delete state.stock[key];
+      delete state.specs[key];
+      delete state.itemProps[key];
+      saveState();
+      renderEditorCategory(catKey);
+      showToast('Позиция удалена', 'success');
+    }
+  });
+  actions.appendChild(delBtn);
+  mainLine.appendChild(actions);
+  row.appendChild(mainLine);
+
+  const props = getItemProps(catKey, subKey, itemName);
+  const infoDiv = document.createElement('div');
+  infoDiv.className = 'props-info';
+  infoDiv.style.cssText = 'font-size:12px;color:var(--text-secondary);padding:4px 0 0 12px;border-left:2px solid var(--accent);margin-left:12px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;';
+  const weight = props.weight ? props.weight + ' кг' : 'н/д';
+  const dims = props.dimensions || 'н/д';
+  const cases = (props.individualCases || []).length;
+  const common = (props.commonCases || []).length;
+  infoDiv.innerHTML = `
+    <span>Вес: ${weight}</span>
+    <span>Габариты: ${dims}</span>
+    <span>Индивидуальные кофры: ${cases}</span>
+    <span>Общие кофры: ${common}</span>
+    <span>Общие кофры разрешены: ${props.allowCommon ? 'Да' : 'Нет'}</span>
+  `;
+  row.appendChild(infoDiv);
+  return row;
+}
+
+// ============================================================
+// ФУНКЦИИ РЕДАКТИРОВАНИЯ
+// ============================================================
+
+async function renameItemHandler(catKey, subKey, oldName) {
+  const newName = await showPrompt('Переименовать позицию', 'Новое название:', oldName);
+  if (!newName || newName === oldName) return;
+  try {
+    renameItem(catKey, subKey, oldName, newName);
+    renderEditorCategory(catKey);
+    showToast('Позиция переименована', 'success');
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+}
+
+async function moveItemHandler(catKey, subKey, itemName) {
+  const targetPath = await showPrompt(
+    'Переместить позицию',
+    'Введите путь (категория|подгруппа) или "категория" для корневого списка:',
+    '',
+    'Например: light|Приборы'
+  );
+  if (!targetPath) return;
+  const parts = targetPath.split('|');
+  let targetCat = parts[0];
+  let targetSub = parts[1] || null;
+  const state = getState();
+  if (!state.inventory[targetCat]) {
+    showToast('Категория не существует', 'error');
+    return;
+  }
+  if (targetSub && !state.inventory[targetCat][targetSub]) {
+    showToast('Подгруппа не существует', 'error');
+    return;
+  }
+  if (!targetSub && typeof state.inventory[targetCat] === 'object' && !Array.isArray(state.inventory[targetCat])) {
+    showToast('Укажите подгруппу для этой категории', 'warning');
+    return;
+  }
+  try {
+    moveItem(catKey, subKey, itemName, targetCat, targetSub);
+    renderEditorAll();
+    showToast(`"${itemName}" перемещён`, 'success');
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+}
+
+async function renameSubgroupHandler(catKey, oldKey) {
+  const newKey = await showPrompt('Переименовать подгруппу', 'Новое название:', oldKey);
+  if (!newKey || newKey === oldKey) return;
+  try {
+    renameSubgroup(catKey, oldKey, newKey);
+    renderEditorCategory(catKey);
+    showToast('Подгруппа переименована', 'success');
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+}
+
+function moveSubgroup(catKey, subKey, dir) {
+  const state = getState();
+  const catData = state.inventory[catKey];
+  if (!catData || typeof catData !== 'object' || Array.isArray(catData)) return;
+  const order = catData._subOrder;
+  if (!order) return;
+  const idx = order.indexOf(subKey);
+  if (idx === -1) return;
+  const newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= order.length) return;
+  [order[idx], order[newIdx]] = [order[newIdx], order[idx]];
+  saveState();
+  renderEditorCategory(catKey);
+}
+
+// ============================================================
+// ДОБАВЛЕНИЕ НОВОЙ КАТЕГОРИИ
+// ============================================================
+
+export async function addCategory() {
+  const input = document.getElementById('newCategoryName');
+  if (!input) return;
+  const name = input.value.trim();
+  if (!name) {
+    showToast('Введите название', 'warning');
+    return;
+  }
+  const state = getState();
+  if (state.inventory[name]) {
+    showToast('Уже существует', 'warning');
+    return;
+  }
+  state.inventory[name] = {};
+  if (!state._categoryOrder) state._categoryOrder = [];
+  state._categoryOrder.push(name);
+  state.inventory[name]._subOrder = [];
+  if (!state.catNames[name]) state.catNames[name] = name;
+  saveState();
+  renderEditorAll();
+  input.value = '';
+  showToast('Категория добавлена', 'success');
+}
+
+// ============================================================
+// ОБНОВЛЕНИЕ ВСЕГО ИНТЕРФЕЙСА
+// ============================================================
+
+export function renderEditorAll() {
+  renderEditorTabs();
+  const state = getState();
+  if (currentCategory && state.inventory[currentCategory]) {
+    renderEditorCategory(currentCategory);
+  } else if (state._categoryOrder && state._categoryOrder.length > 0) {
+    currentCategory = state._categoryOrder[0];
+    renderEditorCategory(currentCategory);
+  } else {
+    renderEditorCategory(null);
+  }
+}
+
+// ============================================================
+// ИНИЦИАЛИЗАЦИЯ ОБРАБОТЧИКОВ КНОПОК (экспорт, импорт, сброс, HTML)
+// ============================================================
+
+export function initRenderHandlers() {
+  // Экспорт JSON
+  const exportBtn = document.getElementById('exportBtn');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', () => {
+      const state = getState();
+      const exportData = {
+        inventory: JSON.parse(JSON.stringify(state.inventory)),
+        stock: JSON.parse(JSON.stringify(state.stock)),
+        specs: JSON.parse(JSON.stringify(state.specs)),
+        itemProps: JSON.parse(JSON.stringify(state.itemProps)),
+        catNames: state.catNames,
+        _categoryOrder: state._categoryOrder,
+        commonCases: state.commonCases,
+        truckPresets: state.truckPresets,
+        projects: state.projects,
+        projectItems: state.projectItems,
+      };
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'library.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('JSON экспортирован', 'success');
+    });
+  }
+
+  // Импорт JSON
+  const importBtn = document.getElementById('importBtn');
+  const importFile = document.getElementById('importFile');
+  if (importBtn && importFile) {
+    importBtn.addEventListener('click', () => importFile.click());
+    importFile.addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(ev) {
+        try {
+          const imported = JSON.parse(ev.target.result);
+          const state = getState();
+          if (imported.inventory) state.inventory = imported.inventory;
+          if (imported.stock) state.stock = imported.stock;
+          if (imported.specs) state.specs = imported.specs;
+          if (imported.itemProps) state.itemProps = imported.itemProps;
+          if (imported.catNames) state.catNames = imported.catNames;
+          if (imported._categoryOrder) state._categoryOrder = imported._categoryOrder;
+          if (imported.commonCases) state.commonCases = imported.commonCases;
+          if (imported.truckPresets) state.truckPresets = imported.truckPresets;
+          if (imported.projects) state.projects = imported.projects;
+          if (imported.projectItems) state.projectItems = imported.projectItems;
+          // Нормализация
+          for (let cat in state.inventory) {
+            const catData = state.inventory[cat];
+            if (catData && typeof catData === 'object' && !Array.isArray(catData)) {
+              if (!catData._subOrder) {
+                catData._subOrder = Object.keys(catData).filter(k => k !== '_subOrder');
+              } else {
+                catData._subOrder = catData._subOrder.filter(k => catData[k] !== undefined);
+                Object.keys(catData).forEach(k => {
+                  if (k !== '_subOrder' && !catData._subOrder.includes(k)) {
+                    catData._subOrder.push(k);
+                  }
+                });
+              }
+            }
+          }
+          saveState();
+          renderEditorAll();
+          showToast('Импорт выполнен', 'success');
+        } catch (err) {
+          showToast('Ошибка: ' + err.message, 'error');
+        }
+      };
+      reader.readAsText(file);
+      this.value = '';
+    });
+  }
+
+  // Сброс
+  const resetBtn = document.getElementById('resetBtn');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', async () => {
+      const confirmed = await showConfirm('Сбросить все данные редактора? Это удалит все категории и позиции.');
+      if (!confirmed) return;
+      resetAllData();
+      renderEditorAll();
+      showToast('Все данные сброшены', 'neutral');
+    });
+  }
+
+  // Общие кофры
+  const manageCasesBtn = document.getElementById('manageCasesBtn');
+  if (manageCasesBtn) {
+    manageCasesBtn.addEventListener('click', () => {
+      openCasesManagerModal(() => {
+        renderEditorAll();
+      });
+    });
+  }
+
+  // Экспорт HTML (инвентарь)
+  const saveHtmlBtn = document.getElementById('saveHtmlBtn');
+  if (saveHtmlBtn) {
+    saveHtmlBtn.addEventListener('click', exportInventoryHTML);
+  }
+}
+
+// ============================================================
+// ЭКСПОРТ ИНВЕНТАРЯ В HTML (PDF)
+// ============================================================
+
+export function exportInventoryHTML() {
+  const state = getState();
+  let html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Инвентарь</title>
+<style>
+body{font-family:'Segoe UI',Arial,sans-serif;margin:40px;color:#222;background:#fff}
+h1{color:#2c3e50;border-bottom:2px solid #3498db;padding-bottom:10px}
+table{width:100%;border-collapse:collapse;margin-top:20px;font-size:14px}
+th{background:#2c3e50;color:#fff;padding:8px;text-align:left}
+td{padding:6px 8px;border-bottom:1px solid #ddd}
+tr:nth-child(even){background:#f9f9f9}
+.category{background:#e6f2ff;font-weight:bold}
+.subgroup{background:#f0f4f8;font-weight:bold}
+</style>
+</head><body>
+<h1>Инвентарь склада</h1>
+<table><thead><tr><th>Категория</th><th>Подгруппа</th><th>Позиция</th><th>В наличии</th><th>Вес (кг)</th><th>Габариты (см)</th></tr></thead><tbody>`;
+
+  const order = state._categoryOrder || Object.keys(state.inventory);
+  order.forEach(cat => {
+    const catData = state.inventory[cat];
+    if (!catData) return;
+    if (Array.isArray(catData)) {
+      catData.forEach(item => {
+        const path = cat + '|' + item;
+        const stock = state.stock[path] || 0;
+        const props = state.itemProps[path] || {};
+        html += `<tr><td>${esc(cat)}</td><td></td><td>${esc(item)}</td><td>${stock}</td><td>${props.weight || ''}</td><td>${props.dimensions || ''}</td></tr>`;
+      });
+    } else if (typeof catData === 'object') {
+      const subOrder = catData._subOrder || Object.keys(catData).filter(k => k !== '_subOrder');
+      subOrder.forEach(sub => {
+        const items = catData[sub];
+        if (!Array.isArray(items)) return;
+        items.forEach(item => {
+          const path = cat + '|' + sub + '|' + item;
+          const stock = state.stock[path] || 0;
+          const props = state.itemProps[path] || {};
+          html += `<tr><td>${esc(cat)}</td><td>${esc(sub)}</td><td>${esc(item)}</td><td>${stock}</td><td>${props.weight || ''}</td><td>${props.dimensions || ''}</td></tr>`;
+        });
+      });
+    }
+  });
+
+  html += `</tbody></table>
+<div style="margin-top:30px;display:flex;gap:12px;">
+  <button onclick="window.print()" style="padding:10px 24px;background:#2c3e50;color:white;border:none;border-radius:6px;font-size:16px;cursor:pointer;">Сохранить PDF</button>
+  <button onclick="window.close()" style="padding:10px 24px;background:#ddd;color:#333;border:none;border-radius:6px;font-size:16px;cursor:pointer;">Закрыть</button>
+</div>
+</body></html>`;
+
+  const win = window.open('', '_blank');
+  if (win) {
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+  } else {
+    showToast('Не удалось открыть окно', 'error');
+  }
+}
+
+// ============================================================
+// ЭКСПОРТ ПО УМОЛЧАНИЮ
+// ============================================================
+export default {
+  renderEditorTabs,
+  renderEditorCategory,
+  renderEditorAll,
+  addCategory,
+  initRenderHandlers,
+  exportInventoryHTML,
+};
