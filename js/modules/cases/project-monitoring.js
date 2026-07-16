@@ -1,14 +1,13 @@
-// project-monitoring.js — Модуль мониторинга проектов
+// modules/cases/project-monitoring.js — Режим мониторинга проектов
 import {
     getProjects,
     getProject,
     getProjectItems,
-    deleteProject,
-    getStockValue,
-    getItemProps,
     saveProject,
-    clearProjectItems,
-    addProjectItem
+    deleteProject,
+    getItemProps,
+    getStockValue,
+    getAvailableQuantity
 } from '../../data.js';
 
 import {
@@ -18,16 +17,7 @@ import {
     showPrompt
 } from '../../ui.js';
 
-import {
-    order,
-    orderProject,
-    loadOrderData,
-    saveOrderData,
-    setOrderProject,
-    resetOrderProject
-} from '../../order.js';
-
-import { renderOrderAll } from '../../order-render.js';
+import { getOrderPacking } from '../../order.js';
 
 // ============================================================
 // СОСТОЯНИЕ
@@ -36,190 +26,175 @@ let currentTab = 'list'; // list | timeline
 let projectsCache = [];
 
 // ============================================================
+// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+// ============================================================
+
+function getProjectStatusLabel(status) {
+    const map = {
+        planned: '📋 Запланирован',
+        active: '🟢 Активен',
+        completed: '✅ Завершён'
+    };
+    return map[status] || status;
+}
+
+function getProjectStatusColor(status) {
+    const map = {
+        planned: '#6c757d',
+        active: '#28a745',
+        completed: '#007bff'
+    };
+    return map[status] || '#6c757d';
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '—';
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('ru-RU');
+}
+
+function getProjectTotalItems(projectId) {
+    const items = getProjectItems(projectId);
+    return items.reduce((sum, item) => sum + item.quantity, 0);
+}
+
+// ============================================================
 // ОСНОВНАЯ ФУНКЦИЯ РЕНДЕРИНГА
 // ============================================================
+
 export function renderMonitoringPage() {
     const container = document.getElementById('monitoringContent');
     if (!container) return;
 
-    // Загружаем свежие данные
     projectsCache = getProjects();
 
-    let html = `
-        <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
-            <button class="btn btn-green" id="monitoringCreateProjectBtn">➕ Создать проект</button>
-            <button class="btn btn-sec" id="monitoringRefreshBtn">🔄 Обновить</button>
-        </div>
+    // Рендерим вкладки
+    const tabsHtml = `
         <div class="category-tabs" id="monitoringTabs">
             <div class="category-tab ${currentTab === 'list' ? 'active' : ''}" data-tab="list">📋 Список проектов</div>
             <div class="category-tab ${currentTab === 'timeline' ? 'active' : ''}" data-tab="timeline">📊 Таймлайн</div>
         </div>
-        <div id="monitoringTabContent"></div>
+        <div id="monitoringContentInner"></div>
     `;
 
-    container.innerHTML = html;
+    container.innerHTML = tabsHtml;
 
     // Обработчики вкладок
     document.querySelectorAll('#monitoringTabs .category-tab').forEach(tab => {
-        tab.addEventListener('click', () => {
-            currentTab = tab.dataset.tab;
+        tab.addEventListener('click', function() {
+            currentTab = this.dataset.tab;
             renderMonitoringPage();
         });
     });
 
-    // Обработчики кнопок
-    document.getElementById('monitoringCreateProjectBtn')?.addEventListener('click', createNewProject);
-    document.getElementById('monitoringRefreshBtn')?.addEventListener('click', () => {
-        projectsCache = getProjects();
-        renderMonitoringPage();
-        showToast('Данные обновлены', 'neutral');
-    });
-
-    // Рендерим контент вкладки
-    renderTabContent(currentTab);
-}
-
-// ============================================================
-// РЕНДЕРИНГ ВКЛАДКИ
-// ============================================================
-function renderTabContent(tab) {
-    const container = document.getElementById('monitoringTabContent');
-    if (!container) return;
-
-    if (tab === 'list') {
-        renderProjectList(container);
-    } else if (tab === 'timeline') {
-        renderTimeline(container);
+    // Рендерим содержимое в зависимости от вкладки
+    const inner = document.getElementById('monitoringContentInner');
+    if (currentTab === 'list') {
+        renderProjectList(inner);
+    } else {
+        renderTimeline(inner);
     }
 }
 
 // ============================================================
-// ВКЛАДКА "СПИСОК ПРОЕКТОВ" (КАНБАН-ДОСКА)
+// ВКЛАДКА «СПИСОК ПРОЕКТОВ» (КАНБАН-ДОСКА)
 // ============================================================
+
 function renderProjectList(container) {
     const projects = getProjects();
     const planned = projects.filter(p => p.status === 'planned');
     const active = projects.filter(p => p.status === 'active');
     const completed = projects.filter(p => p.status === 'completed');
 
-    let html = `<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;">`;
+    let html = `
+        <div style="display:flex;gap:20px;flex-wrap:wrap;margin-top:12px;">
+            <div style="flex:1;min-width:250px;background:var(--bg-secondary);padding:12px;border-radius:8px;border:1px solid var(--border-color);">
+                <h3 style="color:var(--text-secondary);margin-bottom:10px;">📋 Запланированные (${planned.length})</h3>
+                ${planned.length === 0 ? '<div class="empty-message">Нет проектов</div>' : ''}
+                ${planned.map(p => renderProjectCard(p)).join('')}
+            </div>
+            <div style="flex:1;min-width:250px;background:var(--bg-secondary);padding:12px;border-radius:8px;border:1px solid var(--border-color);">
+                <h3 style="color:var(--text-secondary);margin-bottom:10px;">🟢 Активные (${active.length})</h3>
+                ${active.length === 0 ? '<div class="empty-message">Нет проектов</div>' : ''}
+                ${active.map(p => renderProjectCard(p)).join('')}
+            </div>
+            <div style="flex:1;min-width:250px;background:var(--bg-secondary);padding:12px;border-radius:8px;border:1px solid var(--border-color);">
+                <h3 style="color:var(--text-secondary);margin-bottom:10px;">✅ Завершённые (${completed.length})</h3>
+                ${completed.length === 0 ? '<div class="empty-message">Нет проектов</div>' : ''}
+                ${completed.map(p => renderProjectCard(p)).join('')}
+            </div>
+        </div>
+    `;
 
-    // Колонка "Запланированные"
-    html += renderProjectColumn('Запланированные', planned, '#8899aa');
-    // Колонка "Активные"
-    html += renderProjectColumn('Активные', active, '#4a9a5a');
-    // Колонка "Завершённые"
-    html += renderProjectColumn('Завершённые', completed, '#4a6a9a');
-
-    html += `</div>`;
     container.innerHTML = html;
 }
 
-function renderProjectColumn(title, projects, color) {
-    let html = `<div style="flex:1;min-width:280px;background:var(--bg-secondary);padding:12px;border-radius:8px;border:1px solid var(--border-color);">`;
-    html += `<h4 style="margin-bottom:12px;color:var(--text-primary);border-bottom:2px solid ${color};padding-bottom:6px;">${title} (${projects.length})</h4>`;
+function renderProjectCard(project) {
+    const totalItems = getProjectTotalItems(project.id);
+    const color = getProjectStatusColor(project.status);
+    const statusLabel = getProjectStatusLabel(project.status);
 
-    if (projects.length === 0) {
-        html += `<div style="color:var(--text-muted);font-style:italic;padding:12px 0;">Нет проектов</div>`;
-    } else {
-        projects.forEach(p => {
-            html += renderProjectCard(p, color);
-        });
-    }
-
-    html += `</div>`;
-    return html;
-}
-
-function renderProjectCard(project, color) {
-    const items = getProjectItems(project.id);
-    const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
-    const itemCount = items.length;
-
-    // Проверяем коллизии (есть ли конфликты с другими проектами)
-    const conflicts = checkProjectConflicts(project);
-
-    let conflictIndicator = '';
-    if (conflicts.length > 0) {
-        conflictIndicator = `<span style="color:var(--danger);font-weight:bold;margin-left:8px;">⚠️ ${conflicts.length} конфликт(ов)</span>`;
-    }
-
-    let html = `<div style="background:var(--bg-card);padding:10px;border-radius:6px;margin-bottom:8px;border-left:4px solid ${color};cursor:pointer;transition:0.15s;" 
-                onclick="window.openProject('${project.id}')"
-                onmouseover="this.style.background='var(--bg-hover)'" 
-                onmouseout="this.style.background='var(--bg-card)'">`;
-    html += `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px;">`;
-    html += `<strong style="font-size:15px;">${esc(project.name)}</strong>`;
-    html += `<div style="display:flex;gap:4px;">`;
-    html += `<button class="btn btn-sm" onclick="event.stopPropagation();window.editProject('${project.id}')" style="padding:2px 8px;font-size:12px;">✏️</button>`;
-    html += `<button class="btn btn-sm" onclick="event.stopPropagation();window.deleteProjectHandler('${project.id}')" style="padding:2px 8px;font-size:12px;background:var(--danger);color:white;">🗑️</button>`;
-    html += `</div>`;
-    html += `</div>`;
-    html += `<div style="font-size:13px;color:var(--text-secondary);margin-top:4px;">`;
-    html += `<span>📅 ${project.start_date || '—'} – ${project.end_date || '—'}</span>`;
-    html += `<span style="margin-left:12px;">📦 ${itemCount} позиций (${totalItems} шт)</span>`;
-    html += conflictIndicator;
-    html += `</div>`;
-    if (conflicts.length > 0) {
-        html += `<div style="font-size:12px;color:var(--danger);margin-top:4px;">`;
-        conflicts.forEach(c => {
-            html += `<div>• ${c.equipment}: занято ${c.quantity} шт в проекте "${c.project}"</div>`;
-        });
-        html += `</div>`;
-    }
-    html += `</div>`;
-    return html;
-}
-
-function checkProjectConflicts(project) {
-    if (project.status === 'completed') return [];
-    const allProjects = getProjects();
-    const allItems = getProjectItems();
-    const conflicts = [];
-
-    // Находим пересекающиеся проекты
-    const nStart = new Date(project.start_date).getTime();
-    const nEnd = new Date(project.end_date).getTime();
-
-    const overlapping = allProjects.filter(p => {
-        if (p.id === project.id) return false;
-        if (p.status === 'completed') return false;
-        const pStart = new Date(p.start_date).getTime();
-        const pEnd = new Date(p.end_date).getTime();
-        return (pStart <= nEnd && pEnd >= nStart);
-    });
-
-    if (overlapping.length === 0) return [];
-
-    // Собираем все позиции текущего проекта
-    const projectItems = allItems.filter(item => item.project_id === project.id);
-
-    projectItems.forEach(item => {
-        overlapping.forEach(overlap => {
-            const overlapItems = allItems.filter(oi => oi.project_id === overlap.id && oi.equipment_path === item.equipment_path);
-            const totalOverlap = overlapItems.reduce((sum, oi) => sum + oi.quantity, 0);
-            if (totalOverlap > 0) {
-                const pathParts = item.equipment_path.split('|');
-                const name = pathParts[pathParts.length - 1];
-                conflicts.push({
-                    equipment: name,
-                    quantity: totalOverlap,
-                    project: overlap.name
-                });
+    // Проверяем коллизии (если есть даты)
+    let conflictsHtml = '';
+    if (project.start_date && project.end_date) {
+        const allItems = getProjectItems(project.id);
+        let hasConflict = false;
+        const conflictList = [];
+        allItems.forEach(item => {
+            const result = getAvailableQuantity(
+                item.equipment_path,
+                project.start_date,
+                project.end_date,
+                item.quantity,
+                project.id
+            );
+            if (result.isConflict) {
+                hasConflict = true;
+                const name = item.equipment_path.split('|').pop();
+                conflictList.push(`${name} (доступно ${result.available} из ${result.totalStock})`);
             }
         });
-    });
+        if (hasConflict) {
+            conflictsHtml = `<div style="color:var(--danger);font-size:12px;margin-top:4px;">⚠️ Конфликт оборудования: ${conflictList.join(', ')}</div>`;
+        }
+    }
 
-    return conflicts;
+    return `
+        <div style="padding:8px 10px;margin-bottom:8px;background:var(--bg-card);border-radius:6px;border-left:4px solid ${color};border:1px solid var(--border-color);">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+                <div style="flex:1;">
+                    <strong style="font-size:14px;">${esc(project.name)}</strong>
+                    <div style="font-size:12px;color:var(--text-secondary);">
+                        ${formatDate(project.start_date)} – ${formatDate(project.end_date)}
+                    </div>
+                    <div style="font-size:12px;color:var(--text-secondary);">
+                        📦 ${totalItems} позиций | ${statusLabel}
+                    </div>
+                    ${conflictsHtml}
+                </div>
+                <div style="display:flex;gap:4px;flex-shrink:0;">
+                    <button class="btn btn-sm" onclick="window.editProject('${project.id}')" title="Редактировать" style="padding:2px 6px;font-size:12px;">✏️</button>
+                    <button class="btn btn-sm" onclick="window.openProjectList('${project.id}')" title="Открыть список" style="padding:2px 6px;font-size:12px;">📂</button>
+                    <button class="btn btn-sm" onclick="window.deleteProjectConfirm('${project.id}')" title="Удалить" style="padding:2px 6px;font-size:12px;background:var(--danger);color:white;">✕</button>
+                </div>
+            </div>
+            <div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap;">
+                <button class="btn btn-sm" onclick="window.setProjectStatus('${project.id}','planned')" style="padding:2px 6px;font-size:11px;background:${project.status === 'planned' ? 'var(--accent)' : 'var(--bg-input)'};">Запланировать</button>
+                <button class="btn btn-sm" onclick="window.setProjectStatus('${project.id}','active')" style="padding:2px 6px;font-size:11px;background:${project.status === 'active' ? 'var(--accent)' : 'var(--bg-input)'};">Активировать</button>
+                <button class="btn btn-sm" onclick="window.setProjectStatus('${project.id}','completed')" style="padding:2px 6px;font-size:11px;background:${project.status === 'completed' ? 'var(--accent)' : 'var(--bg-input)'};">Завершить</button>
+            </div>
+        </div>
+    `;
 }
 
 // ============================================================
-// ВКЛАДКА "ТАЙМЛАЙН"
+// ВКЛАДКА «ТАЙМЛАЙН» (ДИАГРАММА ГАНТА)
 // ============================================================
+
 function renderTimeline(container) {
     const projects = getProjects();
     if (projects.length === 0) {
-        container.innerHTML = `<div style="color:var(--text-muted);padding:20px;text-align:center;">Нет проектов для отображения на таймлайне</div>`;
+        container.innerHTML = '<div class="empty-message">Нет проектов для отображения</div>';
         return;
     }
 
@@ -237,54 +212,68 @@ function renderTimeline(container) {
     });
 
     if (!minDate || !maxDate) {
-        container.innerHTML = `<div style="color:var(--text-muted);padding:20px;text-align:center;">Нет корректных дат для отображения</div>`;
+        container.innerHTML = '<div class="empty-message">Нет проектов с датами</div>';
         return;
     }
 
-    // Расширяем диапазон на 2 дня для отступов
+    // Добавляем отступ по краям
     minDate = new Date(minDate);
     minDate.setDate(minDate.getDate() - 2);
     maxDate = new Date(maxDate);
     maxDate.setDate(maxDate.getDate() + 2);
 
-    const totalDays = Math.ceil((maxDate - minDate) / (1000 * 60 * 60 * 24)) + 1;
-    const dayWidth = Math.min(40, Math.max(20, 600 / totalDays));
-
-    let html = `<div style="overflow-x:auto;padding:8px 0;">`;
-    html += `<div style="min-width:${Math.max(800, totalDays * dayWidth + 200)}px;">`;
-
-    // Заголовок с датами
-    html += `<div style="display:flex;border-bottom:2px solid var(--border-color);padding-bottom:4px;margin-bottom:4px;">`;
-    html += `<div style="min-width:200px;font-weight:bold;color:var(--text-secondary);">Проект</div>`;
-    for (let i = 0; i < totalDays; i++) {
-        const d = new Date(minDate);
-        d.setDate(d.getDate() + i);
-        const day = d.getDate();
-        const month = d.getMonth() + 1;
-        const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-        html += `<div style="width:${dayWidth}px;text-align:center;font-size:11px;color:${isWeekend ? 'var(--text-muted)' : 'var(--text-secondary)'};">${day}.${month}</div>`;
+    const totalDays = Math.ceil((maxDate - minDate) / (1000 * 60 * 60 * 24));
+    if (totalDays <= 0) {
+        container.innerHTML = '<div class="empty-message">Некорректный диапазон дат</div>';
+        return;
     }
-    html += `</div>`;
 
-    // Строки проектов
-    projects.forEach(p => {
-        const statusColor = p.status === 'planned' ? '#8899aa' : (p.status === 'active' ? '#4a9a5a' : '#4a6a9a');
+    // Сортируем проекты по дате начала
+    const sorted = [...projects].sort((a, b) => {
+        if (!a.start_date) return 1;
+        if (!b.start_date) return -1;
+        return new Date(a.start_date) - new Date(b.start_date);
+    });
+
+    const dayWidth = Math.max(20, Math.min(60, 800 / totalDays));
+
+    let html = `
+        <div style="overflow-x:auto;margin-top:12px;padding:4px 0;">
+            <div style="position:relative;min-width:${totalDays * dayWidth + 200}px;">
+                <!-- Заголовок с датами -->
+                <div style="display:flex;margin-bottom:4px;padding-left:200px;">
+                    ${Array.from({ length: Math.min(totalDays + 1, 60) }, (_, i) => {
+                        const d = new Date(minDate);
+                        d.setDate(d.getDate() + i);
+                        return `<div style="flex:0 0 ${dayWidth}px;font-size:10px;color:var(--text-muted);text-align:center;">${d.getDate()}.${d.getMonth()+1}</div>`;
+                    }).join('')}
+                </div>
+    `;
+
+    // Полосы проектов
+    sorted.forEach(p => {
+        if (!p.start_date || !p.end_date) return;
         const start = new Date(p.start_date);
         const end = new Date(p.end_date);
-        const startOffset = Math.max(0, Math.round((start - minDate) / (1000 * 60 * 60 * 24)));
+        const offset = Math.max(0, Math.round((start - minDate) / (1000 * 60 * 60 * 24)));
         const duration = Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1);
-        const left = startOffset * dayWidth;
-        const width = duration * dayWidth;
+        const color = getProjectStatusColor(p.status);
+        const statusLabel = getProjectStatusLabel(p.status);
 
-        html += `<div style="display:flex;align-items:center;margin:4px 0;padding:4px 0;border-bottom:1px solid var(--border-light);position:relative;">`;
-        html += `<div style="min-width:200px;font-size:13px;color:var(--text-primary);">${esc(p.name)}</div>`;
-        html += `<div style="position:relative;height:28px;flex:1;">`;
-        html += `<div style="position:absolute;left:${left}px;width:${width}px;height:28px;background:${statusColor};border-radius:4px;opacity:0.8;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;font-weight:bold;transition:0.2s;" 
-                    onclick="window.openProject('${p.id}')"
-                    onmouseover="this.style.opacity='1'"
-                    onmouseout="this.style.opacity='0.8'">${esc(p.name)}</div>`;
-        html += `</div>`;
-        html += `</div>`;
+        html += `
+            <div style="display:flex;align-items:center;margin:4px 0;padding:2px 0;">
+                <div style="width:200px;flex-shrink:0;font-size:13px;padding-right:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(p.name)}">
+                    ${esc(p.name)}
+                </div>
+                <div style="flex:1;position:relative;height:28px;background:var(--bg-input);border-radius:4px;overflow:hidden;">
+                    <div style="position:absolute;left:${offset * dayWidth}px;width:${duration * dayWidth}px;height:100%;background:${color};border-radius:4px;opacity:0.8;transition:0.3s;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;color:white;text-shadow:0 0 4px rgba(0,0,0,0.5);"
+                         onclick="window.openProjectList('${p.id}')"
+                         title="${esc(p.name)} (${statusLabel})">
+                        ${duration > 3 ? `${duration} дн.` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
     });
 
     html += `</div></div>`;
@@ -292,120 +281,77 @@ function renderTimeline(container) {
 }
 
 // ============================================================
-// ОБРАБОТЧИКИ ДЕЙСТВИЙ
+// ГЛОБАЛЬНЫЕ ФУНКЦИИ (для использования в onclick)
 // ============================================================
 
-// Создание нового проекта
-async function createNewProject() {
-    const name = await showPrompt('Создание проекта', 'Введите название проекта:', '', 'Название...');
-    if (!name || !name.trim()) return;
-
-    const startDate = await showPrompt('Создание проекта', 'Дата начала (ГГГГ-ММ-ДД):', new Date().toISOString().split('T')[0]);
-    if (!startDate) return;
-
-    const endDate = await showPrompt('Создание проекта', 'Дата окончания (ГГГГ-ММ-ДД):', new Date().toISOString().split('T')[0]);
-    if (!endDate) return;
-
-    const statusOptions = ['planned', 'active', 'completed'];
-    const statusLabels = ['Запланирован', 'Активен', 'Завершён'];
-    const status = await showPrompt('Создание проекта', 'Статус (0-Запланирован, 1-Активен, 2-Завершён):', '0');
-    const statusIndex = parseInt(status) || 0;
-
-    const project = {
-        id: Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-        name: name.trim(),
-        start_date: startDate,
-        end_date: endDate,
-        status: statusOptions[Math.min(statusIndex, 2)] || 'planned'
-    };
-
-    saveProject(project);
-    showToast('Проект создан', 'success');
-    renderMonitoringPage();
-}
-
-// Открыть проект (переход в режим создания списка с загрузкой данных проекта)
-window.openProject = function(projectId) {
-    const project = getProject(projectId);
+window.editProject = async function(id) {
+    const project = getProject(id);
     if (!project) {
         showToast('Проект не найден', 'error');
         return;
     }
+    const name = await showPrompt('Редактировать проект', 'Название:', project.name);
+    if (name === null) return;
+    const start = await showPrompt('Дата начала (YYYY-MM-DD)', 'Начало:', project.start_date || '');
+    if (start === null) return;
+    const end = await showPrompt('Дата окончания (YYYY-MM-DD)', 'Окончание:', project.end_date || '');
+    if (end === null) return;
 
-    // Загружаем данные проекта в orderProject
-    setOrderProject({
-        id: project.id,
-        name: project.name,
-        start_date: project.start_date,
-        end_date: project.end_date,
-        status: project.status
-    });
-
-    // Загружаем позиции проекта в order
-    const items = getProjectItems(projectId);
-    // Очищаем текущий заказ
-    for (let key in order) delete order[key];
-    items.forEach(item => {
-        order[item.equipment_path] = item.quantity;
-    });
-
-    saveOrderData();
-    showToast(`Проект "${project.name}" загружен для редактирования`, 'success');
-
-    // Переключаемся на страницу создания списка
-    document.getElementById('btnCreateOrder')?.click();
-    // Обновляем рендер
-    renderOrderAll();
-};
-
-// Редактировать проект
-window.editProject = async function(projectId) {
-    const project = getProject(projectId);
-    if (!project) {
-        showToast('Проект не найден', 'error');
-        return;
-    }
-
-    const name = await showPrompt('Редактирование проекта', 'Название:', project.name);
-    if (!name || !name.trim()) return;
-
-    const startDate = await showPrompt('Редактирование проекта', 'Дата начала:', project.start_date || '');
-    if (!startDate) return;
-
-    const endDate = await showPrompt('Редактирование проекта', 'Дата окончания:', project.end_date || '');
-    if (!endDate) return;
-
-    const statusOptions = ['planned', 'active', 'completed'];
-    const currentIndex = statusOptions.indexOf(project.status);
-    const status = await showPrompt('Редактирование проекта', 'Статус (0-Запланирован, 1-Активен, 2-Завершён):', String(currentIndex));
-    const statusIndex = parseInt(status) || 0;
-
-    const updated = {
-        ...project,
-        name: name.trim(),
-        start_date: startDate,
-        end_date: endDate,
-        status: statusOptions[Math.min(statusIndex, 2)] || 'planned'
-    };
-
-    saveProject(updated);
+    saveProject({ id: project.id, name, start_date: start, end_date: end, status: project.status });
     showToast('Проект обновлён', 'success');
     renderMonitoringPage();
 };
 
-// Удалить проект
-window.deleteProjectHandler = async function(projectId) {
-    const confirmed = await showConfirm('Удалить проект и все связанные позиции?');
-    if (!confirmed) return;
+window.openProjectList = function(id) {
+    // Переключаемся на режим открытия списка с загрузкой JSON проекта
+    // Для простоты – показываем тост и переключаем на страницу заказа
+    const project = getProject(id);
+    if (!project) {
+        showToast('Проект не найден', 'error');
+        return;
+    }
+    // Сохраняем ID проекта в localStorage, чтобы при открытии списка загрузить его
+    localStorage.setItem('open_project_id', id);
+    // Переключаемся на страницу открытия списка
+    window.switchMode('open');
+    // Триггерим загрузку проекта
+    const event = new CustomEvent('openProject', { detail: { projectId: id } });
+    document.dispatchEvent(event);
+    showToast(`Открыт проект "${project.name}"`, 'success');
+};
 
-    deleteProject(projectId);
+window.deleteProjectConfirm = async function(id) {
+    const confirmed = await showConfirm('Удалить проект и все его позиции?');
+    if (!confirmed) return;
+    deleteProject(id);
     showToast('Проект удалён', 'neutral');
     renderMonitoringPage();
 };
 
+window.setProjectStatus = function(id, status) {
+    const project = getProject(id);
+    if (!project) {
+        showToast('Проект не найден', 'error');
+        return;
+    }
+    saveProject({ id: project.id, name: project.name, start_date: project.start_date, end_date: project.end_date, status });
+    showToast(`Статус изменён на ${getProjectStatusLabel(status)}`, 'success');
+    renderMonitoringPage();
+};
+
 // ============================================================
-// ИНИЦИАЛИЗАЦИЯ (вызывается из main.js)
+// ИНИЦИАЛИЗАЦИЯ (для вызова из main.js)
 // ============================================================
-export function initMonitoring() {
-    // Пустая функция для совместимости
+
+export function initMonitoringUI() {
+    // Здесь можно добавить обработчики для глобальных событий
+    // Например, обновление списка проектов после изменения данных
+    document.addEventListener('projectsUpdated', () => {
+        if (document.getElementById('monitoringPage')?.style.display !== 'none') {
+            renderMonitoringPage();
+        }
+    });
 }
+
+// Автоматический экспорт для использования в других модулях
+export default { renderMonitoringPage, initMonitoringUI };
