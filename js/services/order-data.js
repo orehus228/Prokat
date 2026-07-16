@@ -58,6 +58,24 @@ export function getOrderProject() {
   return { ...getState().orderProject };
 }
 
+export function setOrderProject(projectData) {
+  const state = getState();
+  Object.assign(state.orderProject, projectData);
+  saveState();
+}
+
+export function resetOrderProject() {
+  const state = getState();
+  state.orderProject = {
+    id: null,
+    name: '',
+    start_date: '',
+    end_date: '',
+    status: 'planned',
+  };
+  saveState();
+}
+
 // ============================================================
 // ФУНКЦИИ ИЗМЕНЕНИЯ ДАННЫХ
 // ============================================================
@@ -100,24 +118,6 @@ export function setOrderExtra(path, val) {
   } else {
     delete state.orderExtra[path];
   }
-  saveState();
-}
-
-export function setOrderProject(projectData) {
-  const state = getState();
-  Object.assign(state.orderProject, projectData);
-  saveState();
-}
-
-export function resetOrderProject() {
-  const state = getState();
-  state.orderProject = {
-    id: null,
-    name: '',
-    start_date: '',
-    end_date: '',
-    status: 'planned',
-  };
   saveState();
 }
 
@@ -338,12 +338,12 @@ export default {
   getOrderExclude,
   getOrderExtra,
   getOrderProject,
+  setOrderProject,
+  resetOrderProject,
   setOrderPacking,
   setIndividualCaseValues,
   setCommonRoutes,
   setOrderExtra,
-  setOrderProject,
-  resetOrderProject,
   setExcludeFromLoading,
   isExcludedFromLoading,
   updateOrderPaths,
