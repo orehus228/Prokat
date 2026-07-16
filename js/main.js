@@ -3,9 +3,10 @@ import { initData, saveEditorData, editorData, resetAllData } from './data.js';
 import { renderEditorAll, addCategory, initRenderHandlers } from './render-editor.js';
 import { renderOrderAll, initOrderUI } from './order-render.js';
 import { exportOrderJSON, exportOrderPDF, initOrderPresetsUI } from './order-presets.js';
-import { clearOrderData, initOrderActions } from './order-actions.js'; // <-- добавлен initOrderActions
+import { clearOrderData, initOrderActions } from './order-actions.js';
 import { renderOpenOrder, initOpenUI } from './render-open.js';
 import { renderLoadingPage, initTruckManagerHandlers } from './render-loading.js';
+import { renderMonitoringPage, initMonitoringUI } from './modules/cases/project-monitoring.js';
 import { initModalHandlers, showToast, showConfirm } from './ui.js';
 import { initCases, openCasesManagerModal, openMatrixModal, openCaseSettingsModal } from './cases.js';
 import { loadOrderData, saveOrderData } from './order.js';
@@ -27,17 +28,18 @@ function switchMode(mode) {
     const orderPage = document.getElementById('mPage');
     const openPage = document.getElementById('sPage');
     const loadingPage = document.getElementById('loadingPage');
+    const monitoringPage = document.getElementById('monitoringPage');
 
     if (menu) menu.style.display = (mode === 'menu') ? 'block' : 'none';
     if (editorPage) editorPage.style.display = (mode === 'editor') ? 'block' : 'none';
     if (orderPage) orderPage.style.display = (mode === 'order') ? 'block' : 'none';
     if (openPage) openPage.style.display = (mode === 'open') ? 'block' : 'none';
     if (loadingPage) loadingPage.style.display = (mode === 'loading') ? 'block' : 'none';
+    if (monitoringPage) monitoringPage.style.display = (mode === 'monitoring') ? 'block' : 'none';
 
     if (mode === 'editor') renderEditorAll();
     if (mode === 'order') {
         renderOrderAll();
-        // После рендера заказа убедимся, что делегирование событий активно
         initOrderActions();
     }
     if (mode === 'open') {
@@ -58,6 +60,10 @@ function switchMode(mode) {
             window.selectedTruckIds = [];
         }
         renderLoadingPage();
+    }
+    if (mode === 'monitoring') {
+        renderMonitoringPage();
+        initMonitoringUI();
     }
 }
 
@@ -104,6 +110,9 @@ function loadLibrary() {
                 if (data._categoryOrder) editorData._categoryOrder = data._categoryOrder;
                 if (data.commonCases) editorData.commonCases = data.commonCases;
                 if (data.truckPresets) editorData.truckPresets = data.truckPresets;
+                // Проекты и projectItems тоже загружаем
+                if (data.projects) editorData.projects = data.projects;
+                if (data.projectItems) editorData.projectItems = data.projectItems;
                 saveEditorData();
                 showToast('Библиотека загружена', 'success');
                 if (currentMode === 'editor') renderEditorAll();
@@ -112,6 +121,7 @@ function loadLibrary() {
                     initOrderActions();
                 }
                 else if (currentMode === 'loading') renderLoadingPage();
+                else if (currentMode === 'monitoring') renderMonitoringPage();
             } catch(err) {
                 showToast('Ошибка: ' + err.message, 'error');
             }
@@ -199,9 +209,9 @@ function initApp() {
     initModalHandlers();
     initCases();
     initRenderHandlers();
-    initOrderUI();          // инициализация UI заказа (вкладки, поиск и т.д.)
-    initOrderPresetsUI();   // инициализация пресетов
-    initOrderActions();     // <-- инициализация делегирования событий для заказа
+    initOrderUI();
+    initOrderPresetsUI();
+    initOrderActions();
     initOpenUI();
     initTruckManagerHandlers();
 
@@ -214,6 +224,7 @@ function initApp() {
     const btnMenuLoadLibrary = document.getElementById('btnLoadLibrary');
     const btnMenuResetLibrary = document.getElementById('btnResetAll');
     const btnMenuLoading = document.getElementById('btnLoading');
+    const btnMenuMonitoring = document.getElementById('btnMonitoring');
 
     if (btnMenuOrder) btnMenuOrder.addEventListener('click', () => switchMode('order'));
     if (btnMenuOpen) btnMenuOpen.addEventListener('click', () => switchMode('open'));
@@ -221,8 +232,9 @@ function initApp() {
     if (btnMenuLoadLibrary) btnMenuLoadLibrary.addEventListener('click', loadLibrary);
     if (btnMenuResetLibrary) btnMenuResetLibrary.addEventListener('click', resetLibrary);
     if (btnMenuLoading) btnMenuLoading.addEventListener('click', () => switchMode('loading'));
+    if (btnMenuMonitoring) btnMenuMonitoring.addEventListener('click', () => switchMode('monitoring'));
 
-    const backBtns = document.querySelectorAll('#btnBackToMenu, #btnBackToMenu2, #btnBackToMenu3, #btnBackToMenu4');
+    const backBtns = document.querySelectorAll('#btnBackToMenu, #btnBackToMenu2, #btnBackToMenu3, #btnBackToMenu4, #btnBackToMenu5');
     backBtns.forEach(btn => {
         if (btn) {
             btn.addEventListener('click', function(e) {

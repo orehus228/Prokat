@@ -4,7 +4,13 @@ import {
     getCommonCases,
     getCachedCalculation,
     setCachedCalculation,
-    clearCache as clearCalculationCache
+    clearCache as clearCalculationCache,
+    getAvailableQuantity,
+    getStockValue,
+    getProjects,
+    saveProject,
+    addProjectItem,
+    clearProjectItems
 } from './data.js';
 
 export let order = {};
@@ -18,21 +24,20 @@ export let caseModes = {};
 export let orderExclude = {};
 export let orderExtra = {};
 
+// НОВЫЙ ОБЪЕКТ ДЛЯ ПРОЕКТА
+export let orderProject = {
+    id: null,
+    name: '',
+    start_date: '',
+    end_date: '',
+    status: 'planned' // planned, active, completed
+};
+
 const STORAGE_ORDER_KEY = 'app_order_data';
 
-// ВАЖНО: реальный кеш расчётов (вес/объём) хранится в data.js
-// (там же его читают/пишут calcItemWeightWithMode/calcItemVolumeWithMode
-// через getCachedCalculation/setCachedCalculation). Раньше здесь был
-// собственный, никогда не используемый Map + clearCache(), из-за чего
-// вызов clearCache() в saveOrderData() чистил "пустышку", а настоящий
-// кеш в data.js не сбрасывался при изменении заказа (упаковка в кофры,
-// распределение по вариантам и т.п. при том же итоговом количестве).
-// Это приводило к тому, что calcItemWeightWithMode/calcItemVolumeWithMode
-// могли возвращать устаревшие (неверные) значения веса/объёма.
 export function clearCache() {
     clearCalculationCache();
 }
-
 
 export function loadOrderData() {
     try {
@@ -49,6 +54,8 @@ export function loadOrderData() {
         caseModes = data.caseModes || {};
         orderExclude = data.orderExclude || {};
         orderExtra = data.orderExtra || {};
+        // Загружаем данные проекта
+        orderProject = data.orderProject || { id: null, name: '', start_date: '', end_date: '', status: 'planned' };
         for (let path in caseModes) {
             const mode = caseModes[path];
             if (mode.enabled === undefined) mode.enabled = false;
@@ -76,7 +83,8 @@ export function saveOrderData() {
         commonRoutes,
         caseModes,
         orderExclude,
-        orderExtra
+        orderExtra,
+        orderProject
     };
     localStorage.setItem(STORAGE_ORDER_KEY, JSON.stringify(data));
     clearCache();
@@ -219,7 +227,6 @@ export function getIndividualCaseValues(path) {
 }
 
 export function setIndividualCaseValues(path, vals) {
-    // Исправлено: сохраняем массив даже если все значения равны 0
     if (vals && vals.length > 0) {
         individualCaseValues[path] = vals;
     } else {
@@ -419,4 +426,100 @@ export function calcItemCases(path, qty) {
         totalCases += Math.ceil(v / opt.qty);
     });
     return totalCases;
+}
+
+// ============================================================
+// НОВЫЕ ФУНКЦИИ ДЛЯ РАБОТЫ С ПРОЕКТОМ В ЗАКАЗЕ
+// ============================================================
+
+export function setOrderProject(projectData) {
+    Object.assign(orderProject, projectData);
+    saveOrderData();
+}
+
+export function clearOrderProject() {
+    orderProject.id = null;
+    orderProject.name = '';
+    orderProject.start_date = '';
+    orderProject.end_date = '';
+    orderProject.status = 'planned';
+    saveOrderData();
+}
+
+export function syncOrderWithProject() {
+    // Если у заказа есть id проекта, обновляем данные проекта из orderProject
+    if (orderProject.id) {
+        const existing = getProjects().find(p => p.id === orderProject.id);
+        if (existing) {
+            // Обновляем данные проекта из orderProject (даты, статус, название)
+            existing.name = orderProject.name || existing.name;
+            existing.start_date = orderProject.start_date || existing.start_date;
+            existing.end_date = orderProject.end_date || existing.end_date;
+            existing.status = orderProject.status || existing.status;
+            saveProject(existing);
+        } else {
+            // Проект был удалён – создаём заново
+            const newProject = { ...orderProject };
+            saveProject(newProject);
+        }
+    }
+}
+
+export function saveOrderAsProject() {
+    // Сохраняем текущий заказ как проект (если у него есть имя и даты)
+    if (!orderProject.name || !orderProject.start_date || !orderProject.end_date) {
+        console.warn('Не все данные проекта заполнены');
+        return null;
+    }
+    // Сохраняем проект
+    const project = saveProject(orderProject);
+    // Очищаем старые позиции проекта
+    clearProjectItems(project.id);
+    // Сохраняем все позиции заказа
+    for (let path in order) {
+        const qty = order[path];
+        if (qty > 0) {
+            addProjectItem(project.id, path, qty);
+        }
+    }
+    // Также сохраняем позиции из orderPacking, orderExtra и т.д. (можно расширить)
+    for (let path in orderPacking) {
+        const packing = orderPacking[path];
+        const totalPieces = packing.reduce((s, p) => s + (p.pieces || 0), 0);
+        if (totalPieces > 0) {
+            addProjectItem(project.id, path, totalPieces);
+        }
+    }
+    for (let path in orderExtra) {
+        const extra = orderExtra[path];
+        if (extra > 0) {
+            addProjectItem(project.id, path, extra);
+        }
+    }
+    // Обновляем orderProject.id
+    orderProject.id = project.id;
+    saveOrderData();
+    return project;
+}
+
+export function loadProjectIntoOrder(projectId) {
+    const project = getProjects().find(p => p.id === projectId);
+    if (!project) return null;
+    // Загружаем данные проекта в orderProject
+    orderProject.id = project.id;
+    orderProject.name = project.name;
+    orderProject.start_date = project.start_date;
+    orderProject.end_date = project.end_date;
+    orderProject.status = project.status;
+    // Загружаем позиции
+    const items = getProjectItems(projectId);
+    // Очищаем текущий заказ
+    for (let key in order) delete order[key];
+    items.forEach(item => {
+        if (item.quantity > 0) {
+            order[item.equipment_path] = item.quantity;
+        }
+    });
+    saveOrderData();
+    return project;
 }

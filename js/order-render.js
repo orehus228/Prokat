@@ -45,7 +45,10 @@ import {
     getSelectedOption,
     updateOrderPaths,
     orderExclude,
-    orderExtra
+    orderExtra,
+    orderProject,
+    setOrderProject,
+    resetOrderProject
 } from './order.js';
 
 import {
@@ -994,6 +997,29 @@ export async function openNoteEditorOrder(btn) {
 }
 
 // ============================================================
+// НОВАЯ ФУНКЦИЯ ДЛЯ ЗАГРУЗКИ/СОХРАНЕНИЯ ДАННЫХ ПРОЕКТА В UI
+// ============================================================
+
+function loadProjectFields() {
+    const nameInput = document.getElementById('pProjectName');
+    const startInput = document.getElementById('pStartDate');
+    const endInput = document.getElementById('pEndDate');
+    if (nameInput) nameInput.value = orderProject.name || '';
+    if (startInput) startInput.value = orderProject.start_date || '';
+    if (endInput) endInput.value = orderProject.end_date || '';
+}
+
+function saveProjectFields() {
+    const nameInput = document.getElementById('pProjectName');
+    const startInput = document.getElementById('pStartDate');
+    const endInput = document.getElementById('pEndDate');
+    if (nameInput) orderProject.name = nameInput.value.trim();
+    if (startInput) orderProject.start_date = startInput.value;
+    if (endInput) orderProject.end_date = endInput.value;
+    setOrderProject(orderProject);
+}
+
+// ============================================================
 // ЗАГЛУШКИ
 // ============================================================
 
@@ -1001,7 +1027,7 @@ export function setupInputListenersOrder() {}
 export function setupCaseTogglesOrder() {}
 
 // ============================================================
-// РЕНДЕР ВСЕГО
+// РЕНДЕР ВСЕГО (с загрузкой данных проекта)
 // ============================================================
 
 export function renderOrderAll() {
@@ -1010,6 +1036,18 @@ export function renderOrderAll() {
     document.getElementById('pComment').value = localStorage.getItem('last_comment') || '';
     const savedDate = localStorage.getItem('last_date');
     if (savedDate) document.getElementById('pDate').value = savedDate;
+    
+    // Загружаем данные проекта в поля
+    loadProjectFields();
+    
+    // Обработчики для сохранения данных проекта при изменении полей
+    const nameInput = document.getElementById('pProjectName');
+    const startInput = document.getElementById('pStartDate');
+    const endInput = document.getElementById('pEndDate');
+    if (nameInput) nameInput.addEventListener('change', saveProjectFields);
+    if (startInput) startInput.addEventListener('change', saveProjectFields);
+    if (endInput) endInput.addEventListener('change', saveProjectFields);
+    
     if (!currentOrderCategory || !editorData.inventory[currentOrderCategory]) {
         const first = editorData._categoryOrder?.[0] || Object.keys(editorData.inventory)[0];
         if (first) currentOrderCategory = first;

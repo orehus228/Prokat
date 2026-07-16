@@ -6,13 +6,11 @@ import {
     DEFAULT_TRUCK_PRESETS
 } from './config.js';
 
-// Импортируем только функции синхронизации из order.js (без clearCache)
 import { updateOrderPaths, updateAllPaths } from './order.js';
 
 export let editorData = {};
 const calculationCache = new Map();
 
-// Локальная функция очистки кеша (экспортируется)
 export function clearCache() {
     calculationCache.clear();
 }
@@ -42,7 +40,10 @@ function resetToEmpty() {
         catNames: { ...CAT_NAMES },
         _categoryOrder: [],
         commonCases: [],
-        truckPresets: [...DEFAULT_TRUCK_PRESETS]
+        truckPresets: [...DEFAULT_TRUCK_PRESETS],
+        // НОВЫЕ ПОЛЯ ДЛЯ ПРОЕКТОВ
+        projects: [],
+        projectItems: []
     };
 }
 
@@ -107,11 +108,15 @@ function normalizeAllData() {
     } else {
         editorData._categoryOrder = Object.keys(editorData.inventory);
     }
+
+    // Инициализация новых полей, если их нет
+    if (!editorData.projects) editorData.projects = [];
+    if (!editorData.projectItems) editorData.projectItems = [];
 }
 
 export function saveEditorData() {
     localStorage.setItem(STORAGE_KEYS.APP_DATA, JSON.stringify(editorData));
-    clearCache(); // локальная
+    clearCache();
 }
 
 export function resetAllData() {
@@ -279,7 +284,7 @@ export function setItemProps(catKey, subKey, itemName, props) {
         delete editorData.itemProps[key];
     }
     saveEditorData();
-    clearCache(); // локальная
+    clearCache();
 }
 
 export function getCommonCases() {
@@ -475,6 +480,103 @@ export function moveItem(catKey, subKey, itemName, targetCat, targetSub) {
     }
     updateOrderPaths(oldPath, newPath);
     saveEditorData();
+}
+
+// ============================================================
+// НОВЫЕ ФУНКЦИИ ДЛЯ РАБОТЫ С ПРОЕКТАМИ
+// ============================================================
+
+export function getProjects() {
+    return editorData.projects || [];
+}
+
+export function getProject(id) {
+    return getProjects().find(p => p.id === id);
+}
+
+export function saveProject(project) {
+    const projects = getProjects();
+    const index = projects.findIndex(p => p.id === project.id);
+    if (index !== -1) {
+        projects[index] = { ...projects[index], ...project };
+    } else {
+        project.id = project.id || Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+        projects.push(project);
+    }
+    saveEditorData();
+    return project;
+}
+
+export function deleteProject(id) {
+    editorData.projects = editorData.projects.filter(p => p.id !== id);
+    // Удаляем все связанные позиции
+    editorData.projectItems = editorData.projectItems.filter(item => item.project_id !== id);
+    saveEditorData();
+}
+
+export function getProjectItems(projectId) {
+    return editorData.projectItems.filter(item => item.project_id === projectId);
+}
+
+export function addProjectItem(projectId, equipmentPath, quantity) {
+    const items = editorData.projectItems;
+    const existing = items.find(item => item.project_id === projectId && item.equipment_path === equipmentPath);
+    if (existing) {
+        existing.quantity = quantity;
+    } else {
+        items.push({ id: Date.now() + '_' + Math.random().toString(36).substr(2, 5), project_id: projectId, equipment_path: equipmentPath, quantity });
+    }
+    saveEditorData();
+}
+
+export function removeProjectItem(id) {
+    editorData.projectItems = editorData.projectItems.filter(item => item.id !== id);
+    saveEditorData();
+}
+
+export function clearProjectItems(projectId) {
+    editorData.projectItems = editorData.projectItems.filter(item => item.project_id !== projectId);
+    saveEditorData();
+}
+
+export function getAvailableQuantity(equipmentPath, startDate, endDate, requestedQty, currentProjectId = null) {
+    if (!startDate || !endDate) return { available: requestedQty, conflicts: [], allocated: 0, totalStock: getStockValue(equipmentPath) };
+
+    const projects = getProjects();
+    const allItems = getProjectItems();
+    const totalStock = getStockValue(equipmentPath);
+    const nStart = new Date(startDate).getTime();
+    const nEnd = new Date(endDate).getTime();
+
+    // Находим пересекающиеся проекты (кроме текущего и завершённых)
+    const overlapping = projects.filter(p => {
+        if (p.id === currentProjectId) return false;
+        if (p.status === 'completed') return false;
+        const pStart = new Date(p.start_date).getTime();
+        const pEnd = new Date(p.end_date).getTime();
+        return (pStart <= nEnd && pEnd >= nStart);
+    });
+
+    const overlapIds = overlapping.map(p => p.id);
+    let allocated = 0;
+    const conflicts = [];
+    overlapping.forEach(p => {
+        const items = allItems.filter(item => item.project_id === p.id && item.equipment_path === equipmentPath);
+        const totalInProject = items.reduce((sum, item) => sum + item.quantity, 0);
+        if (totalInProject > 0) {
+            allocated += totalInProject;
+            conflicts.push({ project: p.name, quantity: totalInProject, projectId: p.id });
+        }
+    });
+
+    const available = totalStock - allocated;
+    return {
+        available: Math.max(0, available),
+        conflicts,
+        totalStock,
+        allocated,
+        isConflict: requestedQty > available
+    };
 }
 
 export function initData() {

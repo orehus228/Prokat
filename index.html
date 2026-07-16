@@ -23,13 +23,37 @@
     <button class="btn btn-import" id="btnLoadLibrary">Загрузить библиотеку</button>
     <button class="btn btn-reset" id="btnResetAll">Сбросить данные</button>
     <button class="btn btn-purple" id="btnEditor">Редактор склада</button>
+    <button class="btn btn-purple" id="btnMonitoring">Мониторинг проектов</button>
 </div>
 
 <!-- Страница создания списка -->
 <div id="mPage" class="card" style="display:none;">
     <button class="btn btn-sec" id="btnBackToMenu">◀ В меню</button>
     <h3 style="color:#d0d0d0;font-weight:600;margin-bottom:12px;">Создание списка</h3>
-    <input type="text" id="pName" class="input-field" placeholder="Название проекта">
+    
+    <!-- БЛОК ДАННЫХ ПРОЕКТА (НОВЫЙ) -->
+    <div style="background:var(--bg-secondary);padding:12px;border-radius:8px;margin-bottom:15px;border:1px solid var(--border-color);">
+        <h4 style="color:var(--text-secondary);margin-bottom:8px;">Привязка к проекту</h4>
+        <input type="text" id="pProjectName" class="input-field" placeholder="Название проекта">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <input type="date" id="pStartDate" class="input-field" style="flex:1;min-width:140px;" placeholder="Дата начала">
+            <input type="date" id="pEndDate" class="input-field" style="flex:1;min-width:140px;" placeholder="Дата окончания">
+        </div>
+        <select id="pProjectStatus" class="input-field">
+            <option value="planned">Запланирован</option>
+            <option value="active">Активен</option>
+            <option value="completed">Завершён</option>
+        </select>
+        <div style="display:flex;gap:8px;margin-top:6px;">
+            <button class="btn btn-sm" id="pLoadProject">Загрузить проект</button>
+            <button class="btn btn-sm btn-red" id="pClearProject">Очистить</button>
+        </div>
+        <select id="pProjectSelect" class="input-field" style="margin-top:6px;">
+            <option value="">— Выберите существующий проект —</option>
+        </select>
+    </div>
+
+    <input type="text" id="pName" class="input-field" placeholder="Название проекта (краткое)">
     <input type="date" id="pDate" class="input-field">
     <textarea id="pComment" class="input-textarea" placeholder="Комментарий"></textarea>
     <div style="margin-bottom:15px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
@@ -120,6 +144,19 @@
             <input type="text" id="newCategoryName" placeholder="Новая категория">
             <button class="btn btn-green" style="width:auto;" id="addCategoryBtn">+ Добавить категорию</button>
         </div>
+    </div>
+</div>
+
+<!-- НОВАЯ СТРАНИЦА МОНИТОРИНГА ПРОЕКТОВ -->
+<div id="monitoringPage" style="display:none;">
+    <div class="card">
+        <button class="btn btn-sec" id="btnBackToMenu5">◀ В меню</button>
+        <h3 style="color:var(--text-primary);font-weight:600;margin-bottom:12px;">Мониторинг проектов</h3>
+        <div class="category-tabs" id="monitoringTabs">
+            <div class="category-tab active" data-tab="list">Список проектов</div>
+            <div class="category-tab" data-tab="timeline">Таймлайн</div>
+        </div>
+        <div id="monitoringContent"></div>
     </div>
 </div>
 

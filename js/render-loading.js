@@ -1,19 +1,26 @@
-// render-loading.js — Полностью переписанный модуль расчёта загрузки
+// render-loading.js — Режим расчёта загрузки (отдельная страница)
 import {
+    editorData,
     getItemProps,
     getCommonCases,
     getTruckPresets,
     addTruckPreset,
     updateTruckPreset,
-    deleteTruckPreset
+    deleteTruckPreset,
+    saveEditorData
 } from './data.js';
 
 import {
+    order,
+    orderSplits,
+    getTotalQty,
     getOrderPacking,
     getCaseMode,
     getCaseOptions,
     getSelectedOption,
     getIndividualCaseValues,
+    calcItemWeightWithMode,
+    calcItemVolumeWithMode,
     loadOrderData
 } from './order.js';
 
@@ -26,13 +33,19 @@ import {
 
 import { getActiveItemsOrder } from './order-helpers.js';
 
-// ============================================================
-// УПРАВЛЕНИЕ ВЫБРАННЫМИ ГРУЗОВИКАМИ
-// ============================================================
+// Ключ для сохранения выбранных грузовиков
 const SELECTED_TRUCKS_KEY = 'selected_truck_ids';
+
+// ============================================================
+// СОСТОЯНИЕ СТРАНИЦЫ РАСЧЁТА ЗАГРУЗКИ
+// ============================================================
 export let selectedTruckIds = [];
 let loadingResult = null;
+let truckPresets = [];
 
+// ============================================================
+// ЗАГРУЗКА/СОХРАНЕНИЕ ВЫБРАННЫХ ГРУЗОВИКОВ
+// ============================================================
 export function loadSelectedTrucks() {
     try {
         const saved = localStorage.getItem(SELECTED_TRUCKS_KEY);
@@ -53,64 +66,60 @@ export function saveSelectedTrucks() {
 }
 
 // ============================================================
-// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ГРУЗОВЫХ МЕСТ
+// ПОЛУЧЕНИЕ ДАННЫХ ДЛЯ РАСЧЁТА
 // ============================================================
-
-/** Разбивает строку габаритов "AxBxC" на массив [A, B, C] */
-function parseDimensions(dimStr) {
-    if (!dimStr || typeof dimStr !== 'string') return [0, 0, 0];
-    const parts = dimStr.split('x').map(s => parseFloat(s.trim()));
-    if (parts.length === 3 && parts.every(v => !isNaN(v) && v > 0)) {
-        return parts;
-    }
-    return [0, 0, 0];
+function getOrderItemsForLoading() {
+    return getActiveItemsOrder();
 }
 
-/** Создаёт грузовое место с заданными параметрами */
-function createCargoItem(width, height, depth, weight, name, path) {
-    return { width, height, depth, weight, name, path };
+function getTruckDimensions(truck) {
+    return {
+        width: truck.width || 0,
+        height: truck.height || 0,
+        depth: truck.length ?? truck.depth ?? 0
+    };
 }
 
-// ============================================================
-// ПРЕОБРАЗОВАНИЕ ПОЗИЦИЙ В ГРУЗОВЫЕ МЕСТА
-// ============================================================
-
-function generateCargoItemsForPath(path, qty) {
-    if (qty <= 0) return [];
-
+function getItemDimensions(path, qty) {
     const props = getItemProps(path);
     const mode = getCaseMode(path);
     const packing = getOrderPacking(path);
-    const individualVals = getIndividualCaseValues(path);
-    const options = getCaseOptions(path);
-    const unitWeight = props.weight || 0;
-    const itemDims = parseDimensions(props.dimensions || '');
-    const hasItemDims = itemDims[0] > 0 && itemDims[1] > 0 && itemDims[2] > 0;
-
     const result = [];
 
-    // === 1. Общие кофры ===
+    // Если есть привязка к общим кофрам
     if (packing.length > 0) {
         let remaining = qty;
-        for (const p of packing) {
+        for (let p of packing) {
             const caseObj = getCommonCases().find(c => c.id === p.caseId);
             if (!caseObj) continue;
-            const piecesInCase = Math.min(remaining, p.pieces || 0);
-            if (piecesInCase <= 0) continue;
-            const caseDims = parseDimensions(caseObj.dimensions || '');
-            if (caseDims[0] > 0 && caseDims[1] > 0 && caseDims[2] > 0) {
-                const weight = piecesInCase * unitWeight + (caseObj.emptyWeight || 0);
-                result.push(createCargoItem(caseDims[0], caseDims[1], caseDims[2], weight, caseObj.name || 'Общий кофр', path));
-            }
-            remaining -= piecesInCase;
+            const capacity = caseObj.qty || 1;
+            // Исправлено: p.pieces вместо p.qty
+            const unitsInThisCase = Math.min(remaining, p.pieces || 0);
+            if (unitsInThisCase <= 0) continue;
+            const dims = caseObj.dimensions ? caseObj.dimensions.split('x').map(s => parseFloat(s.trim())) : [0,0,0];
+            const w = dims[0] || 0;
+            const h = dims[1] || 0;
+            const d = dims[2] || 0;
+            const unitWeight = props.weight || 0;
+            const totalWeight = unitsInThisCase * unitWeight + (caseObj.emptyWeight || 0);
+            const name = caseObj.name || 'Общий кофр';
+            result.push({ width: w, height: h, depth: d, weight: totalWeight, name, path });
+            remaining -= unitsInThisCase;
         }
-        if (remaining > 0 && hasItemDims) {
-            result.push(createCargoItem(itemDims[0], itemDims[1], itemDims[2], remaining * unitWeight, 'Без кофра (остаток)', path));
+        if (remaining > 0) {
+            const dims = props.dimensions ? props.dimensions.split('x').map(s => parseFloat(s.trim())) : [0,0,0];
+            const w = dims[0] || 0;
+            const h = dims[1] || 0;
+            const d = dims[2] || 0;
+            const unitWeight = props.weight || 0;
+            result.push({ width: w, height: h, depth: d, weight: remaining * unitWeight, name: 'Без кофра (остаток)', path });
         }
         return result;
     }
 
-    // === 2. Индивидуальные кофры (мультирежим) ===
+    // Индивидуальные кофры
+    const individualVals = getIndividualCaseValues(path);
+    const options = getCaseOptions(path);
     if (individualVals.length > 0 && options.length > 0) {
         let remaining = qty;
         for (let i = 0; i < individualVals.length; i++) {
@@ -119,7 +128,7 @@ function generateCargoItemsForPath(path, qty) {
             const opt = options[i] || options[0];
             const alt = mode.alt;
             let dimsStr, emptyWeight, qtyPerCase;
-            if (alt && mode.enabled && mode.useAlt) {
+            if (alt && mode.enabled) {
                 dimsStr = alt.dims || '';
                 emptyWeight = alt.weight || 0;
                 qtyPerCase = alt.qty || 1;
@@ -128,35 +137,40 @@ function generateCargoItemsForPath(path, qty) {
                 emptyWeight = opt.weight || 0;
                 qtyPerCase = opt.qty || 1;
             }
-            const caseDims = parseDimensions(dimsStr);
-            if (caseDims[0] > 0 && caseDims[1] > 0 && caseDims[2] > 0) {
-                const unitsHere = Math.min(remaining, val);
-                if (unitsHere <= 0) continue;
-                const fullCases = Math.floor(unitsHere / qtyPerCase);
-                const rem = unitsHere % qtyPerCase;
-                for (let c = 0; c < fullCases; c++) {
-                    const weight = qtyPerCase * unitWeight + emptyWeight;
-                    result.push(createCargoItem(caseDims[0], caseDims[1], caseDims[2], weight, `Кофр вар.${i+1}`, path));
-                }
-                if (rem > 0) {
-                    const weight = rem * unitWeight + emptyWeight;
-                    result.push(createCargoItem(caseDims[0], caseDims[1], caseDims[2], weight, `Кофр вар.${i+1} (неполный)`, path));
-                }
-                remaining -= unitsHere;
+            const dims = dimsStr.split('x').map(s => parseFloat(s.trim()));
+            const w = dims[0] || 0;
+            const h = dims[1] || 0;
+            const d = dims[2] || 0;
+            const unitWeight = props.weight || 0;
+            const unitsInThisCase = Math.min(remaining, val);
+            if (unitsInThisCase <= 0) continue;
+            const fullCases = Math.floor(unitsInThisCase / qtyPerCase);
+            const rem = unitsInThisCase % qtyPerCase;
+            for (let c = 0; c < fullCases; c++) {
+                result.push({ width: w, height: h, depth: d, weight: qtyPerCase * unitWeight + emptyWeight, name: `Кофр вар.${i+1}`, path });
             }
+            if (rem > 0) {
+                result.push({ width: w, height: h, depth: d, weight: rem * unitWeight + emptyWeight, name: `Кофр вар.${i+1} (неполный)`, path });
+            }
+            remaining -= unitsInThisCase;
         }
-        if (remaining > 0 && hasItemDims) {
-            result.push(createCargoItem(itemDims[0], itemDims[1], itemDims[2], remaining * unitWeight, 'Без кофра (остаток)', path));
+        if (remaining > 0) {
+            const dims = props.dimensions ? props.dimensions.split('x').map(s => parseFloat(s.trim())) : [0,0,0];
+            const w = dims[0] || 0;
+            const h = dims[1] || 0;
+            const d = dims[2] || 0;
+            const unitWeight = props.weight || 0;
+            result.push({ width: w, height: h, depth: d, weight: remaining * unitWeight, name: 'Без кофра (остаток)', path });
         }
         return result;
     }
 
-    // === 3. Один кофр (режим enabled) ===
+    // Режим кофров (один вариант)
     if (mode.enabled) {
         let opt = getSelectedOption(path);
         let alt = mode.alt;
         let dimsStr, emptyWeight, qtyPerCase;
-        if (alt && mode.useAlt) {
+        if (alt) {
             dimsStr = alt.dims || '';
             emptyWeight = alt.weight || 0;
             qtyPerCase = alt.qty || 1;
@@ -165,70 +179,47 @@ function generateCargoItemsForPath(path, qty) {
             emptyWeight = opt.weight || 0;
             qtyPerCase = opt.qty || 1;
         } else {
-            // Нет кофра – используем габариты позиции
-            if (hasItemDims) {
-                result.push(createCargoItem(itemDims[0], itemDims[1], itemDims[2], qty * unitWeight, 'Без кофра', path));
-            }
+            const dims = props.dimensions ? props.dimensions.split('x').map(s => parseFloat(s.trim())) : [0,0,0];
+            const w = dims[0] || 0;
+            const h = dims[1] || 0;
+            const d = dims[2] || 0;
+            const unitWeight = props.weight || 0;
+            result.push({ width: w, height: h, depth: d, weight: qty * unitWeight, name: 'Без кофра', path });
             return result;
         }
-        const caseDims = parseDimensions(dimsStr);
-        if (caseDims[0] > 0 && caseDims[1] > 0 && caseDims[2] > 0) {
-            const fullCases = Math.floor(qty / qtyPerCase);
-            const rem = qty % qtyPerCase;
-            for (let c = 0; c < fullCases; c++) {
-                const weight = qtyPerCase * unitWeight + emptyWeight;
-                result.push(createCargoItem(caseDims[0], caseDims[1], caseDims[2], weight, 'Кофр', path));
-            }
-            if (rem > 0) {
-                const weight = rem * unitWeight + emptyWeight;
-                result.push(createCargoItem(caseDims[0], caseDims[1], caseDims[2], weight, 'Неполный кофр', path));
-            }
-        } else if (hasItemDims) {
-            // Если у кофра нет габаритов – используем габариты позиции
-            result.push(createCargoItem(itemDims[0], itemDims[1], itemDims[2], qty * unitWeight, 'Без кофра (ошибка кофра)', path));
+        const dims = dimsStr.split('x').map(s => parseFloat(s.trim()));
+        const w = dims[0] || 0;
+        const h = dims[1] || 0;
+        const d = dims[2] || 0;
+        const unitWeight = props.weight || 0;
+        const fullCases = Math.floor(qty / qtyPerCase);
+        const rem = qty % qtyPerCase;
+        for (let c = 0; c < fullCases; c++) {
+            result.push({ width: w, height: h, depth: d, weight: qtyPerCase * unitWeight + emptyWeight, name: 'Кофр', path });
+        }
+        if (rem > 0) {
+            result.push({ width: w, height: h, depth: d, weight: rem * unitWeight + emptyWeight, name: 'Неполный кофр', path });
         }
         return result;
     }
 
-    // === 4. Без кофров ===
-    if (hasItemDims) {
-        result.push(createCargoItem(itemDims[0], itemDims[1], itemDims[2], qty * unitWeight, 'Без кофра', path));
-    }
+    // Без кофров
+    const dims = props.dimensions ? props.dimensions.split('x').map(s => parseFloat(s.trim())) : [0,0,0];
+    const w = dims[0] || 0;
+    const h = dims[1] || 0;
+    const d = dims[2] || 0;
+    const unitWeight = props.weight || 0;
+    result.push({ width: w, height: h, depth: d, weight: qty * unitWeight, name: 'Без кофра', path });
     return result;
 }
 
 // ============================================================
-// АЛГОРИТМ УПАКОВКИ (С ПОВОРОТАМИ)
+// ЭВРИСТИЧЕСКИЙ АЛГОРИТМ УПАКОВКИ (Corner-Based с проверкой веса)
 // ============================================================
-
 function packItems(truck, items) {
-    // Генерируем все возможные ориентации для каждого предмета
-    const allOrientations = items.map(item => {
-        const dims = [
-            { w: item.width, h: item.height, d: item.depth },
-            { w: item.width, h: item.depth, d: item.height },
-            { w: item.height, h: item.width, d: item.depth },
-            { w: item.height, h: item.depth, d: item.width },
-            { w: item.depth, h: item.width, d: item.height },
-            { w: item.depth, h: item.height, d: item.width }
-        ];
-        // Убираем дубликаты
-        const unique = [];
-        const seen = new Set();
-        for (const d of dims) {
-            const key = `${d.w},${d.h},${d.d}`;
-            if (!seen.has(key)) {
-                seen.add(key);
-                unique.push(d);
-            }
-        }
-        return { item, orientations: unique };
-    });
-
-    // Сортируем по максимальному объёму (убывание)
-    allOrientations.sort((a, b) => {
-        const volA = Math.max(...a.orientations.map(o => o.w * o.h * o.d));
-        const volB = Math.max(...b.orientations.map(o => o.w * o.h * o.d));
+    const sortedItems = [...items].sort((a, b) => {
+        const volA = a.width * a.height * a.depth;
+        const volB = b.width * b.height * b.depth;
         return volB - volA;
     });
 
@@ -237,53 +228,46 @@ function packItems(truck, items) {
     let currentWeight = 0;
     const maxWeight = truck.maxWeight || Infinity;
 
-    for (const entry of allOrientations) {
-        const item = entry.item;
+    for (let item of sortedItems) {
+        if (currentWeight + item.weight > maxWeight) {
+            return { success: false, packed, failedItem: item, reason: 'weight' };
+        }
+
         let placed = false;
-        // Пробуем все ориентации
-        for (const orient of entry.orientations) {
-            if (currentWeight + item.weight > maxWeight) {
-                break; // вес не позволяет – переход к следующему предмету
-            }
-            const w = orient.w, h = orient.h, d = orient.d;
-            for (let i = 0; i < points.length; i++) {
-                const pt = points[i];
-                if (pt.x + w <= truck.width &&
-                    pt.y + h <= truck.height &&
-                    pt.z + d <= truck.depth) {
-                    // Проверка коллизий
-                    let collision = false;
-                    for (const p of packed) {
-                        if (pt.x < p.x + p.w && pt.x + w > p.x &&
-                            pt.y < p.y + p.h && pt.y + h > p.y &&
-                            pt.z < p.z + p.d && pt.z + d > p.z) {
-                            collision = true;
-                            break;
-                        }
-                    }
-                    if (!collision) {
-                        packed.push({
-                            x: pt.x, y: pt.y, z: pt.z,
-                            w, h, d,
-                            weight: item.weight,
-                            name: item.name,
-                            path: item.path
-                        });
-                        currentWeight += item.weight;
-                        points.splice(i, 1);
-                        points.push({ x: pt.x + w, y: pt.y, z: pt.z });
-                        points.push({ x: pt.x, y: pt.y + h, z: pt.z });
-                        points.push({ x: pt.x, y: pt.y, z: pt.z + d });
-                        points.sort((a, b) => a.z - b.z || a.y - b.y || a.x - b.x);
-                        placed = true;
+        for (let i = 0; i < points.length; i++) {
+            const pt = points[i];
+            if (pt.x + item.width <= truck.width &&
+                pt.y + item.height <= truck.height &&
+                pt.z + item.depth <= truck.depth) {
+                let collision = false;
+                for (let p of packed) {
+                    if (pt.x < p.x + p.w && pt.x + item.width > p.x &&
+                        pt.y < p.y + p.h && pt.y + item.height > p.y &&
+                        pt.z < p.z + p.d && pt.z + item.depth > p.z) {
+                        collision = true;
                         break;
                     }
                 }
+                if (!collision) {
+                    packed.push({
+                        x: pt.x, y: pt.y, z: pt.z,
+                        w: item.width, h: item.height, d: item.depth,
+                        weight: item.weight,
+                        name: item.name,
+                        path: item.path
+                    });
+                    currentWeight += item.weight;
+                    points.splice(i, 1);
+                    points.push({ x: pt.x + item.width, y: pt.y, z: pt.z });
+                    points.push({ x: pt.x, y: pt.y + item.height, z: pt.z });
+                    points.push({ x: pt.x, y: pt.y, z: pt.z + item.depth });
+                    points.sort((a, b) => a.z - b.z || a.y - b.y || a.x - b.x);
+                    placed = true;
+                    break;
+                }
             }
-            if (placed) break;
         }
         if (!placed) {
-            console.warn(`❌ Не удалось разместить: ${item.name} (${item.width}x${item.height}x${item.depth} см, ${item.weight} кг)`);
             return { success: false, packed, failedItem: item, reason: 'space' };
         }
     }
@@ -293,21 +277,17 @@ function packItems(truck, items) {
 // ============================================================
 // ОСНОВНАЯ ФУНКЦИЯ РАСЧЁТА
 // ============================================================
-
 function calculateLoading() {
-    const items = getActiveItemsOrder();
-    console.log('📦 Позиции для загрузки:', items);
+    const items = getOrderItemsForLoading();
     if (items.length === 0) {
         showToast('Нет позиций для расчёта', 'warning');
         return null;
     }
 
-    // Генерируем грузовые места
     let allCargo = [];
-    for (const item of items) {
-        const cargo = generateCargoItemsForPath(item.path, item.qty);
-        console.log(`📐 Для "${item.path}" (${item.qty} шт) создано ${cargo.length} мест:`, cargo);
-        allCargo = allCargo.concat(cargo);
+    for (let item of items) {
+        const dims = getItemDimensions(item.path, item.qty);
+        allCargo = allCargo.concat(dims);
     }
 
     if (allCargo.length === 0) {
@@ -317,7 +297,6 @@ function calculateLoading() {
 
     const presets = getTruckPresets();
     const selectedTrucks = presets.filter(p => selectedTruckIds.includes(p.id));
-    console.log('🚛 Выбранные грузовики:', selectedTrucks);
     if (selectedTrucks.length === 0) {
         showToast('Выберите хотя бы один грузовик', 'warning');
         return null;
@@ -332,8 +311,7 @@ function calculateLoading() {
 
     let remainingCargo = allCargo.slice();
 
-    for (const truck of selectedTrucks) {
-        console.log(`🚚 Загрузка в "${truck.name}" (${truck.length}x${truck.width}x${truck.height} см, макс. вес ${truck.maxWeight} кг)`);
+    for (let truck of selectedTrucks) {
         const truckResult = packItems(truck, remainingCargo);
         if (truckResult.success) {
             result.trucks.push({
@@ -342,15 +320,12 @@ function calculateLoading() {
                 totalWeight: truckResult.packed.reduce((s, i) => s + i.weight, 0),
                 totalVolume: truckResult.packed.reduce((s, i) => s + i.w * i.h * i.d / 1000000, 0)
             });
-            // Удаляем упакованные предметы
-            const packedKeys = truckResult.packed.map(p => `${p.path}|${p.name}|${p.w}|${p.h}|${p.d}`);
-            remainingCargo = remainingCargo.filter(item => {
-                const key = `${item.path}|${item.name}|${item.width}|${item.height}|${item.depth}`;
-                return !packedKeys.includes(key);
+            const packedPaths = truckResult.packed.map(p => p.path + p.name);
+            remainingCargo = remainingCargo.filter((item, idx) => {
+                return !truckResult.packed.some(p => p.path === item.path && p.name === item.name);
             });
             result.totalWeight += truckResult.packed.reduce((s, i) => s + i.weight, 0);
             result.totalVolume += truckResult.packed.reduce((s, i) => s + i.w * i.h * i.d / 1000000, 0);
-            console.log(`✅ Загружено ${truckResult.packed.length} предметов, осталось ${remainingCargo.length}`);
         } else {
             if (truckResult.packed.length > 0) {
                 result.trucks.push({
@@ -359,10 +334,8 @@ function calculateLoading() {
                     totalWeight: truckResult.packed.reduce((s, i) => s + i.weight, 0),
                     totalVolume: truckResult.packed.reduce((s, i) => s + i.w * i.h * i.d / 1000000, 0)
                 });
-                const packedKeys = truckResult.packed.map(p => `${p.path}|${p.name}|${p.w}|${p.h}|${p.d}`);
-                remainingCargo = remainingCargo.filter(item => {
-                    const key = `${item.path}|${item.name}|${item.width}|${item.height}|${item.depth}`;
-                    return !packedKeys.includes(key);
+                remainingCargo = remainingCargo.filter((item, idx) => {
+                    return !truckResult.packed.some(p => p.path === item.path && p.name === item.name);
                 });
                 result.totalWeight += truckResult.packed.reduce((s, i) => s + i.weight, 0);
                 result.totalVolume += truckResult.packed.reduce((s, i) => s + i.w * i.h * i.d / 1000000, 0);
@@ -381,20 +354,19 @@ function calculateLoading() {
         result.failedItems = result.failedItems.concat(remainingCargo);
     }
 
-    console.log('📊 ИТОГ расчёта:', result);
     return result;
 }
 
 // ============================================================
 // ОТРИСОВКА СТРАНИЦЫ
 // ============================================================
-
 export function renderLoadingPage() {
     const container = document.getElementById('loadingContent');
     if (!container) return;
 
     loadOrderData();
     loadSelectedTrucks();
+    truckPresets = getTruckPresets();
 
     let html = `
         <div style="margin-bottom:16px;">
@@ -412,6 +384,7 @@ export function renderLoadingPage() {
     `;
 
     container.innerHTML = html;
+
     renderTruckSelection();
 
     document.getElementById('calcLoadingBtn')?.addEventListener('click', runCalculation);
@@ -505,8 +478,8 @@ function renderResult(result) {
     html += `<button class="btn btn-green" id="exportLoadingJson">Экспорт JSON</button>`;
     html += `<button class="btn btn-orange" id="exportLoadingPdf">Экспорт PDF</button>`;
     html += `</div>`;
-    html += `</div>`;
 
+    html += `</div>`;
     container.innerHTML = html;
 
     document.getElementById('exportLoadingJson')?.addEventListener('click', exportLoadingJSON);
@@ -516,7 +489,6 @@ function renderResult(result) {
 // ============================================================
 // ЭКСПОРТ РЕЗУЛЬТАТОВ
 // ============================================================
-
 function exportLoadingJSON() {
     if (!loadingResult) {
         showToast('Нет данных для экспорта', 'warning');
@@ -543,7 +515,7 @@ function exportLoadingJSON() {
         totalWeight: loadingResult.totalWeight,
         totalVolume: loadingResult.totalVolume
     };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -611,7 +583,6 @@ h1{color:#2c3e50;border-bottom:2px solid #3498db;padding-bottom:10px}
 // ============================================================
 // УПРАВЛЕНИЕ ГРУЗОВИКАМИ (модалка)
 // ============================================================
-
 function openTruckManager() {
     const modal = document.getElementById('truckManagerModal');
     if (!modal) {
