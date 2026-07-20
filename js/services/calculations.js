@@ -1,7 +1,7 @@
 // services/calculations.js
 import { getState, getCachedCalculation, setCachedCalculation } from '../core/state.js';
 
-export function parseUnitVolume(dimensions) {
+function parseUnitVolume(dimensions) {
   if (!dimensions || typeof dimensions !== 'string') return 0;
   const parts = dimensions.split('x').map(s => parseFloat(s.trim()));
   if (parts.length === 3 && parts.every(v => !isNaN(v) && v > 0)) {
@@ -10,7 +10,7 @@ export function parseUnitVolume(dimensions) {
   return 0;
 }
 
-export function getItemPropsByPath(path) {
+function getItemPropsByPath(path) {
   const state = getState();
   const props = state.itemProps[path];
   if (props) {
@@ -26,11 +26,11 @@ export function getItemPropsByPath(path) {
   return { weight: 0, dimensions: '', volume: 0, individualCases: [], allowCommon: false, commonCases: [] };
 }
 
-export function getCommonCases() {
+function getCommonCases() {
   return getState().commonCases || [];
 }
 
-export function getCaseMode(path) {
+function getCaseMode(path) {
   const state = getState();
   if (!state.caseModes[path]) {
     state.caseModes[path] = {
@@ -47,7 +47,7 @@ export function getCaseMode(path) {
   return state.caseModes[path];
 }
 
-export function getCaseOptions(path) {
+function getCaseOptions(path) {
   const props = getItemPropsByPath(path);
   return (props.individualCases || []).map(c => ({
     qty: Number(c.qty) || 0,
@@ -57,7 +57,7 @@ export function getCaseOptions(path) {
   }));
 }
 
-export function getSelectedOption(path) {
+function getSelectedOption(path) {
   const mode = getCaseMode(path);
   const options = getCaseOptions(path);
   if (options.length === 0) return null;
@@ -66,7 +66,7 @@ export function getSelectedOption(path) {
   return options[idx];
 }
 
-export function calcItemWeight(path, qty, mode, packing, individualVals, extra) {
+function calcItemWeight(path, qty, mode, packing, individualVals, extra) {
   if (qty <= 0) return 0;
   const props = getItemPropsByPath(path);
   if (!props.weight) return 0;
@@ -125,7 +125,7 @@ export function calcItemWeight(path, qty, mode, packing, individualVals, extra) 
   return result;
 }
 
-export function calcItemVolume(path, qty, mode, packing, individualVals, extra) {
+function calcItemVolume(path, qty, mode, packing, individualVals, extra) {
   if (qty <= 0) return 0;
   const props = getItemPropsByPath(path);
   if (!props.dimensions) return 0;
@@ -182,7 +182,7 @@ export function calcItemVolume(path, qty, mode, packing, individualVals, extra) 
   return result;
 }
 
-export function calcItemCases(path, qty, mode, individualVals) {
+function calcItemCases(path, qty, mode, individualVals) {
   if (!mode.enabled) return 0;
   const options = getCaseOptions(path);
   if (options.length === 0) return 0;
@@ -203,7 +203,7 @@ export function calcItemCases(path, qty, mode, individualVals) {
   return totalCases;
 }
 
-export function getCalculationData(path) {
+function getCalculationData(path) {
   const state = getState();
   const props = getItemPropsByPath(path);
   const mode = getCaseMode(path);
@@ -215,7 +215,7 @@ export function getCalculationData(path) {
   return { props, mode, packing, individualVals, extra, options, selectedOption };
 }
 
-export function calculateTotals(items) {
+function calculateTotals(items) {
   let totalWeight = 0;
   let totalVolume = 0;
   let totalQty = 0;
@@ -233,7 +233,22 @@ export function calculateTotals(items) {
   return { totalWeight, totalVolume, totalQty };
 }
 
-// ========== DEFAULT ЭКСПОРТ (для обратной совместимости) ==========
+// ===== ЕДИНЫЙ ЭКСПОРТ (все имена в одном месте) =====
+export {
+  parseUnitVolume,
+  getItemPropsByPath,
+  getCommonCases,
+  getCaseMode,
+  getCaseOptions,
+  getSelectedOption,
+  calcItemWeight,
+  calcItemVolume,
+  calcItemCases,
+  getCalculationData,
+  calculateTotals,
+};
+
+// ===== DEFAULT ЭКСПОРТ (для обратной совместимости) =====
 export default {
   parseUnitVolume,
   getItemPropsByPath,
