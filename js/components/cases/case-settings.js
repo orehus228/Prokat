@@ -214,55 +214,12 @@ async function saveCaseSettings(path) {
     if (btn.classList.contains('active')) activeMode = btn.dataset.mode;
   });
 
-  // Получаем текущие данные до сброса
   const mode = calc.getCaseMode(path);
   const options = calc.getCaseOptions(path);
   const existingQty = getTotalQty(path);
   const commonCases = getCommonCases();
 
-  // Определяем действие для мульти и общих кофров (если нужно)
-  let multiAction = 'reset';
-  let commonAction = 'reset';
-  let commonSelected = [];
-
-  if (activeMode === 'multi' && existingQty > 0) {
-    const choiceOptions = [
-      { value: 'reset', label: 'Сбросить', description: 'обнулить количество' },
-      { value: 'equal', label: 'Распределить поровну', description: 'разделить количество между всеми вариантами' },
-      { value: 'sequential', label: 'Собрать по очереди', description: 'заполнять кофры последовательно' }
-    ];
-    multiAction = await showChoice(
-      'Режим мультикофров',
-      'У позиции уже есть количество (' + existingQty + ' шт). Что сделать с этим количеством?',
-      choiceOptions
-    );
-    // Если пользователь закрыл окно, action останется 'reset'
-  }
-
-  if (activeMode === 'common' && existingQty > 0) {
-    // Сначала получаем выбранные кофры из чекбоксов (они уже есть в DOM)
-    const checkboxes = document.querySelectorAll('.common-case-check');
-    commonSelected = [];
-    checkboxes.forEach(cb => {
-      if (cb.checked) commonSelected.push(cb.dataset.caseid);
-    });
-    if (commonSelected.length === 0) {
-      showToast('Выберите хотя бы один общий кофр', 'warning');
-      return;
-    }
-
-    const choiceOptions = [
-      { value: 'reset', label: 'Оставить вне кофров', description: 'количество останется без упаковки' },
-      { value: 'common', label: 'Разместить в общие кофры', description: 'распределить количество по выбранным кофрам (по очереди)' }
-    ];
-    commonAction = await showChoice(
-      'Режим общих кофров',
-      'У позиции уже есть количество (' + existingQty + ' шт). Что сделать с этим количеством?',
-      choiceOptions
-    );
-  }
-
-  // Теперь выполняем сброс всех настроек
+  // Сбрасываем все настройки кофров для этой позиции
   mode.enabled = false;
   mode.selectedOption = 0;
   mode.useAlt = false;
@@ -273,7 +230,6 @@ async function saveCaseSettings(path) {
   setOrderExtra(path, 0);
   setOrderValue(path, 0);
 
-  // Применяем настройки в зависимости от активного режима
   switch (activeMode) {
     case 'off':
       if (existingQty > 0) {
@@ -318,14 +274,29 @@ async function saveCaseSettings(path) {
     }
 
     case 'multi': {
+      // Если есть существующее количество, спрашиваем, что делать
+      let action = 'equal';
+      if (existingQty > 0) {
+        const choiceOptions = [
+          { value: 'reset', label: 'Сбросить', description: 'обнулить количество' },
+          { value: 'equal', label: 'Распределить поровну', description: 'разделить количество между всеми вариантами' },
+          { value: 'sequential', label: 'Собрать по очереди', description: 'заполнять кофры последовательно' }
+        ];
+        action = await showChoice(
+          'Режим мультикофров',
+          'У позиции уже есть количество (' + existingQty + ' шт). Что сделать с этим количеством?',
+          choiceOptions
+        );
+      }
+
       mode.enabled = true;
       const count = options.length;
       mode.multiSelected = options.map(() => true);
 
       let vals = [];
-      if (multiAction === 'reset' || existingQty === 0) {
+      if (action === 'reset' || existingQty === 0) {
         vals = options.map(() => 0);
-      } else if (multiAction === 'equal') {
+      } else if (action === 'equal') {
         const base = Math.floor(existingQty / count);
         let remainder = existingQty % count;
         vals = options.map((opt, idx) => {
@@ -340,7 +311,7 @@ async function saveCaseSettings(path) {
           }
           return val;
         });
-      } else if (multiAction === 'sequential') {
+      } else if (action === 'sequential') {
         let remaining = existingQty;
         vals = options.map((opt, idx) => {
           if (remaining <= 0) return 0;
@@ -372,6 +343,7 @@ async function saveCaseSettings(path) {
         }
       }
 
+      // Сохраняем распределение
       setIndividualCaseValues(path, vals);
       const total = vals.reduce((a, b) => a + b, 0);
       setOrderValue(path, total);
@@ -379,26 +351,80 @@ async function saveCaseSettings(path) {
     }
 
     case 'common': {
-      // Если мы ещё не получили commonSelected (при existingQty === 0), получаем их сейчас
-      if (commonSelected.length === 0) {
-        const checkboxes = document.querySelectorAll('.common-case-check');
-        checkboxes.forEach(cb => {
-          if (cb.checked) commonSelected.push(cb.dataset.caseid);
-        });
-        if (commonSelected.length === 0) {
-          showToast('Выберите хотя бы один общий кофр', 'warning');
-          return;
-        }
+      // Проверяем выбранные кофры
+      const checkboxes = document.querySelectorAll('.common-case-check');
+      const selected = [];
+      checkboxes.forEach(cb => {
+        if (cb.checked) selected.push(cb.dataset.caseid);
+      });
+      if (selected.length === 0) {
+        showToast('Выберите хотя бы один общий кофр', 'warning');
+        return;
+      }
+
+      // Получаем вместимости выбранных кофров
+      const selectedCases = commonCases.filter(c => selected.includes(c.id));
+      const capacities = selectedCases.map(c => c.qty);
+
+      // Если есть количество, спрашиваем, что делать
+      let action = 'reset';
+      if (existingQty > 0) {
+        const choiceOptions = [
+          { value: 'reset', label: 'Оставить вне кофров', description: 'количество останется без упаковки' },
+          { value: 'equal', label: 'Распределить поровну', description: 'разделить количество между всеми выбранными кофрами' },
+          { value: 'sequential', label: 'Собрать по очереди', description: 'заполнять кофры последовательно' }
+        ];
+        action = await showChoice(
+          'Режим общих кофров',
+          'У позиции уже есть количество (' + existingQty + ' шт). Что сделать с этим количеством?',
+          choiceOptions
+        );
       }
 
       mode.enabled = true;
-      mode.commonSelected = commonSelected;
+      mode.commonSelected = selected;
 
-      if (commonAction === 'common' && existingQty > 0) {
+      if (action === 'reset' || existingQty === 0) {
+        // Все штуки вне кофров
+        setOrderPacking(path, selected.map(caseId => ({ caseId, pieces: 0 })));
+        setOrderExtra(path, existingQty);
+        setOrderValue(path, existingQty);
+      } else if (action === 'equal') {
+        // Распределяем поровну между выбранными кофрами (с учётом вместимости)
         let remaining = existingQty;
-        const packingArr = commonSelected.map(caseId => {
-          const c = commonCases.find(cc => cc.id === caseId);
-          const capacity = c ? c.qty : 1;
+        const count = selected.length;
+        const base = Math.floor(remaining / count);
+        let remainder = remaining % count;
+        const packingArr = selected.map((caseId, idx) => {
+          const capacity = capacities[idx] || 1;
+          let pieces = base + (idx < remainder ? 1 : 0);
+          // Не превышаем вместимость кофра
+          if (pieces > capacity) {
+            pieces = capacity;
+          }
+          return { caseId, pieces };
+        });
+        // Пересчитываем остаток после распределения с учётом вместимости
+        let totalPacked = packingArr.reduce((sum, p) => sum + p.pieces, 0);
+        let extraRemaining = existingQty - totalPacked;
+        // Если остались штуки, добавляем их в первый кофр (если есть место)
+        if (extraRemaining > 0) {
+          const firstCase = packingArr[0];
+          const capacity = capacities[0] || 1;
+          const canAdd = Math.min(extraRemaining, capacity - firstCase.pieces);
+          if (canAdd > 0) {
+            firstCase.pieces += canAdd;
+            extraRemaining -= canAdd;
+          }
+        }
+        setOrderPacking(path, packingArr);
+        setOrderExtra(path, extraRemaining);
+        setOrderValue(path, existingQty);
+      } else if (action === 'sequential') {
+        // Последовательное заполнение
+        let remaining = existingQty;
+        const packingArr = selected.map((caseId, idx) => {
+          const capacity = capacities[idx] || 1;
           const canPlace = Math.min(remaining, capacity);
           remaining -= canPlace;
           return { caseId, pieces: canPlace };
@@ -406,18 +432,15 @@ async function saveCaseSettings(path) {
         setOrderPacking(path, packingArr);
         setOrderExtra(path, remaining);
         setOrderValue(path, existingQty);
-      } else {
-        // Сброс или оставить вне кофров
-        setOrderPacking(path, commonSelected.map(caseId => ({ caseId, pieces: 0 })));
-        setOrderExtra(path, existingQty);
-        setOrderValue(path, existingQty);
       }
       break;
     }
   }
 
+  // Принудительное сохранение
   saveState();
 
+  // Обновление интерфейса
   if (caseSettingsCallback) {
     caseSettingsCallback();
     setTimeout(caseSettingsCallback, 50);
