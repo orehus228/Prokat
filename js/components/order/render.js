@@ -289,6 +289,7 @@ export function buildItemRow(fullPath, level) {
   const noteClass = hasNote ? 'has-note' : '';
   const caseClass = isCaseModeOn ? 'active' : '';
 
+  // ⭐ КОМПАКТНЫЙ БЛОК extra-info (в одну строку с точками-разделителями)
   let extraInfo = '';
   if (totalQty > 0 || sq > 0) {
     extraInfo = `<div class="extra-info">
@@ -658,6 +659,15 @@ export function initOrderUI() {
 export function renderOrderAll() {
   invalidateFlatItemsCache();
   const state = getState();
+
+  // Отладка: проверяем наличие данных (можно удалить позже)
+  const testPath = 'video|Экран|Экран 0.5x0.5 LED P2.6 (192x192)';
+  if (state.itemProps[testPath]) {
+    console.log('✅ Данные загружены:', state.itemProps[testPath]);
+  } else {
+    console.warn('❌ Данные НЕ загружены для', testPath);
+  }
+
   const comment = document.getElementById('pComment');
   if (comment) comment.value = localStorage.getItem('last_comment') || '';
   const date = document.getElementById('pDate');

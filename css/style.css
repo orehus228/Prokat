@@ -599,17 +599,15 @@ body {
 /* ===== СТРОКИ ПОЗИЦИЙ (горизонтальные строки, фиксированная структура) ===== */
 .row {
     display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
     flex-wrap: wrap;
-    gap: 8px 12px;
+    align-items: center;
+    gap: 6px 12px;
     padding: 6px 0;
     border-bottom: 1px solid var(--border-color);
-    border-radius: 4px;
+    width: 100%;
+    min-height: 44px;
     background: transparent;
     transition: background 0.15s;
-    width: 100%;
 }
 .row:last-child {
     border-bottom: none;
@@ -625,9 +623,8 @@ body {
 .row .name-area {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
-    flex: 1 1 200px;
-    min-width: 150px;
+    flex: 1 1 140px;
+    min-width: 120px;
     gap: 2px;
 }
 .row .name {
@@ -636,14 +633,20 @@ body {
     white-space: normal;
 }
 .row .extra-info {
-    font-size: 12px;
-    color: var(--text-secondary);
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 4px 12px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.4;
 }
 .row .extra-info span {
     white-space: nowrap;
+}
+.row .extra-info span:not(:last-child)::after {
+    content: '·';
+    margin-left: 6px;
+    color: var(--text-muted);
 }
 
 /* Центральная часть: кнопки действий */
@@ -652,7 +655,11 @@ body {
     flex-wrap: wrap;
     gap: 4px;
     flex: 0 1 auto;
-    order: 1;
+}
+.row .action-buttons .action-btn {
+    padding: 2px 8px;
+    font-size: 12px;
+    white-space: nowrap;
 }
 
 /* Правая часть: контрол количества (всегда прижат к правому краю) */
@@ -661,34 +668,35 @@ body {
     align-items: center;
     gap: 4px;
     flex: 0 1 auto;
-    order: 2;
     margin-left: auto;
     justify-content: flex-end;
     flex-wrap: wrap;
 }
 .qty-controls input[type="number"] {
-    width: 52px;
-    padding: 4px;
+    width: 48px;
+    padding: 2px 4px;
     background: var(--bg-input);
     border: 1px solid var(--border-light);
     border-radius: 4px;
     color: var(--text-primary);
     text-align: center;
+    font-size: 14px;
 }
 .btn-c {
-    width: 34px;
-    height: 34px;
+    width: 30px;
+    height: 30px;
     border-radius: 50%;
     border: 1px solid var(--border-light);
     background: var(--bg-input);
     color: var(--text-secondary);
-    font-size: 18px;
+    font-size: 16px;
     font-weight: bold;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     transition: 0.15s;
+    flex-shrink: 0;
 }
 .btn-c:hover {
     background: var(--bg-hover);
@@ -726,13 +734,6 @@ body {
 }
 
 /* Предупреждение о переполнении — удалено (не используется) */
-/* .overstock-warning {
-    color: var(--danger);
-    font-weight: bold;
-    font-size: 16px;
-    margin-left: 4px;
-    cursor: help;
-} */
 
 /* ===== Цветные кнопки действий ===== */
 .action-btn {
@@ -745,6 +746,7 @@ body {
     cursor: pointer;
     font-family: inherit;
     transition: 0.15s;
+    white-space: nowrap;
 }
 .action-btn:hover {
     background: var(--bg-hover);
@@ -827,6 +829,52 @@ body {
 }
 .desc-block.open {
     display: block;
+}
+
+/* ===== ДОЧЕРНИЕ СТРОКИ ДЛЯ КОФРОВ ===== */
+.child-row {
+    padding: 6px 12px 6px 20px;
+    margin: 4px 0 4px 16px;
+    border-left: 2px solid var(--color-case);
+    background: var(--bg-secondary);
+    border-radius: 6px;
+    width: calc(100% - 16px);
+    max-width: 100%;
+    overflow-x: auto;
+    box-sizing: border-box;
+}
+.child-row .child-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+    padding: 4px 8px;
+    background: var(--bg-input);
+    border-radius: 4px;
+    margin: 2px 0;
+    border-left: 3px solid var(--text-muted);
+    min-width: 0;
+}
+.child-row .child-controls input[type="number"] {
+    width: 44px;
+    padding: 2px 4px;
+    font-size: 13px;
+    text-align: center;
+}
+.child-row .child-controls .btn-c {
+    width: 26px;
+    height: 26px;
+    font-size: 13px;
+    flex-shrink: 0;
+}
+.child-row .child-controls span {
+    white-space: nowrap;
+    font-size: 12px;
+}
+.child-row .case-fill-percent {
+    font-weight: bold;
+    font-size: 11px;
+    margin-left: 2px;
 }
 
 .category-totals {
@@ -912,45 +960,6 @@ body {
 }
 .hidden {
     display: none !important;
-}
-
-/* ===== ДОЧЕРНИЕ СТРОКИ ДЛЯ КОФРОВ ===== */
-.child-row {
-    padding-left: 40px;
-    border-left: 2px solid var(--color-case);
-    margin: 4px 0 4px 20px;
-    background: var(--bg-secondary);
-    border-radius: 4px;
-    width: 100%;
-    flex-basis: 100%;
-    order: 3;
-}
-.child-row .child-controls {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 4px 8px;
-    flex-wrap: wrap;
-}
-.child-row .child-controls label {
-    font-size: 13px;
-    color: var(--text-secondary);
-    min-width: 120px;
-}
-.child-row .child-controls input[type="number"] {
-    width: 60px;
-    padding: 2px 4px;
-    background: var(--bg-input);
-    border: 1px solid var(--border-light);
-    border-radius: 4px;
-    color: var(--text-primary);
-    text-align: center;
-    font-size: 13px;
-}
-.child-row .child-controls .child-info {
-    font-size: 12px;
-    color: var(--text-muted);
-    margin-left: 8px;
 }
 
 /* ===== МОДАЛКИ ===== */
@@ -1481,6 +1490,49 @@ body {
             flex: 1;
         }
     }
+
+    /* Дополнительная адаптация для строк позиций */
+    .row .extra-info {
+        font-size: 11px;
+        gap: 2px 8px;
+    }
+    .row .extra-info span::after {
+        margin-left: 4px;
+    }
+    .row .action-buttons .action-btn {
+        font-size: 11px;
+        padding: 1px 6px;
+    }
+    .qty-controls input[type="number"] {
+        width: 40px;
+        font-size: 13px;
+    }
+    .btn-c {
+        width: 26px;
+        height: 26px;
+        font-size: 14px;
+    }
+    .child-row {
+        padding: 4px 8px 4px 12px;
+        margin-left: 8px;
+        width: calc(100% - 8px);
+    }
+    .child-row .child-controls {
+        padding: 2px 6px;
+        gap: 2px 6px;
+    }
+    .child-row .child-controls input[type="number"] {
+        width: 36px;
+        font-size: 12px;
+    }
+    .child-row .child-controls .btn-c {
+        width: 22px;
+        height: 22px;
+        font-size: 12px;
+    }
+    .child-row .child-controls span {
+        font-size: 11px;
+    }
 }
 
 @media (max-width: 480px) {
@@ -1593,6 +1645,29 @@ body {
             max-height: none;
             flex: 1;
         }
+    }
+
+    /* Дополнительная адаптация для строк позиций */
+    .row .action-buttons {
+        order: 2;
+        flex: 1 1 100%;
+        justify-content: flex-start;
+    }
+    .row .qty-controls {
+        order: 1;
+        margin-left: 0;
+        flex: 0 1 auto;
+    }
+    .row .name-area {
+        flex: 1 1 100%;
+    }
+    .child-row {
+        padding: 2px 4px 2px 8px;
+        margin-left: 4px;
+    }
+    .child-row .child-controls {
+        flex-wrap: wrap;
+        gap: 2px 4px;
     }
 }
 
