@@ -48,7 +48,7 @@ function checkAndWarnAvailability(path, requestedQty) {
 }
 
 // ============================================================
-// ОБРАБОТЧИКИ ИЗМЕНЕНИЯ КОЛИЧЕСТВА
+// ОБРАБОТЧИКИ ИЗМЕНЕНИЯ КОЛИЧЕСТВА (без изменений)
 // ============================================================
 
 function handleQtyChange(path, delta) {
@@ -347,7 +347,7 @@ function handleExtraQtyChange(path, delta) {
 }
 
 // ============================================================
-// ПОВТОР ПРИ УДЕРЖАНИИ КНОПКИ (поддержка touch для мобильных)
+// ПОВТОР ПРИ УДЕРЖАНИИ КНОПКИ (с поддержкой touch)
 // ============================================================
 
 let repeatInterval = null;
@@ -379,18 +379,15 @@ function startRepeat(btn, delta) {
     }
   };
 
-  // Первое действие происходит сразу после задержки
   repeatTimeout = setTimeout(() => {
-    // Запускаем интервал с периодичностью 100 мс
     repeatInterval = setInterval(() => {
-      // Проверяем, что кнопка всё ещё нажата
       if (!currentRepeatBtn || currentRepeatBtn !== btn) {
         stopRepeat();
         return;
       }
       doAction();
     }, 100);
-    // Выполняем сразу одно действие, чтобы не ждать
+    // Первое действие происходит сразу после задержки
     doAction();
   }, 400);
 }
@@ -404,86 +401,68 @@ function stopRepeat() {
 }
 
 // ============================================================
-// ОБРАБОТЧИКИ СОБЫТИЙ (мышь и touch)
+// ОБРАБОТЧИКИ СОБЫТИЙ
 // ============================================================
 
-function handlePointerDown(e) {
-  // Определяем, какая кнопка нажата
-  const btn = e.target.closest('.btn-c');
-  if (!btn || !btn.dataset.delta) return;
-  if (btn.classList.contains('qty-btn') || btn.classList.contains('single-piece-btn') ||
-      btn.classList.contains('single-case-btn') || btn.classList.contains('child-multi-piece-btn') ||
-      btn.classList.contains('child-multi-case-btn') || btn.classList.contains('child-common-btn') ||
-      btn.classList.contains('child-extra-btn')) {
-    // Предотвращаем контекстное меню и стандартное поведение на мобильных
-    e.preventDefault();
-    startRepeat(btn, parseInt(btn.dataset.delta));
-  }
-}
-
-function handlePointerUp(e) {
-  stopRepeat();
-}
-
-// ============================================================
-// КЛИК (для одиночных нажатий)
-// ============================================================
-
+// Отдельный обработчик для кликов (одиночные нажатия)
 function handleContainerClick(e) {
-  const target = e.target.closest('.qty-btn');
-  if (target && !target.closest('.child-controls')) {
+  // Пропускаем, если это был клик по кнопке с классом .btn-c (они обрабатываются через pointerdown)
+  const target = e.target.closest('.btn-c');
+  if (target && target.dataset.delta) {
+    // Если это клик, а не повтор, то обрабатываем один раз
+    // Мы будем обрабатывать клики в pointerdown, но с задержкой,
+    // поэтому здесь просто ничего не делаем, чтобы не дублировать.
+    // Однако, если по какой-то причине pointerdown не сработал (например, на десктопе без мыши),
+    // мы всё равно обработаем здесь.
+    // Но чтобы избежать двойной обработки, проверим, не был ли уже обработан этот клик через pointerdown.
+    // Проще: в pointerdown мы не предотвращаем клик, а лишь запускаем повтор.
+    // Поэтому клик всё равно дойдёт сюда, и мы обработаем его как одиночный.
+    // Чтобы не дублировать, в pointerdown мы не будем вызывать doAction сразу, только после задержки.
+    // А здесь обработаем мгновенно.
+    // Но тогда при удержании будет и клик, и повтор. Нужно различать.
+    // Решение: использовать флаг, что была нажата кнопка, и если через 400 мс не было отжато, то запускаем повтор.
+    // В этом случае клик должен срабатывать только если кнопка была отпущена до таймаута.
+    // Это сложно. Давайте сделаем проще: обрабатываем клик здесь, а pointerdown только запускает повтор,
+    // но не выполняет действие сразу. В repeat мы выполняем действие после задержки.
+    // Тогда при одиночном клике сработает только этот обработчик.
+    // При удержании сработает этот обработчик (один раз) и потом повтор.
+    // Чтобы избежать двойного срабатывания, мы можем в pointerdown установить флаг,
+    // а в click проверить, был ли уже обработан этот клик через pointerdown.
+    // Я выберу другой путь: в pointerdown мы будем запускать повтор, но не будем выполнять действие сразу.
+    // А в click будем выполнять действие, но только если не был запущен повтор (т.е. если кнопка была отпущена до таймаута).
+    // Для этого в startRepeat мы будем устанавливать флаг, что повтор запущен.
+    // А в click проверим, если повтор уже запущен, то ничего не делаем.
+    if (repeatInterval) {
+      // Повтор уже идёт, значит это долгое нажатие, игнорируем клик
+      return;
+    }
+    // Иначе обрабатываем одиночный клик
     const path = target.dataset.path;
     const delta = parseInt(target.dataset.delta);
-    if (path && !isNaN(delta)) handleQtyChange(path, delta);
-    return;
-  }
-  const singlePieceBtn = e.target.closest('.single-piece-btn');
-  if (singlePieceBtn) {
-    const path = singlePieceBtn.dataset.path;
-    const delta = parseInt(singlePieceBtn.dataset.delta);
-    if (path && !isNaN(delta)) handleSinglePieceChange(path, delta);
-    return;
-  }
-  const singleCaseBtn = e.target.closest('.single-case-btn');
-  if (singleCaseBtn) {
-    const path = singleCaseBtn.dataset.path;
-    const delta = parseInt(singleCaseBtn.dataset.delta);
-    if (path && !isNaN(delta)) handleSingleCaseChange(path, delta);
-    return;
-  }
-  const multiPieceBtn = e.target.closest('.child-multi-piece-btn');
-  if (multiPieceBtn) {
-    const path = multiPieceBtn.dataset.path;
-    const idx = parseInt(multiPieceBtn.dataset.idx);
-    const delta = parseInt(multiPieceBtn.dataset.delta);
-    if (path && !isNaN(idx) && !isNaN(delta)) handleMultiPieceChange(path, idx, delta);
-    return;
-  }
-  const multiCaseBtn = e.target.closest('.child-multi-case-btn');
-  if (multiCaseBtn) {
-    const path = multiCaseBtn.dataset.path;
-    const idx = parseInt(multiCaseBtn.dataset.idx);
-    const delta = parseInt(multiCaseBtn.dataset.delta);
-    if (path && !isNaN(idx) && !isNaN(delta)) handleMultiCaseChange(path, idx, delta);
-    return;
-  }
-  const commonBtn = e.target.closest('.child-common-btn');
-  if (commonBtn) {
-    const path = commonBtn.dataset.path;
-    const caseId = commonBtn.dataset.caseid;
-    const delta = parseInt(commonBtn.dataset.delta);
-    if (path && caseId && !isNaN(delta)) handleCommonQtyChange(path, caseId, delta);
-    return;
-  }
-  const extraBtn = e.target.closest('.child-extra-btn');
-  if (extraBtn) {
-    const path = extraBtn.dataset.path;
-    const delta = parseInt(extraBtn.dataset.delta);
-    if (path && !isNaN(delta)) handleExtraQtyChange(path, delta);
+    if (!path || isNaN(delta)) return;
+    // Определяем тип кнопки по классам
+    if (target.classList.contains('qty-btn')) {
+      handleQtyChange(path, delta);
+    } else if (target.classList.contains('single-piece-btn')) {
+      handleSinglePieceChange(path, delta);
+    } else if (target.classList.contains('single-case-btn')) {
+      handleSingleCaseChange(path, delta);
+    } else if (target.classList.contains('child-multi-piece-btn')) {
+      const idx = parseInt(target.dataset.idx);
+      if (!isNaN(idx)) handleMultiPieceChange(path, idx, delta);
+    } else if (target.classList.contains('child-multi-case-btn')) {
+      const idx = parseInt(target.dataset.idx);
+      if (!isNaN(idx)) handleMultiCaseChange(path, idx, delta);
+    } else if (target.classList.contains('child-common-btn')) {
+      const caseId = target.dataset.caseid;
+      if (caseId) handleCommonQtyChange(path, caseId, delta);
+    } else if (target.classList.contains('child-extra-btn')) {
+      handleExtraQtyChange(path, delta);
+    }
     return;
   }
 
-  // Кнопки действий
+  // Остальные кнопки (не .btn-c) обрабатываем как обычно
   const infoBtn = e.target.closest('.info-btn');
   if (infoBtn) { toggleInfoOrder(infoBtn); return; }
   const descBtn = e.target.closest('.desc-btn');
@@ -507,6 +486,25 @@ function handleContainerClick(e) {
   }
   const noteBtn = e.target.closest('.note-btn');
   if (noteBtn) { openNoteEditorOrder(noteBtn); return; }
+}
+
+function handlePointerDown(e) {
+  const btn = e.target.closest('.btn-c');
+  if (!btn || !btn.dataset.delta) return;
+  if (btn.classList.contains('qty-btn') || btn.classList.contains('single-piece-btn') ||
+      btn.classList.contains('single-case-btn') || btn.classList.contains('child-multi-piece-btn') ||
+      btn.classList.contains('child-multi-case-btn') || btn.classList.contains('child-common-btn') ||
+      btn.classList.contains('child-extra-btn')) {
+    e.preventDefault(); // предотвращаем зум/скролл
+    const delta = parseInt(btn.dataset.delta);
+    if (!isNaN(delta)) {
+      startRepeat(btn, delta);
+    }
+  }
+}
+
+function handlePointerUp(e) {
+  stopRepeat();
 }
 
 function handleContainerInput(e) {
@@ -627,7 +625,6 @@ function handleContainerInput(e) {
   }
   const multiCases = e.target.closest('.child-multi-cases');
   if (multiCases) {
-    // Поле readonly, но на случай, если кто-то его изменит через инспектор
     const path = multiCases.dataset.path;
     const idx = parseInt(multiCases.dataset.idx);
     let val = parseInt(multiCases.value);
@@ -740,22 +737,21 @@ export function setupEventDelegation() {
   const container = document.getElementById('categoryContents');
   if (!container) return;
 
-  // Удаляем старые обработчики, чтобы не было дублирования
   container.removeEventListener('click', handleContainerClick);
   container.removeEventListener('input', handleContainerInput);
-  container.removeEventListener('mousedown', handlePointerDown);
-  container.removeEventListener('mouseup', handlePointerUp);
-  container.removeEventListener('mouseleave', handlePointerUp);
+  container.removeEventListener('pointerdown', handlePointerDown);
+  container.removeEventListener('pointerup', handlePointerUp);
+  container.removeEventListener('pointerleave', handlePointerUp);
   container.removeEventListener('touchstart', handlePointerDown);
   container.removeEventListener('touchend', handlePointerUp);
   container.removeEventListener('touchcancel', handlePointerUp);
 
-  // Добавляем новые
   container.addEventListener('click', handleContainerClick);
   container.addEventListener('input', handleContainerInput);
-  container.addEventListener('mousedown', handlePointerDown);
-  container.addEventListener('mouseup', handlePointerUp);
-  container.addEventListener('mouseleave', handlePointerUp);
+  container.addEventListener('pointerdown', handlePointerDown);
+  container.addEventListener('pointerup', handlePointerUp);
+  container.addEventListener('pointerleave', handlePointerUp);
+  // touch-события для мобильных (pointer events уже покрывают, но для надёжности оставляем)
   container.addEventListener('touchstart', handlePointerDown, { passive: false });
   container.addEventListener('touchend', handlePointerUp);
   container.addEventListener('touchcancel', handlePointerUp);
