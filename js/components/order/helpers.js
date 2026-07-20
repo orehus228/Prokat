@@ -60,24 +60,17 @@ export function getActiveItemsOrder() {
   const items = [];
   const allPaths = new Set();
 
-  // Все пути, где есть заказ
   for (let p in state.order) {
     if (state.order[p] > 0) allPaths.add(p);
   }
-
-  // Все пути, где есть extra (вне кофра)
   for (let p in state.orderExtra) {
     if (state.orderExtra[p] > 0) allPaths.add(p);
   }
-
-  // Все пути, где есть упаковка в общие кофры
   for (let p in state.orderPacking) {
     const packing = state.orderPacking[p];
     const total = packing.reduce((s, item) => s + (item.pieces || 0), 0);
     if (total > 0) allPaths.add(p);
   }
-
-  // Все пути, где есть индивидуальные кофры
   for (let p in state.individualCaseValues) {
     const vals = state.individualCaseValues[p];
     if (vals.reduce((a, b) => a + b, 0) > 0) allPaths.add(p);
@@ -259,7 +252,7 @@ export function updateChildRowsForPath(path) {
     childDiv.style.margin = '4px 0';
     childDiv.style.border = '1px solid var(--border-light)';
 
-    let html = `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px;font-size:13px;color:var(--text-secondary);">
+    let html = `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px;font-size:13px;color:var(--text-secondary);">
       <strong>Распределение по вариантам кофров</strong>
       <span style="margin-left:auto;">Итого: ${individualVals.reduce((a, b) => a + b, 0)} шт</span>
     </div>`;
@@ -270,20 +263,38 @@ export function updateChildRowsForPath(path) {
       const maxPossible = getStockValue(path);
       const maxCases = opt.maxCases || 0;
 
-      html += `<div class="child-controls" style="display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:4px 6px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid var(--text-muted);">
-        <span style="font-weight:600;font-size:13px;flex-shrink:0;">Вар${idx + 1}</span>
-        <span style="font-size:11px;color:var(--text-secondary);flex-shrink:0;">шт:</span>
-        <button class="btn-c child-multi-piece-btn" style="width:24px;height:24px;font-size:13px;flex-shrink:0;" data-path="${path}" data-idx="${idx}" data-delta="-1">−</button>
-        <input type="number" class="child-multi-pieces" data-path="${path}" data-idx="${idx}" value="${val}" min="0" step="1" max="${maxPossible}" style="width:44px;padding:2px 4px;font-size:13px;text-align:center;flex-shrink:0;">
-        <button class="btn-c child-multi-piece-btn" style="width:24px;height:24px;font-size:13px;flex-shrink:0;" data-path="${path}" data-idx="${idx}" data-delta="1">+</button>
-        <span style="font-size:11px;color:var(--text-secondary);flex-shrink:0;">коф:</span>
-        <button class="btn-c child-multi-case-btn" style="width:24px;height:24px;font-size:13px;flex-shrink:0;" data-path="${path}" data-idx="${idx}" data-delta="-${opt.qty}">−</button>
-        <input type="number" class="child-multi-cases" data-path="${path}" data-idx="${idx}" value="${casesCount}" min="0" step="1" readonly style="width:44px;padding:2px 4px;font-size:13px;text-align:center;cursor:default;flex-shrink:0;">
-        <button class="btn-c child-multi-case-btn" style="width:24px;height:24px;font-size:13px;flex-shrink:0;" data-path="${path}" data-idx="${idx}" data-delta="${opt.qty}">+</button>
-        ${maxCases > 0 ? `<span style="font-size:10px;color:var(--text-muted);flex-shrink:0;">макс${maxCases}</span>` : ''}
-        <span style="font-size:10px;color:var(--text-muted);flex-shrink:0;">${opt.dimensions || ''}</span>
-        <span style="font-size:10px;color:var(--text-muted);flex-shrink:0;">в${opt.weight || 0}</span>
-      </div>`;
+      // ════════════════════════════════════════════
+      // Строгая сетка: все элементы фиксированы
+      // ════════════════════════════════════════════
+      html += `
+        <div class="child-controls" data-caseid="${idx}" style="
+          display: grid;
+          grid-template-columns: 44px 22px 22px 36px 22px 22px 22px 36px 22px 30px 60px 30px;
+          align-items: center;
+          gap: 2px 4px;
+          padding: 4px 6px;
+          background: var(--bg-input);
+          border-radius: 4px;
+          margin: 2px 0;
+          border-left: 3px solid var(--text-muted);
+          font-size: 11px;
+          color: var(--text-secondary);
+          overflow: hidden;
+        ">
+          <span style="font-weight:600;font-size:12px;color:var(--text-primary);">Вар${idx + 1}</span>
+          <span>шт</span>
+          <button class="btn-c child-multi-piece-btn" style="width:22px;height:22px;font-size:12px;padding:0;display:flex;align-items:center;justify-content:center;" data-path="${path}" data-idx="${idx}" data-delta="-1">−</button>
+          <input type="number" class="child-multi-pieces" data-path="${path}" data-idx="${idx}" value="${val}" min="0" step="1" max="${maxPossible}" style="width:36px;padding:1px 2px;font-size:12px;text-align:center;background:var(--bg-input);border:1px solid var(--border-light);border-radius:3px;">
+          <button class="btn-c child-multi-piece-btn" style="width:22px;height:22px;font-size:12px;padding:0;display:flex;align-items:center;justify-content:center;" data-path="${path}" data-idx="${idx}" data-delta="1">+</button>
+          <span>коф</span>
+          <button class="btn-c child-multi-case-btn" style="width:22px;height:22px;font-size:12px;padding:0;display:flex;align-items:center;justify-content:center;" data-path="${path}" data-idx="${idx}" data-delta="-${opt.qty}">−</button>
+          <input type="number" class="child-multi-cases" data-path="${path}" data-idx="${idx}" value="${casesCount}" min="0" step="1" readonly style="width:36px;padding:1px 2px;font-size:12px;text-align:center;background:var(--bg-input);border:1px solid var(--border-light);border-radius:3px;cursor:default;opacity:0.8;">
+          <button class="btn-c child-multi-case-btn" style="width:22px;height:22px;font-size:12px;padding:0;display:flex;align-items:center;justify-content:center;" data-path="${path}" data-idx="${idx}" data-delta="${opt.qty}">+</button>
+          ${maxCases > 0 ? `<span style="font-size:10px;color:var(--text-muted);">м${maxCases}</span>` : `<span></span>`}
+          <span style="font-size:10px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${opt.dimensions || ''}</span>
+          <span style="font-size:10px;color:var(--text-muted);">в${opt.weight || 0}</span>
+        </div>
+      `;
     });
 
     childDiv.innerHTML = html;
@@ -303,18 +314,36 @@ export function updateChildRowsForPath(path) {
     childDiv.style.margin = '4px 0';
     childDiv.style.border = '1px solid var(--border-light)';
 
-    let html = `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px;font-size:13px;color:var(--text-secondary);">
+    let html = `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px;font-size:13px;color:var(--text-secondary);">
       <strong>Упаковка в общие кофры</strong>
       <span style="margin-left:auto;">Вне кофра: ${extra} шт</span>
     </div>`;
 
     const maxExtra = getStockValue(path);
-    html += `<div class="child-controls" style="display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:4px 6px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid var(--text-muted);">
-      <span style="font-weight:600;font-size:13px;flex-shrink:0;">Вне</span>
-      <button class="btn-c child-extra-btn" style="width:24px;height:24px;font-size:13px;flex-shrink:0;" data-path="${path}" data-delta="-1">−</button>
-      <input type="number" class="child-extra-qty" data-path="${path}" value="${extra}" min="0" step="1" max="${maxExtra}" style="width:44px;padding:2px 4px;font-size:13px;text-align:center;flex-shrink:0;">
-      <button class="btn-c child-extra-btn" style="width:24px;height:24px;font-size:13px;flex-shrink:0;" data-path="${path}" data-delta="1">+</button>
-    </div>`;
+    // Строка "Вне кофра" тоже через сетку
+    html += `
+      <div class="child-controls" style="
+        display: grid;
+        grid-template-columns: 44px 22px 22px 36px 22px 1fr;
+        align-items: center;
+        gap: 2px 4px;
+        padding: 4px 6px;
+        background: var(--bg-input);
+        border-radius: 4px;
+        margin: 2px 0;
+        border-left: 3px solid var(--text-muted);
+        font-size: 11px;
+        color: var(--text-secondary);
+        overflow: hidden;
+      ">
+        <span style="font-weight:600;font-size:12px;color:var(--text-primary);">Вне</span>
+        <span></span>
+        <button class="btn-c child-extra-btn" style="width:22px;height:22px;font-size:12px;padding:0;display:flex;align-items:center;justify-content:center;" data-path="${path}" data-delta="-1">−</button>
+        <input type="number" class="child-extra-qty" data-path="${path}" value="${extra}" min="0" step="1" max="${maxExtra}" style="width:36px;padding:1px 2px;font-size:12px;text-align:center;background:var(--bg-input);border:1px solid var(--border-light);border-radius:3px;">
+        <button class="btn-c child-extra-btn" style="width:22px;height:22px;font-size:12px;padding:0;display:flex;align-items:center;justify-content:center;" data-path="${path}" data-delta="1">+</button>
+        <span></span>
+      </div>
+    `;
 
     packing.forEach((p) => {
       const c = commonCases.find(c => c.id === p.caseId);
@@ -327,16 +356,31 @@ export function updateChildRowsForPath(path) {
       let fillPercent = 0;
       if (maxWeight > 0) fillPercent = Math.min(100, Math.round((filledWeight / maxWeight) * 100));
 
-      html += `<div class="child-controls" data-caseid="${p.caseId}" style="display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:4px 6px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid var(--text-muted);">
-        <span style="font-weight:600;font-size:13px;flex-shrink:0;">${esc(name)}</span>
-        <span style="font-size:11px;color:var(--text-secondary);flex-shrink:0;">шт:</span>
-        <button class="btn-c child-common-btn" style="width:24px;height:24px;font-size:13px;flex-shrink:0;" data-path="${path}" data-caseid="${p.caseId}" data-delta="-1">−</button>
-        <input type="number" class="child-common-qty" data-path="${path}" data-caseid="${p.caseId}" value="${qty}" min="0" step="1" max="${maxPack}" style="width:44px;padding:2px 4px;font-size:13px;text-align:center;flex-shrink:0;">
-        <button class="btn-c child-common-btn" style="width:24px;height:24px;font-size:13px;flex-shrink:0;" data-path="${path}" data-caseid="${p.caseId}" data-delta="1">+</button>
-        <span class="case-fill-percent" style="font-size:11px;color:var(--text-secondary);font-weight:bold;flex-shrink:0;">${fillPercent}%</span>
-        <span style="font-size:10px;color:var(--text-muted);flex-shrink:0;">${c?.dimensions || ''}</span>
-        <span style="font-size:10px;color:var(--text-muted);flex-shrink:0;">в${c?.emptyWeight || 0}</span>
-      </div>`;
+      html += `
+        <div class="child-controls" data-caseid="${p.caseId}" style="
+          display: grid;
+          grid-template-columns: 80px 22px 22px 36px 22px 30px 60px 30px;
+          align-items: center;
+          gap: 2px 4px;
+          padding: 4px 6px;
+          background: var(--bg-input);
+          border-radius: 4px;
+          margin: 2px 0;
+          border-left: 3px solid var(--text-muted);
+          font-size: 11px;
+          color: var(--text-secondary);
+          overflow: hidden;
+        ">
+          <span style="font-weight:600;font-size:12px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(name)}</span>
+          <span>шт</span>
+          <button class="btn-c child-common-btn" style="width:22px;height:22px;font-size:12px;padding:0;display:flex;align-items:center;justify-content:center;" data-path="${path}" data-caseid="${p.caseId}" data-delta="-1">−</button>
+          <input type="number" class="child-common-qty" data-path="${path}" data-caseid="${p.caseId}" value="${qty}" min="0" step="1" max="${maxPack}" style="width:36px;padding:1px 2px;font-size:12px;text-align:center;background:var(--bg-input);border:1px solid var(--border-light);border-radius:3px;">
+          <button class="btn-c child-common-btn" style="width:22px;height:22px;font-size:12px;padding:0;display:flex;align-items:center;justify-content:center;" data-path="${path}" data-caseid="${p.caseId}" data-delta="1">+</button>
+          <span class="case-fill-percent" style="font-size:11px;font-weight:bold;color:var(--text-secondary);">${fillPercent}%</span>
+          <span style="font-size:10px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${c?.dimensions || ''}</span>
+          <span style="font-size:10px;color:var(--text-muted);">в${c?.emptyWeight || 0}</span>
+        </div>
+      `;
     });
 
     childDiv.innerHTML = html;
