@@ -87,7 +87,13 @@ export function loadState() {
       const parsed = JSON.parse(saved);
       console.log('[state] Данные APP_DATA загружены, ключи:', Object.keys(parsed));
       Object.assign(state, parsed);
-      // После присвоения проверяем наличие itemProps
+      
+      // ⭐ ПРИНУДИТЕЛЬНОЕ КОПИРОВАНИЕ itemProps, ЧТОБЫ ГАРАНТИРОВАТЬ ЗАГРУЗКУ
+      if (parsed.itemProps) {
+        state.itemProps = parsed.itemProps;
+        console.log('[state] Принудительно скопированы itemProps, ключей:', Object.keys(state.itemProps).length);
+      }
+      
       console.log('[state] state.itemProps после загрузки:', Object.keys(state.itemProps || {}).length, 'ключей');
     } else {
       console.warn('[state] APP_DATA отсутствует в localStorage');
@@ -156,6 +162,12 @@ export function loadState() {
     console.log('[state] ✅ Данные для', testPath, 'загружены:', state.itemProps[testPath]);
   } else {
     console.warn('[state] ❌ Данные для', testPath, 'НЕ загружены');
+    // Попробуем найти похожий ключ в itemProps
+    const keys = Object.keys(state.itemProps);
+    const similar = keys.filter(k => k.includes('0.5x0.5') || k.includes('Экран'));
+    if (similar.length > 0) {
+      console.warn('[state] Похожие ключи в itemProps:', similar);
+    }
   }
 
   notifySubscribers('*');
