@@ -8,15 +8,6 @@ let modalReject = null;
 // PROMPT — модалка с вводом текста
 // ============================================================
 
-/**
- * Показывает модалку с полем ввода.
- * @param {string} title - заголовок
- * @param {string} label - текст метки (необязательно)
- * @param {string} defaultValue - значение по умолчанию
- * @param {string} placeholder - плейсхолдер
- * @param {Function} validator - функция валидации (если возвращает строку — ошибка)
- * @returns {Promise<string|null>}
- */
 export function showPrompt(title, label = 'Введите значение:', defaultValue = '', placeholder = '', validator = null) {
   return new Promise((resolve, reject) => {
     const overlay = document.getElementById('modalOverlay');
@@ -44,7 +35,6 @@ export function showPrompt(title, label = 'Введите значение:', de
       if (validator) {
         const error = validator(val);
         if (error) {
-          // Импортируем showToast динамически, чтобы избежать циклической зависимости
           import('./toast.js').then(({ showToast }) => {
             showToast(error, 'error');
             setTimeout(() => showPrompt(title, label, val, placeholder, validator).then(resolve).catch(reject), 100);
@@ -81,12 +71,6 @@ export function showPrompt(title, label = 'Введите значение:', de
 // CONFIRM — модалка подтверждения
 // ============================================================
 
-/**
- * Показывает модалку подтверждения.
- * @param {string} message - текст сообщения
- * @param {string} title - заголовок (по умолчанию 'Подтверждение')
- * @returns {Promise<boolean>}
- */
 export function showConfirm(message, title = 'Подтверждение') {
   return new Promise((resolve) => {
     const overlay = document.getElementById('confirmOverlay');
@@ -119,16 +103,9 @@ export function showConfirm(message, title = 'Подтверждение') {
 }
 
 // ============================================================
-// CHOICE — выбор одного из нескольких вариантов
+// CHOICE — выбор одного из нескольких вариантов (исправлен)
 // ============================================================
 
-/**
- * Показывает модалку с выбором одного из нескольких вариантов (радиокнопки).
- * @param {string} title - заголовок
- * @param {string} message - пояснительное сообщение
- * @param {Array<{value: string, label: string, description?: string}>} options - варианты
- * @returns {Promise<string>} выбранное значение
- */
 export function showChoice(title, message, options) {
   return new Promise((resolve) => {
     const overlay = document.getElementById('modalOverlay');
@@ -141,11 +118,9 @@ export function showChoice(title, message, options) {
     const labelEl = document.getElementById('modalLabel');
     if (labelEl) labelEl.textContent = message;
     const input = document.getElementById('modalInput');
-    // Убираем поле ввода, заменяем на радиокнопки
     if (input) {
       input.style.display = 'none';
       const container = input.parentNode;
-      // Удаляем старый radioGroup, если был
       const oldGroup = container.querySelector('.radio-group');
       if (oldGroup) oldGroup.remove();
       const radioGroup = document.createElement('div');
@@ -194,28 +169,28 @@ export function showChoice(title, message, options) {
       return selected ? selected.value : (options[0]?.value || '');
     };
 
-    const newConfirm = () => {
+    const handleConfirm = () => {
       cleanup();
       resolve(getSelected());
     };
-    const newCancel = () => {
+    const handleCancel = () => {
       cleanup();
       resolve(options[0]?.value || '');
     };
-    const newKeydown = (e) => {
-      if (e.key === 'Enter') newConfirm();
-      if (e.key === 'Escape') newCancel();
+    const handleKeydown = (e) => {
+      if (e.key === 'Enter') handleConfirm();
+      if (e.key === 'Escape') handleCancel();
     };
 
-    if (confirmBtn) confirmBtn.onclick = newConfirm;
-    if (cancelBtn) cancelBtn.onclick = newCancel;
-    if (input) input.onkeydown = newKeydown;
-    overlay.onclick = (e) => { if (e.target === overlay) newCancel(); };
+    if (confirmBtn) confirmBtn.onclick = handleConfirm;
+    if (cancelBtn) cancelBtn.onclick = handleCancel;
+    if (input) input.onkeydown = handleKeydown;
+    overlay.onclick = (e) => { if (e.target === overlay) handleCancel(); };
   });
 }
 
 // ============================================================
-// ИНИЦИАЛИЗАЦИЯ МОДАЛОК (для обработчиков ESC и т.д.)
+// ИНИЦИАЛИЗАЦИЯ МОДАЛОК
 // ============================================================
 
 export function initModalHandlers() {

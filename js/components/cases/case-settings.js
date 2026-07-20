@@ -17,7 +17,6 @@ import {
 } from '../../services/order-data.js';
 // ⭐ Импортируем всё из calculations.js
 import * as calc from '../../services/calculations.js';
-// ⭐ Импортируем showChoice для диалога
 import { showToast } from '../../ui/toast.js';
 import { showPrompt, showConfirm, showChoice } from '../../ui/modal.js';
 import { esc, getElement } from '../../ui/dom.js';
@@ -245,7 +244,6 @@ async function saveCaseSettings(path) {
 
   switch (activeMode) {
     case 'off':
-      // Переносим количество обратно в order
       if (existingQty > 0) {
         setOrderValue(path, existingQty);
       }
@@ -269,11 +267,9 @@ async function saveCaseSettings(path) {
         return;
       }
 
-      // ✅ ИСПРАВЛЕНО: переносим existingQty без изменения
       if (existingQty > 0) {
         const opt = options[idx];
         if (opt) {
-          // Проверяем лимит кофров
           const maxCases = opt.maxCases || 0;
           const maxPieces = maxCases * opt.qty;
           let finalQty = existingQty;
@@ -290,10 +286,8 @@ async function saveCaseSettings(path) {
     }
 
     case 'multi': {
-      // Проверяем, есть ли уже количество
-      let action = 'equal'; // по умолчанию
+      let action = 'equal';
       if (existingQty > 0) {
-        // Показываем диалог
         const choiceOptions = [
           { value: 'reset', label: 'Сбросить', description: 'обнулить количество' },
           { value: 'equal', label: 'Распределить поровну', description: 'разделить количество между всеми вариантами' },
@@ -304,12 +298,10 @@ async function saveCaseSettings(path) {
           'У позиции уже есть количество (' + existingQty + ' шт). Что сделать с этим количеством?',
           choiceOptions
         );
-        // если пользователь закрыл модалку, action будет равен первому (reset) – мы его обработаем
       }
 
       mode.enabled = true;
       const count = options.length;
-      // Инициализируем multiSelected
       mode.multiSelected = options.map(() => true);
 
       let vals = [];
@@ -320,7 +312,6 @@ async function saveCaseSettings(path) {
         let remainder = existingQty % count;
         vals = options.map((opt, idx) => {
           let val = base + (idx < remainder ? 1 : 0);
-          // Проверка лимита кофров
           const maxCases = opt.maxCases || 0;
           if (maxCases > 0) {
             const maxPieces = maxCases * opt.qty;
@@ -333,29 +324,23 @@ async function saveCaseSettings(path) {
         });
       } else if (action === 'sequential') {
         let remaining = existingQty;
-        vals = options.map((opt) => {
+        vals = options.map((opt, idx) => {
           if (remaining <= 0) return 0;
           const qtyPerCase = opt.qty;
           const maxCases = opt.maxCases || Infinity;
           const maxPieces = maxCases * qtyPerCase;
-          // Сколько можем положить в этот вариант
           let canPlace = Math.min(remaining, maxPieces);
-          // Округляем до целых кофров, остаток оставляем для следующих
           let pieces = Math.floor(canPlace / qtyPerCase) * qtyPerCase;
           if (pieces === 0 && remaining >= qtyPerCase) {
-            // если не хватает на целый кофр, но остаток есть – отдаём один неполный кофр
             pieces = qtyPerCase;
           }
-          // Если остаток меньше qtyPerCase и это последний вариант, отдаём остаток
-          if (remaining < qtyPerCase && remaining > 0 && options.indexOf(opt) === options.length - 1) {
+          if (remaining < qtyPerCase && remaining > 0 && idx === options.length - 1) {
             pieces = remaining;
           }
-          // Не превышаем maxPieces
           pieces = Math.min(pieces, maxPieces);
           remaining -= pieces;
           return pieces;
         });
-        // Если после распределения остались штуки, добавляем их к первому варианту (если возможно)
         if (remaining > 0) {
           const firstOpt = options[0];
           const maxCases = firstOpt.maxCases || 0;
@@ -370,7 +355,6 @@ async function saveCaseSettings(path) {
       }
 
       setIndividualCaseValues(path, vals);
-      // Пересчитываем общее количество
       const total = vals.reduce((a, b) => a + b, 0);
       setOrderValue(path, total);
       break;
@@ -388,16 +372,15 @@ async function saveCaseSettings(path) {
       }
       mode.enabled = true;
       mode.commonSelected = selected;
-
       if (existingQty > 0) {
         setOrderExtra(path, existingQty);
       }
-
       setOrderPacking(path, selected.map(caseId => ({ caseId, pieces: 0 })));
       break;
     }
   }
 
+  // ✅ ПРИНУДИТЕЛЬНОЕ СОХРАНЕНИЕ ПОСЛЕ ИЗМЕНЕНИЙ
   saveState();
 }
 
