@@ -210,13 +210,12 @@ export function buildItemRow(fullPath, level) {
   const hasLink = state.links[fullPath] && state.links[fullPath].length > 0;
   const props = calc.getItemPropsByPath(fullPath);
   
-  // ⭐ УСИЛЕННАЯ ПРОВЕРКА НАЛИЧИЯ КОФРОВ
+  // ⭐ ГАРАНТИРОВАННАЯ ПРОВЕРКА НАЛИЧИЯ КОФРОВ
   const hasIndividualCases = props.individualCases && props.individualCases.length > 0;
   const hasCommonCases = props.allowCommon;
   const hasCase = hasIndividualCases || hasCommonCases;
   
   const mode = calc.getCaseMode(fullPath);
-  // Проверяем, включён ли мультирежим (есть несколько вариантов и multiSelected содержит true)
   const isMulti = mode.enabled && hasIndividualCases && props.individualCases.length > 1 && 
                   mode.multiSelected && mode.multiSelected.some(v => v === true);
   
@@ -338,10 +337,8 @@ function renderQtyControls(path) {
   const packing = getOrderPacking(path);
   const options = calc.getCaseOptions(path);
   const totalQty = getTotalQty(path);
-  // Определяем, является ли мультирежим активным (включён и есть несколько вариантов)
   const isMulti = mode.enabled && options.length > 1 && mode.multiSelected && mode.multiSelected.some(v => v === true);
 
-  // Если режим кофров выключен или нет индивидуальных кофров, показываем обычные контролы
   if (!mode.enabled || (!packing.length && individualVals.length === 0 && !isMulti)) {
     return `
       <button class="btn-c qty-btn" data-path="${path}" data-delta="-1">−</button>
@@ -350,7 +347,6 @@ function renderQtyControls(path) {
     `;
   }
 
-  // Режим "один кофр" (single)
   if (mode.enabled && individualVals.length === 1 && !packing.length && !isMulti) {
     const opt = calc.getSelectedOption(path);
     const pieces = individualVals[0] || 0;
@@ -371,7 +367,6 @@ function renderQtyControls(path) {
     `;
   }
 
-  // Для мультирежима или общих кофров – показываем только общее количество (дочерние контролы рисуются отдельно)
   return `
     <span style="font-size:13px;color:var(--text-secondary);">${totalQty} шт</span>
   `;

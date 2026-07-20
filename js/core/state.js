@@ -209,24 +209,19 @@ function normalizeState() {
   for (let path in state.itemProps) {
     const props = state.itemProps[path];
     if (props.individualCases && props.individualCases.length > 1) {
-      // Убедимся, что для этого пути есть запись в caseModes
       if (!state.caseModes[path]) {
         state.caseModes[path] = { ...CASE_MODES_DEFAULTS };
       }
       const mode = state.caseModes[path];
-      // Если multiSelected отсутствует или имеет неверную длину — исправляем
       if (!Array.isArray(mode.multiSelected) || mode.multiSelected.length !== props.individualCases.length) {
         mode.multiSelected = props.individualCases.map(() => true);
       }
-      // Если режим включён, но multiSelected не содержит true — исправляем
       if (mode.enabled && !mode.multiSelected.some(v => v === true)) {
         mode.multiSelected = props.individualCases.map(() => true);
       }
-      // Если режим выключен, но multiSelected заполнен — оставляем как есть (пользователь может включить позже)
     }
   }
 
-  // Нормализация truckPresets
   if (!state.truckPresets || !Array.isArray(state.truckPresets)) {
     state.truckPresets = [...DEFAULT_TRUCK_PRESETS];
   }
