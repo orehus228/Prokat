@@ -48,7 +48,7 @@ function checkAndWarnAvailability(path, requestedQty) {
 }
 
 // ============================================================
-// ОБРАБОТЧИКИ ИЗМЕНЕНИЯ КОЛИЧЕСТВА (без изменений)
+// ОБРАБОТЧИКИ ИЗМЕНЕНИЯ КОЛИЧЕСТВА
 // ============================================================
 
 function handleQtyChange(path, delta) {
@@ -347,15 +347,19 @@ function handleExtraQtyChange(path, delta) {
 }
 
 // ============================================================
-// ПОВТОР ПРИ УДЕРЖАНИИ КНОПКИ (с поддержкой touch)
+// ПОВТОР ПРИ УДЕРЖАНИИ КНОПКИ + МГНОВЕННЫЙ ОТКЛИК НА КЛИК
 // ============================================================
 
 let repeatInterval = null;
 let repeatTimeout = null;
 let currentRepeatBtn = null;
+let isPointerDown = false;
 
 function startRepeat(btn, delta) {
-  if (repeatInterval) return;
+  if (repeatInterval) {
+    // Если повтор уже идёт, не запускаем новый
+    return;
+  }
   currentRepeatBtn = btn;
   const path = btn.dataset.path;
   const deltaVal = parseInt(btn.dataset.delta);
@@ -379,6 +383,7 @@ function startRepeat(btn, delta) {
     }
   };
 
+  // Запускаем таймер на повтор через 400 мс
   repeatTimeout = setTimeout(() => {
     repeatInterval = setInterval(() => {
       if (!currentRepeatBtn || currentRepeatBtn !== btn) {
@@ -387,7 +392,7 @@ function startRepeat(btn, delta) {
       }
       doAction();
     }, 100);
-    // Первое действие происходит сразу после задержки
+    // Первое действие в режиме удержания происходит после задержки
     doAction();
   }, 400);
 }
@@ -398,96 +403,75 @@ function stopRepeat() {
   repeatInterval = null;
   repeatTimeout = null;
   currentRepeatBtn = null;
+  isPointerDown = false;
 }
 
 // ============================================================
 // ОБРАБОТЧИКИ СОБЫТИЙ
 // ============================================================
 
-// Отдельный обработчик для кликов (одиночные нажатия)
+// Обработчик одиночных кликов (срабатывает мгновенно)
 function handleContainerClick(e) {
-  // Пропускаем, если это был клик по кнопке с классом .btn-c (они обрабатываются через pointerdown)
   const target = e.target.closest('.btn-c');
-  if (target && target.dataset.delta) {
-    // Если это клик, а не повтор, то обрабатываем один раз
-    // Мы будем обрабатывать клики в pointerdown, но с задержкой,
-    // поэтому здесь просто ничего не делаем, чтобы не дублировать.
-    // Однако, если по какой-то причине pointerdown не сработал (например, на десктопе без мыши),
-    // мы всё равно обработаем здесь.
-    // Но чтобы избежать двойной обработки, проверим, не был ли уже обработан этот клик через pointerdown.
-    // Проще: в pointerdown мы не предотвращаем клик, а лишь запускаем повтор.
-    // Поэтому клик всё равно дойдёт сюда, и мы обработаем его как одиночный.
-    // Чтобы не дублировать, в pointerdown мы не будем вызывать doAction сразу, только после задержки.
-    // А здесь обработаем мгновенно.
-    // Но тогда при удержании будет и клик, и повтор. Нужно различать.
-    // Решение: использовать флаг, что была нажата кнопка, и если через 400 мс не было отжато, то запускаем повтор.
-    // В этом случае клик должен срабатывать только если кнопка была отпущена до таймаута.
-    // Это сложно. Давайте сделаем проще: обрабатываем клик здесь, а pointerdown только запускает повтор,
-    // но не выполняет действие сразу. В repeat мы выполняем действие после задержки.
-    // Тогда при одиночном клике сработает только этот обработчик.
-    // При удержании сработает этот обработчик (один раз) и потом повтор.
-    // Чтобы избежать двойного срабатывания, мы можем в pointerdown установить флаг,
-    // а в click проверить, был ли уже обработан этот клик через pointerdown.
-    // Я выберу другой путь: в pointerdown мы будем запускать повтор, но не будем выполнять действие сразу.
-    // А в click будем выполнять действие, но только если не был запущен повтор (т.е. если кнопка была отпущена до таймаута).
-    // Для этого в startRepeat мы будем устанавливать флаг, что повтор запущен.
-    // А в click проверим, если повтор уже запущен, то ничего не делаем.
-    if (repeatInterval) {
-      // Повтор уже идёт, значит это долгое нажатие, игнорируем клик
+  if (!target || !target.dataset.delta) {
+    // Обработка других кнопок (Инфо, Линк, Заметка и т.п.)
+    const infoBtn = e.target.closest('.info-btn');
+    if (infoBtn) { toggleInfoOrder(infoBtn); return; }
+    const descBtn = e.target.closest('.desc-btn');
+    if (descBtn) { toggleDescOrder(descBtn); return; }
+    const linkBtn = e.target.closest('.link-btn');
+    if (linkBtn) {
+      import('../cases/matrix.js').then(module => {
+        module.openMatrixModal(linkBtn.dataset.path, false, currentOrderCategory);
+      });
       return;
     }
-    // Иначе обрабатываем одиночный клик
-    const path = target.dataset.path;
-    const delta = parseInt(target.dataset.delta);
-    if (!path || isNaN(delta)) return;
-    // Определяем тип кнопки по классам
-    if (target.classList.contains('qty-btn')) {
-      handleQtyChange(path, delta);
-    } else if (target.classList.contains('single-piece-btn')) {
-      handleSinglePieceChange(path, delta);
-    } else if (target.classList.contains('single-case-btn')) {
-      handleSingleCaseChange(path, delta);
-    } else if (target.classList.contains('child-multi-piece-btn')) {
-      const idx = parseInt(target.dataset.idx);
-      if (!isNaN(idx)) handleMultiPieceChange(path, idx, delta);
-    } else if (target.classList.contains('child-multi-case-btn')) {
-      const idx = parseInt(target.dataset.idx);
-      if (!isNaN(idx)) handleMultiCaseChange(path, idx, delta);
-    } else if (target.classList.contains('child-common-btn')) {
-      const caseId = target.dataset.caseid;
-      if (caseId) handleCommonQtyChange(path, caseId, delta);
-    } else if (target.classList.contains('child-extra-btn')) {
-      handleExtraQtyChange(path, delta);
+    const caseBtn = e.target.closest('.case-btn');
+    if (caseBtn) {
+      import('../cases/case-settings.js').then(module => {
+        module.openCaseSettingsModal(caseBtn.dataset.path, () => {
+          refreshRow(caseBtn.dataset.path);
+          updateAllCommonCaseIndicators();
+        });
+      });
+      return;
     }
+    const noteBtn = e.target.closest('.note-btn');
+    if (noteBtn) { openNoteEditorOrder(noteBtn); return; }
     return;
   }
 
-  // Остальные кнопки (не .btn-c) обрабатываем как обычно
-  const infoBtn = e.target.closest('.info-btn');
-  if (infoBtn) { toggleInfoOrder(infoBtn); return; }
-  const descBtn = e.target.closest('.desc-btn');
-  if (descBtn) { toggleDescOrder(descBtn); return; }
-  const linkBtn = e.target.closest('.link-btn');
-  if (linkBtn) {
-    import('../cases/matrix.js').then(module => {
-      module.openMatrixModal(linkBtn.dataset.path, false, currentOrderCategory);
-    });
+  // Если это кнопка изменения количества, и повтор уже запущен — игнорируем клик (это удержание)
+  if (repeatInterval) {
     return;
   }
-  const caseBtn = e.target.closest('.case-btn');
-  if (caseBtn) {
-    import('../cases/case-settings.js').then(module => {
-      module.openCaseSettingsModal(caseBtn.dataset.path, () => {
-        refreshRow(caseBtn.dataset.path);
-        updateAllCommonCaseIndicators();
-      });
-    });
-    return;
+
+  // Одиночный клик — выполняем действие мгновенно
+  const path = target.dataset.path;
+  const delta = parseInt(target.dataset.delta);
+  if (!path || isNaN(delta)) return;
+
+  if (target.classList.contains('qty-btn')) {
+    handleQtyChange(path, delta);
+  } else if (target.classList.contains('single-piece-btn')) {
+    handleSinglePieceChange(path, delta);
+  } else if (target.classList.contains('single-case-btn')) {
+    handleSingleCaseChange(path, delta);
+  } else if (target.classList.contains('child-multi-piece-btn')) {
+    const idx = parseInt(target.dataset.idx);
+    if (!isNaN(idx)) handleMultiPieceChange(path, idx, delta);
+  } else if (target.classList.contains('child-multi-case-btn')) {
+    const idx = parseInt(target.dataset.idx);
+    if (!isNaN(idx)) handleMultiCaseChange(path, idx, delta);
+  } else if (target.classList.contains('child-common-btn')) {
+    const caseId = target.dataset.caseid;
+    if (caseId) handleCommonQtyChange(path, caseId, delta);
+  } else if (target.classList.contains('child-extra-btn')) {
+    handleExtraQtyChange(path, delta);
   }
-  const noteBtn = e.target.closest('.note-btn');
-  if (noteBtn) { openNoteEditorOrder(noteBtn); return; }
 }
 
+// Обработчик начала нажатия (мышь/палец) — запускает таймер удержания
 function handlePointerDown(e) {
   const btn = e.target.closest('.btn-c');
   if (!btn || !btn.dataset.delta) return;
@@ -495,7 +479,8 @@ function handlePointerDown(e) {
       btn.classList.contains('single-case-btn') || btn.classList.contains('child-multi-piece-btn') ||
       btn.classList.contains('child-multi-case-btn') || btn.classList.contains('child-common-btn') ||
       btn.classList.contains('child-extra-btn')) {
-    e.preventDefault(); // предотвращаем зум/скролл
+    e.preventDefault(); // предотвращаем зум/скролл на мобильных
+    isPointerDown = true;
     const delta = parseInt(btn.dataset.delta);
     if (!isNaN(delta)) {
       startRepeat(btn, delta);
@@ -503,10 +488,15 @@ function handlePointerDown(e) {
   }
 }
 
+// Обработчик окончания нажатия — останавливаем повтор
 function handlePointerUp(e) {
-  stopRepeat();
+  if (isPointerDown) {
+    stopRepeat();
+    isPointerDown = false;
+  }
 }
 
+// Обработчик ввода в поля
 function handleContainerInput(e) {
   const target = e.target.closest('.qty-input');
   if (target) {
@@ -737,6 +727,7 @@ export function setupEventDelegation() {
   const container = document.getElementById('categoryContents');
   if (!container) return;
 
+  // Удаляем старые обработчики
   container.removeEventListener('click', handleContainerClick);
   container.removeEventListener('input', handleContainerInput);
   container.removeEventListener('pointerdown', handlePointerDown);
@@ -746,12 +737,13 @@ export function setupEventDelegation() {
   container.removeEventListener('touchend', handlePointerUp);
   container.removeEventListener('touchcancel', handlePointerUp);
 
+  // Добавляем новые
   container.addEventListener('click', handleContainerClick);
   container.addEventListener('input', handleContainerInput);
   container.addEventListener('pointerdown', handlePointerDown);
   container.addEventListener('pointerup', handlePointerUp);
   container.addEventListener('pointerleave', handlePointerUp);
-  // touch-события для мобильных (pointer events уже покрывают, но для надёжности оставляем)
+  // touch-события для мобильных (для надёжности)
   container.addEventListener('touchstart', handlePointerDown, { passive: false });
   container.addEventListener('touchend', handlePointerUp);
   container.addEventListener('touchcancel', handlePointerUp);

@@ -290,8 +290,8 @@ export function updateChildRowsForPath(path) {
 
     // Контролы для "Вне кофра"
     const maxExtra = getStockValue(path);
-    html += `<div class="child-controls" style="display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid var(--text-muted);">
-      <span style="font-weight:500;min-width:90px;font-size:13px;">Вне кофра</span>
+    html += `<div class="child-controls" style="display:flex;flex-wrap:nowrap;align-items:center;gap:4px 8px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid var(--text-muted);">
+      <span style="font-weight:500;min-width:90px;font-size:13px;flex-shrink:0;">Вне кофра</span>
       <button class="btn-c child-extra-btn" style="width:26px;height:26px;font-size:13px;flex-shrink:0;" data-path="${path}" data-delta="-1">−</button>
       <input type="number" class="child-extra-qty" data-path="${path}" value="${extra}" min="0" step="1" max="${maxExtra}" style="width:44px;padding:2px 4px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);text-align:center;font-size:13px;flex-shrink:0;">
       <button class="btn-c child-extra-btn" style="width:26px;height:26px;font-size:13px;flex-shrink:0;" data-path="${path}" data-delta="1">+</button>
@@ -309,15 +309,15 @@ export function updateChildRowsForPath(path) {
       let fillPercent = 0;
       if (maxWeight > 0) fillPercent = Math.min(100, Math.round((filledWeight / maxWeight) * 100));
 
-      html += `<div class="child-controls" data-caseid="${p.caseId}" style="display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid var(--text-muted);">
-        <span style="font-weight:500;min-width:90px;font-size:13px;">${esc(name)}</span>
-        <span style="font-size:11px;color:var(--text-secondary);min-width:30px;">шт:</span>
+      html += `<div class="child-controls" data-caseid="${p.caseId}" style="display:flex;flex-wrap:nowrap;align-items:center;gap:4px 8px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid var(--text-muted);">
+        <span style="font-weight:500;min-width:90px;font-size:13px;flex-shrink:0;">${esc(name)}</span>
+        <span style="font-size:11px;color:var(--text-secondary);min-width:30px;flex-shrink:0;">шт:</span>
         <button class="btn-c child-common-btn" style="width:26px;height:26px;font-size:13px;flex-shrink:0;" data-path="${path}" data-caseid="${p.caseId}" data-delta="-1">−</button>
         <input type="number" class="child-common-qty" data-path="${path}" data-caseid="${p.caseId}" value="${qty}" min="0" step="1" max="${maxPack}" style="width:44px;padding:2px 4px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);text-align:center;font-size:13px;flex-shrink:0;">
         <button class="btn-c child-common-btn" style="width:26px;height:26px;font-size:13px;flex-shrink:0;" data-path="${path}" data-caseid="${p.caseId}" data-delta="1">+</button>
-        <span class="case-fill-percent" style="font-size:11px;color:var(--text-secondary);font-weight:bold;">${fillPercent}%</span>
-        <span style="font-size:11px;color:var(--text-muted);min-width:70px;">${c?.dimensions || 'н/д'}</span>
-        <span style="font-size:11px;color:var(--text-muted);min-width:50px;">вес:${c?.emptyWeight || 0}</span>
+        <span class="case-fill-percent" style="font-size:11px;color:var(--text-secondary);font-weight:bold;flex-shrink:0;">${fillPercent}%</span>
+        <span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">${c?.dimensions || 'н/д'}</span>
+        <span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">вес:${c?.emptyWeight || 0}</span>
       </div>`;
     });
 
