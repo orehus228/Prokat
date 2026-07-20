@@ -76,65 +76,77 @@ function notifySubscribers(changedKey) {
   });
 }
 
-function normalizePaths(obj) {
-  if (!obj || typeof obj !== 'object') return obj;
-  const result = {};
-  for (let key in obj) {
-    const newKey = key.replace(/\\/g, '|');
-    result[newKey] = obj[key];
-  }
-  return result;
-}
-
 export function loadState() {
-  console.log('[state] loadState() вызван');
-  
-  // 1. Загружаем основную библиотеку
+  console.log('[state] loadState()');
+
+  // ---- 1. Загружаем APP_DATA ----
+  let parsed = null;
   try {
     const saved = localStorage.getItem(STORAGE_KEYS.APP_DATA);
     if (saved) {
-      const parsed = JSON.parse(saved);
-      console.log('[state] Данные APP_DATA загружены, ключи:', Object.keys(parsed));
-      
-      // ⭐ ПРИНУДИТЕЛЬНАЯ НОРМАЛИЗАЦИЯ И КОПИРОВАНИЕ
-      if (parsed.itemProps) {
-        parsed.itemProps = normalizePaths(parsed.itemProps);
-        console.log('[state] itemProps нормализованы, ключей:', Object.keys(parsed.itemProps).length);
-      }
-      if (parsed.stock) parsed.stock = normalizePaths(parsed.stock);
-      if (parsed.specs) parsed.specs = normalizePaths(parsed.specs);
-      
-      // Сохраняем в state
-      Object.assign(state, parsed);
-      
-      // Повторно проверяем, что itemProps точно есть
-      if (parsed.itemProps) {
-        state.itemProps = parsed.itemProps;
-      }
-      
-      console.log('[state] state.itemProps после загрузки:', Object.keys(state.itemProps || {}).length, 'ключей');
-    } else {
-      console.warn('[state] APP_DATA отсутствует в localStorage');
-      resetState();
+      parsed = JSON.parse(saved);
+      console.log('[state] APP_DATA загружен, ключи:', Object.keys(parsed));
     }
   } catch (e) {
-    console.error('[state] Ошибка загрузки APP_DATA:', e);
-    resetState();
+    console.error('[state] Ошибка APP_DATA:', e);
   }
 
-  // 2. Загружаем данные заказа (с нормализацией)
+  if (parsed) {
+    // Копируем всё, кроме itemProps, stock, specs – их нормализуем отдельно
+    const { itemProps, stock, specs, ...rest } = parsed;
+    Object.assign(state, rest);
+
+    // Нормализация itemProps (замена обратных слешей на прямые)
+    if (itemProps) {
+      const normalizedItemProps = {};
+      for (let key in itemProps) {
+        const newKey = key.replace(/\\/g, '|');
+        normalizedItemProps[newKey] = itemProps[key];
+      }
+      state.itemProps = normalizedItemProps;
+      console.log('[state] itemProps нормализованы, ключей:', Object.keys(state.itemProps).length);
+    }
+
+    // Нормализация stock
+    if (stock) {
+      const normalizedStock = {};
+      for (let key in stock) {
+        normalizedStock[key.replace(/\\/g, '|')] = stock[key];
+      }
+      state.stock = normalizedStock;
+    }
+
+    // Нормализация specs
+    if (specs) {
+      const normalizedSpecs = {};
+      for (let key in specs) {
+        normalizedSpecs[key.replace(/\\/g, '|')] = specs[key];
+      }
+      state.specs = normalizedSpecs;
+    }
+  }
+
+  // ---- 2. Загружаем ORDER_DATA ----
   try {
     const orderRaw = localStorage.getItem(STORAGE_KEYS.ORDER_DATA);
     if (orderRaw) {
       const orderData = JSON.parse(orderRaw);
-      const orderKeys = ['order', 'orderSplits', 'links', 'notes', 'orderPacking', 
-                         'individualCaseValues', 'commonRoutes', 'caseModes', 
-                         'orderExclude', 'orderExtra'];
+      // Нормализуем объекты с путями
+      const orderKeys = [
+        'order', 'orderSplits', 'links', 'notes',
+        'orderPacking', 'individualCaseValues', 'commonRoutes',
+        'caseModes', 'orderExclude', 'orderExtra'
+      ];
       orderKeys.forEach(key => {
         if (orderData[key] && typeof orderData[key] === 'object') {
-          orderData[key] = normalizePaths(orderData[key]);
+          const normalized = {};
+          for (let k in orderData[key]) {
+            normalized[k.replace(/\\/g, '|')] = orderData[key][k];
+          }
+          orderData[key] = normalized;
         }
       });
+      // Присваиваем в state
       Object.keys(orderData).forEach(key => {
         if (key in state && key !== 'inventory' && key !== 'stock' && key !== 'specs' &&
             key !== 'itemProps' && key !== 'catNames' && key !== '_categoryOrder' &&
@@ -143,11 +155,13 @@ export function loadState() {
           state[key] = orderData[key];
         }
       });
-      console.log('[state] ORDER_DATA загружен (пути нормализованы)');
+      console.log('[state] ORDER_DATA загружен и нормализован');
     }
-  } catch (e) { console.warn('[state] Ошибка загрузки ORDER_DATA:', e); }
+  } catch (e) {
+    console.warn('[state] ORDER_DATA ошибка:', e);
+  }
 
-  // 3. Загружаем UI состояние
+  // ---- 3. Загружаем UI_STATE ----
   try {
     const uiRaw = localStorage.getItem(STORAGE_KEYS.UI_STATE);
     if (uiRaw) {
@@ -159,53 +173,122 @@ export function loadState() {
       if (uiData.matrixFullNames !== undefined) state.matrixFullNames = uiData.matrixFullNames;
       console.log('[state] UI_STATE загружен');
     }
-  } catch (e) { console.warn('[state] Ошибка загрузки UI_STATE:', e); }
+  } catch (e) {
+    console.warn('[state] UI_STATE ошибка:', e);
+  }
 
-  // 4. Загружаем выбранные грузовики
+  // ---- 4. Загружаем выбранные грузовики ----
   try {
     const truckRaw = localStorage.getItem(STORAGE_KEYS.SELECTED_TRUCKS);
     if (truckRaw) {
       state.selectedTruckIds = JSON.parse(truckRaw);
     }
-  } catch (e) { state.selectedTruckIds = []; }
+  } catch (e) {
+    state.selectedTruckIds = [];
+  }
 
-  // 5. Загружаем тему
+  // ---- 5. Загружаем тему ----
   try {
     const theme = localStorage.getItem(STORAGE_KEYS.THEME);
     if (theme) state.theme = theme;
     else state.theme = 'dark';
-  } catch (e) { state.theme = 'dark'; }
+  } catch (e) {
+    state.theme = 'dark';
+  }
 
-  // 6. Нормализация состояния
-  normalizeState();
+  // ---- 6. Нормализация общих структур (без cleanupInventory) ----
+  // Временно закомментировал cleanupInventory, чтобы проверить, не удаляет ли он нужные ключи
+  // cleanupInventory(state.inventory, state.stock, state.specs, state.itemProps);
+  normalizeSubgroups(state.inventory);
+
+  // Нормализация itemProps (добавление отсутствующих полей)
+  for (let key in state.itemProps) {
+    const props = state.itemProps[key];
+    if (!props) continue;
+    if (props.individualCases === undefined) props.individualCases = [];
+    if (!Array.isArray(props.individualCases)) props.individualCases = [];
+    if (props.allowCommon === undefined) props.allowCommon = false;
+    if (props.commonCases === undefined) props.commonCases = [];
+    if (!Array.isArray(props.commonCases)) props.commonCases = [];
+    props.individualCases = props.individualCases.map(c => {
+      if (c.maxCases === undefined) c.maxCases = 0;
+      return c;
+    });
+    if (props.weight === undefined) props.weight = 0;
+    if (props.dimensions === undefined) props.dimensions = '';
+    if (props.volume === undefined) props.volume = 0;
+  }
+
+  // Нормализация caseModes (уже нормализованы при загрузке, но ещё раз)
+  normalizeCaseModes(state.caseModes);
+
+  // ГАРАНТИРОВАННАЯ НОРМАЛИЗАЦИЯ ДЛЯ МУЛЬТИКОФРОВ
+  for (let path in state.itemProps) {
+    const props = state.itemProps[path];
+    if (props.individualCases && props.individualCases.length > 1) {
+      if (!state.caseModes[path]) {
+        state.caseModes[path] = { ...CASE_MODES_DEFAULTS };
+      }
+      const mode = state.caseModes[path];
+      if (!Array.isArray(mode.multiSelected) || mode.multiSelected.length !== props.individualCases.length) {
+        mode.multiSelected = props.individualCases.map(() => true);
+      }
+      if (mode.enabled && !mode.multiSelected.some(v => v === true)) {
+        mode.multiSelected = props.individualCases.map(() => true);
+      }
+      if (!mode.enabled && (!mode.multiSelected || mode.multiSelected.length === 0)) {
+        mode.multiSelected = props.individualCases.map(() => true);
+      }
+    }
+  }
+
+  // Для всех позиций с individualCases > 0 создаём запись в caseModes
+  for (let path in state.itemProps) {
+    const props = state.itemProps[path];
+    if (props.individualCases && props.individualCases.length > 0) {
+      if (!state.caseModes[path]) {
+        state.caseModes[path] = { ...CASE_MODES_DEFAULTS };
+      }
+    }
+  }
+
+  if (!state.truckPresets || !Array.isArray(state.truckPresets)) {
+    state.truckPresets = [...DEFAULT_TRUCK_PRESETS];
+  }
+
+  state._categoryOrder = normalizeCategoryOrder(state._categoryOrder, state.inventory);
+
+  if (!state.projects) state.projects = [];
+  if (!state.projectItems) state.projectItems = [];
+  if (!state.orderProject) {
+    state.orderProject = { id: null, name: '', start_date: '', end_date: '', status: 'planned' };
+  }
+  state._calcCache.clear();
+
   console.log('[state] Нормализация завершена');
-  
-  // 7. Проверка наличия нужного ключа
+
+  // ---- 7. Проверка наличия нужного ключа ----
   const testPath = 'video|Экран|Экран 0.5x0.5 LED P2.6 (192x192)';
   if (state.itemProps[testPath]) {
     console.log('[state] ✅ Данные для', testPath, 'загружены:', state.itemProps[testPath]);
   } else {
     console.warn('[state] ❌ Данные для', testPath, 'НЕ загружены');
-    // Попытка найти похожий ключ
-    const keys = Object.keys(state.itemProps);
-    const similar = keys.filter(k => k.includes('0.5x0.5') || k.includes('Экран'));
-    if (similar.length > 0) {
-      console.warn('[state] Похожие ключи в itemProps:', similar);
-      // Если есть похожий, но с обратными слешами, принудительно исправляем
-      similar.forEach(k => {
-        if (k.includes('\\')) {
-          const newKey = k.replace(/\\/g, '|');
-          state.itemProps[newKey] = state.itemProps[k];
-          delete state.itemProps[k];
-          console.log('[state] Исправлен ключ:', k, '→', newKey);
-        }
-      });
+    // Поиск в raw данных
+    const raw = localStorage.getItem(STORAGE_KEYS.APP_DATA);
+    if (raw) {
+      try {
+        const parsedRaw = JSON.parse(raw);
+        const keys = Object.keys(parsedRaw.itemProps || {});
+        const similar = keys.filter(k => k.includes('0.5x0.5') || k.includes('Экран'));
+        console.warn('[state] Похожие ключи в RAW:', similar);
+      } catch (e) {}
     }
   }
 
   notifySubscribers('*');
 }
 
+// ---- saveState и остальные функции без изменений ----
 export function saveState() {
   const toSave = {
     inventory: state.inventory,
@@ -251,76 +334,6 @@ export function saveState() {
     localStorage.setItem(STORAGE_KEYS.THEME, state.theme);
   }
 
-  state._calcCache.clear();
-}
-
-function normalizeState() {
-  cleanupInventory(state.inventory, state.stock, state.specs, state.itemProps);
-  normalizeSubgroups(state.inventory);
-
-  // Нормализация itemProps
-  for (let key in state.itemProps) {
-    const props = state.itemProps[key];
-    if (!props) continue;
-    if (props.individualCases === undefined) props.individualCases = [];
-    if (!Array.isArray(props.individualCases)) props.individualCases = [];
-    if (props.allowCommon === undefined) props.allowCommon = false;
-    if (props.commonCases === undefined) props.commonCases = [];
-    if (!Array.isArray(props.commonCases)) props.commonCases = [];
-    props.individualCases = props.individualCases.map(c => {
-      if (c.maxCases === undefined) c.maxCases = 0;
-      return c;
-    });
-    if (props.weight === undefined) props.weight = 0;
-    if (props.dimensions === undefined) props.dimensions = '';
-    if (props.volume === undefined) props.volume = 0;
-  }
-
-  // Нормализация caseModes
-  state.caseModes = normalizePaths(state.caseModes);
-  normalizeCaseModes(state.caseModes);
-
-  // ГАРАНТИРОВАННАЯ НОРМАЛИЗАЦИЯ ДЛЯ МУЛЬТИКОФРОВ
-  for (let path in state.itemProps) {
-    const props = state.itemProps[path];
-    if (props.individualCases && props.individualCases.length > 1) {
-      if (!state.caseModes[path]) {
-        state.caseModes[path] = { ...CASE_MODES_DEFAULTS };
-      }
-      const mode = state.caseModes[path];
-      if (!Array.isArray(mode.multiSelected) || mode.multiSelected.length !== props.individualCases.length) {
-        mode.multiSelected = props.individualCases.map(() => true);
-      }
-      if (mode.enabled && !mode.multiSelected.some(v => v === true)) {
-        mode.multiSelected = props.individualCases.map(() => true);
-      }
-      if (!mode.enabled && (!mode.multiSelected || mode.multiSelected.length === 0)) {
-        mode.multiSelected = props.individualCases.map(() => true);
-      }
-    }
-  }
-
-  // Для всех позиций с individualCases > 0, но без caseModes, создаём запись
-  for (let path in state.itemProps) {
-    const props = state.itemProps[path];
-    if (props.individualCases && props.individualCases.length > 0) {
-      if (!state.caseModes[path]) {
-        state.caseModes[path] = { ...CASE_MODES_DEFAULTS };
-      }
-    }
-  }
-
-  if (!state.truckPresets || !Array.isArray(state.truckPresets)) {
-    state.truckPresets = [...DEFAULT_TRUCK_PRESETS];
-  }
-
-  state._categoryOrder = normalizeCategoryOrder(state._categoryOrder, state.inventory);
-
-  if (!state.projects) state.projects = [];
-  if (!state.projectItems) state.projectItems = [];
-  if (!state.orderProject) {
-    state.orderProject = { id: null, name: '', start_date: '', end_date: '', status: 'planned' };
-  }
   state._calcCache.clear();
 }
 
