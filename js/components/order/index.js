@@ -1,6 +1,5 @@
 // components/order/index.js
 import { getState, setStateKey, saveState } from '../../core/state.js';
-// ИСПРАВЛЕНО: импорт getOrderProject и setOrderProject из order-data.js
 import { getOrderProject, setOrderProject } from '../../services/order-data.js';
 import { getProjects, getProject, saveProject } from '../../services/project-data.js';
 import { getItemProps, setItemProps, getCommonCases, getTruckPresets } from '../../data/editor-data.js';
@@ -14,10 +13,6 @@ import { updateLinkCountOrder, updateAllCommonCaseIndicators } from './helpers.j
 import { openMatrixModal } from '../cases/matrix.js';
 import { openCasesManagerModal } from '../cases/common-manager.js';
 
-// ============================================================
-// ИНИЦИАЛИЗАЦИЯ СТРАНИЦЫ ЗАКАЗА
-// ============================================================
-
 export function initOrderPage() {
   initOrderUI();
   initOrderPresetsUI();
@@ -30,10 +25,6 @@ export function initOrderPage() {
   updateAllCommonCaseIndicators();
   showToast('Страница заказа загружена', 'neutral', 1500);
 }
-
-// ============================================================
-// ЗАГРУЗКА ДАННЫХ ПРОЕКТА В UI
-// ============================================================
 
 function loadProjectDataIntoUI() {
   const project = getOrderProject();
@@ -59,10 +50,6 @@ function populateProjectSelect() {
     select.innerHTML += `<option value="${p.id}" ${selected}>${esc(p.name)} (${p.start_date || '—'} – ${p.end_date || '—'})</option>`;
   });
 }
-
-// ============================================================
-// ОБРАБОТЧИКИ UI ПРОЕКТА
-// ============================================================
 
 function setupProjectUIHandlers() {
   const projectSelect = document.getElementById('pProjectSelect');
@@ -141,10 +128,6 @@ function setupProjectUIHandlers() {
   }
 }
 
-// ============================================================
-// КНОПКИ ЭКСПОРТА И ОЧИСТКИ
-// ============================================================
-
 function setupExportButtons() {
   const saveJSONBtn = document.getElementById('saveJ');
   const savePDFBtn = document.getElementById('savePdf');
@@ -180,9 +163,6 @@ function setupExportButtons() {
   }
 }
 
-// ============================================================
-// ЭКСПОРТ ПО УМОЛЧАНИЮ
-// ============================================================
 export default {
   initOrderPage,
   loadProjectDataIntoUI,

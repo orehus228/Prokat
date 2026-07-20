@@ -76,14 +76,13 @@ export function setSpec(catKey, subKey, itemName, val) {
 export function getItemProps(catKey, subKey, itemName) {
   let key;
   if (arguments.length === 1) {
-    key = catKey; // передан полный путь
+    key = catKey;
   } else {
     key = getStockKey(catKey, subKey, itemName);
   }
   const state = getState();
   const props = state.itemProps[key];
   if (props) {
-    // Нормализация на лету
     if (props.weight === undefined) props.weight = 0;
     if (props.dimensions === undefined) props.dimensions = '';
     if (props.volume === undefined) props.volume = 0;
@@ -140,7 +139,6 @@ export function updateCommonCase(id, newData) {
 export function deleteCommonCase(id) {
   const state = getState();
   state.commonCases = state.commonCases.filter(c => c.id !== id);
-  // Удаляем ссылки на этот кофр из itemProps
   for (let key in state.itemProps) {
     const props = state.itemProps[key];
     if (props.commonCases) {
@@ -205,28 +203,24 @@ export function renameCategory(oldName, newName) {
   }
   const oldPrefix = oldName + '|';
   const newPrefix = newName + '|';
-  // Обновляем stock
   const keysToUpdate = Object.keys(state.stock).filter(k => k.startsWith(oldPrefix));
   keysToUpdate.forEach(k => {
     const newK = k.replace(oldPrefix, newPrefix);
     state.stock[newK] = state.stock[k];
     delete state.stock[k];
   });
-  // Обновляем specs
   const specKeys = Object.keys(state.specs).filter(k => k.startsWith(oldPrefix));
   specKeys.forEach(k => {
     const newK = k.replace(oldPrefix, newPrefix);
     state.specs[newK] = state.specs[k];
     delete state.specs[k];
   });
-  // Обновляем itemProps
   const propsKeys = Object.keys(state.itemProps).filter(k => k.startsWith(oldPrefix));
   propsKeys.forEach(k => {
     const newK = k.replace(oldPrefix, newPrefix);
     state.itemProps[newK] = state.itemProps[k];
     delete state.itemProps[k];
   });
-  // Обновляем данные заказа
   updateAllPathsOnCategoryRename(oldPrefix, newPrefix);
   saveState();
 }
@@ -246,28 +240,24 @@ export function renameSubgroup(catKey, oldSub, newSub) {
   }
   const oldPrefix = catKey + '|' + oldSub + '|';
   const newPrefix = catKey + '|' + newSub + '|';
-  // Обновляем stock
   const keysToUpdate = Object.keys(state.stock).filter(k => k.startsWith(oldPrefix));
   keysToUpdate.forEach(k => {
     const newK = k.replace(oldPrefix, newPrefix);
     state.stock[newK] = state.stock[k];
     delete state.stock[k];
   });
-  // Обновляем specs
   const specKeys = Object.keys(state.specs).filter(k => k.startsWith(oldPrefix));
   specKeys.forEach(k => {
     const newK = k.replace(oldPrefix, newPrefix);
     state.specs[newK] = state.specs[k];
     delete state.specs[k];
   });
-  // Обновляем itemProps
   const propsKeys = Object.keys(state.itemProps).filter(k => k.startsWith(oldPrefix));
   propsKeys.forEach(k => {
     const newK = k.replace(oldPrefix, newPrefix);
     state.itemProps[newK] = state.itemProps[k];
     delete state.itemProps[k];
   });
-  // Обновляем данные заказа
   updateAllPathsOnCategoryRename(oldPrefix, newPrefix);
   saveState();
 }
@@ -362,9 +352,6 @@ export function resetAllData() {
   saveState();
 }
 
-// ============================================================
-// ЭКСПОРТ ПО УМОЛЧАНИЮ
-// ============================================================
 export default {
   getStockKey,
   getFullPath,

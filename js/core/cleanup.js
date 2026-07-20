@@ -1,14 +1,6 @@
 // core/cleanup.js
 import { DUPLICATE_VIDEO_GROUPS, CASE_MODES_DEFAULTS } from './config.js';
 
-/**
- * Удаляет дублирующиеся группы в категории video (например, "Экраны").
- * Также чистит соответствующие записи в stock, specs, itemProps.
- * @param {object} inventory - объект инвентаря
- * @param {object} stock - объект stock
- * @param {object} specs - объект specs
- * @param {object} itemProps - объект itemProps
- */
 export function cleanupInventory(inventory, stock, specs, itemProps) {
   if (!inventory || !inventory.video) return;
   let changed = false;
@@ -45,29 +37,6 @@ export function cleanupInventory(inventory, stock, specs, itemProps) {
   }
 }
 
-/**
- * Нормализует itemProps: добавляет отсутствующие поля, преобразует старые форматы.
- * @param {object} itemProps - объект itemProps
- */
-export function normalizeItemProps(itemProps) {
-  for (let key in itemProps) {
-    const props = itemProps[key];
-    if (!props) continue;
-    if (props.individualCases === undefined) props.individualCases = [];
-    if (props.allowCommon === undefined) props.allowCommon = false;
-    if (props.commonCases === undefined) props.commonCases = [];
-    if (props.weight === undefined) props.weight = 0;
-    if (props.dimensions === undefined) props.dimensions = '';
-    if (props.volume === undefined) props.volume = 0;
-    // Если есть старые поля case_qty, case_dimensions, case_weight – конвертируем
-    // (эта логика может быть вынесена сюда, но пока оставим в editor-data.js для совместимости)
-  }
-}
-
-/**
- * Нормализует подгруппы внутри категорий.
- * @param {object} inventory - объект инвентаря
- */
 export function normalizeSubgroups(inventory) {
   for (let cat in inventory) {
     const catData = inventory[cat];
@@ -76,7 +45,6 @@ export function normalizeSubgroups(inventory) {
         catData._subOrder = Object.keys(catData).filter(k => k !== '_subOrder');
       } else {
         catData._subOrder = catData._subOrder.filter(k => catData[k] !== undefined);
-        // Добавляем недостающие ключи
         Object.keys(catData).forEach(k => {
           if (k !== '_subOrder' && !catData._subOrder.includes(k)) {
             catData._subOrder.push(k);
@@ -87,10 +55,6 @@ export function normalizeSubgroups(inventory) {
   }
 }
 
-/**
- * Нормализует caseModes: добавляет недостающие поля по умолчанию.
- * @param {object} caseModes - объект caseModes
- */
 export function normalizeCaseModes(caseModes) {
   for (let path in caseModes) {
     const mode = caseModes[path];
@@ -104,12 +68,6 @@ export function normalizeCaseModes(caseModes) {
   }
 }
 
-/**
- * Нормализует порядок категорий.
- * @param {Array} categoryOrder - массив порядка категорий
- * @param {object} inventory - объект инвентаря
- * @returns {Array} отфильтрованный массив
- */
 export function normalizeCategoryOrder(categoryOrder, inventory) {
   if (!categoryOrder) return Object.keys(inventory);
   return categoryOrder.filter(cat => inventory && inventory[cat] !== undefined);
@@ -117,7 +75,6 @@ export function normalizeCategoryOrder(categoryOrder, inventory) {
 
 export default {
   cleanupInventory,
-  normalizeItemProps,
   normalizeSubgroups,
   normalizeCaseModes,
   normalizeCategoryOrder,

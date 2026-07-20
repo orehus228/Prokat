@@ -6,7 +6,6 @@ import {
   getIndividualCaseValues,
   getOrderExtra,
 } from './order-data.js';
-// Импорты из calculations.js
 import {
   getCaseMode,
   getCaseOptions,
@@ -17,20 +16,12 @@ import {
 // ПОЛУЧЕНИЕ ГАБАРИТОВ ДЛЯ КАЖДОЙ ЕДИНИЦЫ ГРУЗА
 // ============================================================
 
-/**
- * Преобразует позицию заказа в массив "предметов" с размерами и весом
- * с учётом режима кофров (общие, индивидуальные, без кофров).
- * @param {string} path - полный путь позиции
- * @param {number} qty - общее количество единиц позиции
- * @returns {Array} массив предметов { width, height, depth, weight, name, path }
- */
 export function getItemDimensions(path, qty) {
   const props = getItemPropsByPath(path);
   const mode = getCaseMode(path);
   const packing = getOrderPacking(path);
   const result = [];
 
-  // Если есть привязка к общим кофрам
   if (packing.length > 0) {
     let remaining = qty;
     for (let p of packing) {
@@ -60,7 +51,6 @@ export function getItemDimensions(path, qty) {
     return result;
   }
 
-  // Индивидуальные кофры (мульти или одиночные)
   const individualVals = getIndividualCaseValues(path);
   const options = getCaseOptions(path);
   const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
@@ -124,7 +114,6 @@ export function getItemDimensions(path, qty) {
     return result;
   }
 
-  // Режим одного кофра (без мульти)
   if (mode.enabled && individualVals.length === 1 && !packing.length && !isMulti) {
     let opt = getSelectedOption(path);
     let alt = mode.alt;
@@ -176,7 +165,6 @@ export function getItemDimensions(path, qty) {
     return result;
   }
 
-  // Без кофров
   const dims = props.dimensions ? props.dimensions.split('x').map(s => parseFloat(s.trim())) : [0, 0, 0];
   const w = dims[0] || 0;
   const h = dims[1] || 0;
@@ -190,14 +178,7 @@ export function getItemDimensions(path, qty) {
 // ЭВРИСТИЧЕСКИЙ АЛГОРИТМ УПАКОВКИ (Corner-Based)
 // ============================================================
 
-/**
- * Пытается упаковать предметы в грузовик.
- * @param {object} truck - { width, height, depth (length), maxWeight }
- * @param {Array} items - массив предметов { width, height, depth, weight, name, path }
- * @returns {object} { success, packed, failedItem, reason }
- */
 export function packItems(truck, items) {
-  // Сортируем по убыванию объёма (упрощённо)
   const sortedItems = [...items].sort((a, b) => {
     const volA = a.width * a.height * a.depth;
     const volB = b.width * b.height * b.depth;
@@ -263,12 +244,6 @@ export function packItems(truck, items) {
 // РАСЧЁТ ЗАГРУЗКИ ПО ВСЕМ ГРУЗОВИКАМ
 // ============================================================
 
-/**
- * Распределяет все предметы по выбранным грузовикам последовательно.
- * @param {Array} trucks - массив грузовиков { id, name, width, height, length (depth), maxWeight }
- * @param {Array} allCargo - массив предметов { width, height, depth, weight, name, path }
- * @returns {object} { trucks: [...], totalWeight, totalVolume, failedItems }
- */
 export function calculateLoading(trucks, allCargo) {
   if (!trucks || trucks.length === 0) {
     return { trucks: [], totalWeight: 0, totalVolume: 0, failedItems: allCargo.slice() };
@@ -295,8 +270,7 @@ export function calculateLoading(trucks, allCargo) {
       result.trucks.push(truckPack);
       result.totalWeight += truckPack.totalWeight;
       result.totalVolume += truckPack.totalVolume;
-      // Удаляем упакованные предметы из оставшихся (по ссылке)
-      const packedPaths = truckResult.packed.map(p => p.path + p.name);
+      // Удаляем упакованные предметы из оставшихся
       remainingCargo = remainingCargo.filter((item, idx) => {
         return !truckResult.packed.some(p => p.path === item.path && p.name === item.name);
       });
@@ -311,7 +285,6 @@ export function calculateLoading(trucks, allCargo) {
         result.trucks.push(truckPack);
         result.totalWeight += truckPack.totalWeight;
         result.totalVolume += truckPack.totalVolume;
-        // Удаляем упакованные
         remainingCargo = remainingCargo.filter((item, idx) => {
           return !truckResult.packed.some(p => p.path === item.path && p.name === item.name);
         });
@@ -319,7 +292,6 @@ export function calculateLoading(trucks, allCargo) {
           result.failedItems.push(truckResult.failedItem);
         }
       } else {
-        // Ничего не упаковано – все оставшиеся считаем неупакованными
         result.failedItems = remainingCargo.slice();
         break;
       }
@@ -328,7 +300,6 @@ export function calculateLoading(trucks, allCargo) {
   }
 
   if (remainingCargo.length > 0) {
-    // Добавляем оставшиеся, которых не коснулись ни один грузовик
     result.failedItems = result.failedItems.concat(remainingCargo);
   }
 

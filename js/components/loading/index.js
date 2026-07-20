@@ -10,15 +10,7 @@ import { STORAGE_KEYS } from '../../core/config.js';
 
 const SELECTED_TRUCKS_KEY = STORAGE_KEYS.SELECTED_TRUCKS;
 
-// ============================================================
-// СОСТОЯНИЕ
-// ============================================================
-
 let loadingResult = null;
-
-// ============================================================
-// ЗАГРУЗКА/СОХРАНЕНИЕ ВЫБРАННЫХ ГРУЗОВИКОВ
-// ============================================================
 
 function loadSelectedTrucks() {
   try {
@@ -28,19 +20,13 @@ function loadSelectedTrucks() {
       const presets = getTruckPresets();
       return ids.filter(id => presets.some(p => p.id === id));
     }
-  } catch (e) {
-    console.warn('Ошибка загрузки выбранных грузовиков', e);
-  }
+  } catch (e) { return []; }
   return [];
 }
 
 function saveSelectedTrucks(ids) {
   localStorage.setItem(SELECTED_TRUCKS_KEY, JSON.stringify(ids));
 }
-
-// ============================================================
-// ОСНОВНАЯ ФУНКЦИЯ РАСЧЁТА
-// ============================================================
 
 function runCalculation() {
   const items = getActiveItemsOrder();
@@ -68,7 +54,6 @@ function runCalculation() {
     return null;
   }
 
-  // Преобразуем грузовики в формат для упаковки
   const trucks = selectedTrucks.map(t => ({
     id: t.id,
     name: t.name,
@@ -82,10 +67,6 @@ function runCalculation() {
   loadingResult = result;
   return result;
 }
-
-// ============================================================
-// ЭКСПОРТ РЕЗУЛЬТАТОВ
-// ============================================================
 
 function exportLoadingJSON() {
   if (!loadingResult) {
@@ -144,7 +125,6 @@ h1{color:#2c3e50;border-bottom:2px solid #3498db;padding-bottom:10px}
 </head><body>
 <h1>План загрузки: ${esc(projectName)}</h1>
 <p>Дата: ${new Date().toLocaleDateString('ru-RU')}</p>`;
-
   loadingResult.trucks.forEach((t, idx) => {
     html += `<div class="truck"><h3>${esc(t.truckName)}</h3>`;
     html += `<p>Предметов: ${t.items.length}, вес: ${t.totalWeight.toFixed(1)} кг, объём: ${t.totalVolume.toFixed(3)} м³</p>`;
@@ -153,7 +133,6 @@ h1{color:#2c3e50;border-bottom:2px solid #3498db;padding-bottom:10px}
     });
     html += `</div>`;
   });
-
   if (loadingResult.failedItems && loadingResult.failedItems.length > 0) {
     html += `<div class="failed"><strong>Не поместились:</strong>`;
     loadingResult.failedItems.forEach(item => {
@@ -161,14 +140,12 @@ h1{color:#2c3e50;border-bottom:2px solid #3498db;padding-bottom:10px}
     });
     html += `</div>`;
   }
-
   html += `<div class="summary">Общий вес: ${loadingResult.totalWeight.toFixed(1)} кг | Общий объём: ${loadingResult.totalVolume.toFixed(3)} м³</div>`;
   html += `<div style="margin-top:30px;display:flex;gap:12px;">
     <button onclick="window.print()" style="padding:10px 24px;background:#2c3e50;color:white;border:none;border-radius:6px;font-size:16px;cursor:pointer;">Сохранить PDF</button>
     <button onclick="window.close()" style="padding:10px 24px;background:#ddd;color:#333;border:none;border-radius:6px;font-size:16px;cursor:pointer;">Назад</button>
-  </div>`;
-  html += `</body></html>`;
-
+  </div>
+</body></html>`;
   const win = window.open('', '_blank');
   if (win) {
     win.document.write(html);
@@ -178,10 +155,6 @@ h1{color:#2c3e50;border-bottom:2px solid #3498db;padding-bottom:10px}
     showToast('Не удалось открыть окно', 'error');
   }
 }
-
-// ============================================================
-// РЕНДЕРИНГ СТРАНИЦЫ
-// ============================================================
 
 export function renderLoadingPage() {
   const container = document.getElementById('loadingContent');
@@ -207,7 +180,6 @@ export function renderLoadingPage() {
 
   container.innerHTML = html;
 
-  // Рендерим выбор грузовиков
   const selectionContainer = document.getElementById('truckSelection');
   if (selectionContainer) {
     if (presets.length === 0) {
@@ -235,32 +207,23 @@ export function renderLoadingPage() {
     }
   }
 
-  // Кнопка расчёта
   document.getElementById('calcLoadingBtn')?.addEventListener('click', () => {
     const result = runCalculation();
     renderResult(result);
   });
 
-  // Кнопка управления грузовиками
   document.getElementById('manageTrucksBtn')?.addEventListener('click', openTruckManager);
 }
-
-// ============================================================
-// ОТРИСОВКА РЕЗУЛЬТАТА
-// ============================================================
 
 function renderResult(result) {
   const container = document.getElementById('loadingResult');
   if (!container) return;
-
   if (!result) {
     container.innerHTML = '';
     return;
   }
-
   let html = `<div style="border-top:1px solid var(--border-color);padding-top:12px;">`;
   html += `<h4 style="color:var(--text-primary);">Результат расчёта</h4>`;
-
   if (result.trucks.length === 0) {
     html += `<p style="color:var(--text-muted);">Ничего не загружено</p>`;
   } else {
@@ -275,7 +238,6 @@ function renderResult(result) {
       html += `</div></div>`;
     });
   }
-
   if (result.failedItems && result.failedItems.length > 0) {
     html += `<div style="margin:8px 0;padding:10px;background:var(--overstock-bg);border-radius:6px;border-left:3px solid var(--danger);">`;
     html += `<strong style="color:var(--danger);">Не поместились (${result.failedItems.length} шт):</strong>`;
@@ -286,27 +248,20 @@ function renderResult(result) {
     });
     html += `</div></div>`;
   }
-
   html += `<div style="margin-top:8px;font-size:14px;color:var(--text-secondary);">`;
   html += `<span>Общий вес: ${result.totalWeight.toFixed(1)} кг</span> | `;
   html += `<span>Общий объём: ${result.totalVolume.toFixed(3)} м³</span>`;
   html += `</div>`;
-
   html += `<div style="margin-top:12px;display:flex;gap:10px;">`;
   html += `<button class="btn btn-green" id="exportLoadingJson">Экспорт JSON</button>`;
   html += `<button class="btn btn-orange" id="exportLoadingPdf">Экспорт PDF</button>`;
   html += `</div>`;
-
   html += `</div>`;
   container.innerHTML = html;
 
   document.getElementById('exportLoadingJson')?.addEventListener('click', exportLoadingJSON);
   document.getElementById('exportLoadingPdf')?.addEventListener('click', exportLoadingPDF);
 }
-
-// ============================================================
-// УПРАВЛЕНИЕ ГРУЗОВИКАМИ (МОДАЛКА)
-// ============================================================
 
 function openTruckManager() {
   const modal = document.getElementById('truckManagerModal');
@@ -357,17 +312,12 @@ window.deleteTruck = async function(id) {
   const confirmed = await showConfirm('Удалить грузовик?');
   if (!confirmed) return;
   deleteTruckPreset(id);
-  // Удаляем из выбранных
   const selected = loadSelectedTrucks();
   saveSelectedTrucks(selected.filter(tid => tid !== id));
   renderTruckList();
   renderLoadingPage();
   showToast('Грузовик удалён', 'neutral');
 };
-
-// ============================================================
-// ИНИЦИАЛИЗАЦИЯ ОБРАБОТЧИКОВ
-// ============================================================
 
 export function initTruckManagerHandlers() {
   const addBtn = document.getElementById('truckAddBtn');

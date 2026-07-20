@@ -17,11 +17,7 @@ import {
   normalizeCategoryOrder,
 } from './cleanup.js';
 
-// ============================================================
-// ОБЪЕКТ СОСТОЯНИЯ
-// ============================================================
 const state = {
-  // Данные редактора (инвентарь)
   inventory: {},
   stock: {},
   specs: {},
@@ -32,8 +28,6 @@ const state = {
   truckPresets: [],
   projects: [],
   projectItems: [],
-
-  // Данные заказа
   order: {},
   orderSplits: {},
   links: {},
@@ -51,60 +45,33 @@ const state = {
     end_date: '',
     status: 'planned',
   },
-
-  // UI состояние (сохраняемое)
   openChecked: {},
   openCategoryState: {},
   openDescState: {},
   detailsOpenOrder: false,
   selectedTruckIds: [],
   matrixFullNames: true,
-
-  // Кэш расчётов
   _calcCache: new Map(),
 };
 
-// ============================================================
-// ПОДПИСЧИКИ НА ИЗМЕНЕНИЯ
-// ============================================================
 let subscribers = [];
 
-// ============================================================
-// ФУНКЦИИ ДОСТУПА
-// ============================================================
-export function getState() {
-  return state;
-}
-
-export function getStateKey(key) {
-  return state[key];
-}
-
+export function getState() { return state; }
+export function getStateKey(key) { return state[key]; }
 export function setStateKey(key, value) {
   state[key] = value;
   notifySubscribers(key);
 }
-
 export function subscribe(callback) {
   subscribers.push(callback);
-  return () => {
-    subscribers = subscribers.filter(cb => cb !== callback);
-  };
+  return () => { subscribers = subscribers.filter(cb => cb !== callback); };
 }
-
 function notifySubscribers(changedKey) {
   subscribers.forEach(cb => {
-    try {
-      cb(changedKey, state);
-    } catch (e) {
-      console.warn('Ошибка в подписчике state:', e);
-    }
+    try { cb(changedKey, state); } catch (e) { console.warn('Ошибка в подписчике state:', e); }
   });
 }
 
-// ============================================================
-// ЗАГРУЗКА / СОХРАНЕНИЕ
-// ============================================================
 export function loadState() {
   try {
     const saved = localStorage.getItem(STORAGE_KEYS.APP_DATA);
@@ -120,12 +87,10 @@ export function loadState() {
     resetState();
   }
 
-  // Загружаем состояние заказа отдельно
   try {
     const orderRaw = localStorage.getItem(STORAGE_KEYS.ORDER_DATA);
     if (orderRaw) {
       const orderData = JSON.parse(orderRaw);
-      // Обновляем только поля заказа, не трогая инвентарь
       Object.keys(orderData).forEach(key => {
         if (key in state && key !== 'inventory' && key !== 'stock' && key !== 'specs' &&
             key !== 'itemProps' && key !== 'catNames' && key !== '_categoryOrder' &&
@@ -135,11 +100,8 @@ export function loadState() {
         }
       });
     }
-  } catch (e) {
-    console.warn('Ошибка загрузки данных заказа:', e);
-  }
+  } catch (e) { console.warn('Ошибка загрузки данных заказа:', e); }
 
-  // Загружаем UI-состояние
   try {
     const uiRaw = localStorage.getItem(STORAGE_KEYS.UI_STATE);
     if (uiRaw) {
@@ -150,34 +112,25 @@ export function loadState() {
       if (uiData.detailsOpenOrder !== undefined) state.detailsOpenOrder = uiData.detailsOpenOrder;
       if (uiData.matrixFullNames !== undefined) state.matrixFullNames = uiData.matrixFullNames;
     }
-  } catch (e) {
-    console.warn('Ошибка загрузки UI состояния:', e);
-  }
+  } catch (e) { console.warn('Ошибка загрузки UI состояния:', e); }
 
-  // Загружаем выбранные грузовики
   try {
     const truckRaw = localStorage.getItem(STORAGE_KEYS.SELECTED_TRUCKS);
     if (truckRaw) {
       state.selectedTruckIds = JSON.parse(truckRaw);
     }
-  } catch (e) {
-    state.selectedTruckIds = [];
-  }
+  } catch (e) { state.selectedTruckIds = []; }
 
-  // Загружаем тему
   try {
     const theme = localStorage.getItem(STORAGE_KEYS.THEME);
     if (theme) state.theme = theme;
     else state.theme = 'dark';
-  } catch (e) {
-    state.theme = 'dark';
-  }
+  } catch (e) { state.theme = 'dark'; }
 
   notifySubscribers('*');
 }
 
 export function saveState() {
-  // Сохраняем всё состояние (кроме кэша)
   const toSave = {
     inventory: state.inventory,
     stock: state.stock,
@@ -192,7 +145,6 @@ export function saveState() {
   };
   localStorage.setItem(STORAGE_KEYS.APP_DATA, JSON.stringify(toSave));
 
-  // Сохраняем состояние заказа отдельно
   const orderToSave = {
     order: state.order,
     orderSplits: state.orderSplits,
@@ -208,7 +160,6 @@ export function saveState() {
   };
   localStorage.setItem(STORAGE_KEYS.ORDER_DATA, JSON.stringify(orderToSave));
 
-  // Сохраняем UI состояние
   const uiToSave = {
     openChecked: state.openChecked,
     openCategoryState: state.openCategoryState,
@@ -218,29 +169,19 @@ export function saveState() {
   };
   localStorage.setItem(STORAGE_KEYS.UI_STATE, JSON.stringify(uiToSave));
 
-  // Сохраняем выбранные грузовики
   localStorage.setItem(STORAGE_KEYS.SELECTED_TRUCKS, JSON.stringify(state.selectedTruckIds));
 
-  // Сохраняем тему
   if (state.theme) {
     localStorage.setItem(STORAGE_KEYS.THEME, state.theme);
   }
 
-  // Очищаем кэш расчётов при сохранении
   state._calcCache.clear();
 }
 
-// ============================================================
-// НОРМАЛИЗАЦИЯ И СБРОС
-// ============================================================
 function normalizeState() {
-  // 1. Очистка дублирующихся групп в video
   cleanupInventory(state.inventory, state.stock, state.specs, state.itemProps);
-
-  // 2. Нормализация подгрупп
   normalizeSubgroups(state.inventory);
 
-  // 3. Нормализация itemProps (добавление полей по умолчанию)
   for (let key in state.itemProps) {
     const props = state.itemProps[key];
     if (!props) continue;
@@ -258,18 +199,14 @@ function normalizeState() {
     if (props.volume === undefined) props.volume = 0;
   }
 
-  // 4. Нормализация caseModes
   normalizeCaseModes(state.caseModes);
 
-  // 5. Нормализация truckPresets
   if (!state.truckPresets || !Array.isArray(state.truckPresets)) {
     state.truckPresets = [...DEFAULT_TRUCK_PRESETS];
   }
 
-  // 6. Нормализация порядка категорий
   state._categoryOrder = normalizeCategoryOrder(state._categoryOrder, state.inventory);
 
-  // 7. Инициализация проектов, если отсутствуют
   if (!state.projects) state.projects = [];
   if (!state.projectItems) state.projectItems = [];
 }
@@ -299,9 +236,6 @@ function resetState() {
   state._calcCache.clear();
 }
 
-// ============================================================
-// КЭШ РАСЧЁТОВ
-// ============================================================
 export function getCachedCalculation(key) {
   return state._calcCache.get(key);
 }
@@ -314,14 +248,10 @@ export function clearCalculationCache() {
   state._calcCache.clear();
 }
 
-// ============================================================
-// ИНИЦИАЛИЗАЦИЯ
-// ============================================================
 export function initState() {
   loadState();
 }
 
-// Автоматический экспорт для совместимости
 export default {
   getState,
   getStateKey,

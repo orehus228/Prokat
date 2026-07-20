@@ -14,15 +14,7 @@ import { showConfirm, showPrompt } from '../../ui/modal.js';
 import { esc } from '../../ui/dom.js';
 import { emit, EVENTS } from '../../core/events.js';
 
-// ============================================================
-// СОСТОЯНИЕ
-// ============================================================
-
-let currentTab = 'list'; // list | timeline
-
-// ============================================================
-// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-// ============================================================
+let currentTab = 'list';
 
 function getProjectStatusLabel(status) {
   const map = {
@@ -53,15 +45,10 @@ function getProjectTotalItems(projectId) {
   return items.reduce((sum, item) => sum + item.quantity, 0);
 }
 
-// ============================================================
-// ОСНОВНАЯ ФУНКЦИЯ РЕНДЕРИНГА
-// ============================================================
-
 export function renderMonitoringPage() {
   const container = document.getElementById('monitoringContent');
   if (!container) return;
 
-  // Рендерим вкладки
   const tabsHtml = `
     <div class="category-tabs" id="monitoringTabs">
       <div class="category-tab ${currentTab === 'list' ? 'active' : ''}" data-tab="list">📋 Список проектов</div>
@@ -72,7 +59,6 @@ export function renderMonitoringPage() {
 
   container.innerHTML = tabsHtml;
 
-  // Обработчики вкладок
   document.querySelectorAll('#monitoringTabs .category-tab').forEach(tab => {
     tab.addEventListener('click', function() {
       currentTab = this.dataset.tab;
@@ -80,7 +66,6 @@ export function renderMonitoringPage() {
     });
   });
 
-  // Рендерим содержимое в зависимости от вкладки
   const inner = document.getElementById('monitoringContentInner');
   if (currentTab === 'list') {
     renderProjectList(inner);
@@ -88,10 +73,6 @@ export function renderMonitoringPage() {
     renderTimeline(inner);
   }
 }
-
-// ============================================================
-// ВКЛАДКА «СПИСОК ПРОЕКТОВ» (КАНБАН-ДОСКА)
-// ============================================================
 
 function renderProjectList(container) {
   const projects = getProjects();
@@ -127,7 +108,6 @@ function renderProjectCard(project) {
   const color = getProjectStatusColor(project.status);
   const statusLabel = getProjectStatusLabel(project.status);
 
-  // Проверяем коллизии (если есть даты)
   let conflictsHtml = '';
   if (project.start_date && project.end_date) {
     const allItems = getProjectItems(project.id);
@@ -180,10 +160,6 @@ function renderProjectCard(project) {
   `;
 }
 
-// ============================================================
-// ВКЛАДКА «ТАЙМЛАЙН» (ДИАГРАММА ГАНТА)
-// ============================================================
-
 function renderTimeline(container) {
   const projects = getProjects();
   if (projects.length === 0) {
@@ -191,7 +167,6 @@ function renderTimeline(container) {
     return;
   }
 
-  // Находим минимальную и максимальную дату
   let minDate = null, maxDate = null;
   projects.forEach(p => {
     if (p.start_date) {
@@ -209,7 +184,6 @@ function renderTimeline(container) {
     return;
   }
 
-  // Добавляем отступ по краям
   minDate = new Date(minDate);
   minDate.setDate(minDate.getDate() - 2);
   maxDate = new Date(maxDate);
@@ -221,7 +195,6 @@ function renderTimeline(container) {
     return;
   }
 
-  // Сортируем проекты по дате начала
   const sorted = [...projects].sort((a, b) => {
     if (!a.start_date) return 1;
     if (!b.start_date) return -1;
@@ -233,7 +206,6 @@ function renderTimeline(container) {
   let html = `
     <div style="overflow-x:auto;margin-top:12px;padding:4px 0;">
       <div style="position:relative;min-width:${totalDays * dayWidth + 200}px;">
-        <!-- Заголовок с датами -->
         <div style="display:flex;margin-bottom:4px;padding-left:200px;">
           ${Array.from({ length: Math.min(totalDays + 1, 60) }, (_, i) => {
             const d = new Date(minDate);
@@ -243,7 +215,6 @@ function renderTimeline(container) {
         </div>
   `;
 
-  // Полосы проектов
   sorted.forEach(p => {
     if (!p.start_date || !p.end_date) return;
     const start = new Date(p.start_date);
@@ -273,10 +244,7 @@ function renderTimeline(container) {
   container.innerHTML = html;
 }
 
-// ============================================================
-// ГЛОБАЛЬНЫЕ ФУНКЦИИ (для использования в onclick)
-// ============================================================
-
+// Глобальные функции для onclick
 window.editProject = async function(id) {
   const project = getProject(id);
   if (!project) {
@@ -302,12 +270,9 @@ window.openProjectList = function(id) {
     showToast('Проект не найден', 'error');
     return;
   }
-  // Сохраняем ID проекта в localStorage, чтобы при открытии списка загрузить его
   localStorage.setItem('open_project_id', id);
-  // Переключаемся на страницу открытия списка
   if (window.switchMode) {
     window.switchMode('open');
-    // Триггерим событие для загрузки проекта
     const event = new CustomEvent('openProject', { detail: { projectId: id } });
     document.dispatchEvent(event);
     showToast(`Открыт проект "${project.name}"`, 'success');
@@ -337,12 +302,7 @@ window.setProjectStatus = function(id, status) {
   emit(EVENTS.PROJECT_CHANGED, { projectId: id, status });
 };
 
-// ============================================================
-// ИНИЦИАЛИЗАЦИЯ
-// ============================================================
-
 export function initMonitoringUI() {
-  // Обработчик для обновления списка проектов после изменения данных
   document.addEventListener('projectsUpdated', () => {
     if (document.getElementById('monitoringPage')?.style.display !== 'none') {
       renderMonitoringPage();

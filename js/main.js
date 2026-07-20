@@ -6,7 +6,6 @@ import { showToast } from './ui/toast.js';
 import { esc, getElement } from './ui/dom.js';
 import { EVENTS, emit, on } from './core/events.js';
 
-// Импорты компонентов
 import { initOrderPage } from './components/order/index.js';
 import { renderEditorAll, initRenderHandlers, addCategory } from './components/editor/render.js';
 import { initOpenUI } from './components/open/render.js';
@@ -18,16 +17,8 @@ import { clearOrderData } from './components/order/actions.js';
 import { resetAllData } from './data/editor-data.js';
 import { STORAGE_KEYS } from './core/config.js';
 
-// ============================================================
-// СОСТОЯНИЕ ПРИЛОЖЕНИЯ
-// ============================================================
-
 let currentMode = 'menu';
 let currentTheme = 'dark';
-
-// ============================================================
-// НАВИГАЦИЯ
-// ============================================================
 
 function switchMode(mode) {
   console.log('switchMode:', mode);
@@ -46,13 +37,8 @@ function switchMode(mode) {
   if (loadingPage) loadingPage.style.display = (mode === 'loading') ? 'block' : 'none';
   if (monitoringPage) monitoringPage.style.display = (mode === 'monitoring') ? 'block' : 'none';
 
-  // Инициализация страниц при переключении
-  if (mode === 'editor') {
-    renderEditorAll();
-  }
-  if (mode === 'order') {
-    initOrderPage();
-  }
+  if (mode === 'editor') renderEditorAll();
+  if (mode === 'order') initOrderPage();
   if (mode === 'open') {
     const sRes = document.getElementById('sRes');
     if (sRes) sRes.style.display = 'none';
@@ -61,26 +47,18 @@ function switchMode(mode) {
     const fileInput = document.getElementById('fSel');
     if (fileInput) fileInput.value = '';
   }
-  if (mode === 'loading') {
-    renderLoadingPage();
-  }
+  if (mode === 'loading') renderLoadingPage();
   if (mode === 'monitoring') {
     renderMonitoringPage();
     initMonitoringUI();
   }
 
-  // Отправляем событие о смене страницы
   emit(EVENTS.UI_STATE_CHANGED, { mode });
 }
-
-// ============================================================
-// ТЕМА
-// ============================================================
 
 function toggleTheme() {
   currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
   applyTheme(currentTheme);
-  // Сохраняем в state (уже делает applyTheme через state)
   const state = getState();
   state.theme = currentTheme;
   saveState();
@@ -92,10 +70,6 @@ function loadThemeFromState() {
   currentTheme = state.theme || 'dark';
   applyTheme(currentTheme);
 }
-
-// ============================================================
-// ЗАГРУЗКА БИБЛИОТЕКИ (импорт JSON)
-// ============================================================
 
 function loadLibrary() {
   const input = document.createElement('input');
@@ -112,7 +86,6 @@ function loadLibrary() {
       try {
         const data = JSON.parse(ev.target.result);
         const state = getState();
-        // Загружаем все поля редактора
         if (data.inventory) state.inventory = data.inventory;
         if (data.stock) state.stock = data.stock;
         if (data.specs) state.specs = data.specs;
@@ -123,7 +96,6 @@ function loadLibrary() {
         if (data.truckPresets) state.truckPresets = data.truckPresets;
         if (data.projects) state.projects = data.projects;
         if (data.projectItems) state.projectItems = data.projectItems;
-        // Нормализация
         for (let cat in state.inventory) {
           const catData = state.inventory[cat];
           if (catData && typeof catData === 'object' && !Array.isArray(catData)) {
@@ -141,12 +113,10 @@ function loadLibrary() {
         }
         saveState();
         showToast('Библиотека загружена', 'success');
-        // Обновляем текущую страницу
         if (currentMode === 'editor') renderEditorAll();
         else if (currentMode === 'order') initOrderPage();
         else if (currentMode === 'loading') renderLoadingPage();
         else if (currentMode === 'monitoring') renderMonitoringPage();
-        // Отправляем событие
         emit(EVENTS.EDITOR_DATA_CHANGED, { source: 'loadLibrary' });
       } catch (err) {
         showToast('Ошибка: ' + err.message, 'error');
@@ -157,26 +127,16 @@ function loadLibrary() {
   };
 }
 
-// ============================================================
-// СБРОС ДАННЫХ
-// ============================================================
-
 async function resetLibrary() {
   const { showConfirm } = await import('./ui/modal.js');
   const confirmed = await showConfirm('Удалить всю библиотеку? Все данные будут потеряны.');
   if (!confirmed) return;
   resetAllData();
-  // Очищаем все ключи хранилища
   for (let key in STORAGE_KEYS) {
     localStorage.removeItem(STORAGE_KEYS[key]);
   }
-  // Перезагружаем страницу
   location.reload();
 }
-
-// ============================================================
-// ЭКСПОРТ ИНВЕНТАРЯ В HTML (для редактора)
-// ============================================================
 
 function exportInventoryHTML() {
   import('./components/editor/render.js').then(module => {
@@ -184,43 +144,20 @@ function exportInventoryHTML() {
   });
 }
 
-// ============================================================
-// ИНИЦИАЛИЗАЦИЯ ПРИЛОЖЕНИЯ
-// ============================================================
-
 function initApp() {
   console.log('Инициализация приложения...');
-
-  // 1. Инициализация состояния
   initState();
-
-  // 2. Загрузка темы
   loadThemeFromState();
-
-  // 3. Инициализация модалок
   initModalHandlers();
-
-  // 4. Инициализация модалок кофров (cases)
   initCases();
-
-  // 5. Инициализация обработчиков редактора
   initRenderHandlers();
-
-  // 6. Инициализация страницы открытия (чек-лист)
   initOpenUI();
-
-  // 7. Инициализация управления грузовиками
   initTruckManagerHandlers();
 
-  // 8. Инициализация кнопки темы
   const themeToggle = document.getElementById('themeToggle');
   if (themeToggle) {
     themeToggle.addEventListener('click', toggleTheme);
   }
-
-  // ============================================================
-  // КНОПКИ ГЛАВНОГО МЕНЮ
-  // ============================================================
 
   const btnMenuOrder = document.getElementById('btnCreateOrder');
   const btnMenuOpen = document.getElementById('btnOpenOrder');
@@ -238,10 +175,6 @@ function initApp() {
   if (btnMenuLoading) btnMenuLoading.addEventListener('click', () => switchMode('loading'));
   if (btnMenuMonitoring) btnMenuMonitoring.addEventListener('click', () => switchMode('monitoring'));
 
-  // ============================================================
-  // КНОПКИ "В МЕНЮ" НА ВСЕХ СТРАНИЦАХ
-  // ============================================================
-
   const backBtns = document.querySelectorAll('#btnBackToMenu, #btnBackToMenu2, #btnBackToMenu3, #btnBackToMenu4, #btnBackToMenu5');
   backBtns.forEach(btn => {
     if (btn) {
@@ -252,10 +185,6 @@ function initApp() {
       });
     }
   });
-
-  // ============================================================
-  // КНОПКИ НА СТРАНИЦЕ ЗАКАЗА (матрица, общие кофры, экспорт, очистка)
-  // ============================================================
 
   const btnMatrix = document.getElementById('openMatrixModal');
   const btnCommonCases = document.getElementById('openCommonCasesManager');
@@ -287,10 +216,6 @@ function initApp() {
     btnClearOrder.addEventListener('click', clearOrderData);
   }
 
-  // ============================================================
-  // КНОПКИ РЕДАКТОРА
-  // ============================================================
-
   const addCategoryBtn = document.getElementById('addCategoryBtn');
   if (addCategoryBtn) {
     addCategoryBtn.addEventListener('click', addCategory);
@@ -301,33 +226,17 @@ function initApp() {
     saveHtmlBtn.addEventListener('click', exportInventoryHTML);
   }
 
-  // ============================================================
-  // ЗАПУСК
-  // ============================================================
-
-  // Стартуем в меню
   switchMode('menu');
   showToast('Прокатошная загружена', 'neutral', 1500);
-
-  // Отправляем событие о готовности
   emit(EVENTS.UI_STATE_CHANGED, { mode: 'menu', initialized: true });
-
   console.log('Приложение инициализировано');
 }
-
-// ============================================================
-// ЗАПУСК ПРИЛОЖЕНИЯ
-// ============================================================
 
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initApp);
 } else {
   initApp();
 }
-
-// ============================================================
-// ЭКСПОРТ (для отладки и глобального доступа)
-// ============================================================
 
 export default {
   switchMode,
@@ -338,6 +247,5 @@ export default {
   initApp,
 };
 
-// Делаем некоторые функции доступными глобально для onclick в HTML
 window.switchMode = switchMode;
 window.toggleTheme = toggleTheme;
