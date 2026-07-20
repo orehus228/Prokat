@@ -9,7 +9,6 @@ import {
   getLinks,
   setOrderValue,
 } from '../../services/order-data.js';
-// ⭐ Импортируем всё из calculations.js
 import * as calc from '../../services/calculations.js';
 import { esc, getElement } from '../../ui/dom.js';
 import { getColorByPercent, getBgColorCSS, buildInfoHtml } from '../../ui/render-utils.js';
@@ -252,18 +251,18 @@ export function updateChildRowsForPath(path) {
       const maxPossible = getStockValue(path);
       const maxCases = opt.maxCases || 0;
       html += `<div class="child-controls" style="display:flex;flex-wrap:nowrap;align-items:center;gap:4px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid var(--text-muted);">
-        <span style="font-weight:500;min-width:70px;font-size:13px;">Вар.${idx + 1}</span>
-        <span style="font-size:11px;color:var(--text-secondary);min-width:30px;">шт:</span>
+        <span style="font-weight:500;min-width:70px;font-size:13px;flex-shrink:0;">Вар.${idx + 1}</span>
+        <span style="font-size:11px;color:var(--text-secondary);min-width:30px;flex-shrink:0;">шт:</span>
         <button class="btn-c child-multi-piece-btn" style="width:26px;height:26px;font-size:13px;flex-shrink:0;" data-path="${path}" data-idx="${idx}" data-delta="-1">−</button>
         <input type="number" class="child-multi-pieces" data-path="${path}" data-idx="${idx}" value="${val}" min="0" step="1" max="${maxPossible}" style="width:44px;padding:2px 4px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);text-align:center;font-size:13px;flex-shrink:0;">
         <button class="btn-c child-multi-piece-btn" style="width:26px;height:26px;font-size:13px;flex-shrink:0;" data-path="${path}" data-idx="${idx}" data-delta="1">+</button>
-        <span style="font-size:11px;color:var(--text-secondary);min-width:35px;">кофры:</span>
+        <span style="font-size:11px;color:var(--text-secondary);min-width:35px;flex-shrink:0;">кофры:</span>
         <button class="btn-c child-multi-case-btn" style="width:26px;height:26px;font-size:13px;flex-shrink:0;" data-path="${path}" data-idx="${idx}" data-delta="-${opt.qty}">−</button>
         <input type="number" class="child-multi-cases" data-path="${path}" data-idx="${idx}" value="${casesCount}" min="0" step="1" readonly style="width:44px;padding:2px 4px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);text-align:center;font-size:13px;opacity:0.7;cursor:default;flex-shrink:0;">
         <button class="btn-c child-multi-case-btn" style="width:26px;height:26px;font-size:13px;flex-shrink:0;" data-path="${path}" data-idx="${idx}" data-delta="${opt.qty}">+</button>
-        <span style="font-size:11px;color:var(--text-muted);min-width:60px;">${maxCases > 0 ? `макс.${maxCases}` : ''}</span>
-        <span style="font-size:11px;color:var(--text-muted);min-width:70px;">${opt.dimensions || 'н/д'}</span>
-        <span style="font-size:11px;color:var(--text-muted);min-width:50px;">вес:${opt.weight || 0}</span>
+        <span style="font-size:11px;color:var(--text-muted);min-width:60px;flex-shrink:0;">${maxCases > 0 ? `макс.${maxCases}` : ''}</span>
+        <span style="font-size:11px;color:var(--text-muted);min-width:70px;flex-shrink:0;">${opt.dimensions || 'н/д'}</span>
+        <span style="font-size:11px;color:var(--text-muted);min-width:50px;flex-shrink:0;">вес:${opt.weight || 0}</span>
       </div>`;
     });
     childDiv.innerHTML = html;

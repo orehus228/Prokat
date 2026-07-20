@@ -347,19 +347,17 @@ function handleExtraQtyChange(path, delta) {
 }
 
 // ============================================================
-// ПОВТОР ПРИ УДЕРЖАНИИ КНОПКИ + МГНОВЕННЫЙ ОТКЛИК НА КЛИК
+// ПОВТОР ПРИ УДЕРЖАНИИ + МГНОВЕННЫЙ ОТКЛИК
 // ============================================================
 
 let repeatInterval = null;
 let repeatTimeout = null;
 let currentRepeatBtn = null;
 let isPointerDown = false;
+let pointerDownHandled = false;
 
 function startRepeat(btn, delta) {
-  if (repeatInterval) {
-    // Если повтор уже идёт, не запускаем новый
-    return;
-  }
+  if (repeatInterval) return;
   currentRepeatBtn = btn;
   const path = btn.dataset.path;
   const deltaVal = parseInt(btn.dataset.delta);
@@ -392,8 +390,6 @@ function startRepeat(btn, delta) {
       }
       doAction();
     }, 100);
-    // Первое действие в режиме удержания происходит после задержки
-    doAction();
   }, 400);
 }
 
@@ -404,74 +400,9 @@ function stopRepeat() {
   repeatTimeout = null;
   currentRepeatBtn = null;
   isPointerDown = false;
+  pointerDownHandled = false;
 }
 
-// ============================================================
-// ОБРАБОТЧИКИ СОБЫТИЙ
-// ============================================================
-
-// Обработчик одиночных кликов (срабатывает мгновенно)
-function handleContainerClick(e) {
-  const target = e.target.closest('.btn-c');
-  if (!target || !target.dataset.delta) {
-    // Обработка других кнопок (Инфо, Линк, Заметка и т.п.)
-    const infoBtn = e.target.closest('.info-btn');
-    if (infoBtn) { toggleInfoOrder(infoBtn); return; }
-    const descBtn = e.target.closest('.desc-btn');
-    if (descBtn) { toggleDescOrder(descBtn); return; }
-    const linkBtn = e.target.closest('.link-btn');
-    if (linkBtn) {
-      import('../cases/matrix.js').then(module => {
-        module.openMatrixModal(linkBtn.dataset.path, false, currentOrderCategory);
-      });
-      return;
-    }
-    const caseBtn = e.target.closest('.case-btn');
-    if (caseBtn) {
-      import('../cases/case-settings.js').then(module => {
-        module.openCaseSettingsModal(caseBtn.dataset.path, () => {
-          refreshRow(caseBtn.dataset.path);
-          updateAllCommonCaseIndicators();
-        });
-      });
-      return;
-    }
-    const noteBtn = e.target.closest('.note-btn');
-    if (noteBtn) { openNoteEditorOrder(noteBtn); return; }
-    return;
-  }
-
-  // Если это кнопка изменения количества, и повтор уже запущен — игнорируем клик (это удержание)
-  if (repeatInterval) {
-    return;
-  }
-
-  // Одиночный клик — выполняем действие мгновенно
-  const path = target.dataset.path;
-  const delta = parseInt(target.dataset.delta);
-  if (!path || isNaN(delta)) return;
-
-  if (target.classList.contains('qty-btn')) {
-    handleQtyChange(path, delta);
-  } else if (target.classList.contains('single-piece-btn')) {
-    handleSinglePieceChange(path, delta);
-  } else if (target.classList.contains('single-case-btn')) {
-    handleSingleCaseChange(path, delta);
-  } else if (target.classList.contains('child-multi-piece-btn')) {
-    const idx = parseInt(target.dataset.idx);
-    if (!isNaN(idx)) handleMultiPieceChange(path, idx, delta);
-  } else if (target.classList.contains('child-multi-case-btn')) {
-    const idx = parseInt(target.dataset.idx);
-    if (!isNaN(idx)) handleMultiCaseChange(path, idx, delta);
-  } else if (target.classList.contains('child-common-btn')) {
-    const caseId = target.dataset.caseid;
-    if (caseId) handleCommonQtyChange(path, caseId, delta);
-  } else if (target.classList.contains('child-extra-btn')) {
-    handleExtraQtyChange(path, delta);
-  }
-}
-
-// Обработчик начала нажатия (мышь/палец) — запускает таймер удержания
 function handlePointerDown(e) {
   const btn = e.target.closest('.btn-c');
   if (!btn || !btn.dataset.delta) return;
@@ -479,16 +410,34 @@ function handlePointerDown(e) {
       btn.classList.contains('single-case-btn') || btn.classList.contains('child-multi-piece-btn') ||
       btn.classList.contains('child-multi-case-btn') || btn.classList.contains('child-common-btn') ||
       btn.classList.contains('child-extra-btn')) {
-    e.preventDefault(); // предотвращаем зум/скролл на мобильных
+    e.preventDefault();
     isPointerDown = true;
+    pointerDownHandled = true;
     const delta = parseInt(btn.dataset.delta);
     if (!isNaN(delta)) {
+      const path = btn.dataset.path;
+      // Выполняем действие сразу (без задержки)
+      if (btn.classList.contains('qty-btn')) handleQtyChange(path, delta);
+      else if (btn.classList.contains('single-piece-btn')) handleSinglePieceChange(path, delta);
+      else if (btn.classList.contains('single-case-btn')) handleSingleCaseChange(path, delta);
+      else if (btn.classList.contains('child-multi-piece-btn')) {
+        const idx = parseInt(btn.dataset.idx);
+        if (!isNaN(idx)) handleMultiPieceChange(path, idx, delta);
+      } else if (btn.classList.contains('child-multi-case-btn')) {
+        const idx = parseInt(btn.dataset.idx);
+        if (!isNaN(idx)) handleMultiCaseChange(path, idx, delta);
+      } else if (btn.classList.contains('child-common-btn')) {
+        const caseId = btn.dataset.caseid;
+        if (caseId) handleCommonQtyChange(path, caseId, delta);
+      } else if (btn.classList.contains('child-extra-btn')) {
+        handleExtraQtyChange(path, delta);
+      }
+      // Запускаем повтор
       startRepeat(btn, delta);
     }
   }
 }
 
-// Обработчик окончания нажатия — останавливаем повтор
 function handlePointerUp(e) {
   if (isPointerDown) {
     stopRepeat();
@@ -496,7 +445,33 @@ function handlePointerUp(e) {
   }
 }
 
-// Обработчик ввода в поля
+function handleContainerClick(e) {
+  // Кнопки действий (не .btn-c)
+  const infoBtn = e.target.closest('.info-btn');
+  if (infoBtn) { toggleInfoOrder(infoBtn); return; }
+  const descBtn = e.target.closest('.desc-btn');
+  if (descBtn) { toggleDescOrder(descBtn); return; }
+  const linkBtn = e.target.closest('.link-btn');
+  if (linkBtn) {
+    import('../cases/matrix.js').then(module => {
+      module.openMatrixModal(linkBtn.dataset.path, false, currentOrderCategory);
+    });
+    return;
+  }
+  const caseBtn = e.target.closest('.case-btn');
+  if (caseBtn) {
+    import('../cases/case-settings.js').then(module => {
+      module.openCaseSettingsModal(caseBtn.dataset.path, () => {
+        refreshRow(caseBtn.dataset.path);
+        updateAllCommonCaseIndicators();
+      });
+    });
+    return;
+  }
+  const noteBtn = e.target.closest('.note-btn');
+  if (noteBtn) { openNoteEditorOrder(noteBtn); return; }
+}
+
 function handleContainerInput(e) {
   const target = e.target.closest('.qty-input');
   if (target) {
@@ -727,7 +702,6 @@ export function setupEventDelegation() {
   const container = document.getElementById('categoryContents');
   if (!container) return;
 
-  // Удаляем старые обработчики
   container.removeEventListener('click', handleContainerClick);
   container.removeEventListener('input', handleContainerInput);
   container.removeEventListener('pointerdown', handlePointerDown);
@@ -737,13 +711,11 @@ export function setupEventDelegation() {
   container.removeEventListener('touchend', handlePointerUp);
   container.removeEventListener('touchcancel', handlePointerUp);
 
-  // Добавляем новые
   container.addEventListener('click', handleContainerClick);
   container.addEventListener('input', handleContainerInput);
   container.addEventListener('pointerdown', handlePointerDown);
   container.addEventListener('pointerup', handlePointerUp);
   container.addEventListener('pointerleave', handlePointerUp);
-  // touch-события для мобильных (для надёжности)
   container.addEventListener('touchstart', handlePointerDown, { passive: false });
   container.addEventListener('touchend', handlePointerUp);
   container.addEventListener('touchcancel', handlePointerUp);

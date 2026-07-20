@@ -526,7 +526,6 @@ export function updateTotalsOrder() {
   const orderKeys = state._categoryOrder || Object.keys(state.inventory);
   let detailsHtml = '';
 
-  // Собираем данные по категориям и отдельно для общих кофров
   const catMap = {};
   let commonWeight = 0;
   let commonVolume = 0;
@@ -553,14 +552,12 @@ export function updateTotalsOrder() {
     }
   });
 
-  // Выводим категории
   orderKeys.forEach(cat => {
     if (!catMap[cat]) return;
     const catResult = catMap[cat];
     detailsHtml += `<div class="cat-detail"><strong>${CAT_NAMES[cat] || cat}</strong><br>${catResult.qty} шт<br>${formatWeight(catResult.weight)}<br>${formatVolume(catResult.volume)}</div>`;
   });
 
-  // Добавляем общие кофры, если есть
   if (commonQty > 0) {
     detailsHtml += `<div class="cat-detail common-case-detail"><strong>📦 Общие кофры</strong><br>${commonQty} шт<br>${formatWeight(commonWeight)}<br>${formatVolume(commonVolume)}</div>`;
   }

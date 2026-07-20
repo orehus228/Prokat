@@ -643,10 +643,11 @@ body {
 .row .extra-info span {
     white-space: nowrap;
 }
+/* Убираем точку между элементами extra-info */
 .row .extra-info span:not(:last-child)::after {
-    content: '·';
-    margin-left: 6px;
-    color: var(--text-muted);
+    content: ' ';
+    margin-left: 4px;
+    color: transparent;
 }
 
 /* Центральная часть: кнопки действий */
@@ -697,8 +698,8 @@ body {
     justify-content: center;
     transition: 0.15s;
     flex-shrink: 0;
-    touch-action: none; /* предотвращает zoom/скролл при долгом нажатии на мобильных */
-    user-select: none; /* предотвращает выделение текста */
+    touch-action: none;
+    user-select: none;
 }
 .btn-c:hover {
     background: var(--bg-hover);
@@ -845,7 +846,7 @@ body {
 }
 .child-row .child-controls {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
     gap: 4px 8px;
     padding: 4px 8px;
@@ -860,6 +861,7 @@ body {
     padding: 2px 4px;
     font-size: 13px;
     text-align: center;
+    flex-shrink: 0;
 }
 .child-row .child-controls .btn-c {
     width: 26px;
@@ -870,11 +872,13 @@ body {
 .child-row .child-controls span {
     white-space: nowrap;
     font-size: 12px;
+    flex-shrink: 0;
 }
 .child-row .case-fill-percent {
     font-weight: bold;
     font-size: 11px;
     margin-left: 2px;
+    flex-shrink: 0;
 }
 
 .category-totals {
@@ -1497,9 +1501,6 @@ body {
     .row .extra-info {
         font-size: 11px;
         gap: 2px 8px;
-    }
-    .row .extra-info span::after {
-        margin-left: 4px;
     }
     .row .action-buttons .action-btn {
         font-size: 11px;
