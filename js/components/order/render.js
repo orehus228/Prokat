@@ -209,9 +209,17 @@ export function buildItemRow(fullPath, level) {
   const hasDesc = !!(state.specs && state.specs[fullPath]);
   const hasLink = state.links[fullPath] && state.links[fullPath].length > 0;
   const props = calc.getItemPropsByPath(fullPath);
-  const hasCase = (props.individualCases && props.individualCases.length > 0) || props.allowCommon;
+  
+  // ⭐ УСИЛЕННАЯ ПРОВЕРКА НАЛИЧИЯ КОФРОВ
+  const hasIndividualCases = props.individualCases && props.individualCases.length > 0;
+  const hasCommonCases = props.allowCommon;
+  const hasCase = hasIndividualCases || hasCommonCases;
+  
   const mode = calc.getCaseMode(fullPath);
-  const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
+  // Проверяем, включён ли мультирежим (есть несколько вариантов и multiSelected содержит true)
+  const isMulti = mode.enabled && hasIndividualCases && props.individualCases.length > 1 && 
+                  mode.multiSelected && mode.multiSelected.some(v => v === true);
+  
   const packing = getOrderPacking(fullPath);
   const hasCommonPacking = packing.length > 0;
   const individualVals = getIndividualCaseValues(fullPath);
@@ -233,7 +241,7 @@ export function buildItemRow(fullPath, level) {
     caseStatusClass = 'common';
     const totalPieces = packing.reduce((s, p) => s + (p.pieces || 0), 0);
     extraCaseInfo = `[Кофр] ${packing.length} шт (${totalPieces} шт)`;
-  } else if (isMulti && options.length > 1) {
+  } else if (isMulti) {
     caseStatusText = 'Мульти';
     caseStatusClass = 'multi';
     const totalCases = individualVals.reduce((sum, v, idx) => {
@@ -242,7 +250,7 @@ export function buildItemRow(fullPath, level) {
       return sum + Math.ceil(v / opt.qty);
     }, 0);
     extraCaseInfo = `[Мульти] ${totalCases} кофр${totalCases > 1 ? 'а' : ''}`;
-  } else if (mode.enabled && individualVals.length === 1 && !packing.length && !isMulti) {
+  } else if (mode.enabled && individualVals.length === 1 && !packing.length && !isMulti && hasIndividualCases) {
     const opt = calc.getSelectedOption(fullPath);
     const val = individualVals[0] || 0;
     if (opt && val > 0) {
@@ -255,8 +263,12 @@ export function buildItemRow(fullPath, level) {
       caseStatusClass = 'off';
     }
   } else if (hasCase) {
-    caseStatusText = 'Выкл';
+    // Если есть кофры, но режим не включён или не определён – показываем "Выкл" или "Кофры"
+    caseStatusText = hasIndividualCases ? 'Выкл' : 'Кофры';
     caseStatusClass = 'off';
+  } else {
+    caseStatusText = '';
+    caseStatusClass = '';
   }
 
   let weightDisplay = '0 кг';
@@ -298,7 +310,7 @@ export function buildItemRow(fullPath, level) {
       <button class="action-btn info-btn" data-path="${esc(fullPath)}" title="Информация">Инфо</button>
       ${hasDesc ? `<button class="action-btn desc-btn" data-path="${esc(fullPath)}">Описание</button>` : ''}
       <button class="action-btn link-btn ${linkClass}" data-path="${esc(fullPath)}" title="Линк">Линк${hasLink ? ' ✓' : ''}</button>
-      ${hasCase ? `<button class="action-btn case-btn ${caseClass} ${caseStatusClass}" data-path="${esc(fullPath)}" title="Настройка кофров">${caseStatusText}</button>` : ''}
+      ${hasCase ? `<button class="action-btn case-btn ${caseClass} ${caseStatusClass}" data-path="${esc(fullPath)}" title="Настройка кофров">${caseStatusText || 'Кофры'}</button>` : ''}
       <button class="action-btn note-btn ${noteClass}" data-path="${esc(fullPath)}" title="Заметка">Заметка${hasNote ? ' ✓' : ''}</button>
     </div>
     <div class="qty-controls">
@@ -326,8 +338,10 @@ function renderQtyControls(path) {
   const packing = getOrderPacking(path);
   const options = calc.getCaseOptions(path);
   const totalQty = getTotalQty(path);
-  const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
+  // Определяем, является ли мультирежим активным (включён и есть несколько вариантов)
+  const isMulti = mode.enabled && options.length > 1 && mode.multiSelected && mode.multiSelected.some(v => v === true);
 
+  // Если режим кофров выключен или нет индивидуальных кофров, показываем обычные контролы
   if (!mode.enabled || (!packing.length && individualVals.length === 0 && !isMulti)) {
     return `
       <button class="btn-c qty-btn" data-path="${path}" data-delta="-1">−</button>
@@ -336,6 +350,7 @@ function renderQtyControls(path) {
     `;
   }
 
+  // Режим "один кофр" (single)
   if (mode.enabled && individualVals.length === 1 && !packing.length && !isMulti) {
     const opt = calc.getSelectedOption(path);
     const pieces = individualVals[0] || 0;
@@ -356,6 +371,7 @@ function renderQtyControls(path) {
     `;
   }
 
+  // Для мультирежима или общих кофров – показываем только общее количество (дочерние контролы рисуются отдельно)
   return `
     <span style="font-size:13px;color:var(--text-secondary);">${totalQty} шт</span>
   `;
@@ -366,7 +382,7 @@ export function updateRowOrder(path, rebuildChildren = true) {
   if (!row) return;
   const sq = getStockValue(path);
   const mode = calc.getCaseMode(path);
-  const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
+  const isMulti = mode.enabled && mode.multiSelected && mode.multiSelected.some(v => v === true);
   const packing = getOrderPacking(path);
   const hasCommonPacking = packing.length > 0;
   const individualVals = getIndividualCaseValues(path);
@@ -439,7 +455,7 @@ export function updateRowOrder(path, rebuildChildren = true) {
   if (caseBtn) {
     const mode = calc.getCaseMode(path);
     const isOn = mode.enabled || false;
-    const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
+    const isMulti = mode.enabled && mode.multiSelected && mode.multiSelected.some(v => v === true);
     const hasAlt = !!mode.alt;
     const packing = getOrderPacking(path);
     const hasCommonPacking = packing.length > 0;

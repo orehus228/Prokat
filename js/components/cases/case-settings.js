@@ -17,6 +17,7 @@ import {
 } from '../../services/order-data.js';
 // ⭐ Импортируем всё из calculations.js
 import * as calc from '../../services/calculations.js';
+// ⭐ Импортируем showChoice для диалога
 import { showToast } from '../../ui/toast.js';
 import { showPrompt, showConfirm, showChoice } from '../../ui/modal.js';
 import { esc, getElement } from '../../ui/dom.js';
@@ -112,8 +113,8 @@ export function openCaseSettingsModal(path, callback) {
 
   const saveBtn = document.getElementById('caseSettingsSave');
   if (saveBtn) {
-    saveBtn.onclick = async () => {
-      await saveCaseSettings(path);
+    saveBtn.onclick = () => {
+      saveCaseSettings(path);
       modal.classList.remove('open');
       if (caseSettingsCallback) caseSettingsCallback();
       showToast('Настройки кофров сохранены', 'success');
@@ -268,16 +269,19 @@ async function saveCaseSettings(path) {
         return;
       }
 
+      // ✅ ИСПРАВЛЕНО: переносим existingQty без изменения
       if (existingQty > 0) {
         const opt = options[idx];
         if (opt) {
-          let casesCount = Math.ceil(existingQty / opt.qty);
+          // Проверяем лимит кофров
           const maxCases = opt.maxCases || 0;
-          if (maxCases > 0 && casesCount > maxCases) {
-            casesCount = maxCases;
+          const maxPieces = maxCases * opt.qty;
+          let finalQty = existingQty;
+          if (maxCases > 0 && finalQty > maxPieces) {
+            finalQty = maxPieces;
             showToast(`Количество ограничено макс. кофрами (${maxCases})`, 'warning');
           }
-          setIndividualCaseValues(path, [casesCount * opt.qty]);
+          setIndividualCaseValues(path, [finalQty]);
         }
       } else {
         setIndividualCaseValues(path, [0]);
@@ -300,10 +304,12 @@ async function saveCaseSettings(path) {
           'У позиции уже есть количество (' + existingQty + ' шт). Что сделать с этим количеством?',
           choiceOptions
         );
+        // если пользователь закрыл модалку, action будет равен первому (reset) – мы его обработаем
       }
 
       mode.enabled = true;
       const count = options.length;
+      // Инициализируем multiSelected
       mode.multiSelected = options.map(() => true);
 
       let vals = [];
@@ -327,18 +333,21 @@ async function saveCaseSettings(path) {
         });
       } else if (action === 'sequential') {
         let remaining = existingQty;
-        vals = options.map((opt, idx) => {
+        vals = options.map((opt) => {
           if (remaining <= 0) return 0;
           const qtyPerCase = opt.qty;
-          const maxCases = opt.maxCases || 0;
-          const maxPieces = maxCases > 0 ? maxCases * qtyPerCase : Infinity;
-          let pieces = Math.min(remaining, maxPieces);
-          // Округляем вниз до целых кофров, чтобы не оставлять неполные, если есть ещё варианты
-          if (idx < options.length - 1) {
-            pieces = Math.floor(pieces / qtyPerCase) * qtyPerCase;
+          const maxCases = opt.maxCases || Infinity;
+          const maxPieces = maxCases * qtyPerCase;
+          // Сколько можем положить в этот вариант
+          let canPlace = Math.min(remaining, maxPieces);
+          // Округляем до целых кофров, остаток оставляем для следующих
+          let pieces = Math.floor(canPlace / qtyPerCase) * qtyPerCase;
+          if (pieces === 0 && remaining >= qtyPerCase) {
+            // если не хватает на целый кофр, но остаток есть – отдаём один неполный кофр
+            pieces = qtyPerCase;
           }
           // Если остаток меньше qtyPerCase и это последний вариант, отдаём остаток
-          if (idx === options.length - 1 && pieces === 0 && remaining > 0) {
+          if (remaining < qtyPerCase && remaining > 0 && options.indexOf(opt) === options.length - 1) {
             pieces = remaining;
           }
           // Не превышаем maxPieces
@@ -361,6 +370,7 @@ async function saveCaseSettings(path) {
       }
 
       setIndividualCaseValues(path, vals);
+      // Пересчитываем общее количество
       const total = vals.reduce((a, b) => a + b, 0);
       setOrderValue(path, total);
       break;

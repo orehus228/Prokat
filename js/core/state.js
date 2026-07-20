@@ -127,6 +127,8 @@ export function loadState() {
     else state.theme = 'dark';
   } catch (e) { state.theme = 'dark'; }
 
+  // Повторная нормализация после загрузки всех данных
+  normalizeState();
   notifySubscribers('*');
 }
 
@@ -182,6 +184,7 @@ function normalizeState() {
   cleanupInventory(state.inventory, state.stock, state.specs, state.itemProps);
   normalizeSubgroups(state.inventory);
 
+  // Нормализация itemProps
   for (let key in state.itemProps) {
     const props = state.itemProps[key];
     if (!props) continue;
@@ -199,9 +202,10 @@ function normalizeState() {
     if (props.volume === undefined) props.volume = 0;
   }
 
+  // Нормализация caseModes
   normalizeCaseModes(state.caseModes);
 
-  // ===== ДОБАВЛЯЕМ НОРМАЛИЗАЦИЮ multiSelected =====
+  // ===== НОРМАЛИЗАЦИЯ ДЛЯ МУЛЬТИКОФРОВ =====
   for (let path in state.itemProps) {
     const props = state.itemProps[path];
     if (props.individualCases && props.individualCases.length > 1) {
@@ -210,19 +214,19 @@ function normalizeState() {
         state.caseModes[path] = { ...CASE_MODES_DEFAULTS };
       }
       const mode = state.caseModes[path];
-      // Проверяем, что multiSelected - массив и правильной длины
+      // Если multiSelected отсутствует или имеет неверную длину — исправляем
       if (!Array.isArray(mode.multiSelected) || mode.multiSelected.length !== props.individualCases.length) {
         mode.multiSelected = props.individualCases.map(() => true);
       }
-      // Если режим включён, но multiSelected содержит все false, исправляем
+      // Если режим включён, но multiSelected не содержит true — исправляем
       if (mode.enabled && !mode.multiSelected.some(v => v === true)) {
         mode.multiSelected = props.individualCases.map(() => true);
       }
-      // Если multiSelected содержит некорректные значения (не булевы), приводим
-      mode.multiSelected = mode.multiSelected.map(v => !!v);
+      // Если режим выключен, но multiSelected заполнен — оставляем как есть (пользователь может включить позже)
     }
   }
 
+  // Нормализация truckPresets
   if (!state.truckPresets || !Array.isArray(state.truckPresets)) {
     state.truckPresets = [...DEFAULT_TRUCK_PRESETS];
   }
@@ -231,6 +235,10 @@ function normalizeState() {
 
   if (!state.projects) state.projects = [];
   if (!state.projectItems) state.projectItems = [];
+  if (!state.orderProject) {
+    state.orderProject = { id: null, name: '', start_date: '', end_date: '', status: 'planned' };
+  }
+  state._calcCache.clear();
 }
 
 function resetState() {
