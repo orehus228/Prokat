@@ -1,15 +1,6 @@
 // services/calculations.js
 import { getState, getCachedCalculation, setCachedCalculation } from '../core/state.js';
 
-// ============================================================
-// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-// ============================================================
-
-/**
- * Преобразует строку габаритов "ДxШxВ" в объём в м³.
- * @param {string} dimensions - строка вида "120x80x60" (см)
- * @returns {number} объём в м³
- */
 export function parseUnitVolume(dimensions) {
   if (!dimensions || typeof dimensions !== 'string') return 0;
   const parts = dimensions.split('x').map(s => parseFloat(s.trim()));
@@ -19,11 +10,6 @@ export function parseUnitVolume(dimensions) {
   return 0;
 }
 
-/**
- * Получает свойства позиции по полному пути.
- * @param {string} path - полный путь (категория|подгруппа|...|имя)
- * @returns {object} свойства позиции
- */
 export function getItemPropsByPath(path) {
   const state = getState();
   const props = state.itemProps[path];
@@ -40,19 +26,10 @@ export function getItemPropsByPath(path) {
   return { weight: 0, dimensions: '', volume: 0, individualCases: [], allowCommon: false, commonCases: [] };
 }
 
-/**
- * Получает список общих кофров.
- * @returns {Array} массив кофров
- */
 export function getCommonCases() {
   return getState().commonCases || [];
 }
 
-/**
- * Получает режим кофров для позиции.
- * @param {string} path - полный путь
- * @returns {object} режим
- */
 export function getCaseMode(path) {
   const state = getState();
   if (!state.caseModes[path]) {
@@ -70,11 +47,6 @@ export function getCaseMode(path) {
   return state.caseModes[path];
 }
 
-/**
- * Получает варианты индивидуальных кофров для позиции.
- * @param {string} path - полный путь
- * @returns {Array} массив вариантов { qty, dimensions, weight, maxCases }
- */
 export function getCaseOptions(path) {
   const props = getItemPropsByPath(path);
   return (props.individualCases || []).map(c => ({
@@ -85,11 +57,6 @@ export function getCaseOptions(path) {
   }));
 }
 
-/**
- * Получает выбранный вариант кофра (для режима "один кофр").
- * @param {string} path - полный путь
- * @returns {object|null} выбранный вариант или null
- */
 export function getSelectedOption(path) {
   const mode = getCaseMode(path);
   const options = getCaseOptions(path);
@@ -99,20 +66,6 @@ export function getSelectedOption(path) {
   return options[idx];
 }
 
-// ============================================================
-// РАСЧЁТ ВЕСА
-// ============================================================
-
-/**
- * Рассчитывает общий вес позиции с учётом режима кофров.
- * @param {string} path - полный путь
- * @param {number} qty - общее количество единиц позиции (может быть суммой упаковок)
- * @param {object} mode - режим кофров (из getCaseMode)
- * @param {Array} packing - массив упаковок в общие кофры (из getOrderPacking)
- * @param {Array} individualVals - массив значений для индивидуальных кофров (из getIndividualCaseValues)
- * @param {number} extra - количество вне кофров (из getOrderExtra)
- * @returns {number} вес в кг
- */
 export function calcItemWeight(path, qty, mode, packing, individualVals, extra) {
   if (qty <= 0) return 0;
   const props = getItemPropsByPath(path);
@@ -125,7 +78,6 @@ export function calcItemWeight(path, qty, mode, packing, individualVals, extra) 
   let result = 0;
 
   if (packing && packing.length > 0) {
-    // Режим общих кофров
     const commonCases = getCommonCases();
     let totalPacked = 0;
     packing.forEach(p => {
@@ -138,14 +90,9 @@ export function calcItemWeight(path, qty, mode, packing, individualVals, extra) 
       }
     });
     const remainder = qty - totalPacked - (extra || 0);
-    if (remainder > 0) {
-      result += remainder * props.weight;
-    }
-    if (extra > 0) {
-      result += extra * props.weight;
-    }
+    if (remainder > 0) result += remainder * props.weight;
+    if (extra > 0) result += extra * props.weight;
   } else if (individualVals && individualVals.length > 0) {
-    // Индивидуальные кофры (мульти или один)
     const options = getCaseOptions(path);
     if (options.length === 0) {
       result = qty * props.weight;
@@ -154,8 +101,6 @@ export function calcItemWeight(path, qty, mode, packing, individualVals, extra) 
       individualVals.forEach((v, idx) => {
         if (v <= 0) return;
         const opt = options[idx] || options[0];
-        // Если accumulate (копится в кофре), то количество кофров = ceil(v / opt.qty)
-        // Иначе каждый кофр заполняется полностью, остаток отдельно
         if (mode.accumulate) {
           const casesCount = Math.ceil(v / opt.qty);
           const weightPerCase = (opt.weight || 0) + (opt.qty * props.weight);
@@ -165,20 +110,14 @@ export function calcItemWeight(path, qty, mode, packing, individualVals, extra) 
           const rem = v % opt.qty;
           const fullCaseWeight = (opt.weight || 0) + (opt.qty * props.weight);
           result += fullCases * fullCaseWeight;
-          if (rem > 0) {
-            result += (opt.weight || 0) + (rem * props.weight);
-          }
+          if (rem > 0) result += (opt.weight || 0) + (rem * props.weight);
         }
         totalProcessed += v;
       });
-      // Остаток (если individualVals не покрывают весь qty) – обрабатываем без кофров
       const remainder = qty - totalProcessed;
-      if (remainder > 0) {
-        result += remainder * props.weight;
-      }
+      if (remainder > 0) result += remainder * props.weight;
     }
   } else {
-    // Без кофров
     result = qty * props.weight;
   }
 
@@ -186,20 +125,6 @@ export function calcItemWeight(path, qty, mode, packing, individualVals, extra) 
   return result;
 }
 
-// ============================================================
-// РАСЧЁТ ОБЪЁМА
-// ============================================================
-
-/**
- * Рассчитывает общий объём позиции с учётом режима кофров.
- * @param {string} path - полный путь
- * @param {number} qty - общее количество единиц позиции
- * @param {object} mode - режим кофров
- * @param {Array} packing - массив упаковок в общие кофры
- * @param {Array} individualVals - массив значений для индивидуальных кофров
- * @param {number} extra - количество вне кофров
- * @returns {number} объём в м³
- */
 export function calcItemVolume(path, qty, mode, packing, individualVals, extra) {
   if (qty <= 0) return 0;
   const props = getItemPropsByPath(path);
@@ -223,12 +148,8 @@ export function calcItemVolume(path, qty, mode, packing, individualVals, extra) 
       }
     });
     const remainder = qty - totalPacked - (extra || 0);
-    if (remainder > 0) {
-      result += parseUnitVolume(props.dimensions) * remainder;
-    }
-    if (extra > 0) {
-      result += parseUnitVolume(props.dimensions) * extra;
-    }
+    if (remainder > 0) result += parseUnitVolume(props.dimensions) * remainder;
+    if (extra > 0) result += parseUnitVolume(props.dimensions) * extra;
   } else if (individualVals && individualVals.length > 0) {
     const options = getCaseOptions(path);
     if (options.length === 0) {
@@ -251,9 +172,7 @@ export function calcItemVolume(path, qty, mode, packing, individualVals, extra) 
         totalProcessed += v;
       });
       const remainder = qty - totalProcessed;
-      if (remainder > 0) {
-        result += parseUnitVolume(props.dimensions) * remainder;
-      }
+      if (remainder > 0) result += parseUnitVolume(props.dimensions) * remainder;
     }
   } else {
     result = parseUnitVolume(props.dimensions) * qty;
@@ -263,18 +182,6 @@ export function calcItemVolume(path, qty, mode, packing, individualVals, extra) 
   return result;
 }
 
-// ============================================================
-// РАСЧЁТ КОЛИЧЕСТВА КОФРОВ
-// ============================================================
-
-/**
- * Рассчитывает общее количество кофров, используемых позицией.
- * @param {string} path - полный путь
- * @param {number} qty - общее количество единиц позиции
- * @param {object} mode - режим кофров
- * @param {Array} individualVals - массив значений для индивидуальных кофров
- * @returns {number} количество кофров
- */
 export function calcItemCases(path, qty, mode, individualVals) {
   if (!mode.enabled) return 0;
   const options = getCaseOptions(path);
@@ -296,15 +203,6 @@ export function calcItemCases(path, qty, mode, individualVals) {
   return totalCases;
 }
 
-// ============================================================
-// ОБЩАЯ ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ ВСЕХ ДАННЫХ (для упрощения)
-// ============================================================
-
-/**
- * Возвращает все данные, необходимые для расчётов, по пути.
- * @param {string} path - полный путь
- * @returns {object} { props, mode, packing, individualVals, extra, options, selectedOption }
- */
 export function getCalculationData(path) {
   const state = getState();
   const props = getItemPropsByPath(path);
@@ -317,20 +215,10 @@ export function getCalculationData(path) {
   return { props, mode, packing, individualVals, extra, options, selectedOption };
 }
 
-// ============================================================
-// УТИЛИТЫ ДЛЯ РАБОТЫ С СУММАРНЫМИ ДАННЫМИ
-// ============================================================
-
-/**
- * Вычисляет общий вес и объём для списка позиций.
- * @param {Array} items - массив { path, qty }
- * @returns {object} { totalWeight, totalVolume, totalQty, details }
- */
 export function calculateTotals(items) {
   let totalWeight = 0;
   let totalVolume = 0;
   let totalQty = 0;
-  const details = {};
 
   items.forEach(({ path, qty }) => {
     if (qty <= 0) return;
@@ -340,15 +228,27 @@ export function calculateTotals(items) {
     totalWeight += weight;
     totalVolume += volume;
     totalQty += qty;
-    // детали по категориям можно добавить позже
   });
 
   return { totalWeight, totalVolume, totalQty };
 }
 
-// ============================================================
-// ЭКСПОРТ ПО УМОЛЧАНИЮ
-// ============================================================
+// ========== ГРУППОВОЙ ЭКСПОРТ (гарантирует доступность всех имён) ==========
+export {
+  parseUnitVolume,
+  getItemPropsByPath,
+  getCommonCases,
+  getCaseMode,
+  getCaseOptions,
+  getSelectedOption,
+  calcItemWeight,
+  calcItemVolume,
+  calcItemCases,
+  getCalculationData,
+  calculateTotals,
+};
+
+// ========== DEFAULT ЭКСПОРТ (для обратной совместимости) ==========
 export default {
   parseUnitVolume,
   getItemPropsByPath,
