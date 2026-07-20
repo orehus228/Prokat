@@ -76,9 +76,6 @@ function notifySubscribers(changedKey) {
   });
 }
 
-/**
- * Нормализует пути в объекте: заменяет обратные слеши \ на прямые |
- */
 function normalizePaths(obj) {
   if (!obj || typeof obj !== 'object') return obj;
   const result = {};
@@ -99,20 +96,22 @@ export function loadState() {
       const parsed = JSON.parse(saved);
       console.log('[state] Данные APP_DATA загружены, ключи:', Object.keys(parsed));
       
-      // ⭐ НОРМАЛИЗУЕМ ВСЕ ПУТИ
+      // ⭐ ПРИНУДИТЕЛЬНАЯ НОРМАЛИЗАЦИЯ И КОПИРОВАНИЕ
       if (parsed.itemProps) {
         parsed.itemProps = normalizePaths(parsed.itemProps);
         console.log('[state] itemProps нормализованы, ключей:', Object.keys(parsed.itemProps).length);
       }
       if (parsed.stock) parsed.stock = normalizePaths(parsed.stock);
       if (parsed.specs) parsed.specs = normalizePaths(parsed.specs);
-      if (parsed.inventory) {
-        // Для inventory нам нужно нормализовать ключи вложенных объектов? 
-        // Но inventory обычно не содержит путей с разделителями, кроме ключей подгрупп.
-        // Пропускаем, чтобы не сломать.
+      
+      // Сохраняем в state
+      Object.assign(state, parsed);
+      
+      // Повторно проверяем, что itemProps точно есть
+      if (parsed.itemProps) {
+        state.itemProps = parsed.itemProps;
       }
       
-      Object.assign(state, parsed);
       console.log('[state] state.itemProps после загрузки:', Object.keys(state.itemProps || {}).length, 'ключей');
     } else {
       console.warn('[state] APP_DATA отсутствует в localStorage');
@@ -123,12 +122,11 @@ export function loadState() {
     resetState();
   }
 
-  // 2. Загружаем данные заказа (тоже с нормализацией)
+  // 2. Загружаем данные заказа (с нормализацией)
   try {
     const orderRaw = localStorage.getItem(STORAGE_KEYS.ORDER_DATA);
     if (orderRaw) {
       const orderData = JSON.parse(orderRaw);
-      // Нормализуем пути в объектах заказа
       const orderKeys = ['order', 'orderSplits', 'links', 'notes', 'orderPacking', 
                          'individualCaseValues', 'commonRoutes', 'caseModes', 
                          'orderExclude', 'orderExtra'];
@@ -178,21 +176,30 @@ export function loadState() {
     else state.theme = 'dark';
   } catch (e) { state.theme = 'dark'; }
 
-  // 6. Нормализация (приводим данные к единому виду)
+  // 6. Нормализация состояния
   normalizeState();
   console.log('[state] Нормализация завершена');
   
-  // 7. Проверка: наличие itemProps после нормализации
-  console.log('[state] После нормализации state.itemProps содержит', Object.keys(state.itemProps || {}).length, 'ключей');
+  // 7. Проверка наличия нужного ключа
   const testPath = 'video|Экран|Экран 0.5x0.5 LED P2.6 (192x192)';
   if (state.itemProps[testPath]) {
     console.log('[state] ✅ Данные для', testPath, 'загружены:', state.itemProps[testPath]);
   } else {
     console.warn('[state] ❌ Данные для', testPath, 'НЕ загружены');
+    // Попытка найти похожий ключ
     const keys = Object.keys(state.itemProps);
     const similar = keys.filter(k => k.includes('0.5x0.5') || k.includes('Экран'));
     if (similar.length > 0) {
       console.warn('[state] Похожие ключи в itemProps:', similar);
+      // Если есть похожий, но с обратными слешами, принудительно исправляем
+      similar.forEach(k => {
+        if (k.includes('\\')) {
+          const newKey = k.replace(/\\/g, '|');
+          state.itemProps[newKey] = state.itemProps[k];
+          delete state.itemProps[k];
+          console.log('[state] Исправлен ключ:', k, '→', newKey);
+        }
+      });
     }
   }
 
@@ -269,11 +276,11 @@ function normalizeState() {
     if (props.volume === undefined) props.volume = 0;
   }
 
-  // Нормализация caseModes (тоже нормализуем пути)
+  // Нормализация caseModes
   state.caseModes = normalizePaths(state.caseModes);
   normalizeCaseModes(state.caseModes);
 
-  // ===== ГАРАНТИРОВАННАЯ НОРМАЛИЗАЦИЯ ДЛЯ МУЛЬТИКОФРОВ =====
+  // ГАРАНТИРОВАННАЯ НОРМАЛИЗАЦИЯ ДЛЯ МУЛЬТИКОФРОВ
   for (let path in state.itemProps) {
     const props = state.itemProps[path];
     if (props.individualCases && props.individualCases.length > 1) {
