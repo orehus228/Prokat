@@ -204,7 +204,6 @@ function buildCategoryHTML(data, path, level) {
 
 export function buildItemRow(fullPath, level) {
   const state = getState();
-  // Принудительно преобразуем в число, чтобы избежать [object Object]
   const sq = parseInt(getStockValue(fullPath)) || 0;
   const hasDesc = !!(state.specs && state.specs[fullPath]);
   const hasLink = state.links[fullPath] && state.links[fullPath].length > 0;
@@ -545,6 +544,7 @@ export function updateTotalsOrder() {
     catMap[cat].volume += volume;
     catMap[cat].cases += cases;
 
+    // Если есть упаковка в общие кофры или есть extra (вне кофра), считаем это как "общие кофры"
     if (data.packing.length > 0 || data.extra > 0) {
       commonWeight += weight;
       commonVolume += volume;
@@ -686,13 +686,6 @@ export function initOrderUI() {
 export function renderOrderAll() {
   invalidateFlatItemsCache();
   const state = getState();
-
-  const testPath = 'video|Экран|Экран 0.5x0.5 LED P2.6 (192x192)';
-  if (state.itemProps[testPath]) {
-    console.log('✅ Данные загружены:', state.itemProps[testPath]);
-  } else {
-    console.warn('❌ Данные НЕ загружены для', testPath);
-  }
 
   const comment = document.getElementById('pComment');
   if (comment) comment.value = localStorage.getItem('last_comment') || '';

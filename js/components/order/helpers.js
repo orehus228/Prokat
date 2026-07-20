@@ -59,13 +59,30 @@ export function getActiveItemsOrder() {
   const state = getState();
   const items = [];
   const allPaths = new Set();
-  for (let p in state.order) allPaths.add(p);
-  for (let p in state.orderExtra) allPaths.add(p);
-  for (let p in state.orderPacking) allPaths.add(p);
+
+  // order
+  for (let p in state.order) {
+    if (state.order[p] > 0) allPaths.add(p);
+  }
+
+  // orderExtra
+  for (let p in state.orderExtra) {
+    if (state.orderExtra[p] > 0) allPaths.add(p);
+  }
+
+  // orderPacking
+  for (let p in state.orderPacking) {
+    const packing = state.orderPacking[p];
+    const total = packing.reduce((s, item) => s + (item.pieces || 0), 0);
+    if (total > 0) allPaths.add(p);
+  }
+
+  // individualCaseValues
   for (let p in state.individualCaseValues) {
     const vals = state.individualCaseValues[p];
     if (vals.reduce((a, b) => a + b, 0) > 0) allPaths.add(p);
   }
+
   allPaths.forEach(path => {
     const qty = getTotalQty(path);
     if (qty > 0) items.push({ path, qty });
@@ -250,17 +267,17 @@ export function updateChildRowsForPath(path) {
       const casesCount = Math.ceil(val / opt.qty);
       const maxPossible = getStockValue(path);
       const maxCases = opt.maxCases || 0;
-      html += `<div class="child-controls" style="display:flex;flex-wrap:wrap;align-items:center;gap:2px 6px;padding:4px 6px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid var(--text-muted);">
-        <span style="font-weight:500;font-size:13px;flex-shrink:0;">Вар.${idx + 1}</span>
+      html += `<div class="child-controls" style="display:flex;flex-wrap:nowrap;align-items:center;gap:2px 6px;padding:4px 6px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid var(--text-muted);overflow-x:auto;">
+        <span style="font-weight:500;font-size:13px;flex-shrink:0;">Вар${idx + 1}</span>
         <span style="font-size:11px;color:var(--text-secondary);flex-shrink:0;">шт:</span>
         <button class="btn-c child-multi-piece-btn" style="width:24px;height:24px;font-size:12px;flex-shrink:0;" data-path="${path}" data-idx="${idx}" data-delta="-1">−</button>
         <input type="number" class="child-multi-pieces" data-path="${path}" data-idx="${idx}" value="${val}" min="0" step="1" max="${maxPossible}" style="width:36px;padding:1px 2px;font-size:12px;text-align:center;flex-shrink:0;">
         <button class="btn-c child-multi-piece-btn" style="width:24px;height:24px;font-size:12px;flex-shrink:0;" data-path="${path}" data-idx="${idx}" data-delta="1">+</button>
         <span style="font-size:11px;color:var(--text-secondary);flex-shrink:0;">коф:</span>
         <button class="btn-c child-multi-case-btn" style="width:24px;height:24px;font-size:12px;flex-shrink:0;" data-path="${path}" data-idx="${idx}" data-delta="-${opt.qty}">−</button>
-        <input type="number" class="child-multi-cases" data-path="${path}" data-idx="${idx}" value="${casesCount}" min="0" step="1" readonly style="width:36px;padding:1px 2px;font-size:12px;text-align:center;opacity:0.7;cursor:default;flex-shrink:0;">
+        <input type="number" class="child-multi-cases" data-path="${path}" data-idx="${idx}" value="${casesCount}" min="0" step="1" readonly style="width:36px;padding:1px 2px;font-size:12px;text-align:center;cursor:default;flex-shrink:0;">
         <button class="btn-c child-multi-case-btn" style="width:24px;height:24px;font-size:12px;flex-shrink:0;" data-path="${path}" data-idx="${idx}" data-delta="${opt.qty}">+</button>
-        ${maxCases > 0 ? `<span style="font-size:10px;color:var(--text-muted);flex-shrink:0;">макс${maxCases}</span>` : ''}
+        ${maxCases > 0 ? `<span style="font-size:10px;color:var(--text-muted);flex-shrink:0;">м${maxCases}</span>` : ''}
         <span style="font-size:10px;color:var(--text-muted);flex-shrink:0;">${opt.dimensions || ''}</span>
         <span style="font-size:10px;color:var(--text-muted);flex-shrink:0;">в${opt.weight || 0}</span>
       </div>`;
@@ -288,8 +305,8 @@ export function updateChildRowsForPath(path) {
     </div>`;
 
     const maxExtra = getStockValue(path);
-    html += `<div class="child-controls" style="display:flex;flex-wrap:wrap;align-items:center;gap:2px 6px;padding:4px 6px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid var(--text-muted);">
-      <span style="font-weight:500;font-size:13px;flex-shrink:0;">Вне кофра</span>
+    html += `<div class="child-controls" style="display:flex;flex-wrap:nowrap;align-items:center;gap:2px 6px;padding:4px 6px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid var(--text-muted);overflow-x:auto;">
+      <span style="font-weight:500;font-size:13px;flex-shrink:0;">Вне</span>
       <button class="btn-c child-extra-btn" style="width:24px;height:24px;font-size:12px;flex-shrink:0;" data-path="${path}" data-delta="-1">−</button>
       <input type="number" class="child-extra-qty" data-path="${path}" value="${extra}" min="0" step="1" max="${maxExtra}" style="width:36px;padding:1px 2px;font-size:12px;text-align:center;flex-shrink:0;">
       <button class="btn-c child-extra-btn" style="width:24px;height:24px;font-size:12px;flex-shrink:0;" data-path="${path}" data-delta="1">+</button>
@@ -306,7 +323,7 @@ export function updateChildRowsForPath(path) {
       let fillPercent = 0;
       if (maxWeight > 0) fillPercent = Math.min(100, Math.round((filledWeight / maxWeight) * 100));
 
-      html += `<div class="child-controls" data-caseid="${p.caseId}" style="display:flex;flex-wrap:wrap;align-items:center;gap:2px 6px;padding:4px 6px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid var(--text-muted);">
+      html += `<div class="child-controls" data-caseid="${p.caseId}" style="display:flex;flex-wrap:nowrap;align-items:center;gap:2px 6px;padding:4px 6px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid var(--text-muted);overflow-x:auto;">
         <span style="font-weight:500;font-size:13px;flex-shrink:0;">${esc(name)}</span>
         <span style="font-size:11px;color:var(--text-secondary);flex-shrink:0;">шт:</span>
         <button class="btn-c child-common-btn" style="width:24px;height:24px;font-size:12px;flex-shrink:0;" data-path="${path}" data-caseid="${p.caseId}" data-delta="-1">−</button>
