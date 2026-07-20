@@ -1,6 +1,7 @@
 // ui/render-utils.js
 import { esc } from './dom.js';
-import { getItemPropsByPath, getCaseMode, getCaseOptions, getSelectedOption } from '../services/calculations.js';
+// ⭐ Импортируем всё из calculations.js
+import * as calc from '../services/calculations.js';
 import { getOrderPacking, getIndividualCaseValues, getOrderExtra } from '../services/order-data.js';
 import { getCommonCases } from '../data/editor-data.js';
 
@@ -123,7 +124,7 @@ export function buildInfoHtml(path, props, mode) {
     html += `<span><strong>Объём 1 шт:</strong> ${props.volume} м³</span>`;
   }
 
-  const options = getCaseOptions(path);
+  const options = calc.getCaseOptions(path);
   const individualVals = getIndividualCaseValues(path);
   const packing = getOrderPacking(path);
   const extra = getOrderExtra(path);
@@ -151,7 +152,7 @@ export function buildInfoHtml(path, props, mode) {
     });
   } else if (mode.enabled && individualVals.length === 1 && !packing.length && !isMulti) {
     html += `<div style="width:100%;"><strong>Один кофр:</strong></div>`;
-    const opt = getSelectedOption(path);
+    const opt = calc.getSelectedOption(path);
     const val = individualVals[0] || 0;
     if (val > 0 && opt) {
       const casesCount = Math.ceil(val / opt.qty);
