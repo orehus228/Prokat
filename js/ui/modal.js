@@ -119,6 +119,102 @@ export function showConfirm(message, title = 'Подтверждение') {
 }
 
 // ============================================================
+// CHOICE — выбор одного из нескольких вариантов
+// ============================================================
+
+/**
+ * Показывает модалку с выбором одного из нескольких вариантов (радиокнопки).
+ * @param {string} title - заголовок
+ * @param {string} message - пояснительное сообщение
+ * @param {Array<{value: string, label: string, description?: string}>} options - варианты
+ * @returns {Promise<string>} выбранное значение
+ */
+export function showChoice(title, message, options) {
+  return new Promise((resolve) => {
+    const overlay = document.getElementById('modalOverlay');
+    if (!overlay) {
+      resolve(options[0]?.value || '');
+      return;
+    }
+    const titleEl = document.getElementById('modalTitle');
+    if (titleEl) titleEl.textContent = title;
+    const labelEl = document.getElementById('modalLabel');
+    if (labelEl) labelEl.textContent = message;
+    const input = document.getElementById('modalInput');
+    // Убираем поле ввода, заменяем на радиокнопки
+    if (input) {
+      input.style.display = 'none';
+      const container = input.parentNode;
+      // Удаляем старый radioGroup, если был
+      const oldGroup = container.querySelector('.radio-group');
+      if (oldGroup) oldGroup.remove();
+      const radioGroup = document.createElement('div');
+      radioGroup.className = 'radio-group';
+      radioGroup.style.margin = '12px 0';
+      options.forEach((opt, idx) => {
+        const label = document.createElement('label');
+        label.style.display = 'block';
+        label.style.margin = '6px 0';
+        label.style.cursor = 'pointer';
+        const radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = 'choice';
+        radio.value = opt.value;
+        if (idx === 0) radio.checked = true;
+        label.appendChild(radio);
+        label.appendChild(document.createTextNode(' ' + opt.label));
+        if (opt.description) {
+          const desc = document.createElement('span');
+          desc.style.fontSize = '12px';
+          desc.style.color = 'var(--text-muted)';
+          desc.style.marginLeft = '12px';
+          desc.textContent = ' (' + opt.description + ')';
+          label.appendChild(desc);
+        }
+        radioGroup.appendChild(label);
+      });
+      container.insertBefore(radioGroup, input.nextSibling);
+    }
+    overlay.classList.add('open');
+
+    const cleanup = () => {
+      overlay.classList.remove('open');
+      if (input) {
+        input.style.display = '';
+        const radioGroup = input.parentNode.querySelector('.radio-group');
+        if (radioGroup) radioGroup.remove();
+      }
+    };
+
+    const confirmBtn = document.getElementById('modalConfirm');
+    const cancelBtn = document.getElementById('modalCancel');
+
+    const getSelected = () => {
+      const selected = document.querySelector('input[name="choice"]:checked');
+      return selected ? selected.value : (options[0]?.value || '');
+    };
+
+    const newConfirm = () => {
+      cleanup();
+      resolve(getSelected());
+    };
+    const newCancel = () => {
+      cleanup();
+      resolve(options[0]?.value || '');
+    };
+    const newKeydown = (e) => {
+      if (e.key === 'Enter') newConfirm();
+      if (e.key === 'Escape') newCancel();
+    };
+
+    if (confirmBtn) confirmBtn.onclick = newConfirm;
+    if (cancelBtn) cancelBtn.onclick = newCancel;
+    if (input) input.onkeydown = newKeydown;
+    overlay.onclick = (e) => { if (e.target === overlay) newCancel(); };
+  });
+}
+
+// ============================================================
 // ИНИЦИАЛИЗАЦИЯ МОДАЛОК (для обработчиков ESC и т.д.)
 // ============================================================
 
@@ -127,11 +223,8 @@ export function initModalHandlers() {
   const confirmOverlay = document.getElementById('confirmOverlay');
   const input = document.getElementById('modalInput');
 
-  // Обработчик клика по оверлею для modalOverlay (уже есть в showPrompt)
-  // Но добавим глобальный обработчик ESC для всех модалок
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      // Закрываем active модалки
       const modalOverlay = document.getElementById('modalOverlay');
       if (modalOverlay && modalOverlay.classList.contains('open')) {
         if (modalReject) modalReject();
@@ -140,7 +233,6 @@ export function initModalHandlers() {
       }
       const confirmOverlayEl = document.getElementById('confirmOverlay');
       if (confirmOverlayEl && confirmOverlayEl.classList.contains('open')) {
-        // confirm не имеет reject, просто имитируем нажатие "Нет"
         const noBtn = document.getElementById('confirmNo');
         if (noBtn) noBtn.click();
         confirmOverlayEl.classList.remove('open');
@@ -149,7 +241,6 @@ export function initModalHandlers() {
     }
   });
 
-  // Для случая, если пользователь кликнул на оверлей confirmOverlay
   if (confirmOverlay) {
     confirmOverlay.addEventListener('click', (e) => {
       if (e.target === confirmOverlay) {
@@ -163,5 +254,6 @@ export function initModalHandlers() {
 export default {
   showPrompt,
   showConfirm,
+  showChoice,
   initModalHandlers,
 };

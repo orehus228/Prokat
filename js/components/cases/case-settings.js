@@ -18,7 +18,7 @@ import {
 // ⭐ Импортируем всё из calculations.js
 import * as calc from '../../services/calculations.js';
 import { showToast } from '../../ui/toast.js';
-import { showPrompt, showConfirm } from '../../ui/modal.js';
+import { showPrompt, showConfirm, showChoice } from '../../ui/modal.js';
 import { esc, getElement } from '../../ui/dom.js';
 
 let currentCaseSettingsPath = null;
@@ -112,8 +112,8 @@ export function openCaseSettingsModal(path, callback) {
 
   const saveBtn = document.getElementById('caseSettingsSave');
   if (saveBtn) {
-    saveBtn.onclick = () => {
-      saveCaseSettings(path);
+    saveBtn.onclick = async () => {
+      await saveCaseSettings(path);
       modal.classList.remove('open');
       if (caseSettingsCallback) caseSettingsCallback();
       showToast('Настройки кофров сохранены', 'success');
@@ -220,7 +220,7 @@ function renderCaseModeContent(mode, container, path, options, individualVals, p
 // СОХРАНЕНИЕ НАСТРОЕК (с миграцией количества)
 // ============================================================
 
-function saveCaseSettings(path) {
+async function saveCaseSettings(path) {
   const modeBtns = document.querySelectorAll('.case-mode-btn');
   let activeMode = 'off';
   modeBtns.forEach(btn => {
@@ -286,33 +286,83 @@ function saveCaseSettings(path) {
     }
 
     case 'multi': {
+      // Проверяем, есть ли уже количество
+      let action = 'equal'; // по умолчанию
+      if (existingQty > 0) {
+        // Показываем диалог
+        const choiceOptions = [
+          { value: 'reset', label: 'Сбросить', description: 'обнулить количество' },
+          { value: 'equal', label: 'Распределить поровну', description: 'разделить количество между всеми вариантами' },
+          { value: 'sequential', label: 'Собрать по очереди', description: 'заполнять кофры последовательно' }
+        ];
+        action = await showChoice(
+          'Режим мультикофров',
+          'У позиции уже есть количество (' + existingQty + ' шт). Что сделать с этим количеством?',
+          choiceOptions
+        );
+      }
+
       mode.enabled = true;
+      const count = options.length;
       mode.multiSelected = options.map(() => true);
 
-      if (existingQty > 0) {
-        const count = options.length;
+      let vals = [];
+      if (action === 'reset' || existingQty === 0) {
+        vals = options.map(() => 0);
+      } else if (action === 'equal') {
         const base = Math.floor(existingQty / count);
         let remainder = existingQty % count;
-        const vals = options.map((opt, idx) => {
-          let val = base;
-          if (remainder > 0) {
-            val += 1;
-            remainder--;
-          }
+        vals = options.map((opt, idx) => {
+          let val = base + (idx < remainder ? 1 : 0);
+          // Проверка лимита кофров
           const maxCases = opt.maxCases || 0;
           if (maxCases > 0) {
             const maxPieces = maxCases * opt.qty;
             if (val > maxPieces) {
               val = maxPieces;
-              showToast(`Вариант ${idx + 1} ограничен макс. кофрами (${maxCases})`, 'warning');
+              showToast(`Вариант ${idx+1} ограничен макс. кофрами (${maxCases})`, 'warning');
             }
           }
           return val;
         });
-        setIndividualCaseValues(path, vals);
-      } else {
-        setIndividualCaseValues(path, options.map(() => 0));
+      } else if (action === 'sequential') {
+        let remaining = existingQty;
+        vals = options.map((opt, idx) => {
+          if (remaining <= 0) return 0;
+          const qtyPerCase = opt.qty;
+          const maxCases = opt.maxCases || 0;
+          const maxPieces = maxCases > 0 ? maxCases * qtyPerCase : Infinity;
+          let pieces = Math.min(remaining, maxPieces);
+          // Округляем вниз до целых кофров, чтобы не оставлять неполные, если есть ещё варианты
+          if (idx < options.length - 1) {
+            pieces = Math.floor(pieces / qtyPerCase) * qtyPerCase;
+          }
+          // Если остаток меньше qtyPerCase и это последний вариант, отдаём остаток
+          if (idx === options.length - 1 && pieces === 0 && remaining > 0) {
+            pieces = remaining;
+          }
+          // Не превышаем maxPieces
+          pieces = Math.min(pieces, maxPieces);
+          remaining -= pieces;
+          return pieces;
+        });
+        // Если после распределения остались штуки, добавляем их к первому варианту (если возможно)
+        if (remaining > 0) {
+          const firstOpt = options[0];
+          const maxCases = firstOpt.maxCases || 0;
+          const maxPieces = maxCases > 0 ? maxCases * firstOpt.qty : Infinity;
+          const extra = Math.min(remaining, maxPieces - vals[0]);
+          vals[0] += extra;
+          remaining -= extra;
+          if (remaining > 0) {
+            showToast(`Не удалось распределить все ${remaining} шт (превышен лимит кофров)`, 'warning');
+          }
+        }
       }
+
+      setIndividualCaseValues(path, vals);
+      const total = vals.reduce((a, b) => a + b, 0);
+      setOrderValue(path, total);
       break;
     }
 

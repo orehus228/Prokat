@@ -258,9 +258,9 @@ export function updateChildRowsForPath(path) {
         <input type="number" class="child-multi-pieces" data-path="${path}" data-idx="${idx}" value="${val}" min="0" step="1" max="${maxPossible}" style="width:44px;padding:2px 4px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);text-align:center;font-size:13px;flex-shrink:0;">
         <button class="btn-c child-multi-piece-btn" style="width:26px;height:26px;font-size:13px;flex-shrink:0;" data-path="${path}" data-idx="${idx}" data-delta="1">+</button>
         <span style="font-size:11px;color:var(--text-secondary);min-width:35px;">кофры:</span>
-        <button class="btn-c child-multi-case-btn" style="width:26px;height:26px;font-size:13px;flex-shrink:0;" data-path="${path}" data-idx="${idx}" data-delta="-1">−</button>
-        <input type="number" class="child-multi-cases" data-path="${path}" data-idx="${idx}" value="${casesCount}" min="0" step="1" style="width:44px;padding:2px 4px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);text-align:center;font-size:13px;flex-shrink:0;">
-        <button class="btn-c child-multi-case-btn" style="width:26px;height:26px;font-size:13px;flex-shrink:0;" data-path="${path}" data-idx="${idx}" data-delta="1">+</button>
+        <button class="btn-c child-multi-case-btn" style="width:26px;height:26px;font-size:13px;flex-shrink:0;" data-path="${path}" data-idx="${idx}" data-delta="-${opt.qty}">−</button>
+        <input type="number" class="child-multi-cases" data-path="${path}" data-idx="${idx}" value="${casesCount}" min="0" step="1" readonly style="width:44px;padding:2px 4px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);text-align:center;font-size:13px;opacity:0.7;cursor:default;flex-shrink:0;">
+        <button class="btn-c child-multi-case-btn" style="width:26px;height:26px;font-size:13px;flex-shrink:0;" data-path="${path}" data-idx="${idx}" data-delta="${opt.qty}">+</button>
         <span style="font-size:11px;color:var(--text-muted);min-width:60px;">${maxCases > 0 ? `макс.${maxCases}` : ''}</span>
         <span style="font-size:11px;color:var(--text-muted);min-width:70px;">${opt.dimensions || 'н/д'}</span>
         <span style="font-size:11px;color:var(--text-muted);min-width:50px;">вес:${opt.weight || 0}</span>

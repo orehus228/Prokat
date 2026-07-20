@@ -201,6 +201,28 @@ function normalizeState() {
 
   normalizeCaseModes(state.caseModes);
 
+  // ===== ДОБАВЛЯЕМ НОРМАЛИЗАЦИЮ multiSelected =====
+  for (let path in state.itemProps) {
+    const props = state.itemProps[path];
+    if (props.individualCases && props.individualCases.length > 1) {
+      // Убедимся, что для этого пути есть запись в caseModes
+      if (!state.caseModes[path]) {
+        state.caseModes[path] = { ...CASE_MODES_DEFAULTS };
+      }
+      const mode = state.caseModes[path];
+      // Проверяем, что multiSelected - массив и правильной длины
+      if (!Array.isArray(mode.multiSelected) || mode.multiSelected.length !== props.individualCases.length) {
+        mode.multiSelected = props.individualCases.map(() => true);
+      }
+      // Если режим включён, но multiSelected содержит все false, исправляем
+      if (mode.enabled && !mode.multiSelected.some(v => v === true)) {
+        mode.multiSelected = props.individualCases.map(() => true);
+      }
+      // Если multiSelected содержит некорректные значения (не булевы), приводим
+      mode.multiSelected = mode.multiSelected.map(v => !!v);
+    }
+  }
+
   if (!state.truckPresets || !Array.isArray(state.truckPresets)) {
     state.truckPresets = [...DEFAULT_TRUCK_PRESETS];
   }
