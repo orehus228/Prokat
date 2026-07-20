@@ -271,7 +271,8 @@ export function updateChildRowsForPath(path) {
   }
 
   if (hasCommonPacking) {
-    const extra = getOrderExtra(path);
+    // Принудительно преобразуем extra в число
+    const extra = parseInt(getOrderExtra(path)) || 0;
     const childDiv = document.createElement('div');
     childDiv.className = 'child-row';
     childDiv.dataset.parent = path;
@@ -287,7 +288,6 @@ export function updateChildRowsForPath(path) {
       <span style="margin-left:auto;">Вне кофра: ${extra} шт</span>
     </div>`;
 
-    // Контролы для "Вне кофра"
     const maxExtra = getStockValue(path);
     html += `<div class="child-controls" style="display:flex;flex-wrap:nowrap;align-items:center;gap:4px 8px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid var(--text-muted);">
       <span style="font-weight:500;min-width:90px;font-size:13px;flex-shrink:0;">Вне кофра</span>
@@ -296,7 +296,6 @@ export function updateChildRowsForPath(path) {
       <button class="btn-c child-extra-btn" style="width:26px;height:26px;font-size:13px;flex-shrink:0;" data-path="${path}" data-delta="1">+</button>
     </div>`;
 
-    // Контролы для каждого общего кофра
     packing.forEach((p) => {
       const c = commonCases.find(c => c.id === p.caseId);
       const name = c ? c.name : 'удалённый кофр';

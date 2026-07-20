@@ -533,6 +533,7 @@ export function updateTotalsOrder() {
 
   items.forEach(({ path, qty }) => {
     const data = calc.getCalculationData(path);
+    // Вес и объём считаются с учётом упаковки (общие кофры, индивидуальные кофры, extra)
     const weight = calc.calcItemWeight(path, qty, data.mode, data.packing, data.individualVals, data.extra);
     const volume = calc.calcItemVolume(path, qty, data.mode, data.packing, data.individualVals, data.extra);
     const cases = calc.calcItemCases(path, qty, data.mode, data.individualVals);
@@ -544,8 +545,8 @@ export function updateTotalsOrder() {
     catMap[cat].volume += volume;
     catMap[cat].cases += cases;
 
-    // Если есть упаковка в общие кофры, суммируем для отдельной статистики
-    if (data.packing.length > 0) {
+    // Если есть упаковка в общие кофры или есть extra (вне кофра), считаем это как "общие кофры"
+    if (data.packing.length > 0 || data.extra > 0) {
       commonWeight += weight;
       commonVolume += volume;
       commonQty += qty;
