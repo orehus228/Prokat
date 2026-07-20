@@ -204,7 +204,8 @@ function buildCategoryHTML(data, path, level) {
 
 export function buildItemRow(fullPath, level) {
   const state = getState();
-  const sq = getStockValue(fullPath);
+  // Принудительно преобразуем в число, чтобы избежать [object Object]
+  const sq = parseInt(getStockValue(fullPath)) || 0;
   const hasDesc = !!(state.specs && state.specs[fullPath]);
   const hasLink = state.links[fullPath] && state.links[fullPath].length > 0;
   const props = calc.getItemPropsByPath(fullPath);
@@ -222,7 +223,7 @@ export function buildItemRow(fullPath, level) {
   const individualVals = getIndividualCaseValues(fullPath);
   const options = calc.getCaseOptions(fullPath);
 
-  let totalQty = getTotalQty(fullPath);
+  const totalQty = parseInt(getTotalQty(fullPath)) || 0;
 
   const overstock = totalQty > sq;
   const isInfoOpen = infoBlocksOpen[fullPath] || false;
@@ -333,7 +334,7 @@ function renderQtyControls(path) {
   const individualVals = getIndividualCaseValues(path);
   const packing = getOrderPacking(path);
   const options = calc.getCaseOptions(path);
-  const totalQty = getTotalQty(path);
+  const totalQty = parseInt(getTotalQty(path)) || 0;
   const isMulti = mode.enabled && options.length > 1 && mode.multiSelected && mode.multiSelected.some(v => v === true);
 
   if (!mode.enabled || (!packing.length && individualVals.length === 0 && !isMulti)) {
@@ -372,13 +373,13 @@ function renderQtyControls(path) {
 export function updateRowOrder(path, rebuildChildren = true) {
   const row = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
   if (!row) return;
-  const sq = getStockValue(path);
+  const sq = parseInt(getStockValue(path)) || 0;
   const mode = calc.getCaseMode(path);
   const isMulti = mode.enabled && mode.multiSelected && mode.multiSelected.some(v => v === true);
   const packing = getOrderPacking(path);
   const hasCommonPacking = packing.length > 0;
   const individualVals = getIndividualCaseValues(path);
-  const totalQty = getTotalQty(path);
+  const totalQty = parseInt(getTotalQty(path)) || 0;
 
   const isAdded = totalQty > 0;
   const isOverstock = totalQty > sq;
@@ -533,7 +534,6 @@ export function updateTotalsOrder() {
 
   items.forEach(({ path, qty }) => {
     const data = calc.getCalculationData(path);
-    // Вес и объём считаются с учётом упаковки (общие кофры, индивидуальные кофры, extra)
     const weight = calc.calcItemWeight(path, qty, data.mode, data.packing, data.individualVals, data.extra);
     const volume = calc.calcItemVolume(path, qty, data.mode, data.packing, data.individualVals, data.extra);
     const cases = calc.calcItemCases(path, qty, data.mode, data.individualVals);
@@ -545,7 +545,6 @@ export function updateTotalsOrder() {
     catMap[cat].volume += volume;
     catMap[cat].cases += cases;
 
-    // Если есть упаковка в общие кофры или есть extra (вне кофра), считаем это как "общие кофры"
     if (data.packing.length > 0 || data.extra > 0) {
       commonWeight += weight;
       commonVolume += volume;
