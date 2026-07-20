@@ -1,6 +1,8 @@
 // components/order/index.js
 import { getState, setStateKey, saveState } from '../../core/state.js';
-import { getOrderProject, setOrderProject, getProjects, getProject, saveProject } from '../../services/project-data.js';
+// ИСПРАВЛЕНО: импорт getOrderProject и setOrderProject из order-data.js
+import { getOrderProject, setOrderProject } from '../../services/order-data.js';
+import { getProjects, getProject, saveProject } from '../../services/project-data.js';
 import { getItemProps, setItemProps, getCommonCases, getTruckPresets } from '../../data/editor-data.js';
 import { showToast, queueToast } from '../../ui/toast.js';
 import { showPrompt, showConfirm } from '../../ui/modal.js';
@@ -17,33 +19,15 @@ import { openCasesManagerModal } from '../cases/common-manager.js';
 // ============================================================
 
 export function initOrderPage() {
-  // Инициализируем UI (поиск, кнопки итогов, дата/комментарий)
   initOrderUI();
-
-  // Инициализируем пресеты
   initOrderPresetsUI();
-
-  // Инициализируем обработчики событий (кнопки ±, клики)
   initOrderActions();
-
-  // Рендерим всё
   renderOrderAll();
-
-  // Загружаем данные проекта в UI
   loadProjectDataIntoUI();
-
-  // Настраиваем обработчики для привязки к проекту
   setupProjectUIHandlers();
-
-  // Настраиваем кнопки экспорта/очистки
   setupExportButtons();
-
-  // Обновляем счётчик привязок
   updateLinkCountOrder();
-
-  // Обновляем индикаторы кофров
   updateAllCommonCaseIndicators();
-
   showToast('Страница заказа загружена', 'neutral', 1500);
 }
 
@@ -101,7 +85,6 @@ function setupProjectUIHandlers() {
           status: project.status || 'planned',
         });
         showToast(`Проект "${project.name}" загружен`, 'success');
-        // Обновляем индикаторы после загрузки проекта
         updateAllCommonCaseIndicators();
       }
     });
@@ -181,7 +164,6 @@ function setupExportButtons() {
     clearBtn.addEventListener('click', clearOrderData);
   }
 
-  // Кнопки матрицы и общих кофров
   const matrixBtn = document.getElementById('openMatrixModal');
   if (matrixBtn) {
     matrixBtn.addEventListener('click', () => {
@@ -192,7 +174,6 @@ function setupExportButtons() {
   if (commonBtn) {
     commonBtn.addEventListener('click', () => {
       openCasesManagerModal(() => {
-        // Обновляем индикаторы после закрытия
         updateAllCommonCaseIndicators();
       });
     });
