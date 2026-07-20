@@ -237,7 +237,7 @@ export function updateChildRowsForPath(path) {
     childDiv.dataset.parent = path;
     childDiv.style.width = '100%';
     childDiv.style.flexBasis = '100%';
-    childDiv.style.padding = '6px 12px';
+    childDiv.style.padding = '8px 12px';
     childDiv.style.borderRadius = '6px';
     childDiv.style.margin = '4px 0';
     childDiv.style.border = '1px solid var(--border-light)';
@@ -250,7 +250,7 @@ export function updateChildRowsForPath(path) {
       const casesCount = Math.ceil(val / opt.qty);
       const maxPossible = getStockValue(path);
       const maxCases = opt.maxCases || 0;
-      html += `<div class="child-controls" style="display:flex;flex-wrap:nowrap;align-items:center;gap:4px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid var(--text-muted);">
+      html += `<div class="child-controls" style="display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid var(--text-muted);">
         <span style="font-weight:500;min-width:70px;font-size:13px;flex-shrink:0;">Вар.${idx + 1}</span>
         <span style="font-size:11px;color:var(--text-secondary);min-width:30px;flex-shrink:0;">шт:</span>
         <button class="btn-c child-multi-piece-btn" style="width:26px;height:26px;font-size:13px;flex-shrink:0;" data-path="${path}" data-idx="${idx}" data-delta="-1">−</button>
@@ -271,14 +271,13 @@ export function updateChildRowsForPath(path) {
   }
 
   if (hasCommonPacking) {
-    // Принудительно преобразуем extra в число
     const extra = parseInt(getOrderExtra(path)) || 0;
     const childDiv = document.createElement('div');
     childDiv.className = 'child-row';
     childDiv.dataset.parent = path;
     childDiv.style.width = '100%';
     childDiv.style.flexBasis = '100%';
-    childDiv.style.padding = '6px 12px';
+    childDiv.style.padding = '8px 12px';
     childDiv.style.borderRadius = '6px';
     childDiv.style.margin = '4px 0';
     childDiv.style.border = '1px solid var(--border-light)';
@@ -289,7 +288,7 @@ export function updateChildRowsForPath(path) {
     </div>`;
 
     const maxExtra = getStockValue(path);
-    html += `<div class="child-controls" style="display:flex;flex-wrap:nowrap;align-items:center;gap:4px 8px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid var(--text-muted);">
+    html += `<div class="child-controls" style="display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid var(--text-muted);">
       <span style="font-weight:500;min-width:90px;font-size:13px;flex-shrink:0;">Вне кофра</span>
       <button class="btn-c child-extra-btn" style="width:26px;height:26px;font-size:13px;flex-shrink:0;" data-path="${path}" data-delta="-1">−</button>
       <input type="number" class="child-extra-qty" data-path="${path}" value="${extra}" min="0" step="1" max="${maxExtra}" style="width:44px;padding:2px 4px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);text-align:center;font-size:13px;flex-shrink:0;">
@@ -307,7 +306,7 @@ export function updateChildRowsForPath(path) {
       let fillPercent = 0;
       if (maxWeight > 0) fillPercent = Math.min(100, Math.round((filledWeight / maxWeight) * 100));
 
-      html += `<div class="child-controls" data-caseid="${p.caseId}" style="display:flex;flex-wrap:nowrap;align-items:center;gap:4px 8px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid var(--text-muted);">
+      html += `<div class="child-controls" data-caseid="${p.caseId}" style="display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid var(--text-muted);">
         <span style="font-weight:500;min-width:90px;font-size:13px;flex-shrink:0;">${esc(name)}</span>
         <span style="font-size:11px;color:var(--text-secondary);min-width:30px;flex-shrink:0;">шт:</span>
         <button class="btn-c child-common-btn" style="width:26px;height:26px;font-size:13px;flex-shrink:0;" data-path="${path}" data-caseid="${p.caseId}" data-delta="-1">−</button>
