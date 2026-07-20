@@ -15,12 +15,8 @@ import {
   setOrderValue,
   getTotalQty,
 } from '../../services/order-data.js';
-import {
-  getCaseMode,
-  getCaseOptions,
-  getSelectedOption,
-  getItemPropsByPath,
-} from '../../services/calculations.js';
+// ⭐ Импортируем всё из calculations.js
+import * as calc from '../../services/calculations.js';
 import { showToast } from '../../ui/toast.js';
 import { showPrompt, showConfirm } from '../../ui/modal.js';
 import { esc, getElement } from '../../ui/dom.js';
@@ -36,10 +32,10 @@ export function openCaseSettingsModal(path, callback) {
   currentCaseSettingsPath = path;
   caseSettingsCallback = callback || null;
 
-  const props = getItemPropsByPath(path);
-  const options = getCaseOptions(path);
+  const props = calc.getItemPropsByPath(path);
+  const options = calc.getCaseOptions(path);
   const commonCases = getCommonCases();
-  const mode = getCaseMode(path);
+  const mode = calc.getCaseMode(path);
   const individualVals = getIndividualCaseValues(path);
   const packing = getOrderPacking(path);
   const extra = getOrderExtra(path);
@@ -231,8 +227,8 @@ function saveCaseSettings(path) {
     if (btn.classList.contains('active')) activeMode = btn.dataset.mode;
   });
 
-  const mode = getCaseMode(path);
-  const options = getCaseOptions(path);
+  const mode = calc.getCaseMode(path);
+  const options = calc.getCaseOptions(path);
   const existingQty = getTotalQty(path);
 
   // Сбрасываем все настройки кофров для этой позиции
@@ -368,7 +364,7 @@ window.addAltCase = async function() {
   const dims = await showPrompt('Альтернативный кофр', 'Габариты (Д×Ш×В, см):', '', '');
   if (dims === null) return;
 
-  const mode = getCaseMode(path);
+  const mode = calc.getCaseMode(path);
   mode.alt = { qty: numQty, weight: w, dims: dims || '' };
   mode.enabled = true;
   saveState();
@@ -379,7 +375,7 @@ window.addAltCase = async function() {
 window.clearAltCase = function() {
   const path = currentCaseSettingsPath;
   if (!path) return;
-  const mode = getCaseMode(path);
+  const mode = calc.getCaseMode(path);
   mode.alt = null;
   saveState();
   openCaseSettingsModal(path, caseSettingsCallback);
