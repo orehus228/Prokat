@@ -13,14 +13,8 @@ import {
   getOrderProject,
 } from '../../services/order-data.js';
 import { getAvailableQuantity } from '../../services/project-data.js';
-import {
-  getCaseMode,
-  getCaseOptions,
-  getSelectedOption,
-  getItemPropsByPath,
-  calcItemWeight,
-  calcItemVolume,
-} from '../../services/calculations.js';
+// ⭐ Импортируем всё из calculations.js
+import * as calc from '../../services/calculations.js';
 import { showToast } from '../../ui/toast.js';
 import {
   updateRowOrder,
@@ -109,7 +103,7 @@ function handleSinglePieceChange(path, delta) {
   input.value = val;
   setIndividualCaseValues(path, [val]);
   setOrderValue(path, val);
-  const opt = getSelectedOption(path);
+  const opt = calc.getSelectedOption(path);
   if (opt && opt.qty > 0) {
     let casesCount = Math.ceil(val / opt.qty);
     const maxCases = opt.maxCases || 0;
@@ -136,7 +130,7 @@ function handleSingleCaseChange(path, delta) {
   if (!input) return;
   let val = parseInt(input.value) || 0;
   val = Math.max(0, val + delta);
-  const opt = getSelectedOption(path);
+  const opt = calc.getSelectedOption(path);
   if (opt && opt.qty > 0) {
     const maxCases = opt.maxCases || 0;
     if (maxCases > 0 && val > maxCases) {
@@ -207,7 +201,7 @@ function handleMultiPieceChange(path, idx, delta) {
   }
   inputPieces.dataset.oldValue = val;
   inputPieces.value = val;
-  const opt = getCaseOptions(path)[idx];
+  const opt = calc.getCaseOptions(path)[idx];
   if (opt && opt.qty > 0) {
     let casesCount = Math.ceil(val / opt.qty);
     const maxCases = opt.maxCases || 0;
@@ -240,7 +234,7 @@ function handleMultiCaseChange(path, idx, delta) {
   if (!inputCases) return;
   let val = parseInt(inputCases.value) || 0;
   val = Math.max(0, val + delta);
-  const opt = getCaseOptions(path)[idx];
+  const opt = calc.getCaseOptions(path)[idx];
   if (opt && opt.qty > 0) {
     const maxCases = opt.maxCases || 0;
     if (maxCases > 0 && val > maxCases) {
@@ -308,7 +302,7 @@ function handleCommonQtyChange(path, caseId, delta) {
   if (p) {
     const c = getCommonCases().find(c => c.id === caseId);
     const maxPack = c ? c.qty : Infinity;
-    const props = getItemPropsByPath(path);
+    const props = calc.getItemPropsByPath(path);
     const unitWeight = props.weight || 0;
     const newWeight = val * unitWeight;
     if (c && c.maxWeight && newWeight > c.maxWeight) {
@@ -530,7 +524,7 @@ function handleContainerInput(e) {
     singlePieces.value = val;
     setIndividualCaseValues(path, [val]);
     setOrderValue(path, val);
-    const opt = getSelectedOption(path);
+    const opt = calc.getSelectedOption(path);
     if (opt && opt.qty > 0) {
       let casesCount = Math.ceil(val / opt.qty);
       const maxCases = opt.maxCases || 0;
@@ -556,7 +550,7 @@ function handleContainerInput(e) {
     let val = parseInt(singleCases.value);
     if (isNaN(val) || val < 0) val = 0;
     singleCases.value = val;
-    const opt = getSelectedOption(path);
+    const opt = calc.getSelectedOption(path);
     if (opt && opt.qty > 0) {
       const maxCases = opt.maxCases || 0;
       if (maxCases > 0 && val > maxCases) {
@@ -601,7 +595,7 @@ function handleContainerInput(e) {
     let val = parseInt(multiPieces.value);
     if (isNaN(val) || val < 0) val = 0;
     multiPieces.value = val;
-    const opt = getCaseOptions(path)[idx];
+    const opt = calc.getCaseOptions(path)[idx];
     if (opt && opt.qty > 0) {
       let casesCount = Math.ceil(val / opt.qty);
       const maxCases = opt.maxCases || 0;
@@ -633,7 +627,7 @@ function handleContainerInput(e) {
     let val = parseInt(multiCases.value);
     if (isNaN(val) || val < 0) val = 0;
     multiCases.value = val;
-    const opt = getCaseOptions(path)[idx];
+    const opt = calc.getCaseOptions(path)[idx];
     if (opt && opt.qty > 0) {
       const maxCases = opt.maxCases || 0;
       if (maxCases > 0 && val > maxCases) {
@@ -691,7 +685,7 @@ function handleContainerInput(e) {
     if (p) {
       const c = getCommonCases().find(c => c.id === caseId);
       const maxPack = c ? c.qty : Infinity;
-      const props = getItemPropsByPath(path);
+      const props = calc.getItemPropsByPath(path);
       const unitWeight = props.weight || 0;
       const newWeight = val * unitWeight;
       if (c && c.maxWeight && newWeight > c.maxWeight) {

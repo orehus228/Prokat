@@ -1,17 +1,12 @@
 // services/packing.js
-import { getItemPropsByPath, parseUnitVolume } from './calculations.js';
-import { getCommonCases, getItemProps } from '../data/editor-data.js';
+import { getItemPropsByPath, getCommonCases } from '../data/editor-data.js';
 import {
   getOrderPacking,
   getIndividualCaseValues,
   getOrderExtra,
 } from './order-data.js';
-// ✅ Импорт getCaseMode из правильного места
-import {
-  getCaseMode,
-  getCaseOptions,
-  getSelectedOption,
-} from './calculations.js';
+// ⭐ Импортируем всё из calculations.js
+import * as calc from './calculations.js';
 
 // ============================================================
 // ПОЛУЧЕНИЕ ГАБАРИТОВ ДЛЯ КАЖДОЙ ЕДИНИЦЫ ГРУЗА
@@ -19,7 +14,7 @@ import {
 
 export function getItemDimensions(path, qty) {
   const props = getItemPropsByPath(path);
-  const mode = getCaseMode(path);
+  const mode = calc.getCaseMode(path);
   const packing = getOrderPacking(path);
   const result = [];
 
@@ -53,7 +48,7 @@ export function getItemDimensions(path, qty) {
   }
 
   const individualVals = getIndividualCaseValues(path);
-  const options = getCaseOptions(path);
+  const options = calc.getCaseOptions(path);
   const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
 
   if (individualVals.length > 0 && options.length > 0) {
@@ -116,7 +111,7 @@ export function getItemDimensions(path, qty) {
   }
 
   if (mode.enabled && individualVals.length === 1 && !packing.length && !isMulti) {
-    let opt = getSelectedOption(path);
+    let opt = calc.getSelectedOption(path);
     let alt = mode.alt;
     let dimsStr, emptyWeight, qtyPerCase;
     if (alt && mode.useAlt) {

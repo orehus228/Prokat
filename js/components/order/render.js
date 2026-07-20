@@ -11,16 +11,8 @@ import {
   setOrderValue,
   setNote,
 } from '../../services/order-data.js';
-import {
-  getCaseMode,          // ✅ Импорт из calculations.js
-  getCaseOptions,
-  getSelectedOption,
-  getItemPropsByPath,
-  calcItemWeight,
-  calcItemVolume,
-  calcItemCases,
-  getCalculationData,
-} from '../../services/calculations.js';
+// ⭐ Импортируем всё из calculations.js
+import * as calc from '../../services/calculations.js';
 import { CAT_NAMES } from '../../core/config.js';
 import { esc, getElement, debounce } from '../../ui/dom.js';
 import { showToast, queueToast } from '../../ui/toast.js';
@@ -216,14 +208,14 @@ export function buildItemRow(fullPath, level) {
   const sq = getStockValue(fullPath);
   const hasDesc = !!(state.specs && state.specs[fullPath]);
   const hasLink = state.links[fullPath] && state.links[fullPath].length > 0;
-  const props = getItemPropsByPath(fullPath);
+  const props = calc.getItemPropsByPath(fullPath);
   const hasCase = (props.individualCases && props.individualCases.length > 0) || props.allowCommon;
-  const mode = getCaseMode(fullPath);
+  const mode = calc.getCaseMode(fullPath);
   const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
   const packing = getOrderPacking(fullPath);
   const hasCommonPacking = packing.length > 0;
   const individualVals = getIndividualCaseValues(fullPath);
-  const options = getCaseOptions(fullPath);
+  const options = calc.getCaseOptions(fullPath);
 
   let totalQty = getTotalQty(fullPath);
 
@@ -251,7 +243,7 @@ export function buildItemRow(fullPath, level) {
     }, 0);
     extraCaseInfo = `[Мульти] ${totalCases} кофр${totalCases > 1 ? 'а' : ''}`;
   } else if (mode.enabled && individualVals.length === 1 && !packing.length && !isMulti) {
-    const opt = getSelectedOption(fullPath);
+    const opt = calc.getSelectedOption(fullPath);
     const val = individualVals[0] || 0;
     if (opt && val > 0) {
       const casesCount = Math.ceil(val / opt.qty);
@@ -270,9 +262,9 @@ export function buildItemRow(fullPath, level) {
   let weightDisplay = '0 кг';
   let volumeDisplay = '0 м³';
   if (totalQty > 0) {
-    const data = getCalculationData(fullPath);
-    const weight = calcItemWeight(fullPath, totalQty, data.mode, data.packing, data.individualVals, data.extra);
-    const volume = calcItemVolume(fullPath, totalQty, data.mode, data.packing, data.individualVals, data.extra);
+    const data = calc.getCalculationData(fullPath);
+    const weight = calc.calcItemWeight(fullPath, totalQty, data.mode, data.packing, data.individualVals, data.extra);
+    const volume = calc.calcItemVolume(fullPath, totalQty, data.mode, data.packing, data.individualVals, data.extra);
     weightDisplay = formatWeight(weight);
     volumeDisplay = formatVolume(volume);
   }
@@ -329,10 +321,10 @@ export function buildItemRow(fullPath, level) {
 }
 
 function renderQtyControls(path) {
-  const mode = getCaseMode(path);
+  const mode = calc.getCaseMode(path);
   const individualVals = getIndividualCaseValues(path);
   const packing = getOrderPacking(path);
-  const options = getCaseOptions(path);
+  const options = calc.getCaseOptions(path);
   const totalQty = getTotalQty(path);
   const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
 
@@ -345,7 +337,7 @@ function renderQtyControls(path) {
   }
 
   if (mode.enabled && individualVals.length === 1 && !packing.length && !isMulti) {
-    const opt = getSelectedOption(path);
+    const opt = calc.getSelectedOption(path);
     const pieces = individualVals[0] || 0;
     const casesCount = opt && opt.qty > 0 ? Math.ceil(pieces / opt.qty) : 0;
     const maxCases = opt?.maxCases || 0;
@@ -373,7 +365,7 @@ export function updateRowOrder(path, rebuildChildren = true) {
   const row = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
   if (!row) return;
   const sq = getStockValue(path);
-  const mode = getCaseMode(path);
+  const mode = calc.getCaseMode(path);
   const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
   const packing = getOrderPacking(path);
   const hasCommonPacking = packing.length > 0;
@@ -394,7 +386,7 @@ export function updateRowOrder(path, rebuildChildren = true) {
     const singlePieces = qtyControls.querySelector('.single-pieces-input');
     const singleCases = qtyControls.querySelector('.single-cases-input');
     if (singlePieces && singleCases) {
-      const opt = getSelectedOption(path);
+      const opt = calc.getSelectedOption(path);
       const pieces = getIndividualCaseValues(path)[0] || 0;
       singlePieces.value = pieces;
       const casesCount = opt && opt.qty > 0 ? Math.ceil(pieces / opt.qty) : 0;
@@ -412,14 +404,14 @@ export function updateRowOrder(path, rebuildChildren = true) {
     if (totalQty > 0 || sq > 0) {
       info = `<span><strong>${totalQty}</strong> шт добавлено</span>
               <span>в наличии: <strong>${sq}</strong></span>`;
-      const props = getItemPropsByPath(path);
+      const props = calc.getItemPropsByPath(path);
       if (props.weight) {
-        const data = getCalculationData(path);
-        const weight = calcItemWeight(path, totalQty, data.mode, data.packing, data.individualVals, data.extra);
+        const data = calc.getCalculationData(path);
+        const weight = calc.calcItemWeight(path, totalQty, data.mode, data.packing, data.individualVals, data.extra);
         info += `<span>${formatWeight(weight)}</span>`;
       }
-      const data = getCalculationData(path);
-      const volume = calcItemVolume(path, totalQty, data.mode, data.packing, data.individualVals, data.extra);
+      const data = calc.getCalculationData(path);
+      const volume = calc.calcItemVolume(path, totalQty, data.mode, data.packing, data.individualVals, data.extra);
       if (volume > 0) info += `<span>${formatVolume(volume)}</span>`;
       if (packing.length > 0) {
         const totalPieces = packing.reduce((s, p) => s + (p.pieces || 0), 0);
@@ -445,7 +437,7 @@ export function updateRowOrder(path, rebuildChildren = true) {
   }
   const caseBtn = row.querySelector('.case-btn');
   if (caseBtn) {
-    const mode = getCaseMode(path);
+    const mode = calc.getCaseMode(path);
     const isOn = mode.enabled || false;
     const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
     const hasAlt = !!mode.alt;
@@ -539,10 +531,10 @@ function calculateTotals(items) {
   let totalQty = 0, totalWeight = 0, totalVolume = 0, totalCases = 0;
   items.forEach(({ path, qty }) => {
     totalQty += qty;
-    const data = getCalculationData(path);
-    totalWeight += calcItemWeight(path, qty, data.mode, data.packing, data.individualVals, data.extra);
-    totalVolume += calcItemVolume(path, qty, data.mode, data.packing, data.individualVals, data.extra);
-    totalCases += calcItemCases(path, qty, data.mode, data.individualVals);
+    const data = calc.getCalculationData(path);
+    totalWeight += calc.calcItemWeight(path, qty, data.mode, data.packing, data.individualVals, data.extra);
+    totalVolume += calc.calcItemVolume(path, qty, data.mode, data.packing, data.individualVals, data.extra);
+    totalCases += calc.calcItemCases(path, qty, data.mode, data.individualVals);
   });
   return { totalQty, totalWeight, totalVolume, totalCases };
 }
@@ -584,8 +576,8 @@ export function toggleInfoOrder(btn) {
   }
   infoBlock = document.createElement('div');
   infoBlock.className = 'row-info';
-  const props = getItemPropsByPath(path);
-  const mode = getCaseMode(path);
+  const props = calc.getItemPropsByPath(path);
+  const mode = calc.getCaseMode(path);
   infoBlock.innerHTML = buildInfoHtml(path, props, mode);
   row.appendChild(infoBlock);
   infoBlocksOpen[path] = true;

@@ -9,13 +9,8 @@ import {
   getLinks,
   setOrderValue,
 } from '../../services/order-data.js';
-import {
-  getCaseMode,          // ✅ Импорт из calculations.js
-  getCaseOptions,
-  getSelectedOption,
-  getItemPropsByPath,
-  parseUnitVolume,
-} from '../../services/calculations.js';
+// ⭐ Импортируем всё из calculations.js
+import * as calc from '../../services/calculations.js';
 import { esc, getElement } from '../../ui/dom.js';
 import { getColorByPercent, getBgColorCSS, buildInfoHtml } from '../../ui/render-utils.js';
 import { showToast } from '../../ui/toast.js';
@@ -134,7 +129,7 @@ export function updateCommonCasesButton() {
   const state = getState();
   for (let path in state.orderPacking) {
     const packing = getOrderPacking(path);
-    const props = getItemPropsByPath(path);
+    const props = calc.getItemPropsByPath(path);
     const unitWeight = props.weight || 0;
     packing.forEach(p => {
       const stat = stats.get(p.caseId);
@@ -175,9 +170,9 @@ export function updateAllCommonCaseIndicators() {
     const state = getState();
     for (let path in state.orderPacking) {
       const packing = getOrderPacking(path);
-      const props = getItemPropsByPath(path);
+      const props = calc.getItemPropsByPath(path);
       const unitWeight = props.weight || 0;
-      const unitVolume = parseUnitVolume(props.dimensions);
+      const unitVolume = calc.parseUnitVolume(props.dimensions);
       packing.forEach(p => {
         if (p.pieces <= 0) return;
         const stat = stats.get(p.caseId);
@@ -228,13 +223,13 @@ export function updateChildRowsForPath(path) {
     toRemove.remove();
   }
 
-  const mode = getCaseMode(path);
-  const options = getCaseOptions(path);
+  const mode = calc.getCaseMode(path);
+  const options = calc.getCaseOptions(path);
   const isMulti = mode.multiSelected && mode.multiSelected.some(v => v === true);
   const packing = getOrderPacking(path);
   const hasCommonPacking = packing.length > 0;
   const individualVals = getIndividualCaseValues(path);
-  const props = getItemPropsByPath(path);
+  const props = calc.getItemPropsByPath(path);
   const commonCases = getCommonCases();
 
   if (isMulti && mode.enabled && options.length > 1) {

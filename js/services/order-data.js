@@ -5,7 +5,8 @@ import {
   saveState,
   clearCalculationCache,
 } from '../core/state.js';
-import { getItemPropsByPath, getCommonCases, getCaseMode } from './calculations.js';
+// ⭐ Импортируем всё из calculations.js
+import * as calc from './calculations.js';
 
 // ============================================================
 // БАЗОВЫЕ ГЕТТЕРЫ И СЕТТЕРЫ
@@ -230,7 +231,7 @@ export function getTotalQty(path) {
     return extra + packing.reduce((s, p) => s + (p.pieces || 0), 0);
   }
 
-  const mode = getCaseMode(path);
+  const mode = calc.getCaseMode(path);
   const vals = getIndividualCaseValues(path);
   if (mode.enabled && vals.length > 0) {
     return vals.reduce((a, b) => a + b, 0);
