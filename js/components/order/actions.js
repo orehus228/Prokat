@@ -347,49 +347,46 @@ function handleExtraQtyChange(path, delta) {
 }
 
 // ============================================================
-// ОБРАБОТЧИКИ СОБЫТИЙ (упрощённые, без дублирования)
+// УПРОЩЁННАЯ ОБРАБОТКА СОБЫТИЙ (без дублирования, с удержанием)
 // ============================================================
 
+let repeatTimer = null;
 let repeatInterval = null;
-let repeatTimeout = null;
-let currentTarget = null;
+let currentBtn = null;
 
-function startRepeat(e, delta) {
-  const btn = e.currentTarget;
-  currentTarget = btn;
+function startRepeat(btn) {
+  if (repeatInterval) return;
+  currentBtn = btn;
   const path = btn.dataset.path;
-  const deltaVal = parseInt(btn.dataset.delta);
-  if (!path || isNaN(deltaVal)) return;
+  const delta = parseInt(btn.dataset.delta);
+  if (!path || isNaN(delta)) return;
 
   const doAction = () => {
-    if (btn.classList.contains('qty-btn')) handleQtyChange(path, deltaVal);
-    else if (btn.classList.contains('single-piece-btn')) handleSinglePieceChange(path, deltaVal);
-    else if (btn.classList.contains('single-case-btn')) handleSingleCaseChange(path, deltaVal);
+    if (btn.classList.contains('qty-btn')) handleQtyChange(path, delta);
+    else if (btn.classList.contains('single-piece-btn')) handleSinglePieceChange(path, delta);
+    else if (btn.classList.contains('single-case-btn')) handleSingleCaseChange(path, delta);
     else if (btn.classList.contains('child-multi-piece-btn')) {
       const idx = parseInt(btn.dataset.idx);
-      if (!isNaN(idx)) handleMultiPieceChange(path, idx, deltaVal);
+      if (!isNaN(idx)) handleMultiPieceChange(path, idx, delta);
     } else if (btn.classList.contains('child-multi-case-btn')) {
       const idx = parseInt(btn.dataset.idx);
-      if (!isNaN(idx)) handleMultiCaseChange(path, idx, deltaVal);
+      if (!isNaN(idx)) handleMultiCaseChange(path, idx, delta);
     } else if (btn.classList.contains('child-common-btn')) {
       const caseId = btn.dataset.caseid;
-      if (caseId) handleCommonQtyChange(path, caseId, deltaVal);
+      if (caseId) handleCommonQtyChange(path, caseId, delta);
     } else if (btn.classList.contains('child-extra-btn')) {
-      handleExtraQtyChange(path, deltaVal);
+      handleExtraQtyChange(path, delta);
     }
   };
 
-  // Выполняем действие сразу (один раз)
+  // Выполняем действие сразу
   doAction();
 
   // Запускаем таймер для повтора
-  if (repeatInterval) {
-    clearInterval(repeatInterval);
-    repeatInterval = null;
-  }
-  repeatTimeout = setTimeout(() => {
+  if (repeatTimer) clearTimeout(repeatTimer);
+  repeatTimer = setTimeout(() => {
     repeatInterval = setInterval(() => {
-      if (currentTarget !== btn) {
+      if (currentBtn !== btn) {
         stopRepeat();
         return;
       }
@@ -399,22 +396,24 @@ function startRepeat(e, delta) {
 }
 
 function stopRepeat() {
-  clearTimeout(repeatTimeout);
+  clearTimeout(repeatTimer);
   clearInterval(repeatInterval);
+  repeatTimer = null;
   repeatInterval = null;
-  repeatTimeout = null;
-  currentTarget = null;
+  currentBtn = null;
 }
 
-// Обработчики pointer/touch
+// Обработчик нажатия (мышь / touch)
 function handlePointerDown(e) {
   const btn = e.target.closest('.btn-c');
   if (!btn || !btn.dataset.delta) return;
-  // Предотвращаем стандартное поведение (zoom, scroll)
-  e.preventDefault();
-  // Сохраняем ссылку на кнопку
-  e.currentTarget = btn;
-  startRepeat(e, parseInt(btn.dataset.delta));
+  e.preventDefault(); // предотвращаем zoom/scroll
+  // Если уже есть повтор на этой кнопке, не запускаем новый
+  if (currentBtn === btn) return;
+  // Останавливаем предыдущий повтор, если был
+  if (currentBtn) stopRepeat();
+  // Запускаем новый
+  startRepeat(btn);
 }
 
 function handlePointerUp(e) {
@@ -451,7 +450,6 @@ function handleContainerClick(e) {
   if (noteBtn) { openNoteEditorOrder(noteBtn); return; }
 }
 
-// Обработчик ввода в поля
 function handleContainerInput(e) {
   const target = e.target.closest('.qty-input');
   if (target) {
