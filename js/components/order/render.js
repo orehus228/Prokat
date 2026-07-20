@@ -11,7 +11,6 @@ import {
   setOrderValue,
   setNote,
 } from '../../services/order-data.js';
-// ⭐ Импортируем всё из calculations.js
 import * as calc from '../../services/calculations.js';
 import { CAT_NAMES } from '../../core/config.js';
 import { esc, getElement, debounce } from '../../ui/dom.js';
@@ -210,7 +209,6 @@ export function buildItemRow(fullPath, level) {
   const hasLink = state.links[fullPath] && state.links[fullPath].length > 0;
   const props = calc.getItemPropsByPath(fullPath);
   
-  // ⭐ ГАРАНТИРОВАННАЯ ПРОВЕРКА НАЛИЧИЯ КОФРОВ
   const hasIndividualCases = props.individualCases && props.individualCases.length > 0;
   const hasCommonCases = props.allowCommon;
   const hasCase = hasIndividualCases || hasCommonCases;
@@ -262,7 +260,6 @@ export function buildItemRow(fullPath, level) {
       caseStatusClass = 'off';
     }
   } else if (hasCase) {
-    // Если есть кофры, но режим не включён или не определён – показываем "Выкл" или "Кофры"
     caseStatusText = hasIndividualCases ? 'Выкл' : 'Кофры';
     caseStatusClass = 'off';
   } else {
@@ -289,7 +286,6 @@ export function buildItemRow(fullPath, level) {
   const noteClass = hasNote ? 'has-note' : '';
   const caseClass = isCaseModeOn ? 'active' : '';
 
-  // ⭐ КОМПАКТНЫЙ БЛОК extra-info (в одну строку с точками-разделителями)
   let extraInfo = '';
   if (totalQty > 0 || sq > 0) {
     extraInfo = `<div class="extra-info">
@@ -529,12 +525,46 @@ export function updateTotalsOrder() {
   const state = getState();
   const orderKeys = state._categoryOrder || Object.keys(state.inventory);
   let detailsHtml = '';
-  orderKeys.forEach(cat => {
-    const catItems = items.filter(({ path }) => path.startsWith(cat + '|'));
-    if (catItems.length === 0) return;
-    const catResult = calculateTotals(catItems);
-    detailsHtml += `<div class="cat-detail"><strong>${CAT_NAMES[cat] || cat}</strong><br>${catResult.totalQty} шт<br>${formatWeight(catResult.totalWeight)}<br>${formatVolume(catResult.totalVolume)}</div>`;
+
+  // Собираем данные по категориям и отдельно для общих кофров
+  const catMap = {};
+  let commonWeight = 0;
+  let commonVolume = 0;
+  let commonQty = 0;
+
+  items.forEach(({ path, qty }) => {
+    const data = calc.getCalculationData(path);
+    const weight = calc.calcItemWeight(path, qty, data.mode, data.packing, data.individualVals, data.extra);
+    const volume = calc.calcItemVolume(path, qty, data.mode, data.packing, data.individualVals, data.extra);
+    const cases = calc.calcItemCases(path, qty, data.mode, data.individualVals);
+    const parts = path.split('|');
+    const cat = parts[0];
+    if (!catMap[cat]) catMap[cat] = { qty: 0, weight: 0, volume: 0, cases: 0 };
+    catMap[cat].qty += qty;
+    catMap[cat].weight += weight;
+    catMap[cat].volume += volume;
+    catMap[cat].cases += cases;
+
+    // Если есть упаковка в общие кофры, суммируем для отдельной статистики
+    if (data.packing.length > 0) {
+      commonWeight += weight;
+      commonVolume += volume;
+      commonQty += qty;
+    }
   });
+
+  // Выводим категории
+  orderKeys.forEach(cat => {
+    if (!catMap[cat]) return;
+    const catResult = catMap[cat];
+    detailsHtml += `<div class="cat-detail"><strong>${CAT_NAMES[cat] || cat}</strong><br>${catResult.qty} шт<br>${formatWeight(catResult.weight)}<br>${formatVolume(catResult.volume)}</div>`;
+  });
+
+  // Добавляем общие кофры, если есть
+  if (commonQty > 0) {
+    detailsHtml += `<div class="cat-detail common-case-detail"><strong>📦 Общие кофры</strong><br>${commonQty} шт<br>${formatWeight(commonWeight)}<br>${formatVolume(commonVolume)}</div>`;
+  }
+
   detailsDiv.innerHTML = detailsHtml || '';
   renderCommonCaseIndicatorsOrder();
 }
@@ -660,7 +690,6 @@ export function renderOrderAll() {
   invalidateFlatItemsCache();
   const state = getState();
 
-  // Отладка: проверяем наличие данных (можно удалить позже)
   const testPath = 'video|Экран|Экран 0.5x0.5 LED P2.6 (192x192)';
   if (state.itemProps[testPath]) {
     console.log('✅ Данные загружены:', state.itemProps[testPath]);

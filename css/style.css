@@ -697,6 +697,8 @@ body {
     justify-content: center;
     transition: 0.15s;
     flex-shrink: 0;
+    touch-action: none; /* предотвращает zoom/скролл при долгом нажатии на мобильных */
+    user-select: none; /* предотвращает выделение текста */
 }
 .btn-c:hover {
     background: var(--bg-hover);
@@ -732,8 +734,6 @@ body {
 .qty-controls .stock-info {
     display: none !important;
 }
-
-/* Предупреждение о переполнении — удалено (не используется) */
 
 /* ===== Цветные кнопки действий ===== */
 .action-btn {
@@ -915,6 +915,9 @@ body {
     flex: 1 1 140px;
     padding: 4px 8px;
     border-left: 3px solid var(--accent);
+}
+.global-details .cat-detail.common-case-detail {
+    border-left-color: var(--color-case);
 }
 .progress-container {
     margin-top: 16px;
@@ -1491,7 +1494,6 @@ body {
         }
     }
 
-    /* Дополнительная адаптация для строк позиций */
     .row .extra-info {
         font-size: 11px;
         gap: 2px 8px;
@@ -1647,7 +1649,6 @@ body {
         }
     }
 
-    /* Дополнительная адаптация для строк позиций */
     .row .action-buttons {
         order: 2;
         flex: 1 1 100%;
