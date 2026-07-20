@@ -6,6 +6,7 @@ import {
   getIndividualCaseValues,
   getOrderExtra,
 } from './order-data.js';
+// ✅ Импорт getCaseMode из правильного места
 import {
   getCaseMode,
   getCaseOptions,
@@ -271,7 +272,7 @@ export function calculateLoading(trucks, allCargo) {
       result.totalWeight += truckPack.totalWeight;
       result.totalVolume += truckPack.totalVolume;
       // Удаляем упакованные предметы из оставшихся
-      remainingCargo = remainingCargo.filter((item, idx) => {
+      remainingCargo = remainingCargo.filter((item) => {
         return !truckResult.packed.some(p => p.path === item.path && p.name === item.name);
       });
     } else {
@@ -285,7 +286,7 @@ export function calculateLoading(trucks, allCargo) {
         result.trucks.push(truckPack);
         result.totalWeight += truckPack.totalWeight;
         result.totalVolume += truckPack.totalVolume;
-        remainingCargo = remainingCargo.filter((item, idx) => {
+        remainingCargo = remainingCargo.filter((item) => {
           return !truckResult.packed.some(p => p.path === item.path && p.name === item.name);
         });
         if (truckResult.failedItem) {

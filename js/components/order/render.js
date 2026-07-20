@@ -12,7 +12,7 @@ import {
   setNote,
 } from '../../services/order-data.js';
 import {
-  getCaseMode,
+  getCaseMode,          // ✅ Импорт из calculations.js
   getCaseOptions,
   getSelectedOption,
   getItemPropsByPath,
@@ -41,54 +41,25 @@ import {
   updateChildRowsForPath,
 } from './helpers.js';
 
-// ============================================================
-// СОСТОЯНИЕ СТРАНИЦЫ ЗАКАЗА
-// ============================================================
-
 export let currentOrderCategory = 'sound';
 let searchModeOrder = false;
 let searchQueryOrder = '';
 let detailsOpenOrder = false;
 const infoBlocksOpen = {};
 
-// ============================================================
-// ФУНКЦИИ ДЛЯ ИЗМЕНЕНИЯ СОСТОЯНИЯ
-// ============================================================
-
-export function setCurrentCategory(cat) {
-  currentOrderCategory = cat;
-}
-
-export function setSearchMode(mode) {
-  searchModeOrder = mode;
-}
-
-export function setSearchQuery(query) {
-  searchQueryOrder = query;
-}
-
+export function setCurrentCategory(cat) { currentOrderCategory = cat; }
+export function setSearchMode(mode) { searchModeOrder = mode; }
+export function setSearchQuery(query) { searchQueryOrder = query; }
 export function toggleDetailsOpen() {
   detailsOpenOrder = !detailsOpenOrder;
   localStorage.setItem('detailsOpenOrder', JSON.stringify(detailsOpenOrder));
 }
-
-export function toggleInfoBlock(path) {
-  infoBlocksOpen[path] = !infoBlocksOpen[path];
-}
-
+export function toggleInfoBlock(path) { infoBlocksOpen[path] = !infoBlocksOpen[path]; }
 export function resetInfoBlocks() {
-  for (let key in infoBlocksOpen) {
-    delete infoBlocksOpen[key];
-  }
+  for (let key in infoBlocksOpen) delete infoBlocksOpen[key];
   document.querySelectorAll('.row-info').forEach(el => el.remove());
-  document.querySelectorAll('.info-btn').forEach(btn => {
-    btn.textContent = 'Инфо';
-  });
+  document.querySelectorAll('.info-btn').forEach(btn => { btn.textContent = 'Инфо'; });
 }
-
-// ============================================================
-// ОТРИСОВКА ВКЛАДОК КАТЕГОРИЙ
-// ============================================================
 
 export function renderOrderTabs() {
   const container = document.getElementById('categoryTabs');
@@ -127,10 +98,6 @@ export function renderOrderTabs() {
     currentOrderCategory = orderKeys[0];
   }
 }
-
-// ============================================================
-// РЕНДЕРИНГ КАТЕГОРИИ
-// ============================================================
 
 export function renderOrderCategory(catKey, filterQuery = '') {
   const container = document.getElementById('categoryContents');
@@ -219,15 +186,8 @@ export function renderOrderCategory(catKey, filterQuery = '') {
   updateAllCommonCaseIndicators();
 }
 
-// ============================================================
-// РЕКУРСИВНЫЙ ОБХОД КАТЕГОРИИ
-// ============================================================
-
 function buildCategoryHTML(data, path, level) {
-  if (level > 15) {
-    console.warn('Превышена глубина обхода', path);
-    return '';
-  }
+  if (level > 15) { console.warn('Превышена глубина обхода', path); return ''; }
   let html = '';
   if (Array.isArray(data)) {
     data.forEach(item => {
@@ -250,10 +210,6 @@ function buildCategoryHTML(data, path, level) {
   }
   return '';
 }
-
-// ============================================================
-// ПОСТРОЕНИЕ СТРОКИ ПОЗИЦИИ
-// ============================================================
 
 export function buildItemRow(fullPath, level) {
   const state = getState();
@@ -311,7 +267,6 @@ export function buildItemRow(fullPath, level) {
     caseStatusClass = 'off';
   }
 
-  // Вес и объём (упрощённо)
   let weightDisplay = '0 кг';
   let volumeDisplay = '0 м³';
   if (totalQty > 0) {
@@ -373,10 +328,6 @@ export function buildItemRow(fullPath, level) {
   return html;
 }
 
-// ============================================================
-// РЕНДЕРИНГ КОНТРОЛОВ КОЛИЧЕСТВА
-// ============================================================
-
 function renderQtyControls(path) {
   const mode = getCaseMode(path);
   const individualVals = getIndividualCaseValues(path);
@@ -417,10 +368,6 @@ function renderQtyControls(path) {
     <span style="font-size:13px;color:var(--text-secondary);">${totalQty} шт</span>
   `;
 }
-
-// ============================================================
-// ОБНОВЛЕНИЕ СТРОКИ
-// ============================================================
 
 export function updateRowOrder(path, rebuildChildren = true) {
   const row = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
@@ -531,10 +478,6 @@ export function updateRowOrder(path, rebuildChildren = true) {
   }
 }
 
-// ============================================================
-// ПЕРЕРИСОВКА СТРОКИ
-// ============================================================
-
 export function refreshRow(path) {
   const oldRow = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
   if (!oldRow) return;
@@ -549,10 +492,6 @@ export function refreshRow(path) {
   updateCategoryTotalsOrder(currentOrderCategory);
   updateAllCommonCaseIndicators();
 }
-
-// ============================================================
-// ИТОГИ
-// ============================================================
 
 export function updateCategoryTotalsOrder(catKey) {
   const container = document.querySelector('#categoryContents .category-content.active');
@@ -596,10 +535,6 @@ export function updateTotalsOrder() {
   renderCommonCaseIndicatorsOrder();
 }
 
-// ============================================================
-// РАСЧЁТ ИТОГОВ (вспомогательная)
-// ============================================================
-
 function calculateTotals(items) {
   let totalQty = 0, totalWeight = 0, totalVolume = 0, totalCases = 0;
   items.forEach(({ path, qty }) => {
@@ -611,10 +546,6 @@ function calculateTotals(items) {
   });
   return { totalQty, totalWeight, totalVolume, totalCases };
 }
-
-// ============================================================
-// ПОИСК
-// ============================================================
 
 const debouncedSearch = debounce(applySearchOrder, 300);
 
@@ -640,10 +571,6 @@ export function clearSearchOrder() {
     renderOrderCategory(null);
   }
 }
-
-// ============================================================
-// ОБРАБОТЧИКИ КНОПОК (ИНФО, ОПИСАНИЕ, ЗАМЕТКА)
-// ============================================================
 
 export function toggleInfoOrder(btn) {
   const path = btn.dataset.path;
@@ -685,18 +612,7 @@ export async function openNoteEditorOrder(btn) {
   showToast('Заметка сохранена', 'neutral');
 }
 
-// ============================================================
-// НАСТРОЙКА ОБРАБОТЧИКОВ ВВОДА (заглушка)
-// ============================================================
-
-export function setupInputListenersOrder() {
-  // Основные обработчики вынесены в order-actions.js
-  // Здесь можно добавить дополнительные, если нужно
-}
-
-// ============================================================
-// ИНИЦИАЛИЗАЦИЯ UI СТРАНИЦЫ ЗАКАЗА
-// ============================================================
+export function setupInputListenersOrder() { }
 
 export function initOrderUI() {
   detailsOpenOrder = localStorage.getItem('detailsOpenOrder') === 'true';
@@ -736,10 +652,6 @@ export function initOrderUI() {
   }
 }
 
-// ============================================================
-// РЕНДЕР ВСЕГО (ОБНОВЛЕНИЕ СТРАНИЦЫ)
-// ============================================================
-
 export function renderOrderAll() {
   invalidateFlatItemsCache();
   const state = getState();
@@ -750,7 +662,6 @@ export function renderOrderAll() {
     const savedDate = localStorage.getItem('last_date');
     if (savedDate) date.value = savedDate;
   }
-  // Загрузка данных проекта будет в main.js или отдельно
   if (!currentOrderCategory || !state.inventory[currentOrderCategory]) {
     const first = state._categoryOrder?.[0] || Object.keys(state.inventory)[0];
     if (first) currentOrderCategory = first;
@@ -770,9 +681,6 @@ export function renderOrderAll() {
   updateAllCommonCaseIndicators();
 }
 
-// ============================================================
-// ЭКСПОРТ ПО УМОЛЧАНИЮ
-// ============================================================
 export default {
   currentOrderCategory,
   setCurrentCategory,

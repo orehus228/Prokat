@@ -10,7 +10,7 @@ import {
   setOrderValue,
 } from '../../services/order-data.js';
 import {
-  getCaseMode,
+  getCaseMode,          // ✅ Импорт из calculations.js
   getCaseOptions,
   getSelectedOption,
   getItemPropsByPath,
@@ -19,10 +19,6 @@ import {
 import { esc, getElement } from '../../ui/dom.js';
 import { getColorByPercent, getBgColorCSS, buildInfoHtml } from '../../ui/render-utils.js';
 import { showToast } from '../../ui/toast.js';
-
-// ============================================================
-// КЭШ ПЛОСКОГО СПИСКА ПОЗИЦИЙ
-// ============================================================
 
 let flatItemsCache = null;
 
@@ -63,13 +59,7 @@ export function buildFlatItemsList() {
   return result;
 }
 
-export function invalidateFlatItemsCache() {
-  flatItemsCache = null;
-}
-
-// ============================================================
-// ПОЛУЧЕНИЕ АКТИВНЫХ ПОЗИЦИЙ ЗАКАЗА
-// ============================================================
+export function invalidateFlatItemsCache() { flatItemsCache = null; }
 
 export function getActiveItemsOrder() {
   const state = getState();
@@ -89,10 +79,6 @@ export function getActiveItemsOrder() {
   return items;
 }
 
-// ============================================================
-// ОБНОВЛЕНИЕ СЧЁТЧИКА ПРИВЯЗОК
-// ============================================================
-
 export function updateLinkCountOrder() {
   const links = getLinks();
   let count = 0;
@@ -100,10 +86,6 @@ export function updateLinkCountOrder() {
   const el = document.getElementById('linkCount');
   if (el) el.textContent = `(${count} активных)`;
 }
-
-// ============================================================
-// ИНДИКАТОРЫ ОБЩИХ КОФРОВ (ВЕРХНЯЯ ПАНЕЛЬ)
-// ============================================================
 
 export function renderCommonCaseIndicatorsOrder() {
   let indicator = document.getElementById('commonCaseIndicators');
@@ -135,10 +117,6 @@ export function renderCommonCaseIndicatorsOrder() {
   });
   indicator.textContent = parts.join(' · ');
 }
-
-// ============================================================
-// ОБНОВЛЕНИЕ КНОПКИ "ОБЩИЕ КОФРЫ" В РЕДАКТОРЕ
-// ============================================================
 
 export function updateCommonCasesButton() {
   const btn = document.getElementById('manageCasesBtn');
@@ -178,10 +156,6 @@ export function updateCommonCasesButton() {
   btn.style.color = '#fff';
   btn.style.borderColor = color;
 }
-
-// ============================================================
-// ОБНОВЛЕНИЕ ВСЕХ ИНДИКАТОРОВ ЗАПОЛНЕНИЯ КОФРОВ
-// ============================================================
 
 export function updateAllCommonCaseIndicators() {
   setTimeout(() => {
@@ -243,10 +217,6 @@ export function updateAllCommonCaseIndicators() {
     updateCommonCasesButton();
   }, 50);
 }
-
-// ============================================================
-// ОБНОВЛЕНИЕ ДОЧЕРНИХ СТРОК (КОФРЫ, МУЛЬТИ)
-// ============================================================
 
 export function updateChildRowsForPath(path) {
   const parentRow = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
@@ -338,7 +308,6 @@ export function updateChildRowsForPath(path) {
       const maxWeight = c?.maxWeight || Infinity;
       let fillPercent = 0;
       if (maxWeight > 0) fillPercent = Math.min(100, Math.round((filledWeight / maxWeight) * 100));
-      // Убрали кнопку remove-common-pack
       html += `<div class="child-controls" data-caseid="${p.caseId}" style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:4px 8px;background:var(--bg-input);border-radius:4px;margin:2px 0;border-left:3px solid var(--text-muted);">
         <span style="font-weight:500;min-width:70px;font-size:13px;">${esc(name)}</span>
         <span style="font-size:11px;color:var(--text-secondary);min-width:30px;">шт:</span>
@@ -356,9 +325,6 @@ export function updateChildRowsForPath(path) {
   }
 }
 
-// ============================================================
-// ЭКСПОРТ ПО УМОЛЧАНИЮ
-// ============================================================
 export default {
   buildFlatItemsList,
   invalidateFlatItemsCache,
