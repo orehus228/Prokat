@@ -233,21 +233,6 @@ export function calculateTotals(items) {
   return { totalWeight, totalVolume, totalQty };
 }
 
-// ========== ГРУППОВОЙ ЭКСПОРТ (гарантирует доступность всех имён) ==========
-export {
-  parseUnitVolume,
-  getItemPropsByPath,
-  getCommonCases,
-  getCaseMode,
-  getCaseOptions,
-  getSelectedOption,
-  calcItemWeight,
-  calcItemVolume,
-  calcItemCases,
-  getCalculationData,
-  calculateTotals,
-};
-
 // ========== DEFAULT ЭКСПОРТ (для обратной совместимости) ==========
 export default {
   parseUnitVolume,
