@@ -54,6 +54,11 @@ const state = {
   _calcCache: new Map(),
 };
 
+// Глобальная переменная для отладки в консоли
+if (typeof window !== 'undefined') {
+  window.__STATE = state;
+}
+
 let subscribers = [];
 
 export function getState() { return state; }
@@ -73,20 +78,27 @@ function notifySubscribers(changedKey) {
 }
 
 export function loadState() {
+  console.log('[state] loadState() вызван');
+  
+  // 1. Загружаем основную библиотеку
   try {
     const saved = localStorage.getItem(STORAGE_KEYS.APP_DATA);
     if (saved) {
       const parsed = JSON.parse(saved);
+      console.log('[state] Данные APP_DATA загружены, ключи:', Object.keys(parsed));
       Object.assign(state, parsed);
-      normalizeState();
+      // После присвоения проверяем наличие itemProps
+      console.log('[state] state.itemProps после загрузки:', Object.keys(state.itemProps || {}).length, 'ключей');
     } else {
+      console.warn('[state] APP_DATA отсутствует в localStorage');
       resetState();
     }
   } catch (e) {
-    console.warn('Ошибка загрузки состояния:', e);
+    console.error('[state] Ошибка загрузки APP_DATA:', e);
     resetState();
   }
 
+  // 2. Загружаем данные заказа
   try {
     const orderRaw = localStorage.getItem(STORAGE_KEYS.ORDER_DATA);
     if (orderRaw) {
@@ -99,9 +111,11 @@ export function loadState() {
           state[key] = orderData[key];
         }
       });
+      console.log('[state] ORDER_DATA загружен');
     }
-  } catch (e) { console.warn('Ошибка загрузки данных заказа:', e); }
+  } catch (e) { console.warn('[state] Ошибка загрузки ORDER_DATA:', e); }
 
+  // 3. Загружаем UI состояние
   try {
     const uiRaw = localStorage.getItem(STORAGE_KEYS.UI_STATE);
     if (uiRaw) {
@@ -111,9 +125,11 @@ export function loadState() {
       if (uiData.openDescState) state.openDescState = uiData.openDescState;
       if (uiData.detailsOpenOrder !== undefined) state.detailsOpenOrder = uiData.detailsOpenOrder;
       if (uiData.matrixFullNames !== undefined) state.matrixFullNames = uiData.matrixFullNames;
+      console.log('[state] UI_STATE загружен');
     }
-  } catch (e) { console.warn('Ошибка загрузки UI состояния:', e); }
+  } catch (e) { console.warn('[state] Ошибка загрузки UI_STATE:', e); }
 
+  // 4. Загружаем выбранные грузовики
   try {
     const truckRaw = localStorage.getItem(STORAGE_KEYS.SELECTED_TRUCKS);
     if (truckRaw) {
@@ -121,14 +137,27 @@ export function loadState() {
     }
   } catch (e) { state.selectedTruckIds = []; }
 
+  // 5. Загружаем тему
   try {
     const theme = localStorage.getItem(STORAGE_KEYS.THEME);
     if (theme) state.theme = theme;
     else state.theme = 'dark';
   } catch (e) { state.theme = 'dark'; }
 
-  // Повторная нормализация после загрузки всех данных
+  // 6. Нормализация (приводим данные к единому виду)
   normalizeState();
+  console.log('[state] Нормализация завершена');
+  
+  // 7. Проверка: наличие itemProps после нормализации
+  console.log('[state] После нормализации state.itemProps содержит', Object.keys(state.itemProps || {}).length, 'ключей');
+  // Особенно проверяем нужную позицию
+  const testPath = 'video|Экран|Экран 0.5x0.5 LED P2.6 (192x192)';
+  if (state.itemProps[testPath]) {
+    console.log('[state] ✅ Данные для', testPath, 'загружены:', state.itemProps[testPath]);
+  } else {
+    console.warn('[state] ❌ Данные для', testPath, 'НЕ загружены');
+  }
+
   notifySubscribers('*');
 }
 
@@ -205,7 +234,7 @@ function normalizeState() {
   // Нормализация caseModes
   normalizeCaseModes(state.caseModes);
 
-  // ===== НОРМАЛИЗАЦИЯ ДЛЯ МУЛЬТИКОФРОВ =====
+  // ===== ГАРАНТИРОВАННАЯ НОРМАЛИЗАЦИЯ ДЛЯ МУЛЬТИКОФРОВ =====
   for (let path in state.itemProps) {
     const props = state.itemProps[path];
     if (props.individualCases && props.individualCases.length > 1) {
@@ -218,6 +247,20 @@ function normalizeState() {
       }
       if (mode.enabled && !mode.multiSelected.some(v => v === true)) {
         mode.multiSelected = props.individualCases.map(() => true);
+      }
+      // Если режим не включён, но multiSelected пустой, заполняем
+      if (!mode.enabled && (!mode.multiSelected || mode.multiSelected.length === 0)) {
+        mode.multiSelected = props.individualCases.map(() => true);
+      }
+    }
+  }
+
+  // Для всех позиций с individualCases > 0, но без caseModes, создаём запись
+  for (let path in state.itemProps) {
+    const props = state.itemProps[path];
+    if (props.individualCases && props.individualCases.length > 0) {
+      if (!state.caseModes[path]) {
+        state.caseModes[path] = { ...CASE_MODES_DEFAULTS };
       }
     }
   }
