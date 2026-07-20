@@ -289,7 +289,6 @@ async function saveCaseSettings(path) {
         );
       }
 
-      // ВСЕГДА включаем мультирежим
       mode.enabled = true;
       const count = options.length;
       mode.multiSelected = options.map(() => true);
@@ -351,20 +350,7 @@ async function saveCaseSettings(path) {
     }
 
     case 'common': {
-      // Добавляем диалог для общих кофров
-      let action = 'reset';
-      if (existingQty > 0) {
-        const choiceOptions = [
-          { value: 'reset', label: 'Сбросить', description: 'обнулить количество' },
-          { value: 'common', label: 'Разместить в общие кофры', description: 'распределить количество по выбранным кофрам (по очереди)' }
-        ];
-        action = await showChoice(
-          'Режим общих кофров',
-          'У позиции уже есть количество (' + existingQty + ' шт). Что сделать с этим количеством?',
-          choiceOptions
-        );
-      }
-
+      // Проверяем, есть ли выбранные кофры
       const checkboxes = document.querySelectorAll('.common-case-check');
       const selected = [];
       checkboxes.forEach(cb => {
@@ -374,6 +360,22 @@ async function saveCaseSettings(path) {
         showToast('Выберите хотя бы один общий кофр', 'warning');
         return;
       }
+
+      // Если есть количество, спрашиваем, что делать
+      let action = 'reset';
+      if (existingQty > 0) {
+        const choiceOptions = [
+          { value: 'reset', label: 'Оставить вне кофров', description: 'количество останется без упаковки' },
+          { value: 'common', label: 'Разместить в общие кофры', description: 'распределить количество по выбранным кофрам (по очереди)' }
+        ];
+        action = await showChoice(
+          'Режим общих кофров',
+          'У позиции уже есть количество (' + existingQty + ' шт). Что сделать с этим количеством?',
+          choiceOptions
+        );
+      }
+
+      // Включаем режим
       mode.enabled = true;
       mode.commonSelected = selected;
 
@@ -387,19 +389,16 @@ async function saveCaseSettings(path) {
           remaining -= canPlace;
           return { caseId, pieces: canPlace };
         });
-        // Если остались штуки, добавляем их как "вне кофра"
+        // Устанавливаем упаковку и остаток
         setOrderPacking(path, packingArr);
         setOrderExtra(path, remaining);
-        // Общее количество остаётся тем же
+        // Общее количество сохраняем
         setOrderValue(path, existingQty);
       } else {
-        // Сброс – все штуки уходят вне кофра
+        // Сброс или перенос вне кофров
+        // Все штуки помещаем вне кофров
         setOrderPacking(path, selected.map(caseId => ({ caseId, pieces: 0 })));
-        if (existingQty > 0) {
-          setOrderExtra(path, existingQty);
-        } else {
-          setOrderExtra(path, 0);
-        }
+        setOrderExtra(path, existingQty);
         setOrderValue(path, existingQty);
       }
       break;
@@ -408,6 +407,13 @@ async function saveCaseSettings(path) {
 
   // Принудительное сохранение
   saveState();
+
+  // Принудительно обновляем интерфейс (если callback передан)
+  if (caseSettingsCallback) {
+    // Вызываем callback дважды с небольшой задержкой, чтобы гарантировать обновление
+    caseSettingsCallback();
+    setTimeout(caseSettingsCallback, 50);
+  }
 }
 
 window.addAltCase = async function() {
