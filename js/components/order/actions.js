@@ -13,7 +13,6 @@ import {
   getOrderProject,
 } from '../../services/order-data.js';
 import { getAvailableQuantity } from '../../services/project-data.js';
-// ⭐ Импортируем всё из calculations.js
 import * as calc from '../../services/calculations.js';
 import { showToast } from '../../ui/toast.js';
 import {
@@ -174,8 +173,6 @@ function handleSingleCaseChange(path, delta) {
   }
 }
 
-// --- Исправленные обработчики для мультирежима ---
-
 function handleMultiPieceChange(path, idx, delta) {
   const row = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
   if (!row) return;
@@ -192,7 +189,6 @@ function handleMultiPieceChange(path, idx, delta) {
     val = sq;
   }
   const opt = calc.getCaseOptions(path)[idx];
-  // Проверяем лимит кофров
   if (opt) {
     const maxCases = opt.maxCases || 0;
     const maxPieces = maxCases * opt.qty;
@@ -202,11 +198,9 @@ function handleMultiPieceChange(path, idx, delta) {
       showToast(`Достигнут лимит кофров для вар.${idx + 1} (макс. ${maxCases})`, 'warning');
     }
   }
-  // Обновляем все значения
   const vals = getIndividualCaseValues(path);
   vals[idx] = val;
   const totalVal = vals.reduce((a, b) => a + b, 0);
-  // Проверка доступности
   const availableCheck = checkAndWarnAvailability(path, totalVal);
   if (!availableCheck) {
     const oldVal = parseInt(inputPieces.dataset.oldValue) || 0;
@@ -217,7 +211,6 @@ function handleMultiPieceChange(path, idx, delta) {
   inputPieces.value = val;
   setIndividualCaseValues(path, vals);
   setOrderValue(path, totalVal);
-  // Пересчитываем кофры и обновляем поле кофров
   const casesCount = Math.ceil(val / opt.qty);
   const inputCases = childRow.querySelector(`.child-multi-cases[data-idx="${idx}"]`);
   if (inputCases) inputCases.value = casesCount;
@@ -228,7 +221,6 @@ function handleMultiPieceChange(path, idx, delta) {
 }
 
 function handleMultiCaseChange(path, idx, delta) {
-  // delta - это +opt.qty или -opt.qty
   const row = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
   if (!row) return;
   const childRow = row.nextElementSibling?.matches('.child-row') ? row.nextElementSibling : null;
@@ -355,35 +347,51 @@ function handleExtraQtyChange(path, delta) {
 }
 
 // ============================================================
-// ДЕЛЕГИРОВАНИЕ СОБЫТИЙ (CLICK, INPUT, MOUSE)
+// ПОВТОР ПРИ УДЕРЖАНИИ КНОПКИ (поддержка touch для мобильных)
 // ============================================================
 
 let repeatInterval = null;
 let repeatTimeout = null;
+let currentRepeatBtn = null;
 
 function startRepeat(btn, delta) {
   if (repeatInterval) return;
+  currentRepeatBtn = btn;
+  const path = btn.dataset.path;
+  const deltaVal = parseInt(btn.dataset.delta);
+  if (!path || isNaN(deltaVal)) return;
+
+  const doAction = () => {
+    if (btn.classList.contains('qty-btn')) handleQtyChange(path, deltaVal);
+    else if (btn.classList.contains('single-piece-btn')) handleSinglePieceChange(path, deltaVal);
+    else if (btn.classList.contains('single-case-btn')) handleSingleCaseChange(path, deltaVal);
+    else if (btn.classList.contains('child-multi-piece-btn')) {
+      const idx = parseInt(btn.dataset.idx);
+      if (!isNaN(idx)) handleMultiPieceChange(path, idx, deltaVal);
+    } else if (btn.classList.contains('child-multi-case-btn')) {
+      const idx = parseInt(btn.dataset.idx);
+      if (!isNaN(idx)) handleMultiCaseChange(path, idx, deltaVal);
+    } else if (btn.classList.contains('child-common-btn')) {
+      const caseId = btn.dataset.caseid;
+      if (caseId) handleCommonQtyChange(path, caseId, deltaVal);
+    } else if (btn.classList.contains('child-extra-btn')) {
+      handleExtraQtyChange(path, deltaVal);
+    }
+  };
+
+  // Первое действие происходит сразу после задержки
   repeatTimeout = setTimeout(() => {
+    // Запускаем интервал с периодичностью 100 мс
     repeatInterval = setInterval(() => {
-      const path = btn.dataset.path;
-      const deltaVal = parseInt(btn.dataset.delta);
-      if (!path || isNaN(deltaVal)) return;
-      if (btn.classList.contains('qty-btn')) handleQtyChange(path, deltaVal);
-      else if (btn.classList.contains('single-piece-btn')) handleSinglePieceChange(path, deltaVal);
-      else if (btn.classList.contains('single-case-btn')) handleSingleCaseChange(path, deltaVal);
-      else if (btn.classList.contains('child-multi-piece-btn')) {
-        const idx = parseInt(btn.dataset.idx);
-        handleMultiPieceChange(path, idx, deltaVal);
-      } else if (btn.classList.contains('child-multi-case-btn')) {
-        const idx = parseInt(btn.dataset.idx);
-        handleMultiCaseChange(path, idx, deltaVal);
-      } else if (btn.classList.contains('child-common-btn')) {
-        const caseId = btn.dataset.caseid;
-        handleCommonQtyChange(path, caseId, deltaVal);
-      } else if (btn.classList.contains('child-extra-btn')) {
-        handleExtraQtyChange(path, deltaVal);
+      // Проверяем, что кнопка всё ещё нажата
+      if (!currentRepeatBtn || currentRepeatBtn !== btn) {
+        stopRepeat();
+        return;
       }
+      doAction();
     }, 100);
+    // Выполняем сразу одно действие, чтобы не ждать
+    doAction();
   }, 400);
 }
 
@@ -392,22 +400,34 @@ function stopRepeat() {
   clearInterval(repeatInterval);
   repeatInterval = null;
   repeatTimeout = null;
+  currentRepeatBtn = null;
 }
 
-function handleContainerMouseDown(e) {
+// ============================================================
+// ОБРАБОТЧИКИ СОБЫТИЙ (мышь и touch)
+// ============================================================
+
+function handlePointerDown(e) {
+  // Определяем, какая кнопка нажата
   const btn = e.target.closest('.btn-c');
   if (!btn || !btn.dataset.delta) return;
   if (btn.classList.contains('qty-btn') || btn.classList.contains('single-piece-btn') ||
       btn.classList.contains('single-case-btn') || btn.classList.contains('child-multi-piece-btn') ||
       btn.classList.contains('child-multi-case-btn') || btn.classList.contains('child-common-btn') ||
       btn.classList.contains('child-extra-btn')) {
+    // Предотвращаем контекстное меню и стандартное поведение на мобильных
+    e.preventDefault();
     startRepeat(btn, parseInt(btn.dataset.delta));
   }
 }
 
-function handleContainerMouseUp(e) {
+function handlePointerUp(e) {
   stopRepeat();
 }
+
+// ============================================================
+// КЛИК (для одиночных нажатий)
+// ============================================================
 
 function handleContainerClick(e) {
   const target = e.target.closest('.qty-btn');
@@ -530,8 +550,50 @@ function handleContainerInput(e) {
     updateCategoryTotalsOrder(currentOrderCategory);
     return;
   }
-  // single-cases-input — readonly, не обрабатываем
-
+  const singleCases = e.target.closest('.single-cases-input');
+  if (singleCases) {
+    const path = singleCases.dataset.path;
+    let val = parseInt(singleCases.value);
+    if (isNaN(val) || val < 0) val = 0;
+    singleCases.value = val;
+    const opt = calc.getSelectedOption(path);
+    if (opt && opt.qty > 0) {
+      const maxCases = opt.maxCases || 0;
+      if (maxCases > 0 && val > maxCases) {
+        val = maxCases;
+        singleCases.value = val;
+        showToast(`Превышен лимит кофров (макс. ${maxCases})`, 'warning');
+      }
+      const pieces = val * opt.qty;
+      const sq = getStockValue(path);
+      if (pieces > sq) {
+        showToast(`Превышено доступное количество (${sq})`, 'warning');
+        const maxPieces = sq;
+        const maxVal = Math.floor(maxPieces / opt.qty);
+        if (maxVal < val) {
+          val = maxVal;
+          singleCases.value = val;
+          const newPieces = val * opt.qty;
+          const piecesInput = singleCases.parentElement.querySelector('.single-pieces-input');
+          if (piecesInput) piecesInput.value = newPieces;
+          setIndividualCaseValues(path, [newPieces]);
+          setOrderValue(path, newPieces);
+          updateRowOrder(path, false);
+          updateTotalsOrder();
+          updateCategoryTotalsOrder(currentOrderCategory);
+          return;
+        }
+      }
+      const piecesInput = singleCases.parentElement.querySelector('.single-pieces-input');
+      if (piecesInput) piecesInput.value = pieces;
+      setIndividualCaseValues(path, [pieces]);
+      setOrderValue(path, pieces);
+      updateRowOrder(path, false);
+      updateTotalsOrder();
+      updateCategoryTotalsOrder(currentOrderCategory);
+    }
+    return;
+  }
   const multiPieces = e.target.closest('.child-multi-pieces');
   if (multiPieces) {
     const path = multiPieces.dataset.path;
@@ -553,7 +615,6 @@ function handleContainerInput(e) {
       setIndividualCaseValues(path, vals);
       const total = vals.reduce((a, b) => a + b, 0);
       setOrderValue(path, total);
-      // Обновляем поле кофров
       const casesCount = Math.ceil(val / opt.qty);
       const inputCases = multiPieces.parentElement.querySelector(`.child-multi-cases[data-idx="${idx}"]`);
       if (inputCases) inputCases.value = casesCount;
@@ -564,8 +625,61 @@ function handleContainerInput(e) {
     }
     return;
   }
-  // child-multi-cases — readonly, не обрабатываем
-
+  const multiCases = e.target.closest('.child-multi-cases');
+  if (multiCases) {
+    // Поле readonly, но на случай, если кто-то его изменит через инспектор
+    const path = multiCases.dataset.path;
+    const idx = parseInt(multiCases.dataset.idx);
+    let val = parseInt(multiCases.value);
+    if (isNaN(val) || val < 0) val = 0;
+    multiCases.value = val;
+    const opt = calc.getCaseOptions(path)[idx];
+    if (opt) {
+      const maxCases = opt.maxCases || 0;
+      if (maxCases > 0 && val > maxCases) {
+        val = maxCases;
+        multiCases.value = val;
+        showToast(`Превышен лимит кофров для вар.${idx + 1} (макс. ${maxCases})`, 'warning');
+      }
+      const pieces = val * opt.qty;
+      const sq = getStockValue(path);
+      if (pieces > sq) {
+        showToast(`Превышено доступное количество (${sq})`, 'warning');
+        const maxPieces = sq;
+        const maxVal = Math.floor(maxPieces / opt.qty);
+        if (maxVal < val) {
+          val = maxVal;
+          multiCases.value = val;
+          const newPieces = val * opt.qty;
+          const piecesInput = multiCases.parentElement.querySelector(`.child-multi-pieces[data-idx="${idx}"]`);
+          if (piecesInput) piecesInput.value = newPieces;
+          const vals = getIndividualCaseValues(path);
+          vals[idx] = newPieces;
+          setIndividualCaseValues(path, vals);
+          const total = vals.reduce((a, b) => a + b, 0);
+          setOrderValue(path, total);
+          updateRowOrder(path, false);
+          updateTotalsOrder();
+          updateCategoryTotalsOrder(currentOrderCategory);
+          updateAllCommonCaseIndicators();
+          return;
+        }
+      }
+      const piecesInput = multiCases.parentElement.querySelector(`.child-multi-pieces[data-idx="${idx}"]`);
+      if (piecesInput) piecesInput.value = pieces;
+      multiCases.value = val;
+      const vals = getIndividualCaseValues(path);
+      vals[idx] = pieces;
+      setIndividualCaseValues(path, vals);
+      const total = vals.reduce((a, b) => a + b, 0);
+      setOrderValue(path, total);
+      updateRowOrder(path, false);
+      updateTotalsOrder();
+      updateCategoryTotalsOrder(currentOrderCategory);
+      updateAllCommonCaseIndicators();
+    }
+    return;
+  }
   const commonQty = e.target.closest('.child-common-qty');
   if (commonQty) {
     const path = commonQty.dataset.path;
@@ -625,16 +739,27 @@ export function setupEventDelegation() {
   if (eventDelegationInitialized) return;
   const container = document.getElementById('categoryContents');
   if (!container) return;
+
+  // Удаляем старые обработчики, чтобы не было дублирования
   container.removeEventListener('click', handleContainerClick);
-  container.addEventListener('click', handleContainerClick);
   container.removeEventListener('input', handleContainerInput);
+  container.removeEventListener('mousedown', handlePointerDown);
+  container.removeEventListener('mouseup', handlePointerUp);
+  container.removeEventListener('mouseleave', handlePointerUp);
+  container.removeEventListener('touchstart', handlePointerDown);
+  container.removeEventListener('touchend', handlePointerUp);
+  container.removeEventListener('touchcancel', handlePointerUp);
+
+  // Добавляем новые
+  container.addEventListener('click', handleContainerClick);
   container.addEventListener('input', handleContainerInput);
-  container.removeEventListener('mousedown', handleContainerMouseDown);
-  container.addEventListener('mousedown', handleContainerMouseDown);
-  container.removeEventListener('mouseup', handleContainerMouseUp);
-  container.addEventListener('mouseup', handleContainerMouseUp);
-  container.removeEventListener('mouseleave', handleContainerMouseUp);
-  container.addEventListener('mouseleave', handleContainerMouseUp);
+  container.addEventListener('mousedown', handlePointerDown);
+  container.addEventListener('mouseup', handlePointerUp);
+  container.addEventListener('mouseleave', handlePointerUp);
+  container.addEventListener('touchstart', handlePointerDown, { passive: false });
+  container.addEventListener('touchend', handlePointerUp);
+  container.addEventListener('touchcancel', handlePointerUp);
+
   eventDelegationInitialized = true;
 }
 
