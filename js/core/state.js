@@ -54,7 +54,6 @@ const state = {
   _calcCache: new Map(),
 };
 
-// Глобальная переменная для отладки в консоли
 if (typeof window !== 'undefined') {
   window.__STATE = state;
 }
@@ -77,6 +76,19 @@ function notifySubscribers(changedKey) {
   });
 }
 
+/**
+ * Нормализует пути в объекте: заменяет обратные слеши \ на прямые |
+ */
+function normalizePaths(obj) {
+  if (!obj || typeof obj !== 'object') return obj;
+  const result = {};
+  for (let key in obj) {
+    const newKey = key.replace(/\\/g, '|');
+    result[newKey] = obj[key];
+  }
+  return result;
+}
+
 export function loadState() {
   console.log('[state] loadState() вызван');
   
@@ -86,14 +98,21 @@ export function loadState() {
     if (saved) {
       const parsed = JSON.parse(saved);
       console.log('[state] Данные APP_DATA загружены, ключи:', Object.keys(parsed));
-      Object.assign(state, parsed);
       
-      // ⭐ ПРИНУДИТЕЛЬНОЕ КОПИРОВАНИЕ itemProps, ЧТОБЫ ГАРАНТИРОВАТЬ ЗАГРУЗКУ
+      // ⭐ НОРМАЛИЗУЕМ ВСЕ ПУТИ
       if (parsed.itemProps) {
-        state.itemProps = parsed.itemProps;
-        console.log('[state] Принудительно скопированы itemProps, ключей:', Object.keys(state.itemProps).length);
+        parsed.itemProps = normalizePaths(parsed.itemProps);
+        console.log('[state] itemProps нормализованы, ключей:', Object.keys(parsed.itemProps).length);
+      }
+      if (parsed.stock) parsed.stock = normalizePaths(parsed.stock);
+      if (parsed.specs) parsed.specs = normalizePaths(parsed.specs);
+      if (parsed.inventory) {
+        // Для inventory нам нужно нормализовать ключи вложенных объектов? 
+        // Но inventory обычно не содержит путей с разделителями, кроме ключей подгрупп.
+        // Пропускаем, чтобы не сломать.
       }
       
+      Object.assign(state, parsed);
       console.log('[state] state.itemProps после загрузки:', Object.keys(state.itemProps || {}).length, 'ключей');
     } else {
       console.warn('[state] APP_DATA отсутствует в localStorage');
@@ -104,11 +123,20 @@ export function loadState() {
     resetState();
   }
 
-  // 2. Загружаем данные заказа
+  // 2. Загружаем данные заказа (тоже с нормализацией)
   try {
     const orderRaw = localStorage.getItem(STORAGE_KEYS.ORDER_DATA);
     if (orderRaw) {
       const orderData = JSON.parse(orderRaw);
+      // Нормализуем пути в объектах заказа
+      const orderKeys = ['order', 'orderSplits', 'links', 'notes', 'orderPacking', 
+                         'individualCaseValues', 'commonRoutes', 'caseModes', 
+                         'orderExclude', 'orderExtra'];
+      orderKeys.forEach(key => {
+        if (orderData[key] && typeof orderData[key] === 'object') {
+          orderData[key] = normalizePaths(orderData[key]);
+        }
+      });
       Object.keys(orderData).forEach(key => {
         if (key in state && key !== 'inventory' && key !== 'stock' && key !== 'specs' &&
             key !== 'itemProps' && key !== 'catNames' && key !== '_categoryOrder' &&
@@ -117,7 +145,7 @@ export function loadState() {
           state[key] = orderData[key];
         }
       });
-      console.log('[state] ORDER_DATA загружен');
+      console.log('[state] ORDER_DATA загружен (пути нормализованы)');
     }
   } catch (e) { console.warn('[state] Ошибка загрузки ORDER_DATA:', e); }
 
@@ -156,13 +184,11 @@ export function loadState() {
   
   // 7. Проверка: наличие itemProps после нормализации
   console.log('[state] После нормализации state.itemProps содержит', Object.keys(state.itemProps || {}).length, 'ключей');
-  // Особенно проверяем нужную позицию
   const testPath = 'video|Экран|Экран 0.5x0.5 LED P2.6 (192x192)';
   if (state.itemProps[testPath]) {
     console.log('[state] ✅ Данные для', testPath, 'загружены:', state.itemProps[testPath]);
   } else {
     console.warn('[state] ❌ Данные для', testPath, 'НЕ загружены');
-    // Попробуем найти похожий ключ в itemProps
     const keys = Object.keys(state.itemProps);
     const similar = keys.filter(k => k.includes('0.5x0.5') || k.includes('Экран'));
     if (similar.length > 0) {
@@ -243,7 +269,8 @@ function normalizeState() {
     if (props.volume === undefined) props.volume = 0;
   }
 
-  // Нормализация caseModes
+  // Нормализация caseModes (тоже нормализуем пути)
+  state.caseModes = normalizePaths(state.caseModes);
   normalizeCaseModes(state.caseModes);
 
   // ===== ГАРАНТИРОВАННАЯ НОРМАЛИЗАЦИЯ ДЛЯ МУЛЬТИКОФРОВ =====
@@ -260,7 +287,6 @@ function normalizeState() {
       if (mode.enabled && !mode.multiSelected.some(v => v === true)) {
         mode.multiSelected = props.individualCases.map(() => true);
       }
-      // Если режим не включён, но multiSelected пустой, заполняем
       if (!mode.enabled && (!mode.multiSelected || mode.multiSelected.length === 0)) {
         mode.multiSelected = props.individualCases.map(() => true);
       }
