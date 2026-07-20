@@ -1,12 +1,13 @@
 // components/open/render.js
 import { getState, setStateKey, saveState } from '../../core/state.js';
-import { getItemPropsByPath, parseUnitVolume } from '../../services/calculations.js';
+// ⭐ Импортируем всё из calculations.js
+import * as calc from '../../services/calculations.js';
 import { getCommonCases, getStockValue } from '../../data/editor-data.js';
 import { esc, getElement } from '../../ui/dom.js';
 import { showToast } from '../../ui/toast.js';
 import { showConfirm } from '../../ui/modal.js';
 import { formatWeight, formatVolume } from '../../ui/render-utils.js';
-import { getOrderPacking, getCaseMode } from '../../services/order-data.js';
+import { getOrderPacking } from '../../services/order-data.js';
 
 // ============================================================
 // СОСТОЯНИЕ СТРАНИЦЫ ОТКРЫТИЯ
@@ -47,7 +48,7 @@ function saveOpenState() {
 // ============================================================
 
 function parseUnitVolumeFromString(dimensions) {
-  return parseUnitVolume(dimensions);
+  return calc.parseUnitVolume(dimensions);
 }
 
 // ============================================================
@@ -109,7 +110,7 @@ export function renderOpenOrder(d) {
           const hasDesc = !!desc;
           const descOpen = openDescState[item.path] || false;
           // Вес и объём считаем как для товара (без кофров, только базовые свойства)
-          const props = getItemPropsByPath(item.path);
+          const props = calc.getItemPropsByPath(item.path);
           const weight = (props.weight || 0) * item.qty;
           const unitVol = parseUnitVolumeFromString(props.dimensions);
           const volume = unitVol * item.qty;
@@ -203,7 +204,7 @@ function updateOpenProgress() {
   for (let path in loadedOrder.items) {
     const qty = loadedOrder.items[path];
     if (qty > 0) {
-      const props = getItemPropsByPath(path);
+      const props = calc.getItemPropsByPath(path);
       totalWeight += (props.weight || 0) * qty;
       const unitVol = parseUnitVolumeFromString(props.dimensions);
       totalVolume += unitVol * qty;
