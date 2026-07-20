@@ -15,7 +15,6 @@ import {
   setOrderValue,
   getTotalQty,
 } from '../../services/order-data.js';
-// ⭐ Импортируем всё из calculations.js
 import * as calc from '../../services/calculations.js';
 import { showToast } from '../../ui/toast.js';
 import { showPrompt, showConfirm, showChoice } from '../../ui/modal.js';
@@ -75,7 +74,6 @@ export function openCaseSettingsModal(path, callback) {
     return;
   }
 
-  // Генерируем HTML с переключателем режимов
   let html = `
     <div class="case-mode-selector" style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
       <button class="btn btn-sm case-mode-btn ${currentMode === 'off' ? 'active' : ''}" data-mode="off">Без кофров</button>
@@ -92,7 +90,6 @@ export function openCaseSettingsModal(path, callback) {
 
   renderCaseModeContent(currentMode, innerDiv, path, options, individualVals, packing, extra, commonCases, mode, props);
 
-  // Обработчики переключения режимов
   document.querySelectorAll('.case-mode-btn').forEach(btn => {
     btn.addEventListener('click', function() {
       const selectedMode = this.dataset.mode;
@@ -102,7 +99,6 @@ export function openCaseSettingsModal(path, callback) {
     });
   });
 
-  // Обработчики кнопок
   const cancelBtn = document.getElementById('caseSettingsCancel');
   if (cancelBtn) {
     cancelBtn.onclick = () => {
@@ -127,10 +123,6 @@ export function openCaseSettingsModal(path, callback) {
     }
   };
 }
-
-// ============================================================
-// РЕНДЕРИНГ СОДЕРЖИМОГО В ЗАВИСИМОСТИ ОТ РЕЖИМА
-// ============================================================
 
 function renderCaseModeContent(mode, container, path, options, individualVals, packing, extra, commonCases, modeData, props) {
   let html = '';
@@ -216,10 +208,6 @@ function renderCaseModeContent(mode, container, path, options, individualVals, p
   container.innerHTML = html;
 }
 
-// ============================================================
-// СОХРАНЕНИЕ НАСТРОЕК (с миграцией количества)
-// ============================================================
-
 async function saveCaseSettings(path) {
   const modeBtns = document.querySelectorAll('.case-mode-btn');
   let activeMode = 'off';
@@ -230,6 +218,7 @@ async function saveCaseSettings(path) {
   const mode = calc.getCaseMode(path);
   const options = calc.getCaseOptions(path);
   const existingQty = getTotalQty(path);
+  const commonCases = getCommonCases();
 
   // Сбрасываем все настройки кофров для этой позиции
   mode.enabled = false;
@@ -300,6 +289,7 @@ async function saveCaseSettings(path) {
         );
       }
 
+      // ВСЕГДА включаем мультирежим
       mode.enabled = true;
       const count = options.length;
       mode.multiSelected = options.map(() => true);
@@ -361,6 +351,20 @@ async function saveCaseSettings(path) {
     }
 
     case 'common': {
+      // Добавляем диалог для общих кофров
+      let action = 'reset';
+      if (existingQty > 0) {
+        const choiceOptions = [
+          { value: 'reset', label: 'Сбросить', description: 'обнулить количество' },
+          { value: 'common', label: 'Разместить в общие кофры', description: 'распределить количество по выбранным кофрам (по очереди)' }
+        ];
+        action = await showChoice(
+          'Режим общих кофров',
+          'У позиции уже есть количество (' + existingQty + ' шт). Что сделать с этим количеством?',
+          choiceOptions
+        );
+      }
+
       const checkboxes = document.querySelectorAll('.common-case-check');
       const selected = [];
       checkboxes.forEach(cb => {
@@ -372,21 +376,39 @@ async function saveCaseSettings(path) {
       }
       mode.enabled = true;
       mode.commonSelected = selected;
-      if (existingQty > 0) {
-        setOrderExtra(path, existingQty);
+
+      if (action === 'common' && existingQty > 0) {
+        // Распределяем по кофрам последовательно
+        let remaining = existingQty;
+        const packingArr = selected.map(caseId => {
+          const c = commonCases.find(cc => cc.id === caseId);
+          const capacity = c ? c.qty : 1;
+          const canPlace = Math.min(remaining, capacity);
+          remaining -= canPlace;
+          return { caseId, pieces: canPlace };
+        });
+        // Если остались штуки, добавляем их как "вне кофра"
+        setOrderPacking(path, packingArr);
+        setOrderExtra(path, remaining);
+        // Общее количество остаётся тем же
+        setOrderValue(path, existingQty);
+      } else {
+        // Сброс – все штуки уходят вне кофра
+        setOrderPacking(path, selected.map(caseId => ({ caseId, pieces: 0 })));
+        if (existingQty > 0) {
+          setOrderExtra(path, existingQty);
+        } else {
+          setOrderExtra(path, 0);
+        }
+        setOrderValue(path, existingQty);
       }
-      setOrderPacking(path, selected.map(caseId => ({ caseId, pieces: 0 })));
       break;
     }
   }
 
-  // ✅ ПРИНУДИТЕЛЬНОЕ СОХРАНЕНИЕ ПОСЛЕ ИЗМЕНЕНИЙ
+  // Принудительное сохранение
   saveState();
 }
-
-// ============================================================
-// ФУНКЦИИ ДЛЯ АЛЬТЕРНАТИВНОГО КОФРА (через window)
-// ============================================================
 
 window.addAltCase = async function() {
   const path = currentCaseSettingsPath;
@@ -425,9 +447,6 @@ window.clearAltCase = function() {
   showToast('Альтернативный кофр удалён', 'neutral');
 };
 
-// ============================================================
-// ЭКСПОРТ ПО УМОЛЧАНИЮ
-// ============================================================
 export default {
   openCaseSettingsModal,
   saveCaseSettings,
