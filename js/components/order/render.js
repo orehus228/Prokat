@@ -513,9 +513,45 @@ export function updateCategoryTotalsOrder(catKey) {
 }
 
 export function updateTotalsOrder() {
-  // Принудительно инвалидируем кэш, чтобы получить свежие данные
-  invalidateFlatItemsCache();
-  const items = getActiveItemsOrder();
+  // Получаем состояние напрямую
+  const state = getState();
+
+  // Собираем все пути из order, orderPacking, orderExtra, individualCaseValues
+  const allPaths = new Set();
+  for (let p in state.order) {
+    if (state.order[p] > 0) allPaths.add(p);
+  }
+  for (let p in state.orderPacking) {
+    const packing = state.orderPacking[p];
+    const total = packing.reduce((s, item) => s + (item.pieces || 0), 0);
+    if (total > 0) allPaths.add(p);
+  }
+  for (let p in state.orderExtra) {
+    if (state.orderExtra[p] > 0) allPaths.add(p);
+  }
+  for (let p in state.individualCaseValues) {
+    const vals = state.individualCaseValues[p];
+    if (vals.reduce((a, b) => a + b, 0) > 0) allPaths.add(p);
+  }
+
+  // Преобразуем в массив items
+  const items = [];
+  allPaths.forEach(path => {
+    const qty = getTotalQty(path);
+    if (qty > 0) items.push({ path, qty });
+  });
+
+  // Если items пуст, обнуляем статистику
+  if (items.length === 0) {
+    document.getElementById('totalQty').textContent = '0';
+    document.getElementById('totalWeight').textContent = '0.0';
+    document.getElementById('totalVolume').textContent = '0.000';
+    const detailsDiv = document.getElementById('globalDetails');
+    if (detailsDiv) detailsDiv.innerHTML = '';
+    renderCommonCaseIndicatorsOrder();
+    return;
+  }
+
   const result = calculateTotals(items);
 
   document.getElementById('totalQty').textContent = result.totalQty;
@@ -524,7 +560,6 @@ export function updateTotalsOrder() {
 
   const detailsDiv = document.getElementById('globalDetails');
   if (!detailsDiv) return;
-  const state = getState();
   const orderKeys = state._categoryOrder || Object.keys(state.inventory);
   let detailsHtml = '';
 
@@ -532,25 +567,6 @@ export function updateTotalsOrder() {
   let commonWeight = 0;
   let commonVolume = 0;
   let commonQty = 0;
-
-  // Дополнительная проверка: если в items нет позиций с общими кофрами, но они есть в состоянии – добавим их принудительно
-  const allPackingPaths = Object.keys(state.orderPacking);
-  const allExtraPaths = Object.keys(state.orderExtra);
-  const allPaths = new Set(items.map(i => i.path));
-  allPackingPaths.forEach(p => {
-    const packing = state.orderPacking[p];
-    const total = packing.reduce((s, item) => s + (item.pieces || 0), 0);
-    if (total > 0 && !allPaths.has(p)) {
-      const qty = getTotalQty(p);
-      if (qty > 0) items.push({ path: p, qty });
-    }
-  });
-  allExtraPaths.forEach(p => {
-    if (state.orderExtra[p] > 0 && !allPaths.has(p)) {
-      const qty = getTotalQty(p);
-      if (qty > 0) items.push({ path: p, qty });
-    }
-  });
 
   items.forEach(({ path, qty }) => {
     const data = calc.getCalculationData(path);
@@ -565,6 +581,7 @@ export function updateTotalsOrder() {
     catMap[cat].volume += volume;
     catMap[cat].cases += cases;
 
+    // Если есть упаковка в общие кофры или extra > 0, считаем это общими кофрами
     if (data.packing.length > 0 || data.extra > 0) {
       commonWeight += weight;
       commonVolume += volume;
