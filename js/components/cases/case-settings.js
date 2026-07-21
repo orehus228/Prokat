@@ -19,6 +19,8 @@ import * as calc from '../../services/calculations.js';
 import { showToast } from '../../ui/toast.js';
 import { showPrompt, showConfirm, showChoice } from '../../ui/modal.js';
 import { esc, getElement } from '../../ui/dom.js';
+// ⭐ Импортируем функцию обновления статистики
+import { updateTotalsOrder } from '../order/render.js';
 
 let currentCaseSettingsPath = null;
 let caseSettingsCallback = null;
@@ -274,7 +276,6 @@ async function saveCaseSettings(path) {
     }
 
     case 'multi': {
-      // Если есть существующее количество, спрашиваем, что делать
       let action = 'equal';
       if (existingQty > 0) {
         const choiceOptions = [
@@ -343,7 +344,6 @@ async function saveCaseSettings(path) {
         }
       }
 
-      // Сохраняем распределение
       setIndividualCaseValues(path, vals);
       const total = vals.reduce((a, b) => a + b, 0);
       setOrderValue(path, total);
@@ -351,7 +351,6 @@ async function saveCaseSettings(path) {
     }
 
     case 'common': {
-      // Проверяем выбранные кофры
       const checkboxes = document.querySelectorAll('.common-case-check');
       const selected = [];
       checkboxes.forEach(cb => {
@@ -362,11 +361,9 @@ async function saveCaseSettings(path) {
         return;
       }
 
-      // Получаем вместимости выбранных кофров
       const selectedCases = commonCases.filter(c => selected.includes(c.id));
       const capacities = selectedCases.map(c => c.qty);
 
-      // Если есть количество, спрашиваем, что делать
       let action = 'reset';
       if (existingQty > 0) {
         const choiceOptions = [
@@ -385,12 +382,10 @@ async function saveCaseSettings(path) {
       mode.commonSelected = selected;
 
       if (action === 'reset' || existingQty === 0) {
-        // Все штуки вне кофров
         setOrderPacking(path, selected.map(caseId => ({ caseId, pieces: 0 })));
         setOrderExtra(path, existingQty);
         setOrderValue(path, existingQty);
       } else if (action === 'equal') {
-        // Распределяем поровну между выбранными кофрами (с учётом вместимости)
         let remaining = existingQty;
         const count = selected.length;
         const base = Math.floor(remaining / count);
@@ -398,16 +393,13 @@ async function saveCaseSettings(path) {
         const packingArr = selected.map((caseId, idx) => {
           const capacity = capacities[idx] || 1;
           let pieces = base + (idx < remainder ? 1 : 0);
-          // Не превышаем вместимость кофра
           if (pieces > capacity) {
             pieces = capacity;
           }
           return { caseId, pieces };
         });
-        // Пересчитываем остаток после распределения с учётом вместимости
         let totalPacked = packingArr.reduce((sum, p) => sum + p.pieces, 0);
         let extraRemaining = existingQty - totalPacked;
-        // Если остались штуки, добавляем их в первый кофр (если есть место)
         if (extraRemaining > 0) {
           const firstCase = packingArr[0];
           const capacity = capacities[0] || 1;
@@ -421,7 +413,6 @@ async function saveCaseSettings(path) {
         setOrderExtra(path, extraRemaining);
         setOrderValue(path, existingQty);
       } else if (action === 'sequential') {
-        // Последовательное заполнение
         let remaining = existingQty;
         const packingArr = selected.map((caseId, idx) => {
           const capacity = capacities[idx] || 1;
@@ -443,7 +434,15 @@ async function saveCaseSettings(path) {
   // Обновление интерфейса
   if (caseSettingsCallback) {
     caseSettingsCallback();
-    setTimeout(caseSettingsCallback, 50);
+    // Дополнительный вызов после сохранения
+    setTimeout(() => {
+      caseSettingsCallback();
+      // ⭐ ЯВНО ОБНОВЛЯЕМ ОБЩУЮ СТАТИСТИКУ
+      updateTotalsOrder();
+    }, 50);
+  } else {
+    // Если callback не передан, всё равно обновляем статистику
+    setTimeout(() => updateTotalsOrder(), 50);
   }
 }
 
