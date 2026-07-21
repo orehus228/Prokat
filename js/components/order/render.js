@@ -512,52 +512,52 @@ export function updateCategoryTotalsOrder(catKey) {
   totalsDiv.innerHTML = html;
 }
 
+// ============================================================
+// НОВАЯ ВЕРСИЯ updateTotalsOrder — прямая работа с state
+// ============================================================
 export function updateTotalsOrder() {
-  // Получаем состояние напрямую
+  // 1. Собираем все пути, где есть какие-либо данные
   const state = getState();
-
-  // Собираем все пути из order, orderPacking, orderExtra, individualCaseValues
   const allPaths = new Set();
+
+  // order
   for (let p in state.order) {
     if (state.order[p] > 0) allPaths.add(p);
   }
+  // orderExtra
+  for (let p in state.orderExtra) {
+    if (state.orderExtra[p] > 0) allPaths.add(p);
+  }
+  // orderPacking
   for (let p in state.orderPacking) {
     const packing = state.orderPacking[p];
     const total = packing.reduce((s, item) => s + (item.pieces || 0), 0);
     if (total > 0) allPaths.add(p);
   }
-  for (let p in state.orderExtra) {
-    if (state.orderExtra[p] > 0) allPaths.add(p);
-  }
+  // individualCaseValues
   for (let p in state.individualCaseValues) {
     const vals = state.individualCaseValues[p];
     if (vals.reduce((a, b) => a + b, 0) > 0) allPaths.add(p);
   }
 
-  // Преобразуем в массив items
+  // 2. Превращаем в массив объектов { path, qty }
   const items = [];
   allPaths.forEach(path => {
     const qty = getTotalQty(path);
-    if (qty > 0) items.push({ path, qty });
+    if (qty > 0) {
+      items.push({ path, qty });
+    }
   });
 
-  // Если items пуст, обнуляем статистику
-  if (items.length === 0) {
-    document.getElementById('totalQty').textContent = '0';
-    document.getElementById('totalWeight').textContent = '0.0';
-    document.getElementById('totalVolume').textContent = '0.000';
-    const detailsDiv = document.getElementById('globalDetails');
-    if (detailsDiv) detailsDiv.innerHTML = '';
-    renderCommonCaseIndicatorsOrder();
-    return;
-  }
-
+  // 3. Подсчёт общей статистики
   const result = calculateTotals(items);
 
+  // 4. Обновляем глобальные цифры
   document.getElementById('totalQty').textContent = result.totalQty;
   document.getElementById('totalWeight').textContent = result.totalWeight.toFixed(1);
   document.getElementById('totalVolume').textContent = result.totalVolume.toFixed(3);
 
+  // 5. Строим детальную статистику по категориям и общим кофрам
   const detailsDiv = document.getElementById('globalDetails');
   if (!detailsDiv) return;
   const orderKeys = state._categoryOrder || Object.keys(state.inventory);
@@ -581,7 +581,7 @@ export function updateTotalsOrder() {
     catMap[cat].volume += volume;
     catMap[cat].cases += cases;
 
-    // Если есть упаковка в общие кофры или extra > 0, считаем это общими кофрами
+    // Если есть упаковка в общие кофры или есть extra (вне кофра), считаем это как "общие кофры"
     if (data.packing.length > 0 || data.extra > 0) {
       commonWeight += weight;
       commonVolume += volume;
@@ -595,12 +595,17 @@ export function updateTotalsOrder() {
     detailsHtml += `<div class="cat-detail"><strong>${CAT_NAMES[cat] || cat}</strong><br>${catResult.qty} шт<br>${formatWeight(catResult.weight)}<br>${formatVolume(catResult.volume)}</div>`;
   });
 
+  // Добавляем строку общих кофров, если есть
   if (commonQty > 0) {
     detailsHtml += `<div class="cat-detail common-case-detail"><strong>📦 Общие кофры</strong><br>${commonQty} шт<br>${formatWeight(commonWeight)}<br>${formatVolume(commonVolume)}</div>`;
   }
 
   detailsDiv.innerHTML = detailsHtml || '';
   renderCommonCaseIndicatorsOrder();
+
+  // Логирование для отладки (можно убрать после проверки)
+  console.log('[updateTotalsOrder] items:', items.length);
+  console.log('[updateTotalsOrder] commonQty:', commonQty, 'commonWeight:', commonWeight, 'commonVolume:', commonVolume);
 }
 
 function calculateTotals(items) {
