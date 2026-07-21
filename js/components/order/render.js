@@ -513,7 +513,8 @@ export function updateCategoryTotalsOrder(catKey) {
 }
 
 export function updateTotalsOrder() {
-  // Получаем все активные позиции через getActiveItemsOrder (кэш инвалидируется при изменениях)
+  // Принудительно инвалидируем кэш, чтобы получить свежие данные
+  invalidateFlatItemsCache();
   const items = getActiveItemsOrder();
   const result = calculateTotals(items);
 
@@ -532,6 +533,25 @@ export function updateTotalsOrder() {
   let commonVolume = 0;
   let commonQty = 0;
 
+  // Дополнительная проверка: если в items нет позиций с общими кофрами, но они есть в состоянии – добавим их принудительно
+  const allPackingPaths = Object.keys(state.orderPacking);
+  const allExtraPaths = Object.keys(state.orderExtra);
+  const allPaths = new Set(items.map(i => i.path));
+  allPackingPaths.forEach(p => {
+    const packing = state.orderPacking[p];
+    const total = packing.reduce((s, item) => s + (item.pieces || 0), 0);
+    if (total > 0 && !allPaths.has(p)) {
+      const qty = getTotalQty(p);
+      if (qty > 0) items.push({ path: p, qty });
+    }
+  });
+  allExtraPaths.forEach(p => {
+    if (state.orderExtra[p] > 0 && !allPaths.has(p)) {
+      const qty = getTotalQty(p);
+      if (qty > 0) items.push({ path: p, qty });
+    }
+  });
+
   items.forEach(({ path, qty }) => {
     const data = calc.getCalculationData(path);
     const weight = calc.calcItemWeight(path, qty, data.mode, data.packing, data.individualVals, data.extra);
@@ -545,7 +565,6 @@ export function updateTotalsOrder() {
     catMap[cat].volume += volume;
     catMap[cat].cases += cases;
 
-    // Если есть упаковка в общие кофры или есть extra (вне кофра), считаем это как "общие кофры"
     if (data.packing.length > 0 || data.extra > 0) {
       commonWeight += weight;
       commonVolume += volume;
