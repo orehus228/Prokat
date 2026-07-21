@@ -513,34 +513,35 @@ export function updateCategoryTotalsOrder(catKey) {
 }
 
 // ============================================================
-// НОВАЯ ВЕРСИЯ updateTotalsOrder — прямая работа с state
+// ГЛАВНАЯ ФУНКЦИЯ СТАТИСТИКИ — ПРЯМОЙ ДОСТУП К STATE
 // ============================================================
 export function updateTotalsOrder() {
-  // 1. Собираем все пути, где есть какие-либо данные
   const state = getState();
+
+  // 1. Собираем все уникальные пути
   const allPaths = new Set();
 
-  // order
+  // Из order
   for (let p in state.order) {
     if (state.order[p] > 0) allPaths.add(p);
   }
-  // orderExtra
+  // Из orderExtra
   for (let p in state.orderExtra) {
     if (state.orderExtra[p] > 0) allPaths.add(p);
   }
-  // orderPacking
+  // Из orderPacking
   for (let p in state.orderPacking) {
     const packing = state.orderPacking[p];
     const total = packing.reduce((s, item) => s + (item.pieces || 0), 0);
     if (total > 0) allPaths.add(p);
   }
-  // individualCaseValues
+  // Из individualCaseValues
   for (let p in state.individualCaseValues) {
     const vals = state.individualCaseValues[p];
     if (vals.reduce((a, b) => a + b, 0) > 0) allPaths.add(p);
   }
 
-  // 2. Превращаем в массив объектов { path, qty }
+  // 2. Формируем массив items
   const items = [];
   allPaths.forEach(path => {
     const qty = getTotalQty(path);
@@ -549,7 +550,7 @@ export function updateTotalsOrder() {
     }
   });
 
-  // 3. Подсчёт общей статистики
+  // 3. Считаем общие итоги
   const result = calculateTotals(items);
 
   // 4. Обновляем глобальные цифры
@@ -557,22 +558,27 @@ export function updateTotalsOrder() {
   document.getElementById('totalWeight').textContent = result.totalWeight.toFixed(1);
   document.getElementById('totalVolume').textContent = result.totalVolume.toFixed(3);
 
-  // 5. Строим детальную статистику по категориям и общим кофрам
+  // 5. Строим детальную статистику
   const detailsDiv = document.getElementById('globalDetails');
   if (!detailsDiv) return;
-  const orderKeys = state._categoryOrder || Object.keys(state.inventory);
-  let detailsHtml = '';
 
+  const orderKeys = state._categoryOrder || Object.keys(state.inventory);
   const catMap = {};
-  let commonWeight = 0;
-  let commonVolume = 0;
-  let commonQty = 0;
+  let commonWeight = 0, commonVolume = 0, commonQty = 0;
 
   items.forEach(({ path, qty }) => {
-    const data = calc.getCalculationData(path);
-    const weight = calc.calcItemWeight(path, qty, data.mode, data.packing, data.individualVals, data.extra);
-    const volume = calc.calcItemVolume(path, qty, data.mode, data.packing, data.individualVals, data.extra);
-    const cases = calc.calcItemCases(path, qty, data.mode, data.individualVals);
+    // Получаем данные напрямую
+    const packing = state.orderPacking[path] || [];
+    const extra = state.orderExtra[path] || 0;
+    const individualVals = state.individualCaseValues[path] || [];
+    const mode = state.caseModes[path] || { enabled: false, selectedOption: 0, useAlt: false, accumulate: false, multiSelected: [], commonSelected: [] };
+    const props = calc.getItemPropsByPath(path);
+
+    // Считаем вес и объём с учётом упаковки
+    const weight = calc.calcItemWeight(path, qty, mode, packing, individualVals, extra);
+    const volume = calc.calcItemVolume(path, qty, mode, packing, individualVals, extra);
+    const cases = calc.calcItemCases(path, qty, mode, individualVals);
+
     const parts = path.split('|');
     const cat = parts[0];
     if (!catMap[cat]) catMap[cat] = { qty: 0, weight: 0, volume: 0, cases: 0 };
@@ -581,21 +587,20 @@ export function updateTotalsOrder() {
     catMap[cat].volume += volume;
     catMap[cat].cases += cases;
 
-    // Если есть упаковка в общие кофры или есть extra (вне кофра), считаем это как "общие кофры"
-    if (data.packing.length > 0 || data.extra > 0) {
+    if (packing.length > 0 || extra > 0) {
       commonWeight += weight;
       commonVolume += volume;
       commonQty += qty;
     }
   });
 
+  let detailsHtml = '';
   orderKeys.forEach(cat => {
     if (!catMap[cat]) return;
     const catResult = catMap[cat];
     detailsHtml += `<div class="cat-detail"><strong>${CAT_NAMES[cat] || cat}</strong><br>${catResult.qty} шт<br>${formatWeight(catResult.weight)}<br>${formatVolume(catResult.volume)}</div>`;
   });
 
-  // Добавляем строку общих кофров, если есть
   if (commonQty > 0) {
     detailsHtml += `<div class="cat-detail common-case-detail"><strong>📦 Общие кофры</strong><br>${commonQty} шт<br>${formatWeight(commonWeight)}<br>${formatVolume(commonVolume)}</div>`;
   }
@@ -603,19 +608,21 @@ export function updateTotalsOrder() {
   detailsDiv.innerHTML = detailsHtml || '';
   renderCommonCaseIndicatorsOrder();
 
-  // Логирование для отладки (можно убрать после проверки)
-  console.log('[updateTotalsOrder] items:', items.length);
-  console.log('[updateTotalsOrder] commonQty:', commonQty, 'commonWeight:', commonWeight, 'commonVolume:', commonVolume);
+  // Логирование для отладки
+  console.log('[STATS] Общих кофров: шт=' + commonQty + ', вес=' + commonWeight + ', объём=' + commonVolume);
 }
 
 function calculateTotals(items) {
   let totalQty = 0, totalWeight = 0, totalVolume = 0, totalCases = 0;
   items.forEach(({ path, qty }) => {
     totalQty += qty;
-    const data = calc.getCalculationData(path);
-    totalWeight += calc.calcItemWeight(path, qty, data.mode, data.packing, data.individualVals, data.extra);
-    totalVolume += calc.calcItemVolume(path, qty, data.mode, data.packing, data.individualVals, data.extra);
-    totalCases += calc.calcItemCases(path, qty, data.mode, data.individualVals);
+    const packing = getOrderPacking(path);
+    const individualVals = getIndividualCaseValues(path);
+    const extra = getOrderExtra(path);
+    const mode = calc.getCaseMode(path);
+    totalWeight += calc.calcItemWeight(path, qty, mode, packing, individualVals, extra);
+    totalVolume += calc.calcItemVolume(path, qty, mode, packing, individualVals, extra);
+    totalCases += calc.calcItemCases(path, qty, mode, individualVals);
   });
   return { totalQty, totalWeight, totalVolume, totalCases };
 }

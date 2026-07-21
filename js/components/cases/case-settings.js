@@ -19,8 +19,7 @@ import * as calc from '../../services/calculations.js';
 import { showToast } from '../../ui/toast.js';
 import { showPrompt, showConfirm, showChoice } from '../../ui/modal.js';
 import { esc, getElement } from '../../ui/dom.js';
-// ⭐ Импортируем функции для обновления статистики
-import { invalidateFlatItemsCache } from '../order/helpers.js';
+// Импортируем функцию обновления статистики напрямую
 import { updateTotalsOrder } from '../order/render.js';
 
 let currentCaseSettingsPath = null;
@@ -432,22 +431,19 @@ async function saveCaseSettings(path) {
   // Принудительное сохранение
   saveState();
 
-  // ⭐ ОБНОВЛЯЕМ СТАТИСТИКУ
-  // 1. Инвалидируем кэш плоских списков
-  invalidateFlatItemsCache();
-  // 2. Принудительно пересчитываем общую статистику
-  updateTotalsOrder();
-
-  // Обновление интерфейса
+  // Обновление статистики – вызываем несколько раз с задержкой
   if (caseSettingsCallback) {
     caseSettingsCallback();
     setTimeout(() => {
       caseSettingsCallback();
-      // Дополнительное обновление статистики через 100 мс для надёжности
-      setTimeout(() => {
-        updateTotalsOrder();
-      }, 50);
+      // Обновляем общую статистику
+      updateTotalsOrder();
+      // Ещё раз через 100 мс для надёжности
+      setTimeout(() => updateTotalsOrder(), 100);
     }, 50);
+  } else {
+    setTimeout(() => updateTotalsOrder(), 50);
+    setTimeout(() => updateTotalsOrder(), 150);
   }
 }
 
