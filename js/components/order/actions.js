@@ -403,16 +403,12 @@ function stopRepeat() {
   currentBtn = null;
 }
 
-// Обработчик нажатия (мышь / touch)
 function handlePointerDown(e) {
   const btn = e.target.closest('.btn-c');
   if (!btn || !btn.dataset.delta) return;
-  e.preventDefault(); // предотвращаем zoom/scroll
-  // Если уже есть повтор на этой кнопке, не запускаем новый
+  e.preventDefault();
   if (currentBtn === btn) return;
-  // Останавливаем предыдущий повтор, если был
   if (currentBtn) stopRepeat();
-  // Запускаем новый
   startRepeat(btn);
 }
 
@@ -420,10 +416,9 @@ function handlePointerUp(e) {
   stopRepeat();
 }
 
-// Обработчик для кнопок действий (не .btn-c)
 function handleContainerClick(e) {
   const target = e.target.closest('.btn-c');
-  if (target) return; // кнопки .btn-c обрабатываются через pointerdown
+  if (target) return;
 
   const infoBtn = e.target.closest('.info-btn');
   if (infoBtn) { toggleInfoOrder(infoBtn); return; }
@@ -442,6 +437,8 @@ function handleContainerClick(e) {
       module.openCaseSettingsModal(caseBtn.dataset.path, () => {
         refreshRow(caseBtn.dataset.path);
         updateAllCommonCaseIndicators();
+        // ⭐ Обновляем общую статистику после настройки кофров
+        updateTotalsOrder();
       });
     });
     return;
