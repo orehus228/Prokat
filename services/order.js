@@ -522,6 +522,46 @@ export function getCaseMode(path) {
 }
 
 // ============================================================
+// НОВАЯ ФУНКЦИЯ: ПОЛУЧЕНИЕ ВСЕХ АКТИВНЫХ ПОЗИЦИЙ
+// ============================================================
+
+/**
+ * Возвращает список всех активных позиций заказа (с количеством > 0).
+ * @returns {Array<{path: string, qty: number}>} массив активных позиций
+ */
+export function getActiveItems() {
+  const state = getState();
+  const items = [];
+  const allPaths = new Set();
+
+  // Собираем все пути, где есть положительное количество
+  for (const p in state.order) {
+    if (state.order[p] > 0) allPaths.add(p);
+  }
+  for (const p in state.orderExtra) {
+    if (state.orderExtra[p] > 0) allPaths.add(p);
+  }
+  for (const p in state.orderPacking) {
+    const packing = state.orderPacking[p] || [];
+    if (packing.some(item => item.pieces > 0)) allPaths.add(p);
+  }
+  for (const p in state.individualCaseValues) {
+    const vals = state.individualCaseValues[p] || [];
+    if (vals.some(v => v > 0)) allPaths.add(p);
+  }
+
+  // Для каждого пути вычисляем общее количество
+  for (const p of allPaths) {
+    const qty = getTotalQty(p);
+    if (qty > 0) {
+      items.push({ path: p, qty });
+    }
+  }
+
+  return items;
+}
+
+// ============================================================
 // ОБНОВЛЕНИЕ ПУТЕЙ ПРИ ПЕРЕИМЕНОВАНИИ
 // ============================================================
 
@@ -719,6 +759,7 @@ export default {
   getTotalQty,
   getSegmentsSum,
   getCaseMode,
+  getActiveItems, // <-- добавлено
   updateOrderPaths,
   updateAllPathsOnCategoryRename,
   clearOrder,

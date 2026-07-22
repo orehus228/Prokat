@@ -10,7 +10,7 @@ import { getState, getCachedCalculation, setCachedCalculation } from '../core/st
 import { PACKING_GAP, CM3_TO_M3 } from '../core/config.js';
 import { getTruckPresetById, getSelectedTruckIds } from './trucks.js';
 import { getPackagesForLoading } from './packaging.js';
-import { getActiveItems } from './order.js';
+import { getActiveItems, getTotalQty } from './order.js';
 import { deepClone } from '../core/utils.js';
 
 // ============================================================
@@ -301,122 +301,12 @@ export function calculateLoading(trucks, allCargo) {
 }
 
 // ============================================================
-// ВЫСОКОУРОВНЕВАЯ ФУНКЦИЯ ДЛЯ ИСПОЛЬЗОВАНИЯ В UI
+// СИНХРОННАЯ ВЕРСИЯ РАСЧЁТА ЗАГРУЗКИ ЗАКАЗА
 // ============================================================
-
-/**
- * Рассчитывает загрузку на основе текущего заказа и выбранных грузовиков.
- * @param {string[]} [truckIds] - опциональный список ID грузовиков (если не указан, берутся выбранные)
- * @returns {LoadingResult} результат расчёта
- */
-export function calculateOrderLoading(truckIds) {
-  const cacheKey = `loading_${(truckIds || []).join('_')}`;
-  const cached = getCachedCalculation(cacheKey);
-  if (cached) return cached;
-
-  // 1. Получаем активные позиции заказа
-  const state = getState();
-  const order = state.order || {};
-  const orderSplits = state.orderSplits || {};
-  const orderExtra = state.orderExtra || {};
-
-  // Собираем все пути с количеством
-  const allPaths = new Set();
-  for (const path of Object.keys(order)) {
-    if (order[path] > 0) allPaths.add(path);
-  }
-  for (const path of Object.keys(orderSplits)) {
-    const splits = orderSplits[path] || [];
-    const total = splits.reduce((s, seg) => s + (seg.qty || 0), 0);
-    if (total > 0) allPaths.add(path);
-  }
-  for (const path of Object.keys(orderExtra)) {
-    if (orderExtra[path] > 0) allPaths.add(path);
-  }
-
-  // 2. Собираем все пакеты для загрузки
-  let allCargo = [];
-  for (const path of allPaths) {
-    // Получаем общее количество через getTotalQty
-    // (используем import('./order.js') для избежания циклической зависимости)
-    import('./order.js').then(({ getTotalQty }) => {
-      const qty = getTotalQty(path);
-      if (qty > 0) {
-        const packages = getPackagesForLoading(path, qty);
-        for (const pkg of packages) {
-          allCargo.push({
-            width: pkg.width || 0,
-            height: pkg.height || 0,
-            depth: pkg.depth || 0,
-            weight: pkg.weight || 0,
-            label: pkg.label || 'Груз',
-            path,
-          });
-        }
-      }
-    });
-  }
-
-  // 2.1 Реальная синхронная реализация (так как импорт асинхронный, используем прямой доступ к getTotalQty)
-  // Для синхронной работы импортируем getTotalQty напрямую
-  import('./order.js').then(({ getTotalQty }) => {
-    allCargo = [];
-    for (const path of allPaths) {
-      const qty = getTotalQty(path);
-      if (qty > 0) {
-        const packages = getPackagesForLoading(path, qty);
-        for (const pkg of packages) {
-          allCargo.push({
-            width: pkg.width || 0,
-            height: pkg.height || 0,
-            depth: pkg.depth || 0,
-            weight: pkg.weight || 0,
-            label: pkg.label || 'Груз',
-            path,
-          });
-        }
-      }
-    }
-  });
-
-  // Используем synchronous версию (вызовем напрямую после загрузки модуля)
-  // Для простоты оставляем асинхронный подход, но в реальном коде лучше использовать
-  // синхронный импорт на уровне модуля.
-
-  // 3. Получаем грузовики
-  const ids = truckIds || getSelectedTruckIds();
-  const trucks = ids.map(id => getTruckPresetById(id)).filter(Boolean);
-  if (trucks.length === 0) {
-    const empty = {
-      trucks: [],
-      totalWeight: 0,
-      totalVolume: 0,
-      failedItems: allCargo.map(item => ({
-        label: item.label || 'Предмет',
-        width: item.width || 0,
-        height: item.height || 0,
-        depth: item.depth || 0,
-        weight: item.weight || 0,
-      })),
-    };
-    setCachedCalculation(cacheKey, empty);
-    return empty;
-  }
-
-  const result = calculateLoading(trucks, allCargo);
-  setCachedCalculation(cacheKey, result);
-  return result;
-}
-
-// ============================================================
-// СИНХРОННАЯ ВЕРСИЯ (ОБХОД АСИНХРОННОСТИ)
-// ============================================================
-
-import { getTotalQty } from './order.js';
 
 /**
  * Синхронная версия расчёта загрузки заказа.
- * @param {string[]} [truckIds] - ID грузовиков
+ * @param {string[]} [truckIds] - ID грузовиков (если не указаны, берутся выбранные)
  * @returns {LoadingResult} результат расчёта
  */
 export function calculateOrderLoadingSync(truckIds) {
@@ -424,29 +314,14 @@ export function calculateOrderLoadingSync(truckIds) {
   const cached = getCachedCalculation(cacheKey);
   if (cached) return cached;
 
-  const state = getState();
-  const order = state.order || {};
-  const orderSplits = state.orderSplits || {};
-  const orderExtra = state.orderExtra || {};
-
-  const allPaths = new Set();
-  for (const path of Object.keys(order)) {
-    if (order[path] > 0) allPaths.add(path);
-  }
-  for (const path of Object.keys(orderSplits)) {
-    const splits = orderSplits[path] || [];
-    const total = splits.reduce((s, seg) => s + (seg.qty || 0), 0);
-    if (total > 0) allPaths.add(path);
-  }
-  for (const path of Object.keys(orderExtra)) {
-    if (orderExtra[path] > 0) allPaths.add(path);
-  }
+  // Получаем активные позиции (используем новую функцию getActiveItems)
+  const activeItems = getActiveItems();
 
   let allCargo = [];
-  for (const path of allPaths) {
-    const qty = getTotalQty(path);
+  for (const item of activeItems) {
+    const qty = item.qty;
     if (qty > 0) {
-      const packages = getPackagesForLoading(path, qty);
+      const packages = getPackagesForLoading(item.path, qty);
       for (const pkg of packages) {
         allCargo.push({
           width: pkg.width || 0,
@@ -454,7 +329,7 @@ export function calculateOrderLoadingSync(truckIds) {
           depth: pkg.depth || 0,
           weight: pkg.weight || 0,
           label: pkg.label || 'Груз',
-          path,
+          path: item.path,
         });
       }
     }
@@ -491,6 +366,5 @@ export function calculateOrderLoadingSync(truckIds) {
 export default {
   packItems,
   calculateLoading,
-  calculateOrderLoading,
   calculateOrderLoadingSync,
 };
