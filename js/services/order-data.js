@@ -89,6 +89,7 @@ export function setOrderPacking(path, packing) {
     delete state.orderPacking[path];
   }
   saveState();
+  clearCalculationCache();
 }
 
 export function setIndividualCaseValues(path, vals) {
@@ -99,6 +100,7 @@ export function setIndividualCaseValues(path, vals) {
     delete state.individualCaseValues[path];
   }
   saveState();
+  clearCalculationCache();
 }
 
 export function setCommonRoutes(path, routes) {
@@ -120,6 +122,7 @@ export function setOrderExtra(path, val) {
     delete state.orderExtra[path];
   }
   saveState();
+  clearCalculationCache();
 }
 
 export function setExcludeFromLoading(path, exclude) {
@@ -263,6 +266,7 @@ export function setOrderValue(path, val) {
     delete state.order[path];
   }
   saveState();
+  clearCalculationCache();
 }
 
 // ============================================================
