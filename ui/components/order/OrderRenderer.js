@@ -161,6 +161,8 @@ export function buildItemRow(path, level) {
   const state = getState();
   const sq = getStockByPath(path);
   const totalQty = getTotalQty(path);
+  console.log('[buildItemRow] path:', path, 'totalQty:', totalQty, 'sq:', sq);
+
   const props = getItemPropsByPath(path);
   const mode = getCaseMode(path);
   const packing = getOrderPacking(path);
@@ -209,7 +211,7 @@ export function buildItemRow(path, level) {
 
   const row = document.createElement('div');
   row.className = `row ${rowClass}`;
-  row.dataset.path = path; // уже нормализован
+  row.dataset.path = path;
 
   // name-area
   const nameArea = document.createElement('div');
@@ -302,7 +304,6 @@ export function buildItemRow(path, level) {
 }
 
 export function buildQtyControls(path) {
-  // путь уже нормализован
   const mode = getCaseMode(path);
   const options = getItemPropsByPath(path).individualCases || [];
   const packing = getOrderPacking(path);
@@ -315,7 +316,6 @@ export function buildQtyControls(path) {
   const div = document.createElement('div');
   div.className = 'qty-controls';
 
-  // Вспомогательная функция для привязки обработчиков
   const attachHandler = (btn, delta) => {
     btn.addEventListener('click', (e) => {
       e.preventDefault();
@@ -474,15 +474,15 @@ export function buildQtyControls(path) {
   return div;
 }
 
-/**
- * Обновляет строку путём полной замены DOM-элемента на новый.
- */
 export function updateRow(path) {
   path = path.replace(/\\/g, '|');
+  console.log('[updateRow] called with path:', path);
   const container = document.getElementById('categoryContents');
-  if (!container) return;
+  if (!container) {
+    console.warn('[updateRow] container not found');
+    return;
+  }
 
-  // Находим старую строку
   const rows = container.querySelectorAll('.row');
   let oldRow = null;
   for (const r of rows) {
@@ -493,16 +493,16 @@ export function updateRow(path) {
     }
   }
   if (!oldRow) {
-    console.warn('[updateRow] Строка не найдена:', path);
+    console.warn('[updateRow] row not found for path:', path);
     return;
   }
 
-  // Определяем уровень вложенности для buildItemRow
+  console.log('[updateRow] row found, replacing...');
   const level = path.split('|').length - 1;
   const newRow = buildItemRow(path, level);
   oldRow.replaceWith(newRow);
+  console.log('[updateRow] row replaced');
 
-  // Обновляем дочерние элементы (кофры, мульти)
   updateChildRows(path);
 }
 
@@ -511,7 +511,6 @@ export function updateChildRows(path) {
   const container = document.getElementById('categoryContents');
   if (!container) return;
 
-  // Находим строку
   const rows = container.querySelectorAll('.row');
   let row = null;
   for (const r of rows) {
@@ -523,7 +522,6 @@ export function updateChildRows(path) {
   }
   if (!row) return;
 
-  // Удаляем существующие дочерние строки
   let next = row.nextElementSibling;
   while (next && next.classList.contains('child-row')) {
     const toRemove = next;

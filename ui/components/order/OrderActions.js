@@ -81,6 +81,10 @@ export async function editNote(path) {
 export function changeQty(path, delta) {
   path = path.replace(/\\/g, '|');
   console.log('[OrderActions] changeQty called:', path, delta);
+  
+  const state = getState();
+  console.log('[changeQty] state.order до изменения:', state.order);
+  
   const current = getTotalQty(path);
   const sq = getStockByPath(path);
   let newVal = Math.max(0, current + delta);
@@ -89,7 +93,9 @@ export function changeQty(path, delta) {
     newVal = sq;
   }
   setOrderValue(path, newVal);
-  console.log('[OrderActions] setOrderValue done, вызываем updateRow');
+  console.log('[changeQty] state.order после setOrderValue:', getState().order);
+  console.log('[changeQty] getTotalQty после setOrderValue:', getTotalQty(path));
+  
   updateRow(path);
   updateTotals();
   if (currentCategoryForActions) {
