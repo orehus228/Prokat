@@ -544,6 +544,46 @@ export function updateRow(path) {
     }
   });
 
+  // Обновляем extra-info
+  const nameArea = row.querySelector('.name-area');
+  const extraInfo = nameArea?.querySelector('.extra-info');
+  if (extraInfo) {
+    const props = getItemPropsByPath(path);
+    const mode = getCaseMode(path);
+    const packing = getOrderPacking(path);
+    const individualVals = getIndividualCaseValues(path);
+    const extra = getOrderExtra(path);
+    const options = props.individualCases || [];
+    const isMulti = mode.enabled && options.length > 1 && mode.multiSelected && mode.multiSelected.some(v => v === true);
+    const hasCommonPacking = packing.length > 0;
+
+    let info = `<span><strong>${totalQty}</strong> шт добавлено</span>`;
+    info += `<span>в наличии: <strong>${sq}</strong></span>`;
+    // Вес и объём можно посчитать через packaging
+    const packResult = getPackaging(path, totalQty);
+    if (packResult.totalWeight > 0) info += `<span>${formatWeight(packResult.totalWeight)}</span>`;
+    if (packResult.totalVolume > 0) info += `<span>${formatVolume(packResult.totalVolume)}</span>`;
+    if (hasCommonPacking) {
+      const totalPieces = packing.reduce((s, p) => s + (p.pieces || 0), 0);
+      info += `<span>[Кофр] ${packing.length} шт (${totalPieces} шт)</span>`;
+    } else if (isMulti) {
+      const totalCases = individualVals.reduce((sum, v, idx) => {
+        if (v <= 0) return sum;
+        const opt = options[idx] || options[0];
+        return sum + Math.ceil(v / (opt.qty || 1));
+      }, 0);
+      info += `<span>[Мульти] ${totalCases} кофр${totalCases > 1 ? 'а' : ''}</span>`;
+    } else if (mode.enabled && individualVals.length === 1 && !hasCommonPacking && !isMulti) {
+      const opt = options[mode.selectedOption] || options[0];
+      const val = individualVals[0] || 0;
+      if (opt && val > 0) {
+        const casesCount = Math.ceil(val / (opt.qty || 1));
+        info += `<span>[Кофр] ${casesCount} шт</span>`;
+      }
+    }
+    extraInfo.innerHTML = info;
+  }
+
   // Обновляем кнопки
   const links = getLinks(path);
   const hasLink = links.length > 0;
