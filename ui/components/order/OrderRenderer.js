@@ -474,19 +474,17 @@ export function buildQtyControls(path) {
   return div;
 }
 
-/**
- * Обновляет строку позиции. Использует надёжный поиск по всем строкам с нормализацией.
- */
 export function updateRow(path) {
   path = path.replace(/\\/g, '|');
+  console.log('[updateRow] вызван для пути:', path);
   const container = document.getElementById('categoryContents');
   if (!container) {
     console.warn('[updateRow] Контейнер не найден');
     return;
   }
 
-  // Находим строку перебором с нормализацией
   const rows = container.querySelectorAll('.row');
+  console.log('[updateRow] Всего строк в контейнере:', rows.length);
   let row = null;
   for (const r of rows) {
     const p = r.dataset.path ? r.dataset.path.replace(/\\/g, '|') : '';
@@ -496,18 +494,20 @@ export function updateRow(path) {
     }
   }
   if (!row) {
-    console.warn('[updateRow] Строка не найдена для пути:', path);
+    console.warn('[updateRow] Строка НЕ найдена для пути:', path);
     console.log('[updateRow] Доступные пути:', Array.from(rows).map(r => r.dataset.path));
     return;
   }
+  console.log('[updateRow] Строка найдена, обновляем...');
 
   const sq = getStockByPath(path);
   const totalQty = getTotalQty(path);
   row.classList.toggle('added', totalQty > 0);
   row.classList.toggle('overstock', totalQty > sq);
 
-  // Обновляем все поля ввода в строке
+  // Обновляем поля ввода
   const inputs = row.querySelectorAll('input');
+  console.log('[updateRow] Количество полей ввода:', inputs.length);
   inputs.forEach(input => {
     if (input.classList.contains('qty-input')) {
       input.value = totalQty;
@@ -544,7 +544,7 @@ export function updateRow(path) {
     }
   });
 
-  // Обновляем кнопки (линк, заметка, кофры)
+  // Обновляем кнопки
   const links = getLinks(path);
   const hasLink = links.length > 0;
   const linkBtn = row.querySelector('.link-btn');
@@ -590,15 +590,11 @@ export function updateRow(path) {
   updateChildRows(path);
 }
 
-/**
- * Обновляет дочерние строки (кофры, мульти). Использует надёжный поиск.
- */
 export function updateChildRows(path) {
   path = path.replace(/\\/g, '|');
   const container = document.getElementById('categoryContents');
   if (!container) return;
 
-  // Находим строку перебором
   const rows = container.querySelectorAll('.row');
   let row = null;
   for (const r of rows) {

@@ -29,9 +29,6 @@ export function setCurrentCategoryForActions(cat) {
   currentCategoryForActions = cat;
 }
 
-/**
- * Переключает отображение информации о позиции.
- */
 export function toggleInfo(path) {
   path = path.replace(/\\/g, '|');
   const container = document.getElementById('categoryContents');
@@ -57,9 +54,6 @@ export function toggleInfo(path) {
   });
 }
 
-/**
- * Переключает отображение описания позиции.
- */
 export function toggleDesc(path) {
   path = path.replace(/\\/g, '|');
   const container = document.getElementById('categoryContents');
@@ -74,9 +68,6 @@ export function toggleDesc(path) {
   }
 }
 
-/**
- * Редактирует заметку позиции.
- */
 export async function editNote(path) {
   path = path.replace(/\\/g, '|');
   const current = getNote(path);
@@ -87,9 +78,6 @@ export async function editNote(path) {
   showToast('Заметка сохранена', 'neutral');
 }
 
-/**
- * Изменяет количество в простом режиме (qty-input).
- */
 export function changeQty(path, delta) {
   path = path.replace(/\\/g, '|');
   console.log('[OrderActions] changeQty called:', path, delta);
@@ -101,6 +89,7 @@ export function changeQty(path, delta) {
     newVal = sq;
   }
   setOrderValue(path, newVal);
+  console.log('[OrderActions] setOrderValue done, вызываем updateRow');
   updateRow(path);
   updateTotals();
   if (currentCategoryForActions) {
@@ -111,9 +100,6 @@ export function changeQty(path, delta) {
   }
 }
 
-/**
- * Изменяет количество в режиме "один кофр" (штуки).
- */
 export function changeSinglePiece(path, delta) {
   path = path.replace(/\\/g, '|');
   console.log('[OrderActions] changeSinglePiece called:', path, delta);
@@ -146,9 +132,6 @@ export function changeSinglePiece(path, delta) {
   }
 }
 
-/**
- * Изменяет количество в режиме "один кофр" (кофры).
- */
 export function changeSingleCase(path, delta) {
   path = path.replace(/\\/g, '|');
   console.log('[OrderActions] changeSingleCase called:', path, delta);
@@ -184,9 +167,6 @@ export function changeSingleCase(path, delta) {
   }
 }
 
-/**
- * Изменяет количество в мультирежиме (штуки для конкретного варианта).
- */
 export function changeMultiPiece(path, idx, delta) {
   path = path.replace(/\\/g, '|');
   console.log('[OrderActions] changeMultiPiece called:', path, idx, delta);
@@ -222,9 +202,6 @@ export function changeMultiPiece(path, idx, delta) {
   updateCommonCaseIndicators();
 }
 
-/**
- * Изменяет количество в мультирежиме (кофры для конкретного варианта).
- */
 export function changeMultiCase(path, idx, delta) {
   path = path.replace(/\\/g, '|');
   console.log('[OrderActions] changeMultiCase called:', path, idx, delta);
@@ -264,9 +241,6 @@ export function changeMultiCase(path, idx, delta) {
   updateCommonCaseIndicators();
 }
 
-/**
- * Изменяет количество в общем кофре.
- */
 export function changeCommonQty(path, caseId, delta) {
   path = path.replace(/\\/g, '|');
   console.log('[OrderActions] changeCommonQty called:', path, caseId, delta);
@@ -319,9 +293,6 @@ export function changeCommonQty(path, caseId, delta) {
   updateCommonCaseIndicators();
 }
 
-/**
- * Изменяет количество вне кофров.
- */
 export function changeExtraQty(path, delta) {
   path = path.replace(/\\/g, '|');
   console.log('[OrderActions] changeExtraQty called:', path, delta);
@@ -347,9 +318,6 @@ export function changeExtraQty(path, delta) {
   updateCommonCaseIndicators();
 }
 
-/**
- * Обрабатывает изменение количества по кнопке +/- (вызывает нужную функцию по типу кнопки).
- */
 export function handleQuantityChange(btn, path, delta) {
   path = path.replace(/\\/g, '|');
   console.log('[OrderActions] handleQuantityChange called:', path, delta, btn.className);
@@ -373,9 +341,6 @@ export function handleQuantityChange(btn, path, delta) {
   }
 }
 
-/**
- * Обрабатывает ввод в полях количества (input).
- */
 export function handleQuantityInput(target) {
   let path = target.dataset.path;
   if (!path) return;
