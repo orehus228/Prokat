@@ -6,24 +6,23 @@ import { updateLinkCount } from './OrderTotals.js';
 import { setCurrentCategoryForActions, toggleInfo, toggleDesc, editNote, handleQuantityChange, handleQuantityInput } from './OrderActions.js';
 import { getCurrentCategory, updateRow, updateCommonCaseIndicators } from './OrderRenderer.js';
 
-let eventsBound = false;
+let _listeners = [];
 
-/**
- * Привязывает все события к DOM-элементам страницы заказа.
- * @param {Object} callbacks - колбэки для внешних действий (например, открытие модалок)
- */
 export function bindOrderEvents(callbacks = {}) {
-  if (eventsBound) return;
-  eventsBound = true;
-
   const container = document.getElementById('categoryContents');
   if (!container) return;
+
+  // Удаляем старые слушатели
+  for (const { event, handler } of _listeners) {
+    container.removeEventListener(event, handler);
+  }
+  _listeners = [];
 
   // Устанавливаем текущую категорию для действий
   setCurrentCategoryForActions(getCurrentCategory());
 
   // Делегированный обработчик кликов
-  container.addEventListener('click', (e) => {
+  const clickHandler = (e) => {
     const target = e.target.closest('button');
     if (!target) return;
 
@@ -49,7 +48,7 @@ export function bindOrderEvents(callbacks = {}) {
       return;
     }
 
-    // Линк (открывает матрицу)
+    // Линк
     if (target.classList.contains('link-btn')) {
       if (callbacks.onOpenMatrix) {
         callbacks.onOpenMatrix(target.dataset.path);
@@ -57,12 +56,11 @@ export function bindOrderEvents(callbacks = {}) {
       return;
     }
 
-    // Кофры (открывает настройки кофров)
+    // Кофры
     if (target.classList.contains('case-btn')) {
       if (callbacks.onOpenCaseSettings) {
         callbacks.onOpenCaseSettings(target.dataset.path, () => {
           updateRow(target.dataset.path);
-          // обновить итоги
           import('./OrderTotals.js').then(({ updateTotals, updateCategoryTotals }) => {
             updateTotals();
             const cat = getCurrentCategory();
@@ -79,13 +77,11 @@ export function bindOrderEvents(callbacks = {}) {
       editNote(target.dataset.path);
       return;
     }
-  });
+  };
 
-  // Делегированный обработчик ввода (input)
-  container.addEventListener('input', (e) => {
+  const inputHandler = (e) => {
     const target = e.target;
     if (!target) return;
-    // Проверяем, что это одно из полей количества
     if (target.classList.contains('qty-input') ||
         target.classList.contains('single-pieces-input') ||
         target.classList.contains('single-cases-input') ||
@@ -94,42 +90,26 @@ export function bindOrderEvents(callbacks = {}) {
         target.classList.contains('child-extra-qty')) {
       handleQuantityInput(target);
     }
-  });
+  };
 
-  // При изменении заказа в store — обновляем счётчик линков
-  // (подписка уже есть в основном компоненте, но для надёжности добавим)
+  container.addEventListener('click', clickHandler);
+  container.addEventListener('input', inputHandler);
+
+  _listeners.push({ event: 'click', handler: clickHandler });
+  _listeners.push({ event: 'input', handler: inputHandler });
+
+  // Обновляем счётчик линков
   const links = getLinks();
   let linkCount = 0;
   for (const src in links) linkCount += links[src].length;
   updateLinkCount();
 }
 
-/**
- * Отвязывает события (если нужно перепривязать).
- */
 export function unbindOrderEvents() {
-  eventsBound = false;
-  // Удаляем слушатели с #categoryContents
   const container = document.getElementById('categoryContents');
-  if (container) {
-    // Просто удаляем все слушатели — проще всего заменить на новый элемент,
-    // но в нашем случае мы просто сбрасываем флаг, и при следующем bindOrderEvents
-    // слушатели будут добавлены заново, а старые останутся, но они будут перезаписаны?
-    // Лучше удалить конкретные, но мы не храним ссылки на функции.
-    // В этом случае можно не удалять, а просто сбросить флаг, но тогда слушатели накопятся.
-    // Поэтому используем более надёжный подход: заменяем элемент на его клон.
-    // Но для простоты мы будем использовать флаг и удаление всех обработчиков.
-    // Проще всего пересоздать контейнер, но это ломает рендеринг.
-    // Вместо этого мы будем привязывать события один раз при инициализации.
-    // Если нужно перепривязать — можно использовать removeEventListener с сохранёнными ссылками,
-    // но для упрощения мы просто будем использовать один раз и не отвязывать.
-    // Это нормально, так как компонент не пересоздаётся часто.
+  if (!container) return;
+  for (const { event, handler } of _listeners) {
+    container.removeEventListener(event, handler);
   }
-}
-
-/**
- * Обновляет привязку к текущей категории (вызывается при смене категории).
- */
-export function updateEventsCategory() {
-  setCurrentCategoryForActions(getCurrentCategory());
+  _listeners = [];
 }
