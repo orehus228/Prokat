@@ -6,6 +6,7 @@ import { debounce } from '../../../core/utils.js';
 import { CAT_NAMES, SEARCH_DEBOUNCE_DELAY } from '../../../core/config.js';
 import { showToast } from '../../toast.js';
 import { clearOrder } from '../../../services/order.js';
+import { handleQuantityChange, handleQuantityInput } from './OrderActions.js'; // <-- импорт
 
 // Импорт всех модулей OrderPage
 import {
@@ -28,7 +29,7 @@ import {
   renderTabs,
   renderCategoryContent,
   updateCommonCaseIndicators,
-  buildItemRow  // <-- добавили импорт buildItemRow
+  buildItemRow
 } from './OrderRenderer.js';
 
 import {
@@ -59,6 +60,8 @@ export class OrderPage {
     this._unsubscribe = null;
     this._handlers = [];
     this._debouncedSearch = debounce(() => this._applySearch(), SEARCH_DEBOUNCE_DELAY);
+    this._contentsClickHandler = null; // для удаления
+    this._contentsInputHandler = null;
   }
 
   init() {
@@ -181,7 +184,7 @@ export class OrderPage {
   }
 
   // ============================================================
-  // ПРИВЯЗКА СОБЫТИЙ (без bindOrderEvents)
+  // ПРИВЯЗКА СОБЫТИЙ (делегирование)
   // ============================================================
 
   _bindEvents() {
@@ -272,7 +275,43 @@ export class OrderPage {
     if (pDate) pDate.addEventListener('change', () => localStorage.setItem('last_date', pDate.value));
     if (pComment) pComment.addEventListener('input', () => localStorage.setItem('last_comment', pComment.value));
 
-    // ВАЖНО: НЕ вызываем bindOrderEvents, так как обработчики теперь привязаны напрямую в OrderRenderer.js
+    // ===== ДЕЛЕГИРОВАНИЕ СОБЫТИЙ ДЛЯ КНОПОК КОЛИЧЕСТВА =====
+    const contents = container.querySelector('#categoryContents');
+    if (contents) {
+      // Удаляем старые обработчики (если есть)
+      if (this._contentsClickHandler) {
+        contents.removeEventListener('click', this._contentsClickHandler);
+        contents.removeEventListener('input', this._contentsInputHandler);
+      }
+
+      this._contentsClickHandler = (e) => {
+        const btn = e.target.closest('.btn-c');
+        if (!btn) return;
+        e.preventDefault();
+        const path = btn.dataset.path;
+        const delta = parseInt(btn.dataset.delta, 10);
+        if (!path || isNaN(delta)) return;
+        console.log('[OrderPage] Делегированный клик по кнопке количества:', path, delta);
+        handleQuantityChange(btn, path, delta);
+      };
+
+      this._contentsInputHandler = (e) => {
+        const input = e.target;
+        if (!input) return;
+        if (input.classList.contains('qty-input') ||
+            input.classList.contains('single-pieces-input') ||
+            input.classList.contains('single-cases-input') ||
+            input.classList.contains('child-multi-pieces') ||
+            input.classList.contains('child-common-qty') ||
+            input.classList.contains('child-extra-qty')) {
+          console.log('[OrderPage] Делегированный ввод в поле количества:', input);
+          handleQuantityInput(input);
+        }
+      };
+
+      contents.addEventListener('click', this._contentsClickHandler);
+      contents.addEventListener('input', this._contentsInputHandler);
+    }
   }
 
   // ============================================================
@@ -337,7 +376,6 @@ export class OrderPage {
             catTitle.textContent = CAT_NAMES[cat] || cat;
             wrapper.appendChild(catTitle);
             grouped[cat].forEach(path => {
-              // ИСПРАВЛЕНО: используем импортированный buildItemRow
               wrapper.appendChild(buildItemRow(path, 1));
             });
           });
@@ -522,6 +560,18 @@ tr:nth-child(even){background:#f9f9f9}
     }
     this._handlers = [];
     if (this.container) {
+      // Удаляем делегированные обработчики
+      const contents = this.container.querySelector('#categoryContents');
+      if (contents) {
+        if (this._contentsClickHandler) {
+          contents.removeEventListener('click', this._contentsClickHandler);
+          this._contentsClickHandler = null;
+        }
+        if (this._contentsInputHandler) {
+          contents.removeEventListener('input', this._contentsInputHandler);
+          this._contentsInputHandler = null;
+        }
+      }
       this.container.innerHTML = '';
     }
   }
