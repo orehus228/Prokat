@@ -513,7 +513,7 @@ export function updateCategoryTotalsOrder(catKey) {
 }
 
 // ============================================================
-// ГЛАВНАЯ ФУНКЦИЯ СТАТИСТИКИ — ИСПРАВЛЕННАЯ
+// ГЛАВНАЯ ФУНКЦИЯ СТАТИСТИКИ — ИСПРАВЛЕННАЯ (разделение веса)
 // ============================================================
 export function updateTotalsOrder() {
   const state = getState();
@@ -522,7 +522,6 @@ export function updateTotalsOrder() {
   const itemsMap = new Map(); // path -> { qty, packing, extra, individualVals, mode }
   const seenPaths = new Set();
 
-  // Из orderPacking + orderExtra
   for (let p in state.orderPacking) {
     const packing = state.orderPacking[p];
     const total = packing.reduce((s, item) => s + (item.pieces || 0), 0);
@@ -534,7 +533,6 @@ export function updateTotalsOrder() {
     }
   }
 
-  // Из order (обычное количество)
   for (let p in state.order) {
     if (state.order[p] > 0 && !seenPaths.has(p)) {
       itemsMap.set(p, { qty: state.order[p], packing: [], extra: 0, individualVals: state.individualCaseValues[p] || [], mode: state.caseModes[p] || {} });
@@ -542,7 +540,6 @@ export function updateTotalsOrder() {
     }
   }
 
-  // Из individualCaseValues (мультикофры)
   for (let p in state.individualCaseValues) {
     const vals = state.individualCaseValues[p];
     const total = vals.reduce((a, b) => a + b, 0);
@@ -553,37 +550,64 @@ export function updateTotalsOrder() {
   }
 
   // 2. Инициализируем структуры
-  const catMap = {}; // для всех категорий (сумма всех позиций)
-  let commonQty = 0, commonWeight = 0, commonVolume = 0; // только для общих кофров
+  const catMap = {}; // вес без учёта пустых кофров (чистый вес позиций)
+  let commonQty = 0, commonWeight = 0, commonVolume = 0;
   let totalQty = 0, totalWeight = 0, totalVolume = 0;
 
   // 3. Обрабатываем каждую позицию
   itemsMap.forEach((itemData, path) => {
     const { qty, packing, extra, individualVals, mode } = itemData;
     const props = calc.getItemPropsByPath(path);
-    const weight = calc.calcItemWeight(path, qty, mode, packing, individualVals, extra);
+    const unitWeight = props.weight || 0;
+
+    // Вычисляем чистый вес (без учёта пустых кофров)
+    let weightPure = 0;
+    if (packing.length > 0) {
+      // Суммируем вес только позиций, упакованных в кофры
+      packing.forEach(p => {
+        if (p.pieces > 0) {
+          weightPure += p.pieces * unitWeight;
+        }
+      });
+      // Добавляем extra (вне кофра) как обычные позиции
+      if (extra > 0) {
+        weightPure += extra * unitWeight;
+      }
+      // Остаток (если есть) – может быть, если qty > totalPacked + extra
+      const totalPacked = packing.reduce((s, p) => s + (p.pieces || 0), 0);
+      const remainder = qty - totalPacked - extra;
+      if (remainder > 0) {
+        weightPure += remainder * unitWeight;
+      }
+    } else {
+      // Нет упаковки — используем стандартный расчёт (он даст вес только позиций)
+      weightPure = calc.calcItemWeight(path, qty, mode, packing, individualVals, extra);
+    }
+
+    // Полный вес (с учётом пустых кофров)
+    const weightFull = calc.calcItemWeight(path, qty, mode, packing, individualVals, extra);
     const volume = calc.calcItemVolume(path, qty, mode, packing, individualVals, extra);
     const cases = calc.calcItemCases(path, qty, mode, individualVals);
 
     const parts = path.split('|');
     const cat = parts[0];
 
-    // Добавляем в общую категорию (всегда)
+    // Добавляем в категорию с чистым весом
     if (!catMap[cat]) catMap[cat] = { qty: 0, weight: 0, volume: 0, cases: 0 };
     catMap[cat].qty += qty;
-    catMap[cat].weight += weight;
+    catMap[cat].weight += weightPure;
     catMap[cat].volume += volume;
     catMap[cat].cases += cases;
 
-    // Общие итоги
+    // Общие итоги (суммируем полный вес)
     totalQty += qty;
-    totalWeight += weight;
+    totalWeight += weightFull;
     totalVolume += volume;
 
-    // Если позиция упакована в общие кофры (packing.length > 0), добавляем в common-итоги
+    // Если есть упаковка в общие кофры, добавляем в блок общих кофров с полным весом
     if (packing.length > 0) {
       commonQty += qty;
-      commonWeight += weight;
+      commonWeight += weightFull;
       commonVolume += volume;
     }
   });
@@ -600,14 +624,12 @@ export function updateTotalsOrder() {
   const orderKeys = state._categoryOrder || Object.keys(state.inventory);
   let detailsHtml = '';
 
-  // Категории (все позиции)
   orderKeys.forEach(cat => {
     if (!catMap[cat]) return;
     const catResult = catMap[cat];
     detailsHtml += `<div class="cat-detail"><strong>${CAT_NAMES[cat] || cat}</strong><br>${catResult.qty} шт<br>${formatWeight(catResult.weight)}<br>${formatVolume(catResult.volume)}</div>`;
   });
 
-  // Блок общих кофров (только общие цифры, без разбивки по категориям)
   if (commonQty > 0) {
     detailsHtml += `<div class="cat-detail common-case-detail"><strong>📦 Общие кофры</strong><br>${commonQty} шт<br>${formatWeight(commonWeight)}<br>${formatVolume(commonVolume)}</div>`;
   }
