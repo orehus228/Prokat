@@ -34,6 +34,7 @@ export function setCurrentCategoryForActions(cat) {
  * Переключает отображение информации о позиции.
  */
 export function toggleInfo(path) {
+  path = path.replace(/\\/g, '|');
   const container = document.getElementById('categoryContents');
   if (!container) return;
   const row = container.querySelector(`.row[data-path="${path}"]`);
@@ -61,6 +62,7 @@ export function toggleInfo(path) {
  * Переключает отображение описания позиции.
  */
 export function toggleDesc(path) {
+  path = path.replace(/\\/g, '|');
   const container = document.getElementById('categoryContents');
   if (!container) return;
   const row = container.querySelector(`.row[data-path="${path}"]`);
@@ -77,6 +79,7 @@ export function toggleDesc(path) {
  * Редактирует заметку позиции.
  */
 export async function editNote(path) {
+  path = path.replace(/\\/g, '|');
   const current = getNote(path);
   const newNote = await showPrompt('Редактировать заметку', 'Заметка:', current);
   if (newNote === null) return;
@@ -89,6 +92,7 @@ export async function editNote(path) {
  * Изменяет количество в простом режиме (qty-input).
  */
 export function changeQty(path, delta) {
+  path = path.replace(/\\/g, '|');
   console.log('[OrderActions] changeQty called:', path, delta);
   const current = getTotalQty(path);
   const sq = getStockByPath(path);
@@ -103,7 +107,6 @@ export function changeQty(path, delta) {
   if (currentCategoryForActions) {
     updateCategoryTotals(currentCategoryForActions);
   } else {
-    // fallback: получить категорию из пути
     const cat = path.split('|')[0];
     if (cat) updateCategoryTotals(cat);
   }
@@ -113,6 +116,7 @@ export function changeQty(path, delta) {
  * Изменяет количество в режиме "один кофр" (штуки).
  */
 export function changeSinglePiece(path, delta) {
+  path = path.replace(/\\/g, '|');
   console.log('[OrderActions] changeSinglePiece called:', path, delta);
   const mode = getCaseMode(path);
   const options = getItemPropsByPath(path).individualCases || [];
@@ -147,6 +151,7 @@ export function changeSinglePiece(path, delta) {
  * Изменяет количество в режиме "один кофр" (кофры).
  */
 export function changeSingleCase(path, delta) {
+  path = path.replace(/\\/g, '|');
   console.log('[OrderActions] changeSingleCase called:', path, delta);
   const mode = getCaseMode(path);
   const options = getItemPropsByPath(path).individualCases || [];
@@ -184,6 +189,7 @@ export function changeSingleCase(path, delta) {
  * Изменяет количество в мультирежиме (штуки для конкретного варианта).
  */
 export function changeMultiPiece(path, idx, delta) {
+  path = path.replace(/\\/g, '|');
   console.log('[OrderActions] changeMultiPiece called:', path, idx, delta);
   const vals = getIndividualCaseValues(path);
   const current = vals[idx] || 0;
@@ -221,6 +227,7 @@ export function changeMultiPiece(path, idx, delta) {
  * Изменяет количество в мультирежиме (кофры для конкретного варианта).
  */
 export function changeMultiCase(path, idx, delta) {
+  path = path.replace(/\\/g, '|');
   console.log('[OrderActions] changeMultiCase called:', path, idx, delta);
   const vals = getIndividualCaseValues(path);
   const options = getItemPropsByPath(path).individualCases || [];
@@ -262,6 +269,7 @@ export function changeMultiCase(path, idx, delta) {
  * Изменяет количество в общем кофре.
  */
 export function changeCommonQty(path, caseId, delta) {
+  path = path.replace(/\\/g, '|');
   console.log('[OrderActions] changeCommonQty called:', path, caseId, delta);
   const packing = getOrderPacking(path);
   const p = packing.find(p => p.caseId === caseId);
@@ -316,6 +324,7 @@ export function changeCommonQty(path, caseId, delta) {
  * Изменяет количество вне кофров.
  */
 export function changeExtraQty(path, delta) {
+  path = path.replace(/\\/g, '|');
   console.log('[OrderActions] changeExtraQty called:', path, delta);
   const current = getOrderExtra(path);
   let newVal = Math.max(0, current + delta);
@@ -343,6 +352,7 @@ export function changeExtraQty(path, delta) {
  * Обрабатывает изменение количества по кнопке +/- (вызывает нужную функцию по типу кнопки).
  */
 export function handleQuantityChange(btn, path, delta) {
+  path = path.replace(/\\/g, '|');
   console.log('[OrderActions] handleQuantityChange called:', path, delta, btn.className);
   if (btn.classList.contains('qty-btn')) {
     changeQty(path, delta);
@@ -368,7 +378,9 @@ export function handleQuantityChange(btn, path, delta) {
  * Обрабатывает ввод в полях количества (input).
  */
 export function handleQuantityInput(target) {
-  const path = target.dataset.path;
+  let path = target.dataset.path;
+  if (!path) return;
+  path = path.replace(/\\/g, '|');
   console.log('[OrderActions] handleQuantityInput called:', path);
 
   if (target.classList.contains('qty-input')) {
@@ -387,5 +399,121 @@ export function handleQuantityInput(target) {
     return;
   }
 
-  // ... (остальные обработчики аналогично)
+  if (target.classList.contains('single-pieces-input')) {
+    let val = parseInt(target.value, 10) || 0;
+    if (val < 0) val = 0;
+    target.value = val;
+    setIndividualCaseValues(path, [val]);
+    setOrderValue(path, val);
+    updateRow(path);
+    updateTotals();
+    if (currentCategoryForActions) {
+      updateCategoryTotals(currentCategoryForActions);
+    } else {
+      const cat = path.split('|')[0];
+      if (cat) updateCategoryTotals(cat);
+    }
+    return;
+  }
+
+  if (target.classList.contains('single-cases-input')) {
+    let val = parseInt(target.value, 10) || 0;
+    if (val < 0) val = 0;
+    const mode = getCaseMode(path);
+    const options = getItemPropsByPath(path).individualCases || [];
+    const opt = options[mode.selectedOption] || options[0];
+    if (opt && opt.qty) {
+      const maxCases = opt.maxCases || 0;
+      if (maxCases > 0 && val > maxCases) {
+        val = maxCases;
+        target.value = val;
+        showToast(`Превышен лимит кофров (макс. ${maxCases})`, 'warning');
+      }
+      const pieces = val * opt.qty;
+      const sq = getStockByPath(path);
+      if (pieces > sq) {
+        showToast(`Превышено доступное количество (${sq})`, 'warning');
+        const maxVal = Math.floor(sq / opt.qty);
+        if (maxVal < val) {
+          val = maxVal;
+          target.value = val;
+        }
+      }
+      const piecesInput = target.closest('.qty-controls')?.querySelector('.single-pieces-input');
+      if (piecesInput) piecesInput.value = pieces;
+      setIndividualCaseValues(path, [pieces]);
+      setOrderValue(path, pieces);
+      updateRow(path);
+      updateTotals();
+      if (currentCategoryForActions) {
+        updateCategoryTotals(currentCategoryForActions);
+      } else {
+        const cat = path.split('|')[0];
+        if (cat) updateCategoryTotals(cat);
+      }
+    }
+    return;
+  }
+
+  if (target.classList.contains('child-multi-pieces')) {
+    const idx = parseInt(target.dataset.idx, 10);
+    let val = parseInt(target.value, 10) || 0;
+    if (val < 0) val = 0;
+    target.value = val;
+    const vals = getIndividualCaseValues(path);
+    vals[idx] = val;
+    const total = vals.reduce((a, b) => a + b, 0);
+    setIndividualCaseValues(path, vals);
+    setOrderValue(path, total);
+    updateRow(path);
+    updateTotals();
+    if (currentCategoryForActions) {
+      updateCategoryTotals(currentCategoryForActions);
+    } else {
+      const cat = path.split('|')[0];
+      if (cat) updateCategoryTotals(cat);
+    }
+    updateCommonCaseIndicators();
+    return;
+  }
+
+  if (target.classList.contains('child-common-qty')) {
+    const caseId = target.dataset.caseid;
+    let val = parseInt(target.value, 10) || 0;
+    if (val < 0) val = 0;
+    target.value = val;
+    const packing = getOrderPacking(path);
+    const p = packing.find(p => p.caseId === caseId);
+    if (p) {
+      p.pieces = val;
+      setOrderPacking(path, packing);
+      updateRow(path);
+      updateTotals();
+      if (currentCategoryForActions) {
+        updateCategoryTotals(currentCategoryForActions);
+      } else {
+        const cat = path.split('|')[0];
+        if (cat) updateCategoryTotals(cat);
+      }
+      updateCommonCaseIndicators();
+    }
+    return;
+  }
+
+  if (target.classList.contains('child-extra-qty')) {
+    let val = parseInt(target.value, 10) || 0;
+    if (val < 0) val = 0;
+    target.value = val;
+    setOrderExtra(path, val);
+    updateRow(path);
+    updateTotals();
+    if (currentCategoryForActions) {
+      updateCategoryTotals(currentCategoryForActions);
+    } else {
+      const cat = path.split('|')[0];
+      if (cat) updateCategoryTotals(cat);
+    }
+    updateCommonCaseIndicators();
+    return;
+  }
 }

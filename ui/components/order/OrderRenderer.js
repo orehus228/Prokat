@@ -322,7 +322,6 @@ export function buildQtyControls(path) {
     minusBtn.dataset.path = path;
     minusBtn.dataset.delta = '-1';
     minusBtn.textContent = '−';
-    // Нет addEventListener — обработка через делегирование
 
     const input = document.createElement('input');
     input.type = 'number';
@@ -455,7 +454,12 @@ export function buildQtyControls(path) {
   return div;
 }
 
+/**
+ * Обновляет строку позиции (перерисовывает состояние).
+ * Добавлена нормализация пути для корректного поиска.
+ */
 export function updateRow(path) {
+  path = path.replace(/\\/g, '|');
   const container = document.getElementById('categoryContents');
   if (!container) return;
   const row = container.querySelector(`.row[data-path="${path}"]`);
@@ -550,7 +554,12 @@ export function updateRow(path) {
   updateChildRows(path);
 }
 
+/**
+ * Обновляет дочерние строки (кофры, мульти).
+ * Добавлена нормализация пути для корректного поиска.
+ */
 export function updateChildRows(path) {
+  path = path.replace(/\\/g, '|');
   const container = document.getElementById('categoryContents');
   if (!container) return;
   const row = container.querySelector(`.row[data-path="${path}"]`);
