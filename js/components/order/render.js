@@ -513,7 +513,7 @@ export function updateCategoryTotalsOrder(catKey) {
 }
 
 // ============================================================
-// ГЛАВНАЯ ФУНКЦИЯ СТАТИСТИКИ — ИСПРАВЛЕННАЯ
+// ГЛАВНАЯ ФУНКЦИЯ СТАТИСТИКИ — ФИНАЛЬНАЯ ВЕРСИЯ
 // ============================================================
 export function updateTotalsOrder() {
   const state = getState();
@@ -550,9 +550,10 @@ export function updateTotalsOrder() {
   }
 
   // 2. Инициализируем структуры
-  const catMap = {}; // для категорий: qty, weight (чистый или 0 для упакованных), volume, cases
-  const commonItems = []; // для блока общих кофров (полный вес)
+  const catMap = {}; // для категорий: qty, weight (только для не упакованных), volume, cases
+  const commonByCategory = {}; // для общих кофров: суммируем по категориям
   let totalQty = 0, totalWeight = 0, totalVolume = 0;
+  let commonTotalQty = 0, commonTotalWeight = 0, commonTotalVolume = 0;
 
   // 3. Обрабатываем каждую позицию
   itemsMap.forEach((itemData, path) => {
@@ -571,32 +572,32 @@ export function updateTotalsOrder() {
     // Определяем, есть ли упаковка в общие кофры
     const hasCommonPacking = packing.length > 0;
 
-    // Для категории: если есть упаковка, то вес и объём не учитываем (только количество)
+    // Добавляем в категорию
     if (!catMap[cat]) catMap[cat] = { qty: 0, weight: 0, volume: 0, cases: 0 };
     catMap[cat].qty += qty;
     if (!hasCommonPacking) {
-      // Если нет упаковки, добавляем полный вес (он же чистый вес позиций)
+      // Если нет упаковки, учитываем полный вес (чистый вес позиций)
       catMap[cat].weight += weightFull;
       catMap[cat].volume += volume;
     }
-    // cases добавляем всегда (количество кофров может быть и для индивидуальных)
     catMap[cat].cases += cases;
 
-    // Общие итоги (всегда полный вес)
+    // Общие итоги (полный вес)
     totalQty += qty;
     totalWeight += weightFull;
     totalVolume += volume;
 
-    // Если есть упаковка, добавляем в список общих кофров
+    // Если есть упаковка, добавляем в общие кофры
     if (hasCommonPacking) {
-      commonItems.push({
-        path,
-        qty,
-        weight: weightFull,
-        volume,
-        name: path.split('|').pop(),
-        cat,
-      });
+      commonTotalQty += qty;
+      commonTotalWeight += weightFull;
+      commonTotalVolume += volume;
+      if (!commonByCategory[cat]) {
+        commonByCategory[cat] = { qty: 0, weight: 0, volume: 0 };
+      }
+      commonByCategory[cat].qty += qty;
+      commonByCategory[cat].weight += weightFull;
+      commonByCategory[cat].volume += volume;
     }
   });
 
@@ -605,24 +606,21 @@ export function updateTotalsOrder() {
   document.getElementById('totalWeight').textContent = totalWeight.toFixed(1);
   document.getElementById('totalVolume').textContent = totalVolume.toFixed(3);
 
-  // 5. Строим детальную статистику (развёрнутый список позиций)
+  // 5. Строим детальную статистику
   const detailsDiv = document.getElementById('globalDetails');
   if (!detailsDiv) return;
 
-  // Получаем порядок категорий
   const orderKeys = state._categoryOrder || Object.keys(state.inventory);
-
-  // Строим список всех позиций с группировкой по категориям
   let detailsHtml = '';
 
-  // Сначала выводим итоги по категориям (как раньше)
+  // Итоги по категориям (без общих кофров)
   orderKeys.forEach(cat => {
     if (!catMap[cat]) return;
     const catResult = catMap[cat];
     detailsHtml += `<div class="cat-detail"><strong>${CAT_NAMES[cat] || cat}</strong><br>${catResult.qty} шт<br>${formatWeight(catResult.weight)}<br>${formatVolume(catResult.volume)}</div>`;
   });
 
-  // Теперь выводим список всех позиций с полным весом
+  // Список всех позиций (с полным весом)
   let listHtml = `<div style="width:100%;margin-top:8px;border-top:1px solid var(--border-color);padding-top:8px;"><strong>Все позиции:</strong></div>`;
   const allPaths = Array.from(itemsMap.keys()).sort((a, b) => {
     const catA = a.split('|')[0];
@@ -647,19 +645,24 @@ export function updateTotalsOrder() {
   });
   detailsHtml += listHtml;
 
-  // Блок общих кофров (если есть)
-  if (commonItems.length > 0) {
-    const commonQty = commonItems.reduce((s, i) => s + i.qty, 0);
-    const commonWeight = commonItems.reduce((s, i) => s + i.weight, 0);
-    const commonVolume = commonItems.reduce((s, i) => s + i.volume, 0);
-    detailsHtml += `<div class="cat-detail common-case-detail"><strong>📦 Общие кофры</strong><br>${commonQty} шт<br>${formatWeight(commonWeight)}<br>${formatVolume(commonVolume)}</div>`;
+  // Блок общих кофров (кратко, с процентами)
+  if (commonTotalQty > 0) {
+    let commonPercentages = '';
+    const catNames = Object.keys(commonByCategory);
+    catNames.forEach((cat, idx) => {
+      const data = commonByCategory[cat];
+      const percent = commonTotalWeight > 0 ? (data.weight / commonTotalWeight) * 100 : 0;
+      commonPercentages += `${CAT_NAMES[cat] || cat}: ${percent.toFixed(1)}%`;
+      if (idx < catNames.length - 1) commonPercentages += ', ';
+    });
+    detailsHtml += `<div class="cat-detail common-case-detail"><strong>📦 Общие кофры</strong><br>${commonTotalQty} шт<br>${formatWeight(commonTotalWeight)}<br>${formatVolume(commonTotalVolume)}<br><span style="font-size:13px;color:var(--text-secondary);">${commonPercentages}</span></div>`;
   }
 
   detailsDiv.innerHTML = detailsHtml || '';
   renderCommonCaseIndicatorsOrder();
 
   console.log('[STATS] Всего: шт=' + totalQty + ', вес=' + totalWeight + ', объём=' + totalVolume);
-  console.log('[STATS] Общих кофров: шт=' + commonItems.reduce((s,i) => s + i.qty, 0));
+  console.log('[STATS] Общих кофров: шт=' + commonTotalQty + ', вес=' + commonTotalWeight);
 }
 
 // Вспомогательная функция для подсчёта итогов по категории (используется в updateCategoryTotalsOrder)
