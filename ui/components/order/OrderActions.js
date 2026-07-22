@@ -22,6 +22,7 @@ import {
 import { getPackaging } from '../../../services/packaging.js';
 import { updateTotals, updateCategoryTotals } from './OrderTotals.js';
 import { updateRow, updateCommonCaseIndicators, getCurrentCategory } from './OrderRenderer.js';
+import { getState } from '../../../core/store.js'; // <-- ИСПРАВЛЕНО: добавлен импорт
 
 let currentCategoryForActions = null;
 
