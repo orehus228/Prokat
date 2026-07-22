@@ -513,7 +513,7 @@ export function updateCategoryTotalsOrder(catKey) {
 }
 
 // ============================================================
-// ГЛАВНАЯ ФУНКЦИЯ СТАТИСТИКИ — ПРЯМОЙ ПЕРЕБОР ВСЕХ ИСТОЧНИКОВ
+// ГЛАВНАЯ ФУНКЦИЯ СТАТИСТИКИ — ИСПРАВЛЕННАЯ
 // ============================================================
 export function updateTotalsOrder() {
   const state = getState();
@@ -542,7 +542,7 @@ export function updateTotalsOrder() {
     }
   }
 
-  // Из individualCaseValues (мультикофры)
+  // Из individualCaseValues (мультикофры) – они не должны попадать в общие кофры
   for (let p in state.individualCaseValues) {
     const vals = state.individualCaseValues[p];
     const total = vals.reduce((a, b) => a + b, 0);
@@ -552,21 +552,11 @@ export function updateTotalsOrder() {
     }
   }
 
-  // 2. Считаем общие итоги
-  const result = calculateTotals(items);
-
-  // 3. Обновляем глобальные цифры
-  document.getElementById('totalQty').textContent = result.totalQty;
-  document.getElementById('totalWeight').textContent = result.totalWeight.toFixed(1);
-  document.getElementById('totalVolume').textContent = result.totalVolume.toFixed(3);
-
-  // 4. Строим детальную статистику
-  const detailsDiv = document.getElementById('globalDetails');
-  if (!detailsDiv) return;
-
-  const orderKeys = state._categoryOrder || Object.keys(state.inventory);
-  const catMap = {};
-  let commonWeight = 0, commonVolume = 0, commonQty = 0;
+  // 2. Считаем общие итоги и детализацию
+  let totalQty = 0, totalWeight = 0, totalVolume = 0;
+  const catMap = {}; // для обычных категорий (без общих кофров)
+  const commonCatMap = {}; // для разбивки общих кофров по категориям
+  let commonQty = 0, commonWeight = 0, commonVolume = 0;
 
   items.forEach(({ path, qty }) => {
     // Получаем данные напрямую
@@ -583,28 +573,71 @@ export function updateTotalsOrder() {
 
     const parts = path.split('|');
     const cat = parts[0];
-    if (!catMap[cat]) catMap[cat] = { qty: 0, weight: 0, volume: 0, cases: 0 };
-    catMap[cat].qty += qty;
-    catMap[cat].weight += weight;
-    catMap[cat].volume += volume;
-    catMap[cat].cases += cases;
 
-    if (packing.length > 0 || extra > 0) {
+    // Обновляем общие итоги
+    totalQty += qty;
+    totalWeight += weight;
+    totalVolume += volume;
+
+    // Определяем, куда относить: в свою категорию или в общие кофры
+    // Если есть упаковка в общие кофры (packing.length > 0) – относим только в общие кофры
+    if (packing.length > 0) {
+      // Добавляем в общие кофры
+      commonQty += qty;
       commonWeight += weight;
       commonVolume += volume;
-      commonQty += qty;
+      // Накапливаем по категориям для разбивки внутри общих кофров
+      if (!commonCatMap[cat]) commonCatMap[cat] = { qty: 0, weight: 0, volume: 0, cases: 0 };
+      commonCatMap[cat].qty += qty;
+      commonCatMap[cat].weight += weight;
+      commonCatMap[cat].volume += volume;
+      commonCatMap[cat].cases += cases;
+    } else {
+      // Не в общих кофрах (вне кофра или без кофра) – в свою категорию
+      if (!catMap[cat]) catMap[cat] = { qty: 0, weight: 0, volume: 0, cases: 0 };
+      catMap[cat].qty += qty;
+      catMap[cat].weight += weight;
+      catMap[cat].volume += volume;
+      catMap[cat].cases += cases;
     }
   });
 
+  // 3. Обновляем глобальные цифры
+  document.getElementById('totalQty').textContent = totalQty;
+  document.getElementById('totalWeight').textContent = totalWeight.toFixed(1);
+  document.getElementById('totalVolume').textContent = totalVolume.toFixed(3);
+
+  // 4. Строим детальную статистику
+  const detailsDiv = document.getElementById('globalDetails');
+  if (!detailsDiv) return;
+
+  const orderKeys = state._categoryOrder || Object.keys(state.inventory);
   let detailsHtml = '';
+
+  // Сначала категории без общих кофров
   orderKeys.forEach(cat => {
     if (!catMap[cat]) return;
     const catResult = catMap[cat];
     detailsHtml += `<div class="cat-detail"><strong>${CAT_NAMES[cat] || cat}</strong><br>${catResult.qty} шт<br>${formatWeight(catResult.weight)}<br>${formatVolume(catResult.volume)}</div>`;
   });
 
+  // Блок общих кофров, если есть
   if (commonQty > 0) {
-    detailsHtml += `<div class="cat-detail common-case-detail"><strong>📦 Общие кофры</strong><br>${commonQty} шт<br>${formatWeight(commonWeight)}<br>${formatVolume(commonVolume)}</div>`;
+    // Сортируем категории внутри общих кофров для вывода (можно по весу)
+    const commonCats = Object.keys(commonCatMap);
+    // Вычисляем проценты по весу для каждой категории
+    let commonDetails = '';
+    commonCats.forEach(cat => {
+      const data = commonCatMap[cat];
+      const percent = commonWeight > 0 ? (data.weight / commonWeight) * 100 : 0;
+      commonDetails += `<div style="font-size:12px;color:var(--text-secondary);padding-left:12px;">${CAT_NAMES[cat] || cat}: ${percent.toFixed(1)}% (${data.qty} шт, ${formatWeight(data.weight)})</div>`;
+    });
+
+    detailsHtml += `<div class="cat-detail common-case-detail"><strong>📦 Общие кофры</strong><br>${commonQty} шт<br>${formatWeight(commonWeight)}<br>${formatVolume(commonVolume)}`;
+    if (commonDetails) {
+      detailsHtml += `<div style="margin-top:4px;">${commonDetails}</div>`;
+    }
+    detailsHtml += `</div>`;
   }
 
   detailsDiv.innerHTML = detailsHtml || '';
@@ -613,6 +646,7 @@ export function updateTotalsOrder() {
   console.log('[STATS] Общих кофров: шт=' + commonQty + ', вес=' + commonWeight + ', объём=' + commonVolume);
 }
 
+// Вспомогательная функция для подсчёта итогов по категории (используется в updateCategoryTotalsOrder)
 function calculateTotals(items) {
   let totalQty = 0, totalWeight = 0, totalVolume = 0, totalCases = 0;
   items.forEach(({ path, qty }) => {
