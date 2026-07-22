@@ -1,5 +1,5 @@
 // services/calculations.js
-import { getState, getCachedCalculation, setCachedCalculation } from '../core/state.js';
+import { getState } from '../core/state.js';
 
 function parseUnitVolume(dimensions) {
   if (!dimensions || typeof dimensions !== 'string') return 0;
@@ -71,10 +71,6 @@ function calcItemWeight(path, qty, mode, packing, individualVals, extra) {
   const props = getItemPropsByPath(path);
   if (!props.weight) return 0;
 
-  const cacheKey = `weight_${path}|${qty}|${mode.enabled}|${mode.selectedOption}|${mode.useAlt ? 'alt' : 'none'}|${mode.accumulate}`;
-  const cached = getCachedCalculation(cacheKey);
-  if (cached !== undefined) return cached;
-
   let result = 0;
 
   if (packing && packing.length > 0) {
@@ -121,7 +117,6 @@ function calcItemWeight(path, qty, mode, packing, individualVals, extra) {
     result = qty * props.weight;
   }
 
-  setCachedCalculation(cacheKey, result);
   return result;
 }
 
@@ -129,10 +124,6 @@ function calcItemVolume(path, qty, mode, packing, individualVals, extra) {
   if (qty <= 0) return 0;
   const props = getItemPropsByPath(path);
   if (!props.dimensions) return 0;
-
-  const cacheKey = `volume_${path}|${qty}|${mode.enabled}|${mode.selectedOption}|${mode.useAlt ? 'alt' : 'none'}|${mode.accumulate}`;
-  const cached = getCachedCalculation(cacheKey);
-  if (cached !== undefined) return cached;
 
   let result = 0;
 
@@ -178,7 +169,6 @@ function calcItemVolume(path, qty, mode, packing, individualVals, extra) {
     result = parseUnitVolume(props.dimensions) * qty;
   }
 
-  setCachedCalculation(cacheKey, result);
   return result;
 }
 
@@ -233,7 +223,6 @@ function calculateTotals(items) {
   return { totalWeight, totalVolume, totalQty };
 }
 
-// ===== ЕДИНЫЙ ЭКСПОРТ (все имена в одном месте) =====
 export {
   parseUnitVolume,
   getItemPropsByPath,
@@ -248,7 +237,6 @@ export {
   calculateTotals,
 };
 
-// ===== DEFAULT ЭКСПОРТ (для обратной совместимости) =====
 export default {
   parseUnitVolume,
   getItemPropsByPath,
