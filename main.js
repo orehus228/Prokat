@@ -6,9 +6,9 @@
  * @module main
  */
 
-import { initStore, getState, saveState } from './core/store.js';
+import { initStore, getState, saveState, loadState } from './core/store.js';
 import { emit, EVENTS } from './core/events.js';
-import { initTheme, getTheme } from './ui/theme.js';
+import { initTheme } from './ui/theme.js';
 import { initModalHandlers } from './ui/modal.js';
 import { showToast } from './ui/toast.js';
 import { createMenu } from './ui/components/Menu.js';
@@ -46,14 +46,12 @@ export function switchMode(mode) {
   console.log('[App] switchMode:', mode);
   currentMode = mode;
 
-  // Скрываем все страницы
   for (const key in containers) {
     if (containers[key]) {
       containers[key].style.display = 'none';
     }
   }
 
-  // Показываем выбранную
   const container = containers[mode];
   if (container) {
     container.style.display = 'block';
@@ -62,7 +60,6 @@ export function switchMode(mode) {
     return;
   }
 
-  // Инициализируем компонент при первом открытии
   switch (mode) {
     case 'menu':
       if (!appComponents.menu) {
@@ -73,53 +70,38 @@ export function switchMode(mode) {
         });
       }
       break;
-
     case 'order':
       if (!appComponents.order) {
-        appComponents.order = createOrderPage(container, {
-          onNavigate: switchMode,
-        });
+        appComponents.order = createOrderPage(container, { onNavigate: switchMode });
       } else {
         appComponents.order._onDataChanged();
       }
       break;
-
     case 'editor':
       if (!appComponents.editor) {
-        appComponents.editor = createEditorPage(container, {
-          onNavigate: switchMode,
-        });
+        appComponents.editor = createEditorPage(container, { onNavigate: switchMode });
       } else {
         appComponents.editor._renderEditor();
       }
       break;
-
     case 'open':
       if (!appComponents.open) {
-        appComponents.open = createOpenPage(container, {
-          onNavigate: switchMode,
-        });
+        appComponents.open = createOpenPage(container, { onNavigate: switchMode });
       } else {
         appComponents.open._renderContent();
       }
       break;
-
     case 'loading':
       if (!appComponents.loading) {
-        appComponents.loading = createLoadingPage(container, {
-          onNavigate: switchMode,
-        });
+        appComponents.loading = createLoadingPage(container, { onNavigate: switchMode });
       } else {
         appComponents.loading._renderTruckSelection();
         appComponents.loading._renderResult();
       }
       break;
-
     case 'monitoring':
       if (!appComponents.monitoring) {
-        appComponents.monitoring = createMonitoringPage(container, {
-          onNavigate: switchMode,
-        });
+        appComponents.monitoring = createMonitoringPage(container, { onNavigate: switchMode });
       } else {
         appComponents.monitoring._render();
       }
@@ -165,17 +147,13 @@ function loadLibrary() {
         if (data.projects) state.projects = data.projects;
         if (data.projectItems) state.projectItems = data.projectItems;
 
-        // Нормализация структуры инвентаря
-        for (const cat in state.inventory) {
-          const catData = state.inventory[cat];
-          if (catData && typeof catData === 'object' && !Array.isArray(catData)) {
-            if (!catData._subOrder) {
-              catData._subOrder = Object.keys(catData).filter(k => k !== '_subOrder');
-            }
-          }
-        }
-
+        // Сохраняем в localStorage
         saveState();
+
+        // Перезагружаем состояние из localStorage для полной нормализации
+        // Это вызовет loadState(), который нормализует структуру инвентаря, кэш и т.д.
+        loadState();
+
         showToast('Библиотека загружена', 'success');
         emit(EVENTS.EDITOR_DATA_CHANGED, { action: 'importLibrary' });
 
@@ -223,14 +201,12 @@ async function resetAllData() {
   const confirmed = await showConfirm('Удалить все данные? Восстановление невозможно.', 'Сброс данных');
   if (!confirmed) return;
 
-  // Очищаем localStorage
   for (const key in localStorage) {
     if (key.startsWith('app_') || key === 'theme' || key === 'open_state' || key === 'detailsOpenOrder' || key === 'last_mode' || key === 'order_presets' || key === 'matrix_presets') {
       localStorage.removeItem(key);
     }
   }
 
-  // Сбрасываем состояние
   const state = getState();
   state.inventory = {};
   state.stock = {};
@@ -259,11 +235,9 @@ async function resetAllData() {
   state.selectedTruckIds = [];
   state.matrixFullNames = true;
   state.theme = 'dark';
-  // Гарантированно создаём Map для кэша
   state._calcCache = new Map();
   saveState();
 
-  // Уничтожаем все компоненты
   for (const key in appComponents) {
     if (appComponents[key] && typeof appComponents[key].destroy === 'function') {
       appComponents[key].destroy();
@@ -271,12 +245,11 @@ async function resetAllData() {
     delete appComponents[key];
   }
 
-  // Перезагружаем страницу
   location.reload();
 }
 
 // ============================================================
-// ЭКСПОРТ ИНВЕНТАРЯ В HTML (глобальная функция для кнопки)
+// ЭКСПОРТ ИНВЕНТАРЯ В HTML
 // ============================================================
 
 export function exportInventoryHTML() {
@@ -330,9 +303,9 @@ tr:nth-child(even){background:#f9f9f9}
 </div>
 </body></html>`;
 
-  // Импортируем esc для экранирования
+  // Экранирование (используем глобальный esc из utils)
   import('./core/utils.js').then(({ esc }) => {
-    // уже использовано выше
+    // уже использовано выше, но для полноты
   });
 
   const win = window.open('', '_blank');
@@ -346,7 +319,7 @@ tr:nth-child(even){background:#f9f9f9}
 }
 
 // ============================================================
-// ЭКСПОРТ ПО УМОЛЧАНИЮ (для глобального доступа)
+// ГЛОБАЛЬНЫЕ ФУНКЦИИ
 // ============================================================
 
 window.switchMode = switchMode;
@@ -360,23 +333,13 @@ window.resetAllData = resetAllData;
 
 function initApp() {
   console.log('[App] Инициализация...');
-
-  // 1. Store
   initStore();
-
-  // 2. Тема
-  initTheme((theme) => {
-    console.log('[App] Тема изменена:', theme);
-  });
-
-  // 3. Модалки
+  initTheme();
   initModalHandlers();
 
-  // 4. Стартовый режим
   const savedMode = localStorage.getItem('last_mode') || 'menu';
   switchMode(savedMode);
 
-  // 5. Сохраняем последний режим при переключении
   const origSwitch = switchMode;
   switchMode = function(mode) {
     origSwitch(mode);
@@ -384,7 +347,6 @@ function initApp() {
   };
   window.switchMode = switchMode;
 
-  // 6. Глобальный обработчик для открытия проектов из мониторинга
   document.addEventListener('openProject', (e) => {
     const projectId = e.detail?.projectId;
     if (projectId) {
@@ -393,10 +355,8 @@ function initApp() {
     }
   });
 
-  // 7. Приветствие
   showToast('📦 Прокатошная загружена', 'neutral', 1500);
   emit(EVENTS.UI_STATE_CHANGED, { mode: currentMode, initialized: true });
-
   console.log('[App] Инициализация завершена');
 }
 
