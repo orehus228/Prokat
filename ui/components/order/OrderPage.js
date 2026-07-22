@@ -27,7 +27,8 @@ import {
   setSearchQuery,
   renderTabs,
   renderCategoryContent,
-  updateCommonCaseIndicators
+  updateCommonCaseIndicators,
+  buildItemRow  // <-- добавили импорт buildItemRow
 } from './OrderRenderer.js';
 
 import {
@@ -272,7 +273,6 @@ export class OrderPage {
     if (pComment) pComment.addEventListener('input', () => localStorage.setItem('last_comment', pComment.value));
 
     // ВАЖНО: НЕ вызываем bindOrderEvents, так как обработчики теперь привязаны напрямую в OrderRenderer.js
-    // Вместо этого просто обновляем категорию при необходимости (если есть)
   }
 
   // ============================================================
@@ -337,7 +337,8 @@ export class OrderPage {
             catTitle.textContent = CAT_NAMES[cat] || cat;
             wrapper.appendChild(catTitle);
             grouped[cat].forEach(path => {
-              wrapper.appendChild(renderer.buildItemRow(path, 1));
+              // ИСПРАВЛЕНО: используем импортированный buildItemRow
+              wrapper.appendChild(buildItemRow(path, 1));
             });
           });
           container.innerHTML = '';
