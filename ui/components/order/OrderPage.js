@@ -6,14 +6,12 @@ import { debounce } from '../../../core/utils.js';
 import { CAT_NAMES, SEARCH_DEBOUNCE_DELAY } from '../../../core/config.js';
 import { showToast } from '../../toast.js';
 import { clearOrder } from '../../../services/order.js';
-import { getProjects } from '../../../services/projects.js';
 
 // Импорт всех модулей OrderPage
 import {
   getAllPaths,
   filterPathsByQuery,
-  groupPathsByCategory,
-  truncateName
+  groupPathsByCategory
 } from './OrderUtils.js';
 
 import {
@@ -26,40 +24,11 @@ import {
   setCurrentCategory,
   getCurrentCategory,
   setSearchMode,
-  getSearchMode,
   setSearchQuery,
-  getSearchQuery,
   renderTabs,
   renderCategoryContent,
-  renderSearchResults,
-  buildItemRow,
-  buildQtyControls,
-  updateRow,
-  updateChildRows,
   updateCommonCaseIndicators
 } from './OrderRenderer.js';
-
-import {
-  setCurrentCategoryForActions,
-  toggleInfo,
-  toggleDesc,
-  editNote,
-  changeQty,
-  changeSinglePiece,
-  changeSingleCase,
-  changeMultiPiece,
-  changeMultiCase,
-  changeCommonQty,
-  changeExtraQty,
-  handleQuantityChange,
-  handleQuantityInput
-} from './OrderActions.js';
-
-import {
-  bindOrderEvents,
-  unbindOrderEvents,
-  updateEventsCategory
-} from './OrderEvents.js';
 
 import {
   populatePresetSelect,
@@ -96,7 +65,6 @@ export class OrderPage {
       this.detailsOpen = localStorage.getItem('detailsOpenOrder') === 'true';
     } catch { this.detailsOpen = false; }
 
-    // Подписка на изменения store
     this._unsubscribe = subscribe((changedKey, state) => {
       if (changedKey === 'order' || changedKey === 'orderPacking' ||
           changedKey === 'individualCaseValues' || changedKey === 'orderExtra' ||
@@ -106,7 +74,6 @@ export class OrderPage {
       }
     });
 
-    // Слушаем события
     this._handlers.push(
       on(EVENTS.EDITOR_DATA_CHANGED, () => this._onDataChanged()),
       on(EVENTS.PRESETS_CHANGED, () => populatePresetSelect()),
@@ -213,7 +180,7 @@ export class OrderPage {
   }
 
   // ============================================================
-  // ПРИВЯЗКА СОБЫТИЙ
+  // ПРИВЯЗКА СОБЫТИЙ (без bindOrderEvents)
   // ============================================================
 
   _bindEvents() {
@@ -304,19 +271,8 @@ export class OrderPage {
     if (pDate) pDate.addEventListener('change', () => localStorage.setItem('last_date', pDate.value));
     if (pComment) pComment.addEventListener('input', () => localStorage.setItem('last_comment', pComment.value));
 
-    // Привязываем события для категорий (клики и инпуты)
-    bindOrderEvents({
-      onOpenMatrix: (path) => {
-        import('../components/MatrixModal.js').then(({ openMatrixModal }) => {
-          openMatrixModal(path, true, getCurrentCategory());
-        });
-      },
-      onOpenCaseSettings: (path, callback) => {
-        import('../components/CaseSettingsModal.js').then(({ openCaseSettingsModal }) => {
-          openCaseSettingsModal(path, callback);
-        });
-      }
-    });
+    // ВАЖНО: НЕ вызываем bindOrderEvents, так как обработчики теперь привязаны напрямую в OrderRenderer.js
+    // Вместо этого просто обновляем категорию при необходимости (если есть)
   }
 
   // ============================================================
@@ -347,20 +303,14 @@ export class OrderPage {
       this._renderCurrentCategory();
       updateTotals();
       updateLinkCount();
-      // Обновляем категорию для действий (чтобы кнопки количества знали, где обновлять итоги)
-      updateEventsCategory();
     });
     this._renderCurrentCategory();
-    // После первого рендера также обновляем категорию для действий
-    updateEventsCategory();
   }
 
   _renderCurrentCategory() {
     const cat = getCurrentCategory();
     if (cat) {
       renderCategoryContent(cat);
-      // Обновляем категорию для действий при каждом рендере категории
-      updateEventsCategory();
     }
   }
 
@@ -387,7 +337,7 @@ export class OrderPage {
             catTitle.textContent = CAT_NAMES[cat] || cat;
             wrapper.appendChild(catTitle);
             grouped[cat].forEach(path => {
-              wrapper.appendChild(buildItemRow(path, 1));
+              wrapper.appendChild(renderer.buildItemRow(path, 1));
             });
           });
           container.innerHTML = '';
@@ -570,7 +520,6 @@ tr:nth-child(even){background:#f9f9f9}
       if (typeof handler === 'function') handler();
     }
     this._handlers = [];
-    unbindOrderEvents();
     if (this.container) {
       this.container.innerHTML = '';
     }
