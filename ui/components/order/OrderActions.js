@@ -22,7 +22,7 @@ import {
 import { getPackaging } from '../../../services/packaging.js';
 import { updateTotals, updateCategoryTotals } from './OrderTotals.js';
 import { updateRow, updateCommonCaseIndicators, getCurrentCategory } from './OrderRenderer.js';
-import { getState } from '../../../core/store.js'; // <-- ИСПРАВЛЕНО: добавлен импорт
+import { getState } from '../../../core/store.js';
 
 let currentCategoryForActions = null;
 
@@ -82,10 +82,8 @@ export async function editNote(path) {
 export function changeQty(path, delta) {
   path = path.replace(/\\/g, '|');
   console.log('[OrderActions] changeQty called:', path, delta);
-  
+
   const state = getState();
-  console.log('[changeQty] state.order до изменения:', state.order);
-  
   const current = getTotalQty(path);
   const sq = getStockByPath(path);
   let newVal = Math.max(0, current + delta);
@@ -93,10 +91,26 @@ export function changeQty(path, delta) {
     showToast(`Доступно только ${sq} шт`, 'warning');
     newVal = sq;
   }
+
+  // Принудительно очищаем все данные упаковки, чтобы getTotalQty брал из state.order
+  if (state.orderPacking[path]) {
+    delete state.orderPacking[path];
+  }
+  if (state.individualCaseValues[path]) {
+    delete state.individualCaseValues[path];
+  }
+  if (state.orderExtra[path]) {
+    delete state.orderExtra[path];
+  }
+  // Отключаем режим кофров
+  if (state.caseModes[path]) {
+    state.caseModes[path].enabled = false;
+  }
+
   setOrderValue(path, newVal);
-  console.log('[changeQty] state.order после setOrderValue:', getState().order);
+  console.log('[changeQty] state.order после setOrderValue:', state.order);
   console.log('[changeQty] getTotalQty после setOrderValue:', getTotalQty(path));
-  
+
   updateRow(path);
   updateTotals();
   if (currentCategoryForActions) {
