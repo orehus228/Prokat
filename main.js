@@ -1,7 +1,8 @@
 // main.js
-// (исправлена функция loadLibrary — добавлено принудительное обновление всех компонентов)
+// Исправлен resetAllData (использует clearCalculationCache из store)
+// Улучшена loadLibrary (принудительное обновление всех компонентов)
 
-import { initStore, getState, saveState } from './core/store.js';
+import { initStore, getState, saveState, clearCalculationCache } from './core/store.js';
 import { emit, EVENTS } from './core/events.js';
 import { initTheme, getTheme } from './ui/theme.js';
 import { initModalHandlers } from './ui/modal.js';
@@ -123,6 +124,9 @@ function loadLibrary() {
           }
         }
 
+        // Очистка кэша расчётов
+        clearCalculationCache();
+
         saveState();
         showToast('Библиотека загружена', 'success');
         emit(EVENTS.EDITOR_DATA_CHANGED, { action: 'importLibrary' });
@@ -130,20 +134,32 @@ function loadLibrary() {
         // Принудительно обновляем все существующие компоненты
         for (const key in appComponents) {
           const comp = appComponents[key];
-          if (comp && typeof comp._onDataChanged === 'function') {
+          if (!comp) continue;
+          if (typeof comp._onDataChanged === 'function') {
             comp._onDataChanged();
-          } else if (comp && typeof comp._render === 'function') {
+          } else if (typeof comp._render === 'function') {
             comp._render();
-          } else if (comp && typeof comp.render === 'function') {
+          } else if (typeof comp.render === 'function') {
             comp.render();
           }
         }
-        // Дополнительно, если открыта страница редактора — перерисовываем
+
+        // Дополнительно, если открыта страница редактора или заказа — перерисовываем
         if (currentMode === 'editor' && appComponents.editor) {
           appComponents.editor._renderEditor();
         }
         if (currentMode === 'order' && appComponents.order) {
           appComponents.order._onDataChanged();
+        }
+        if (currentMode === 'loading' && appComponents.loading) {
+          appComponents.loading._renderTruckSelection();
+          appComponents.loading._renderResult();
+        }
+        if (currentMode === 'open' && appComponents.open) {
+          appComponents.open._renderContent();
+        }
+        if (currentMode === 'monitoring' && appComponents.monitoring) {
+          appComponents.monitoring._render();
         }
       } catch (err) {
         showToast('Ошибка: ' + err.message, 'error');
@@ -159,7 +175,7 @@ async function resetAllData() {
   const confirmed = await showConfirm('Удалить все данные? Восстановление невозможно.', 'Сброс данных');
   if (!confirmed) return;
   for (const key in localStorage) {
-    if (key.startsWith('app_') || key === 'theme' || key === 'open_state' || key === 'detailsOpenOrder' || key === 'last_mode') {
+    if (key.startsWith('app_') || key === 'theme' || key === 'open_state' || key === 'detailsOpenOrder' || key === 'last_mode' || key === 'order_presets' || key === 'matrix_presets' || key === 'matrix_full_names') {
       localStorage.removeItem(key);
     }
   }
@@ -189,7 +205,8 @@ async function resetAllData() {
   state.openCategoryState = {};
   state.openDescState = {};
   state.selectedTruckIds = [];
-  state._calcCache.clear();
+  // Очищаем кэш через функцию из store
+  clearCalculationCache();
   saveState();
 
   for (const key in appComponents) {
@@ -202,7 +219,63 @@ async function resetAllData() {
 }
 
 export function exportInventoryHTML() {
-  // ... (без изменений)
+  import('./ui/components/EditorPage.js').then(({ EditorPage }) => {
+    const state = getState();
+    let html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Инвентарь</title>
+<style>
+body{font-family:'Segoe UI',Arial,sans-serif;margin:40px;color:#222;background:#fff}
+h1{color:#2c3e50;border-bottom:2px solid #3498db;padding-bottom:10px}
+table{width:100%;border-collapse:collapse;margin-top:20px;font-size:14px}
+th{background:#2c3e50;color:#fff;padding:8px;text-align:left}
+td{padding:6px 8px;border-bottom:1px solid #ddd}
+tr:nth-child(even){background:#f9f9f9}
+.category{background:#e6f2ff;font-weight:bold}
+.subgroup{background:#f0f4f8;font-weight:bold}
+</style>
+</head><body>
+<h1>Инвентарь склада</h1>
+<table><thead><tr><th>Категория</th><th>Подгруппа</th><th>Позиция</th><th>В наличии</th><th>Вес (кг)</th><th>Габариты (см)</th></tr></thead><tbody>`;
+    const order = state._categoryOrder || Object.keys(state.inventory);
+    for (const cat of order) {
+      const catData = state.inventory[cat];
+      if (!catData) continue;
+      if (Array.isArray(catData)) {
+        for (const item of catData) {
+          const path = cat + '|' + item;
+          const stock = state.stock[path] || 0;
+          const props = state.itemProps[path] || {};
+          html += `<tr><td>${esc(cat)}</td><td></td><td>${esc(item)}</td><td>${stock}</td><td>${props.weight || ''}</td><td>${props.dimensions || ''}</td></tr>`;
+        }
+      } else if (typeof catData === 'object') {
+        const subOrder = catData._subOrder || Object.keys(catData).filter(k => k !== '_subOrder');
+        for (const sub of subOrder) {
+          const items = catData[sub] || [];
+          if (!Array.isArray(items)) continue;
+          for (const item of items) {
+            const path = cat + '|' + sub + '|' + item;
+            const stock = state.stock[path] || 0;
+            const props = state.itemProps[path] || {};
+            html += `<tr><td>${esc(cat)}</td><td>${esc(sub)}</td><td>${esc(item)}</td><td>${stock}</td><td>${props.weight || ''}</td><td>${props.dimensions || ''}</td></tr>`;
+          }
+        }
+      }
+    }
+    html += `</tbody></table>
+<div style="margin-top:30px;display:flex;gap:12px;">
+  <button onclick="window.print()" style="padding:10px 24px;background:#2c3e50;color:white;border:none;border-radius:6px;font-size:16px;cursor:pointer;">Сохранить PDF</button>
+  <button onclick="window.close()" style="padding:10px 24px;background:#ddd;color:#333;border:none;border-radius:6px;font-size:16px;cursor:pointer;">Закрыть</button>
+</div>
+</body></html>`;
+    const win = window.open('', '_blank');
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+    } else {
+      showToast('Не удалось открыть окно', 'error');
+    }
+  });
 }
 
 window.switchMode = switchMode;
