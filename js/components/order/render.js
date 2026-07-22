@@ -267,9 +267,12 @@ export function buildItemRow(fullPath, level) {
     caseStatusClass = '';
   }
 
+  // Для позиций, упакованных в общие кофры, вес и объём в строке не показываем
+  const showWeightVolume = !hasCommonPacking;
+
   let weightDisplay = '0 кг';
   let volumeDisplay = '0 м³';
-  if (totalQty > 0) {
+  if (showWeightVolume && totalQty > 0) {
     const data = calc.getCalculationData(fullPath);
     const weight = calc.calcItemWeight(fullPath, totalQty, data.mode, data.packing, data.individualVals, data.extra);
     const volume = calc.calcItemVolume(fullPath, totalQty, data.mode, data.packing, data.individualVals, data.extra);
@@ -288,13 +291,18 @@ export function buildItemRow(fullPath, level) {
 
   let extraInfo = '';
   if (totalQty > 0 || sq > 0) {
-    extraInfo = `<div class="extra-info">
-      <span><strong>${totalQty}</strong> шт добавлено</span>
-      <span>в наличии: <strong>${sq}</strong></span>
-      ${weightDisplay !== '0 кг' ? `<span>${weightDisplay}</span>` : ''}
-      ${volumeDisplay !== '0 м³' ? `<span>${volumeDisplay}</span>` : ''}
-      ${extraCaseInfo ? `<span>${extraCaseInfo}</span>` : ''}
-    </div>`;
+    let info = `<span><strong>${totalQty}</strong> шт добавлено</span>
+                <span>в наличии: <strong>${sq}</strong></span>`;
+    if (showWeightVolume && weightDisplay !== '0 кг') {
+      info += `<span>${weightDisplay}</span>`;
+    }
+    if (showWeightVolume && volumeDisplay !== '0 м³') {
+      info += `<span>${volumeDisplay}</span>`;
+    }
+    if (extraCaseInfo) {
+      info += `<span>${extraCaseInfo}</span>`;
+    }
+    extraInfo = `<div class="extra-info">${info}</div>`;
   }
 
   let html = `<div class="row ${rowClass}" data-path="${esc(fullPath)}" data-search="${fullPath}">
@@ -413,14 +421,16 @@ export function updateRowOrder(path, rebuildChildren = true) {
       info = `<span><strong>${totalQty}</strong> шт добавлено</span>
               <span>в наличии: <strong>${sq}</strong></span>`;
       const props = calc.getItemPropsByPath(path);
-      if (props.weight) {
+      if (props.weight && !hasCommonPacking) {
         const data = calc.getCalculationData(path);
         const weight = calc.calcItemWeight(path, totalQty, data.mode, data.packing, data.individualVals, data.extra);
         info += `<span>${formatWeight(weight)}</span>`;
       }
-      const data = calc.getCalculationData(path);
-      const volume = calc.calcItemVolume(path, totalQty, data.mode, data.packing, data.individualVals, data.extra);
-      if (volume > 0) info += `<span>${formatVolume(volume)}</span>`;
+      if (!hasCommonPacking) {
+        const data = calc.getCalculationData(path);
+        const volume = calc.calcItemVolume(path, totalQty, data.mode, data.packing, data.individualVals, data.extra);
+        if (volume > 0) info += `<span>${formatVolume(volume)}</span>`;
+      }
       if (packing.length > 0) {
         const totalPieces = packing.reduce((s, p) => s + (p.pieces || 0), 0);
         info += `<span>[Кофр] ${packing.length} шт (${totalPieces} шт)</span>`;
