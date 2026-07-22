@@ -155,7 +155,7 @@ export function renderSearchResults(container) {
 }
 
 export function buildItemRow(path, level) {
-  // ⭐ Нормализуем путь сразу, чтобы везде был с прямыми слешами
+  // Нормализуем путь сразу
   path = path.replace(/\\/g, '|');
 
   const state = getState();
@@ -474,12 +474,32 @@ export function buildQtyControls(path) {
   return div;
 }
 
+/**
+ * Обновляет строку позиции. Использует надёжный поиск по всем строкам с нормализацией.
+ */
 export function updateRow(path) {
   path = path.replace(/\\/g, '|');
   const container = document.getElementById('categoryContents');
-  if (!container) return;
-  const row = container.querySelector(`.row[data-path="${path}"]`);
-  if (!row) return;
+  if (!container) {
+    console.warn('[updateRow] Контейнер не найден');
+    return;
+  }
+
+  // Находим строку перебором с нормализацией
+  const rows = container.querySelectorAll('.row');
+  let row = null;
+  for (const r of rows) {
+    const p = r.dataset.path ? r.dataset.path.replace(/\\/g, '|') : '';
+    if (p === path) {
+      row = r;
+      break;
+    }
+  }
+  if (!row) {
+    console.warn('[updateRow] Строка не найдена для пути:', path);
+    console.log('[updateRow] Доступные пути:', Array.from(rows).map(r => r.dataset.path));
+    return;
+  }
 
   const sq = getStockByPath(path);
   const totalQty = getTotalQty(path);
@@ -570,11 +590,24 @@ export function updateRow(path) {
   updateChildRows(path);
 }
 
+/**
+ * Обновляет дочерние строки (кофры, мульти). Использует надёжный поиск.
+ */
 export function updateChildRows(path) {
   path = path.replace(/\\/g, '|');
   const container = document.getElementById('categoryContents');
   if (!container) return;
-  const row = container.querySelector(`.row[data-path="${path}"]`);
+
+  // Находим строку перебором
+  const rows = container.querySelectorAll('.row');
+  let row = null;
+  for (const r of rows) {
+    const p = r.dataset.path ? r.dataset.path.replace(/\\/g, '|') : '';
+    if (p === path) {
+      row = r;
+      break;
+    }
+  }
   if (!row) return;
 
   let next = row.nextElementSibling;
