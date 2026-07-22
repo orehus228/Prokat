@@ -2,7 +2,6 @@
 
 /**
  * Единое хранилище состояния приложения.
- * Управляет всеми данными, подписками, автосохранением и кэшированием.
  * @module core/store
  */
 
@@ -27,10 +26,9 @@ import {
 import { emit } from './events.js';
 
 // ============================================================
-// СОСТОЯНИЕ (приватное)
+// СОСТОЯНИЕ
 // ============================================================
 
-/** @type {AppState} */
 const state = {
   inventory: { ...DEFAULT_INVENTORY },
   stock: { ...DEFAULT_STOCK },
@@ -66,19 +64,14 @@ const state = {
   selectedTruckIds: [],
   matrixFullNames: true,
   theme: 'dark',
-  _calcCache: new Map(), // <-- гарантированно Map
+  _calcCache: new Map(),
 };
 
 // ============================================================
 // ПОДПИСКИ
 // ============================================================
 
-/** @type {Array<Function>} */
 let subscribers = [];
-
-// ============================================================
-// ПУБЛИЧНЫЕ МЕТОДЫ ДОСТУПА К СОСТОЯНИЮ
-// ============================================================
 
 export function getState() {
   return deepClone(state);
@@ -112,17 +105,43 @@ function notifySubscribers(changedKey) {
 }
 
 // ============================================================
-// ЗАГРУЗКА СОСТОЯНИЯ ИЗ localStorage
+// ОБНОВЛЕНИЕ СОСТОЯНИЯ (НОВОЕ)
+// ============================================================
+
+/**
+ * Обновляет состояние из переданных данных (мердж).
+ * @param {Object} newData - объект с ключами состояния
+ */
+export function updateState(newData) {
+  for (const key of Object.keys(newData)) {
+    if (key in state) {
+      state[key] = deepClone(newData[key]);
+    }
+  }
+  // Нормализация
+  normalizeInventoryStructure();
+  normalizeCaseModes();
+  if (!state._categoryOrder || state._categoryOrder.length === 0) {
+    state._categoryOrder = Object.keys(state.inventory);
+  }
+  if (!(state._calcCache instanceof Map)) {
+    state._calcCache = new Map();
+  } else {
+    state._calcCache.clear();
+  }
+  saveState();
+  notifySubscribers('*');
+}
+
+// ============================================================
+// ЗАГРУЗКА ИЗ localStorage
 // ============================================================
 
 export function loadState() {
   console.log('[Store] Загрузка состояния...');
-
-  // 1. Основные данные (APP_DATA)
   const appData = safeGetStorage(STORAGE_KEYS.APP_DATA, null);
   if (appData) {
     const { itemProps, stock, specs, ...rest } = appData;
-
     const normalizeKeys = (obj) => {
       if (!obj || typeof obj !== 'object') return {};
       const result = {};
@@ -132,12 +151,10 @@ export function loadState() {
       }
       return result;
     };
-
     Object.assign(state, rest);
     state.itemProps = normalizeKeys(itemProps || {});
     state.stock = normalizeKeys(stock || {});
     state.specs = normalizeKeys(specs || {});
-
     for (const path of Object.keys(state.itemProps)) {
       const props = state.itemProps[path];
       if (props) {
@@ -149,11 +166,9 @@ export function loadState() {
         if (props.commonCases === undefined) props.commonCases = [];
       }
     }
-
     console.log('[Store] APP_DATA загружен, позиций:', Object.keys(state.itemProps).length);
   }
 
-  // 2. Данные заказа (ORDER_DATA)
   const orderData = safeGetStorage(STORAGE_KEYS.ORDER_DATA, null);
   if (orderData) {
     const normalizeOrderKeys = (obj) => {
@@ -165,18 +180,9 @@ export function loadState() {
       }
       return result;
     };
-
     const orderKeys = [
-      'order',
-      'orderSplits',
-      'links',
-      'notes',
-      'orderPacking',
-      'individualCaseValues',
-      'commonRoutes',
-      'caseModes',
-      'orderExclude',
-      'orderExtra',
+      'order', 'orderSplits', 'links', 'notes', 'orderPacking',
+      'individualCaseValues', 'commonRoutes', 'caseModes', 'orderExclude', 'orderExtra'
     ];
     for (const key of orderKeys) {
       if (orderData[key]) {
@@ -189,7 +195,6 @@ export function loadState() {
     console.log('[Store] ORDER_DATA загружен');
   }
 
-  // 3. UI-состояние (UI_STATE)
   const uiData = safeGetStorage(STORAGE_KEYS.UI_STATE, null);
   if (uiData) {
     if (uiData.openChecked) state.openChecked = uiData.openChecked;
@@ -200,23 +205,17 @@ export function loadState() {
     console.log('[Store] UI_STATE загружен');
   }
 
-  // 4. Выбранные грузовики
   const selectedTrucks = safeGetStorage(STORAGE_KEYS.SELECTED_TRUCKS, []);
   if (Array.isArray(selectedTrucks)) {
     state.selectedTruckIds = selectedTrucks;
   }
 
-  // 5. Тема
   const theme = safeGetStorage(STORAGE_KEYS.THEME, 'dark');
   state.theme = theme;
 
-  // 6. Нормализация структуры инвентаря (_subOrder)
   normalizeInventoryStructure();
-
-  // 7. Нормализация режимов кофров
   normalizeCaseModes();
 
-  // 8. Категории
   if (!state._categoryOrder || state._categoryOrder.length === 0) {
     state._categoryOrder = Object.keys(state.inventory);
   } else {
@@ -228,7 +227,6 @@ export function loadState() {
     }
   }
 
-  // 9. Очистка кэша (гарантированно через Map)
   if (!(state._calcCache instanceof Map)) {
     state._calcCache = new Map();
   } else {
@@ -277,7 +275,7 @@ function normalizeCaseModes() {
 }
 
 // ============================================================
-// СОХРАНЕНИЕ СОСТОЯНИЯ
+// СОХРАНЕНИЕ
 // ============================================================
 
 export function saveState() {
@@ -332,7 +330,7 @@ export function saveState() {
 }
 
 // ============================================================
-// КЭШИРОВАНИЕ РАСЧЁТОВ
+// КЭШ
 // ============================================================
 
 export function getCachedCalculation(key) {
@@ -358,7 +356,7 @@ export function clearCalculationCache() {
 }
 
 // ============================================================
-// РЕСЕТ СОСТОЯНИЯ
+// РЕСЕТ
 // ============================================================
 
 export function resetState() {
@@ -410,7 +408,7 @@ export function initStore() {
 }
 
 // ============================================================
-// ЭКСПОРТ ПО УМОЛЧАНИЮ
+// ЭКСПОРТ
 // ============================================================
 
 export default {
@@ -421,6 +419,7 @@ export default {
   loadState,
   saveState,
   resetState,
+  updateState,
   getCachedCalculation,
   setCachedCalculation,
   clearCalculationCache,
