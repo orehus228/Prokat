@@ -8,6 +8,7 @@ import { showToast } from '../../toast.js';
 import { clearOrder } from '../../../services/order.js';
 import { handleQuantityChange, handleQuantityInput } from './OrderActions.js';
 
+// Импорт всех модулей OrderPage
 import {
   getAllPaths,
   filterPathsByQuery,
@@ -55,8 +56,6 @@ export class OrderPage {
     this._unsubscribe = null;
     this._handlers = [];
     this._debouncedSearch = debounce(() => this._applySearch(), SEARCH_DEBOUNCE_DELAY);
-    this._boundClickHandler = null;
-    this._boundInputHandler = null;
   }
 
   init() {
@@ -178,10 +177,6 @@ export class OrderPage {
     `;
   }
 
-  // ============================================================
-  // ПРИВЯЗКА СОБЫТИЙ ЧЕРЕЗ document (гарантирует перехват)
-  // ============================================================
-
   _bindEvents() {
     const container = this.container;
 
@@ -270,46 +265,7 @@ export class OrderPage {
     if (pDate) pDate.addEventListener('change', () => localStorage.setItem('last_date', pDate.value));
     if (pComment) pComment.addEventListener('input', () => localStorage.setItem('last_comment', pComment.value));
 
-    // ===== ДЕЛЕГИРОВАНИЕ СОБЫТИЙ ЧЕРЕЗ document (НАДЁЖНО) =====
-    // Удаляем старые обработчики, если они уже были
-    if (this._boundClickHandler) {
-      document.removeEventListener('click', this._boundClickHandler);
-      document.removeEventListener('input', this._boundInputHandler);
-    }
-
-    this._boundClickHandler = (e) => {
-      const btn = e.target.closest('.btn-c');
-      if (!btn) return;
-      // Проверяем, что кнопка находится внутри #categoryContents
-      const contents = document.getElementById('categoryContents');
-      if (!contents || !contents.contains(btn)) return;
-      e.preventDefault();
-      const path = btn.dataset.path;
-      const delta = parseInt(btn.dataset.delta, 10);
-      if (!path || isNaN(delta)) return;
-      console.log('[OrderPage] document делегированный клик по кнопке количества:', path, delta);
-      handleQuantityChange(btn, path, delta);
-    };
-
-    this._boundInputHandler = (e) => {
-      const input = e.target;
-      if (!input) return;
-      const contents = document.getElementById('categoryContents');
-      if (!contents || !contents.contains(input)) return;
-      if (input.classList.contains('qty-input') ||
-          input.classList.contains('single-pieces-input') ||
-          input.classList.contains('single-cases-input') ||
-          input.classList.contains('child-multi-pieces') ||
-          input.classList.contains('child-common-qty') ||
-          input.classList.contains('child-extra-qty')) {
-        console.log('[OrderPage] document делегированный ввод в поле количества:', input);
-        handleQuantityInput(input);
-      }
-    };
-
-    document.addEventListener('click', this._boundClickHandler);
-    document.addEventListener('input', this._boundInputHandler);
-    console.log('[OrderPage] Делегирование через document установлено');
+    // ⭐ ВАЖНО: НЕТ обработчиков на #categoryContents — они все в OrderRenderer.js
   }
 
   // ============================================================
@@ -557,15 +513,6 @@ tr:nth-child(even){background:#f9f9f9}
       if (typeof handler === 'function') handler();
     }
     this._handlers = [];
-    // Удаляем делегированные обработчики из document
-    if (this._boundClickHandler) {
-      document.removeEventListener('click', this._boundClickHandler);
-      this._boundClickHandler = null;
-    }
-    if (this._boundInputHandler) {
-      document.removeEventListener('input', this._boundInputHandler);
-      this._boundInputHandler = null;
-    }
     if (this.container) {
       this.container.innerHTML = '';
     }

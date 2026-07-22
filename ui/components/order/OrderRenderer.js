@@ -11,6 +11,7 @@ import { getPackaging } from '../../../services/packaging.js';
 import { formatWeight, formatVolume, buildInfoHtml, getBgColorCSS } from '../../render-utils.js';
 import { getAllPaths, filterPathsByQuery, groupPathsByCategory } from './OrderUtils.js';
 import { updateCategoryTotals, updateLinkCount } from './OrderTotals.js';
+import { handleQuantityChange, handleQuantityInput } from './OrderActions.js';
 
 let currentCategory = null;
 let searchMode = false;
@@ -154,6 +155,9 @@ export function renderSearchResults(container) {
 }
 
 export function buildItemRow(path, level) {
+  // ⭐ Нормализуем путь сразу, чтобы везде был с прямыми слешами
+  path = path.replace(/\\/g, '|');
+
   const state = getState();
   const sq = getStockByPath(path);
   const totalQty = getTotalQty(path);
@@ -205,7 +209,7 @@ export function buildItemRow(path, level) {
 
   const row = document.createElement('div');
   row.className = `row ${rowClass}`;
-  row.dataset.path = path;
+  row.dataset.path = path; // уже нормализован
 
   // name-area
   const nameArea = document.createElement('div');
@@ -297,12 +301,8 @@ export function buildItemRow(path, level) {
   return row;
 }
 
-/**
- * Строит контролы количества для строки позиции.
- * ВСЕ обработчики событий должны быть привязаны через делегирование в OrderPage.js,
- * поэтому здесь мы НЕ добавляем addEventListener.
- */
 export function buildQtyControls(path) {
+  // путь уже нормализован
   const mode = getCaseMode(path);
   const options = getItemPropsByPath(path).individualCases || [];
   const packing = getOrderPacking(path);
@@ -315,13 +315,25 @@ export function buildQtyControls(path) {
   const div = document.createElement('div');
   div.className = 'qty-controls';
 
+  // Вспомогательная функция для привязки обработчиков
+  const attachHandler = (btn, delta) => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const p = btn.dataset.path;
+      const d = parseInt(btn.dataset.delta, 10);
+      if (!p || isNaN(d)) return;
+      console.log('[OrderRenderer] Прямой клик по кнопке количества:', p, d);
+      handleQuantityChange(btn, p, d);
+    });
+  };
+
   if (!mode.enabled || (!hasCommonPacking && individualVals.length === 0 && !isMulti)) {
-    // Простой режим
     const minusBtn = document.createElement('button');
     minusBtn.className = 'btn-c qty-btn';
     minusBtn.dataset.path = path;
     minusBtn.dataset.delta = '-1';
     minusBtn.textContent = '−';
+    attachHandler(minusBtn, -1);
 
     const input = document.createElement('input');
     input.type = 'number';
@@ -330,12 +342,16 @@ export function buildQtyControls(path) {
     input.min = 0;
     input.step = 1;
     input.dataset.path = path;
+    input.addEventListener('input', (e) => {
+      handleQuantityInput(e.target);
+    });
 
     const plusBtn = document.createElement('button');
     plusBtn.className = 'btn-c qty-btn';
     plusBtn.dataset.path = path;
     plusBtn.dataset.delta = '1';
     plusBtn.textContent = '+';
+    attachHandler(plusBtn, 1);
 
     div.appendChild(minusBtn);
     div.appendChild(input);
@@ -344,7 +360,6 @@ export function buildQtyControls(path) {
   }
 
   if (mode.enabled && individualVals.length === 1 && !hasCommonPacking && !isMulti) {
-    // Один кофр
     const opt = options[mode.selectedOption] || options[0];
     const pieces = individualVals[0] || 0;
     const casesCount = opt && opt.qty ? Math.ceil(pieces / opt.qty) : 0;
@@ -369,6 +384,7 @@ export function buildQtyControls(path) {
     minusPcs.style.width = '28px';
     minusPcs.style.height = '28px';
     minusPcs.style.fontSize = '14px';
+    attachHandler(minusPcs, -1);
     container.appendChild(minusPcs);
 
     const inputPcs = document.createElement('input');
@@ -382,6 +398,7 @@ export function buildQtyControls(path) {
     inputPcs.style.padding = '2px';
     inputPcs.style.textAlign = 'center';
     inputPcs.style.fontSize = '13px';
+    inputPcs.addEventListener('input', (e) => handleQuantityInput(e.target));
     container.appendChild(inputPcs);
 
     const plusPcs = document.createElement('button');
@@ -392,6 +409,7 @@ export function buildQtyControls(path) {
     plusPcs.style.width = '28px';
     plusPcs.style.height = '28px';
     plusPcs.style.fontSize = '14px';
+    attachHandler(plusPcs, 1);
     container.appendChild(plusPcs);
 
     const labelCases = document.createElement('span');
@@ -408,6 +426,7 @@ export function buildQtyControls(path) {
     minusCases.style.width = '28px';
     minusCases.style.height = '28px';
     minusCases.style.fontSize = '14px';
+    attachHandler(minusCases, -1);
     container.appendChild(minusCases);
 
     const inputCases = document.createElement('input');
@@ -421,6 +440,7 @@ export function buildQtyControls(path) {
     inputCases.style.padding = '2px';
     inputCases.style.textAlign = 'center';
     inputCases.style.fontSize = '13px';
+    inputCases.addEventListener('input', (e) => handleQuantityInput(e.target));
     container.appendChild(inputCases);
 
     const plusCases = document.createElement('button');
@@ -431,6 +451,7 @@ export function buildQtyControls(path) {
     plusCases.style.width = '28px';
     plusCases.style.height = '28px';
     plusCases.style.fontSize = '14px';
+    attachHandler(plusCases, 1);
     container.appendChild(plusCases);
 
     if (maxCases > 0) {
@@ -445,7 +466,6 @@ export function buildQtyControls(path) {
     return div;
   }
 
-  // Сложные режимы — просто текст
   const span = document.createElement('span');
   span.style.fontSize = '13px';
   span.style.color = 'var(--text-secondary)';
@@ -454,10 +474,6 @@ export function buildQtyControls(path) {
   return div;
 }
 
-/**
- * Обновляет строку позиции (перерисовывает состояние).
- * Добавлена нормализация пути для корректного поиска.
- */
 export function updateRow(path) {
   path = path.replace(/\\/g, '|');
   const container = document.getElementById('categoryContents');
@@ -554,10 +570,6 @@ export function updateRow(path) {
   updateChildRows(path);
 }
 
-/**
- * Обновляет дочерние строки (кофры, мульти).
- * Добавлена нормализация пути для корректного поиска.
- */
 export function updateChildRows(path) {
   path = path.replace(/\\/g, '|');
   const container = document.getElementById('categoryContents');
