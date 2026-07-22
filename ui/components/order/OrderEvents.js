@@ -97,7 +97,6 @@ export function bindOrderEvents(callbacks = {}) {
   });
 
   // При изменении заказа в store — обновляем счётчик линков
-  // (подписка уже есть в основном компоненте, но для надёжности добавим)
   const links = getLinks();
   let linkCount = 0;
   for (const src in links) linkCount += links[src].length;

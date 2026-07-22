@@ -347,15 +347,19 @@ export class OrderPage {
       this._renderCurrentCategory();
       updateTotals();
       updateLinkCount();
+      // Обновляем категорию для действий (чтобы кнопки количества знали, где обновлять итоги)
       updateEventsCategory();
     });
     this._renderCurrentCategory();
+    // После первого рендера также обновляем категорию для действий
+    updateEventsCategory();
   }
 
   _renderCurrentCategory() {
     const cat = getCurrentCategory();
     if (cat) {
       renderCategoryContent(cat);
+      // Обновляем категорию для действий при каждом рендере категории
       updateEventsCategory();
     }
   }
