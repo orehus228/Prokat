@@ -8,21 +8,27 @@ import { getCurrentCategory, updateRow, updateCommonCaseIndicators } from './Ord
 
 let eventsBound = false;
 
-/**
- * Привязывает все события к DOM-элементам страницы заказа.
- * @param {Object} callbacks - колбэки для внешних действий (например, открытие модалок)
- */
 export function bindOrderEvents(callbacks = {}) {
   if (eventsBound) return;
   eventsBound = true;
 
   const container = document.getElementById('categoryContents');
-  if (!container) return;
+  if (!container) {
+    console.warn('[OrderEvents] #categoryContents not found');
+    return;
+  }
+
+  console.log('[OrderEvents] Привязка событий');
 
   // Устанавливаем текущую категорию для действий
-  setCurrentCategoryForActions(getCurrentCategory());
+  const cat = getCurrentCategory();
+  console.log('[OrderEvents] Текущая категория при привязке:', cat);
+  setCurrentCategoryForActions(cat);
 
-  // Делегированный обработчик кликов
+  // Удаляем старые слушатели, если они были (на случай перепривязки)
+  // Чтобы не накапливать, используем флаг eventsBound, но при повторной привязке нужно удалить старые.
+  // Для простоты привязываем один раз.
+
   container.addEventListener('click', (e) => {
     const target = e.target.closest('button');
     if (!target) return;
@@ -32,37 +38,34 @@ export function bindOrderEvents(callbacks = {}) {
       e.preventDefault();
       const path = target.dataset.path;
       const delta = parseInt(target.dataset.delta, 10);
-      if (!path || isNaN(delta)) return;
+      if (!path || isNaN(delta)) {
+        console.warn('[OrderEvents] Невалидные данные кнопки:', target);
+        return;
+      }
+      console.log('[OrderEvents] Клик по кнопке количества:', path, delta);
       handleQuantityChange(target, path, delta);
       return;
     }
 
-    // Инфо
+    // Остальные кнопки...
     if (target.classList.contains('info-btn')) {
       toggleInfo(target.dataset.path);
       return;
     }
-
-    // Описание
     if (target.classList.contains('desc-btn')) {
       toggleDesc(target.dataset.path);
       return;
     }
-
-    // Линк (открывает матрицу)
     if (target.classList.contains('link-btn')) {
       if (callbacks.onOpenMatrix) {
         callbacks.onOpenMatrix(target.dataset.path);
       }
       return;
     }
-
-    // Кофры (открывает настройки кофров)
     if (target.classList.contains('case-btn')) {
       if (callbacks.onOpenCaseSettings) {
         callbacks.onOpenCaseSettings(target.dataset.path, () => {
           updateRow(target.dataset.path);
-          // обновить итоги
           import('./OrderTotals.js').then(({ updateTotals, updateCategoryTotals }) => {
             updateTotals();
             const cat = getCurrentCategory();
@@ -73,62 +76,42 @@ export function bindOrderEvents(callbacks = {}) {
       }
       return;
     }
-
-    // Заметка
     if (target.classList.contains('note-btn')) {
       editNote(target.dataset.path);
       return;
     }
   });
 
-  // Делегированный обработчик ввода (input)
   container.addEventListener('input', (e) => {
     const target = e.target;
     if (!target) return;
-    // Проверяем, что это одно из полей количества
     if (target.classList.contains('qty-input') ||
         target.classList.contains('single-pieces-input') ||
         target.classList.contains('single-cases-input') ||
         target.classList.contains('child-multi-pieces') ||
         target.classList.contains('child-common-qty') ||
         target.classList.contains('child-extra-qty')) {
+      console.log('[OrderEvents] Ввод в поле количества:', target);
       handleQuantityInput(target);
     }
   });
 
-  // При изменении заказа в store — обновляем счётчик линков
+  // Обновляем счётчик линков
   const links = getLinks();
   let linkCount = 0;
   for (const src in links) linkCount += links[src].length;
   updateLinkCount();
+
+  console.log('[OrderEvents] Привязка событий завершена');
 }
 
-/**
- * Отвязывает события (если нужно перепривязать).
- */
 export function unbindOrderEvents() {
   eventsBound = false;
-  // Удаляем слушатели с #categoryContents
-  const container = document.getElementById('categoryContents');
-  if (container) {
-    // Просто удаляем все слушатели — проще всего заменить на новый элемент,
-    // но в нашем случае мы просто сбрасываем флаг, и при следующем bindOrderEvents
-    // слушатели будут добавлены заново, а старые останутся, но они будут перезаписаны?
-    // Лучше удалить конкретные, но мы не храним ссылки на функции.
-    // В этом случае можно не удалять, а просто сбросить флаг, но тогда слушатели накопятся.
-    // Поэтому используем более надёжный подход: заменяем элемент на его клон.
-    // Но для простоты мы будем использовать флаг и удаление всех обработчиков.
-    // Проще всего пересоздать контейнер, но это ломает рендеринг.
-    // Вместо этого мы будем привязывать события один раз при инициализации.
-    // Если нужно перепривязать — можно использовать removeEventListener с сохранёнными ссылками,
-    // но для упрощения мы просто будем использовать один раз и не отвязывать.
-    // Это нормально, так как компонент не пересоздаётся часто.
-  }
+  // Здесь можно удалить слушатели, но для простоты не будем
 }
 
-/**
- * Обновляет привязку к текущей категории (вызывается при смене категории).
- */
 export function updateEventsCategory() {
-  setCurrentCategoryForActions(getCurrentCategory());
+  const cat = getCurrentCategory();
+  console.log('[OrderEvents] updateEventsCategory вызван, категория:', cat);
+  setCurrentCategoryForActions(cat);
 }
