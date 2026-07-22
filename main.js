@@ -6,14 +6,14 @@
  * @module main
  */
 
-import { initStore, getState, saveState, loadState, updateState } from './core/store.js';
+import { initStore, getState, saveState, loadState } from './core/store.js';
 import { emit, EVENTS } from './core/events.js';
 import { initTheme } from './ui/theme.js';
 import { initModalHandlers } from './ui/modal.js';
 import { showToast } from './ui/toast.js';
 import { createMenu } from './ui/components/Menu.js';
-// Импорт из новой папки order
-import { createOrderPage } from './ui/components/order/OrderPage.js';
+// Импорт нового OrderPage
+import { createOrderPage } from './ui/components/OrderPage.js';
 import { createEditorPage } from './ui/components/EditorPage.js';
 import { createOpenPage } from './ui/components/OpenPage.js';
 import { createLoadingPage } from './ui/components/LoadingPage.js';
@@ -156,25 +156,34 @@ function loadLibrary() {
           return;
         }
 
-        updateState({
-          inventory: data.inventory || {},
-          stock: data.stock || {},
-          specs: data.specs || {},
-          itemProps: data.itemProps || {},
-          catNames: data.catNames || {},
-          _categoryOrder: data._categoryOrder || [],
-          commonCases: data.commonCases || [],
-          truckPresets: data.truckPresets || [],
-          projects: data.projects || [],
-          projectItems: data.projectItems || [],
-        });
+        // Обновляем состояние напрямую через store
+        const state = getState();
+        state.inventory = data.inventory || {};
+        state.stock = data.stock || {};
+        state.specs = data.specs || {};
+        state.itemProps = data.itemProps || {};
+        state.catNames = data.catNames || {};
+        state._categoryOrder = data._categoryOrder || [];
+        state.commonCases = data.commonCases || [];
+        state.truckPresets = data.truckPresets || [];
+        state.projects = data.projects || [];
+        state.projectItems = data.projectItems || [];
 
-        loadState();
+        // Нормализация структуры
+        for (const cat in state.inventory) {
+          const catData = state.inventory[cat];
+          if (catData && typeof catData === 'object' && !Array.isArray(catData)) {
+            if (!catData._subOrder) {
+              catData._subOrder = Object.keys(catData).filter(k => k !== '_subOrder');
+            }
+          }
+        }
 
+        saveState();
         showToast('Библиотека загружена', 'success');
         emit(EVENTS.EDITOR_DATA_CHANGED, { action: 'importLibrary' });
 
-        // Принудительно обновляем все компоненты
+        // Обновляем все компоненты
         for (const key in appComponents) {
           const comp = appComponents[key];
           if (comp && typeof comp._onDataChanged === 'function') {
@@ -186,7 +195,6 @@ function loadLibrary() {
           }
         }
 
-        // Дополнительная перерисовка текущей страницы
         if (currentMode === 'editor' && appComponents.editor) {
           appComponents.editor._renderEditor();
         } else if (currentMode === 'order' && appComponents.order) {
@@ -203,9 +211,6 @@ function loadLibrary() {
         } else if (currentMode === 'monitoring' && appComponents.monitoring) {
           appComponents.monitoring._render();
         }
-
-        const state = getState();
-        console.log('[loadLibrary] После загрузки, в state inventory позиций:', Object.keys(state.inventory).length);
 
       } catch (err) {
         console.error('[loadLibrary] Ошибка:', err);
@@ -260,7 +265,6 @@ async function resetAllData() {
   state.selectedTruckIds = [];
   state.matrixFullNames = true;
   state.theme = 'dark';
-  state._calcCache = new Map();
   saveState();
 
   for (const key in appComponents) {
@@ -274,78 +278,10 @@ async function resetAllData() {
 }
 
 // ============================================================
-// ЭКСПОРТ ИНВЕНТАРЯ В HTML
-// ============================================================
-
-export function exportInventoryHTML() {
-  import('./core/utils.js').then(({ esc }) => {
-    const state = getState();
-    let html = `<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><title>Инвентарь</title>
-<style>
-body{font-family:'Segoe UI',Arial,sans-serif;margin:40px;color:#222;background:#fff}
-h1{color:#2c3e50;border-bottom:2px solid #3498db;padding-bottom:10px}
-table{width:100%;border-collapse:collapse;margin-top:20px;font-size:14px}
-th{background:#2c3e50;color:#fff;padding:8px;text-align:left}
-td{padding:6px 8px;border-bottom:1px solid #ddd}
-tr:nth-child(even){background:#f9f9f9}
-.category{background:#e6f2ff;font-weight:bold}
-.subgroup{background:#f0f4f8;font-weight:bold}
-</style>
-</head><body>
-<h1>Инвентарь склада</h1>
-<table><thead><tr><th>Категория</th><th>Подгруппа</th><th>Позиция</th><th>В наличии</th><th>Вес (кг)</th><th>Габариты (см)</th></tr></thead><tbody>`;
-
-    const order = state._categoryOrder || Object.keys(state.inventory);
-    for (const cat of order) {
-      const catData = state.inventory[cat];
-      if (!catData) continue;
-      if (Array.isArray(catData)) {
-        for (const item of catData) {
-          const path = cat + '|' + item;
-          const stock = state.stock[path] || 0;
-          const props = state.itemProps[path] || {};
-          html += `<tr><td>${esc(cat)}</td><td></td><td>${esc(item)}</td><td>${stock}</td><td>${props.weight || ''}</td><td>${props.dimensions || ''}</td></tr>`;
-        }
-      } else if (typeof catData === 'object') {
-        const subOrder = catData._subOrder || Object.keys(catData).filter(k => k !== '_subOrder');
-        for (const sub of subOrder) {
-          const items = catData[sub] || [];
-          if (!Array.isArray(items)) continue;
-          for (const item of items) {
-            const path = cat + '|' + sub + '|' + item;
-            const stock = state.stock[path] || 0;
-            const props = state.itemProps[path] || {};
-            html += `<tr><td>${esc(cat)}</td><td>${esc(sub)}</td><td>${esc(item)}</td><td>${stock}</td><td>${props.weight || ''}</td><td>${props.dimensions || ''}</td></tr>`;
-          }
-        }
-      }
-    }
-
-    html += `</tbody></table>
-<div style="margin-top:30px;display:flex;gap:12px;">
-  <button onclick="window.print()" style="padding:10px 24px;background:#2c3e50;color:white;border:none;border-radius:6px;font-size:16px;cursor:pointer;">Сохранить PDF</button>
-  <button onclick="window.close()" style="padding:10px 24px;background:#ddd;color:#333;border:none;border-radius:6px;font-size:16px;cursor:pointer;">Закрыть</button>
-</div>
-</body></html>`;
-
-    const win = window.open('', '_blank');
-    if (win) {
-      win.document.write(html);
-      win.document.close();
-      win.focus();
-    } else {
-      showToast('Не удалось открыть окно', 'error');
-    }
-  });
-}
-
-// ============================================================
 // ГЛОБАЛЬНЫЕ ФУНКЦИИ
 // ============================================================
 
 window.switchMode = switchMode;
-window.exportInventoryHTML = exportInventoryHTML;
 window.loadLibrary = loadLibrary;
 window.resetAllData = resetAllData;
 
@@ -356,6 +292,7 @@ window.resetAllData = resetAllData;
 function initApp() {
   console.log('[App] Инициализация...');
   initStore();
+  loadState(); // Загружаем данные
   initTheme();
   initModalHandlers();
 
@@ -390,7 +327,6 @@ if (document.readyState === 'loading') {
 
 export default {
   switchMode,
-  exportInventoryHTML,
   loadLibrary,
   resetAllData,
   initApp,

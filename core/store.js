@@ -1,34 +1,26 @@
 // core/store.js
 
-import {
-  STORAGE_KEYS,
-  DEFAULT_INVENTORY,
-  DEFAULT_STOCK,
-  DEFAULT_SPECS,
-  DEFAULT_PROPS,
-  DEFAULT_COMMON_CASES,
-  DEFAULT_CATEGORY_ORDER,
-  DEFAULT_TRUCK_PRESETS,
-  CASE_MODES_DEFAULTS,
-  DEFAULT_PROJECT_STATUS,
-} from './config.js';
-import {
-  deepClone,
-  safeGetStorage,
-  safeSetStorage,
-  normalizePathSlashes,
-} from './utils.js';
-import { emit } from './events.js';
+/**
+ * Простое хранилище состояния приложения.
+ * Без сложных кэшей и нормализаций — только геттеры, сеттеры и подписки.
+ * @module core/store
+ */
 
-const state = {
-  inventory: { ...DEFAULT_INVENTORY },
-  stock: { ...DEFAULT_STOCK },
-  specs: { ...DEFAULT_SPECS },
-  itemProps: { ...DEFAULT_PROPS },
+import { STORAGE_KEYS } from './config.js';
+
+// ============================================================
+// СОСТОЯНИЕ
+// ============================================================
+
+const defaultState = {
+  inventory: {},
+  stock: {},
+  specs: {},
+  itemProps: {},
   catNames: {},
-  _categoryOrder: [...DEFAULT_CATEGORY_ORDER],
-  commonCases: [...DEFAULT_COMMON_CASES],
-  truckPresets: [...DEFAULT_TRUCK_PRESETS],
+  _categoryOrder: [],
+  commonCases: [],
+  truckPresets: [],
   projects: [],
   projectItems: [],
   order: {},
@@ -46,7 +38,7 @@ const state = {
     name: '',
     start_date: '',
     end_date: '',
-    status: DEFAULT_PROJECT_STATUS,
+    status: 'planned',
   },
   openChecked: {},
   openCategoryState: {},
@@ -55,32 +47,56 @@ const state = {
   selectedTruckIds: [],
   matrixFullNames: true,
   theme: 'dark',
-  _calcCache: new Map(),
 };
 
-let subscribers = [];
+let state = { ...defaultState };
+const subscribers = [];
 
+// ============================================================
+// ПУБЛИЧНЫЙ API
+// ============================================================
+
+/**
+ * Возвращает копию состояния.
+ * @returns {Object}
+ */
 export function getState() {
-  return deepClone(state);
+  return JSON.parse(JSON.stringify(state));
 }
 
+/**
+ * Возвращает значение по ключу.
+ * @param {string} key
+ * @returns {*}
+ */
 export function getStateKey(key) {
   return state[key];
 }
 
+/**
+ * Устанавливает значение и уведомляет подписчиков.
+ * @param {string} key
+ * @param {*} value
+ */
 export function setStateKey(key, value) {
   state[key] = value;
-  notifySubscribers(key);
+  notify(key);
 }
 
+/**
+ * Подписывается на изменения.
+ * @param {Function} callback
+ * @returns {Function} функция для отписки
+ */
 export function subscribe(callback) {
   subscribers.push(callback);
   return () => {
-    subscribers = subscribers.filter(cb => cb !== callback);
+    const idx = subscribers.indexOf(callback);
+    if (idx !== -1) subscribers.splice(idx, 1);
   };
 }
 
-function notifySubscribers(changedKey) {
+function notify(changedKey) {
   const snapshot = getState();
   for (const cb of subscribers) {
     try {
@@ -91,167 +107,120 @@ function notifySubscribers(changedKey) {
   }
 }
 
+// ============================================================
+// ЗАГРУЗКА / СОХРАНЕНИЕ
+// ============================================================
+
 /**
- * Обновляет состояние из переданных данных (мердж + нормализация + сохранение).
+ * Загружает состояние из localStorage.
  */
-export function updateState(newData) {
-  console.log('[Store] updateState вызван, ключи:', Object.keys(newData));
-  for (const key of Object.keys(newData)) {
-    if (key in state) {
-      state[key] = deepClone(newData[key]);
-      console.log(`[Store] Обновлён ключ: ${key}, размер: ${Object.keys(state[key]).length}`);
-    }
-  }
-  normalizeInventoryStructure();
-  normalizeCaseModes();
-  if (!state._categoryOrder || state._categoryOrder.length === 0) {
-    state._categoryOrder = Object.keys(state.inventory);
-  }
-  if (!(state._calcCache instanceof Map)) {
-    state._calcCache = new Map();
-  } else {
-    state._calcCache.clear();
-  }
-  saveState();
-  notifySubscribers('*');
-  console.log('[Store] updateState завершён');
-}
-
 export function loadState() {
-  console.log('[Store] Загрузка состояния...');
-  const appData = safeGetStorage(STORAGE_KEYS.APP_DATA, null);
-  if (appData) {
-    const { itemProps, stock, specs, ...rest } = appData;
-    const normalizeKeys = (obj) => {
-      if (!obj || typeof obj !== 'object') return {};
-      const result = {};
-      for (const key of Object.keys(obj)) {
-        const newKey = normalizePathSlashes(key);
-        result[newKey] = obj[key];
-      }
-      return result;
-    };
-    Object.assign(state, rest);
-    state.itemProps = normalizeKeys(itemProps || {});
-    state.stock = normalizeKeys(stock || {});
-    state.specs = normalizeKeys(specs || {});
-    for (const path of Object.keys(state.itemProps)) {
-      const props = state.itemProps[path];
-      if (props) {
-        if (props.weight === undefined) props.weight = 0;
-        if (props.dimensions === undefined) props.dimensions = '';
-        if (props.volume === undefined) props.volume = 0;
-        if (props.individualCases === undefined) props.individualCases = [];
-        if (props.allowCommon === undefined) props.allowCommon = false;
-        if (props.commonCases === undefined) props.commonCases = [];
-      }
+  try {
+    const saved = localStorage.getItem(STORAGE_KEYS.APP_DATA);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // Нормализуем пути (замена \ на |)
+      const normalizeKeys = (obj) => {
+        if (!obj || typeof obj !== 'object') return {};
+        const result = {};
+        for (const key of Object.keys(obj)) {
+          const newKey = key.replace(/\\/g, '|');
+          result[newKey] = obj[key];
+        }
+        return result;
+      };
+      // Применяем только нужные поля
+      state.inventory = parsed.inventory || {};
+      state.stock = normalizeKeys(parsed.stock || {});
+      state.specs = normalizeKeys(parsed.specs || {});
+      state.itemProps = normalizeKeys(parsed.itemProps || {});
+      state.catNames = parsed.catNames || {};
+      state._categoryOrder = parsed._categoryOrder || [];
+      state.commonCases = parsed.commonCases || [];
+      state.truckPresets = parsed.truckPresets || [];
+      state.projects = parsed.projects || [];
+      state.projectItems = parsed.projectItems || [];
     }
-    console.log('[Store] APP_DATA загружен, позиций:', Object.keys(state.itemProps).length);
-  } else {
-    console.warn('[Store] APP_DATA отсутствует');
+  } catch (e) {
+    console.warn('[Store] Ошибка загрузки APP_DATA:', e);
   }
 
-  const orderData = safeGetStorage(STORAGE_KEYS.ORDER_DATA, null);
-  if (orderData) {
-    const normalizeOrderKeys = (obj) => {
-      if (!obj || typeof obj !== 'object') return {};
-      const result = {};
-      for (const key of Object.keys(obj)) {
-        const newKey = normalizePathSlashes(key);
-        result[newKey] = obj[key];
-      }
-      return result;
-    };
-    const orderKeys = [
-      'order', 'orderSplits', 'links', 'notes', 'orderPacking',
-      'individualCaseValues', 'commonRoutes', 'caseModes', 'orderExclude', 'orderExtra'
-    ];
-    for (const key of orderKeys) {
-      if (orderData[key]) {
-        state[key] = normalizeOrderKeys(orderData[key]);
-      }
+  // Загружаем ORDER_DATA
+  try {
+    const saved = localStorage.getItem(STORAGE_KEYS.ORDER_DATA);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      const normalizeKeys = (obj) => {
+        if (!obj || typeof obj !== 'object') return {};
+        const result = {};
+        for (const key of Object.keys(obj)) {
+          const newKey = key.replace(/\\/g, '|');
+          result[newKey] = obj[key];
+        }
+        return result;
+      };
+      state.order = normalizeKeys(parsed.order || {});
+      state.orderSplits = normalizeKeys(parsed.orderSplits || {});
+      state.links = normalizeKeys(parsed.links || {});
+      state.notes = normalizeKeys(parsed.notes || {});
+      state.orderPacking = normalizeKeys(parsed.orderPacking || {});
+      state.individualCaseValues = normalizeKeys(parsed.individualCaseValues || {});
+      state.commonRoutes = normalizeKeys(parsed.commonRoutes || {});
+      state.caseModes = normalizeKeys(parsed.caseModes || {});
+      state.orderExclude = normalizeKeys(parsed.orderExclude || {});
+      state.orderExtra = normalizeKeys(parsed.orderExtra || {});
+      state.orderProject = parsed.orderProject || defaultState.orderProject;
     }
-    if (orderData.orderProject) {
-      state.orderProject = { ...orderData.orderProject };
+  } catch (e) {
+    console.warn('[Store] Ошибка загрузки ORDER_DATA:', e);
+  }
+
+  // UI_STATE
+  try {
+    const saved = localStorage.getItem(STORAGE_KEYS.UI_STATE);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      state.openChecked = parsed.openChecked || {};
+      state.openCategoryState = parsed.openCategoryState || {};
+      state.openDescState = parsed.openDescState || {};
+      state.detailsOpenOrder = parsed.detailsOpenOrder || false;
+      state.matrixFullNames = parsed.matrixFullNames !== undefined ? parsed.matrixFullNames : true;
     }
-    console.log('[Store] ORDER_DATA загружен');
-  }
+  } catch (e) {}
 
-  const uiData = safeGetStorage(STORAGE_KEYS.UI_STATE, null);
-  if (uiData) {
-    if (uiData.openChecked) state.openChecked = uiData.openChecked;
-    if (uiData.openCategoryState) state.openCategoryState = uiData.openCategoryState;
-    if (uiData.openDescState) state.openDescState = uiData.openDescState;
-    if (uiData.detailsOpenOrder !== undefined) state.detailsOpenOrder = uiData.detailsOpenOrder;
-    if (uiData.matrixFullNames !== undefined) state.matrixFullNames = uiData.matrixFullNames;
-    console.log('[Store] UI_STATE загружен');
-  }
+  // Выбранные грузовики
+  try {
+    const saved = localStorage.getItem(STORAGE_KEYS.SELECTED_TRUCKS);
+    if (saved) state.selectedTruckIds = JSON.parse(saved);
+  } catch (e) {}
 
-  const selectedTrucks = safeGetStorage(STORAGE_KEYS.SELECTED_TRUCKS, []);
-  if (Array.isArray(selectedTrucks)) {
-    state.selectedTruckIds = selectedTrucks;
-  }
+  // Тема
+  try {
+    const theme = localStorage.getItem(STORAGE_KEYS.THEME);
+    if (theme) state.theme = theme;
+  } catch (e) {}
 
-  const theme = safeGetStorage(STORAGE_KEYS.THEME, 'dark');
-  state.theme = theme;
-
-  normalizeInventoryStructure();
-  normalizeCaseModes();
-
-  if (!state._categoryOrder || state._categoryOrder.length === 0) {
-    state._categoryOrder = Object.keys(state.inventory);
-  } else {
-    state._categoryOrder = state._categoryOrder.filter(cat => state.inventory[cat] !== undefined);
-    for (const cat of Object.keys(state.inventory)) {
-      if (!state._categoryOrder.includes(cat)) {
-        state._categoryOrder.push(cat);
-      }
-    }
-  }
-
-  if (!(state._calcCache instanceof Map)) {
-    state._calcCache = new Map();
-  } else {
-    state._calcCache.clear();
-  }
-
-  console.log('[Store] Состояние загружено');
-  notifySubscribers('*');
-}
-
-function normalizeInventoryStructure() {
+  // Приводим _subOrder к нормальному виду (для инвентаря)
   for (const cat of Object.keys(state.inventory)) {
     const catData = state.inventory[cat];
     if (catData && typeof catData === 'object' && !Array.isArray(catData)) {
       if (!catData._subOrder) {
         catData._subOrder = Object.keys(catData).filter(k => k !== '_subOrder');
-      } else {
-        catData._subOrder = catData._subOrder.filter(k => catData[k] !== undefined);
-        for (const key of Object.keys(catData)) {
-          if (key !== '_subOrder' && !catData._subOrder.includes(key)) {
-            catData._subOrder.push(key);
-          }
-        }
       }
     }
   }
-}
 
-function normalizeCaseModes() {
-  for (const path of Object.keys(state.caseModes)) {
-    const mode = state.caseModes[path];
-    if (typeof mode !== 'object' || mode === null) {
-      state.caseModes[path] = { ...CASE_MODES_DEFAULTS };
-      continue;
-    }
-    for (const key of Object.keys(CASE_MODES_DEFAULTS)) {
-      if (!(key in mode)) {
-        mode[key] = CASE_MODES_DEFAULTS[key];
-      }
-    }
+  // Если нет категорий, создаём пустой порядок
+  if (!state._categoryOrder || state._categoryOrder.length === 0) {
+    state._categoryOrder = Object.keys(state.inventory);
   }
+
+  notify('*');
 }
 
+/**
+ * Сохраняет состояние в localStorage.
+ */
 export function saveState() {
   const appData = {
     inventory: state.inventory,
@@ -265,8 +234,7 @@ export function saveState() {
     projects: state.projects,
     projectItems: state.projectItems,
   };
-  safeSetStorage(STORAGE_KEYS.APP_DATA, appData);
-  console.log('[Store] APP_DATA сохранён, позиций:', Object.keys(state.itemProps).length);
+  localStorage.setItem(STORAGE_KEYS.APP_DATA, JSON.stringify(appData));
 
   const orderData = {
     order: state.order,
@@ -281,7 +249,7 @@ export function saveState() {
     orderExtra: state.orderExtra,
     orderProject: state.orderProject,
   };
-  safeSetStorage(STORAGE_KEYS.ORDER_DATA, orderData);
+  localStorage.setItem(STORAGE_KEYS.ORDER_DATA, JSON.stringify(orderData));
 
   const uiData = {
     openChecked: state.openChecked,
@@ -290,84 +258,19 @@ export function saveState() {
     detailsOpenOrder: state.detailsOpenOrder,
     matrixFullNames: state.matrixFullNames,
   };
-  safeSetStorage(STORAGE_KEYS.UI_STATE, uiData);
+  localStorage.setItem(STORAGE_KEYS.UI_STATE, JSON.stringify(uiData));
 
-  safeSetStorage(STORAGE_KEYS.SELECTED_TRUCKS, state.selectedTruckIds);
-  safeSetStorage(STORAGE_KEYS.THEME, state.theme);
-
-  if (state._calcCache instanceof Map) {
-    state._calcCache.clear();
-  } else {
-    state._calcCache = new Map();
-  }
-
-  console.log('[Store] Состояние сохранено');
+  localStorage.setItem(STORAGE_KEYS.SELECTED_TRUCKS, JSON.stringify(state.selectedTruckIds));
+  localStorage.setItem(STORAGE_KEYS.THEME, state.theme);
 }
 
-export function getCachedCalculation(key) {
-  if (state._calcCache instanceof Map) {
-    return state._calcCache.get(key);
-  }
-  return undefined;
-}
-
-export function setCachedCalculation(key, value) {
-  if (!(state._calcCache instanceof Map)) {
-    state._calcCache = new Map();
-  }
-  state._calcCache.set(key, value);
-}
-
-export function clearCalculationCache() {
-  if (state._calcCache instanceof Map) {
-    state._calcCache.clear();
-  } else {
-    state._calcCache = new Map();
-  }
-}
-
+/**
+ * Сбрасывает состояние (очищает все данные).
+ */
 export function resetState() {
-  state.inventory = { ...DEFAULT_INVENTORY };
-  state.stock = { ...DEFAULT_STOCK };
-  state.specs = { ...DEFAULT_SPECS };
-  state.itemProps = { ...DEFAULT_PROPS };
-  state.catNames = {};
-  state._categoryOrder = [...DEFAULT_CATEGORY_ORDER];
-  state.commonCases = [...DEFAULT_COMMON_CASES];
-  state.truckPresets = [...DEFAULT_TRUCK_PRESETS];
-  state.projects = [];
-  state.projectItems = [];
-  state.order = {};
-  state.orderSplits = {};
-  state.links = {};
-  state.notes = {};
-  state.orderPacking = {};
-  state.individualCaseValues = {};
-  state.commonRoutes = {};
-  state.caseModes = {};
-  state.orderExclude = {};
-  state.orderExtra = {};
-  state.orderProject = {
-    id: null,
-    name: '',
-    start_date: '',
-    end_date: '',
-    status: DEFAULT_PROJECT_STATUS,
-  };
-  state.openChecked = {};
-  state.openCategoryState = {};
-  state.openDescState = {};
-  state.detailsOpenOrder = false;
-  state.selectedTruckIds = [];
-  state.matrixFullNames = true;
-  state.theme = 'dark';
-  state._calcCache = new Map();
+  state = { ...defaultState };
   saveState();
-  notifySubscribers('*');
-}
-
-export function initStore() {
-  loadState();
+  notify('*');
 }
 
 export default {
@@ -378,9 +281,4 @@ export default {
   loadState,
   saveState,
   resetState,
-  updateState,
-  getCachedCalculation,
-  setCachedCalculation,
-  clearCalculationCache,
-  initStore,
 };
