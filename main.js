@@ -1,12 +1,6 @@
 // main.js
 
-/**
- * Точка входа в приложение.
- * Инициализирует store, тему, модалки, компоненты страниц и навигацию.
- * @module main
- */
-
-import { initStore, getState, saveState, loadState } from './core/store.js';
+import { initStore, getState, saveState, loadState, updateState } from './core/store.js';
 import { emit, EVENTS } from './core/events.js';
 import { initTheme } from './ui/theme.js';
 import { initModalHandlers } from './ui/modal.js';
@@ -18,16 +12,8 @@ import { createOpenPage } from './ui/components/OpenPage.js';
 import { createLoadingPage } from './ui/components/LoadingPage.js';
 import { createMonitoringPage } from './ui/components/MonitoringPage.js';
 
-// ============================================================
-// СОСТОЯНИЕ ПРИЛОЖЕНИЯ
-// ============================================================
-
 let currentMode = 'menu';
 let appComponents = {};
-
-// ============================================================
-// КОНТЕЙНЕРЫ
-// ============================================================
 
 const containers = {
   menu: document.getElementById('mMenu'),
@@ -37,10 +23,6 @@ const containers = {
   loading: document.getElementById('loadingPage'),
   monitoring: document.getElementById('monitoringPage'),
 };
-
-// ============================================================
-// ФУНКЦИЯ ПЕРЕКЛЮЧЕНИЯ РЕЖИМОВ
-// ============================================================
 
 export function switchMode(mode) {
   console.log('[App] switchMode:', mode);
@@ -112,7 +94,7 @@ export function switchMode(mode) {
 }
 
 // ============================================================
-// ЗАГРУЗКА БИБЛИОТЕКИ
+// ЗАГРУЗКА БИБЛИОТЕКИ (с диагностикой)
 // ============================================================
 
 function loadLibrary() {
@@ -133,31 +115,35 @@ function loadLibrary() {
     reader.onload = function(ev) {
       try {
         const data = JSON.parse(ev.target.result);
-        const state = getState();
+        console.log('[loadLibrary] Данные загружены, ключи:', Object.keys(data));
 
-        // Импортируем данные
-        if (data.inventory) state.inventory = data.inventory;
-        if (data.stock) state.stock = data.stock;
-        if (data.specs) state.specs = data.specs;
-        if (data.itemProps) state.itemProps = data.itemProps;
-        if (data.catNames) state.catNames = data.catNames;
-        if (data._categoryOrder) state._categoryOrder = data._categoryOrder;
-        if (data.commonCases) state.commonCases = data.commonCases;
-        if (data.truckPresets) state.truckPresets = data.truckPresets;
-        if (data.projects) state.projects = data.projects;
-        if (data.projectItems) state.projectItems = data.projectItems;
+        // Проверяем наличие ключей
+        if (!data.inventory) {
+          showToast('Ошибка: в файле отсутствует inventory', 'error');
+          return;
+        }
 
-        // Сохраняем в localStorage
-        saveState();
+        // Обновляем состояние через updateState
+        updateState({
+          inventory: data.inventory || {},
+          stock: data.stock || {},
+          specs: data.specs || {},
+          itemProps: data.itemProps || {},
+          catNames: data.catNames || {},
+          _categoryOrder: data._categoryOrder || [],
+          commonCases: data.commonCases || [],
+          truckPresets: data.truckPresets || [],
+          projects: data.projects || [],
+          projectItems: data.projectItems || [],
+        });
 
-        // Перезагружаем состояние из localStorage для полной нормализации
-        // Это вызовет loadState(), который нормализует структуру инвентаря, кэш и т.д.
+        // Принудительно перезагружаем состояние из localStorage (для синхронизации)
         loadState();
 
         showToast('Библиотека загружена', 'success');
         emit(EVENTS.EDITOR_DATA_CHANGED, { action: 'importLibrary' });
 
-        // Принудительно обновляем все существующие компоненты
+        // Обновляем все компоненты
         for (const key in appComponents) {
           const comp = appComponents[key];
           if (comp && typeof comp._onDataChanged === 'function') {
@@ -169,7 +155,7 @@ function loadLibrary() {
           }
         }
 
-        // Дополнительная перерисовка текущей страницы
+        // Перерисовываем текущую страницу
         if (currentMode === 'editor' && appComponents.editor) {
           appComponents.editor._renderEditor();
         } else if (currentMode === 'order' && appComponents.order) {
@@ -183,7 +169,13 @@ function loadLibrary() {
           appComponents.monitoring._render();
         }
 
+        // Проверяем, что данные действительно сохранились
+        const state = getState();
+        console.log('[loadLibrary] После загрузки, в state inventory позиций:', Object.keys(state.inventory).length);
+        console.log('[loadLibrary] После загрузки, в state itemProps позиций:', Object.keys(state.itemProps).length);
+
       } catch (err) {
+        console.error('[loadLibrary] Ошибка:', err);
         showToast('Ошибка: ' + err.message, 'error');
       }
       document.body.removeChild(input);
@@ -193,7 +185,7 @@ function loadLibrary() {
 }
 
 // ============================================================
-// СБРОС ВСЕХ ДАННЫХ
+// СБРОС ДАННЫХ
 // ============================================================
 
 async function resetAllData() {
@@ -249,7 +241,7 @@ async function resetAllData() {
 }
 
 // ============================================================
-// ЭКСПОРТ ИНВЕНТАРЯ В HTML
+// ЭКСПОРТ HTML
 // ============================================================
 
 export function exportInventoryHTML() {
@@ -303,11 +295,6 @@ tr:nth-child(even){background:#f9f9f9}
 </div>
 </body></html>`;
 
-  // Экранирование (используем глобальный esc из utils)
-  import('./core/utils.js').then(({ esc }) => {
-    // уже использовано выше, но для полноты
-  });
-
   const win = window.open('', '_blank');
   if (win) {
     win.document.write(html);
@@ -319,7 +306,7 @@ tr:nth-child(even){background:#f9f9f9}
 }
 
 // ============================================================
-// ГЛОБАЛЬНЫЕ ФУНКЦИИ
+// ГЛОБАЛЬНЫЕ
 // ============================================================
 
 window.switchMode = switchMode;
@@ -360,19 +347,11 @@ function initApp() {
   console.log('[App] Инициализация завершена');
 }
 
-// ============================================================
-// ЗАПУСК
-// ============================================================
-
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initApp);
 } else {
   initApp();
 }
-
-// ============================================================
-// ЭКСПОРТ
-// ============================================================
 
 export default {
   switchMode,

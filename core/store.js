@@ -1,10 +1,5 @@
 // core/store.js
 
-/**
- * Единое хранилище состояния приложения.
- * @module core/store
- */
-
 import {
   STORAGE_KEYS,
   DEFAULT_INVENTORY,
@@ -24,10 +19,6 @@ import {
   normalizePathSlashes,
 } from './utils.js';
 import { emit } from './events.js';
-
-// ============================================================
-// СОСТОЯНИЕ
-// ============================================================
 
 const state = {
   inventory: { ...DEFAULT_INVENTORY },
@@ -67,10 +58,6 @@ const state = {
   _calcCache: new Map(),
 };
 
-// ============================================================
-// ПОДПИСКИ
-// ============================================================
-
 let subscribers = [];
 
 export function getState() {
@@ -104,21 +91,17 @@ function notifySubscribers(changedKey) {
   }
 }
 
-// ============================================================
-// ОБНОВЛЕНИЕ СОСТОЯНИЯ (НОВОЕ)
-// ============================================================
-
 /**
- * Обновляет состояние из переданных данных (мердж).
- * @param {Object} newData - объект с ключами состояния
+ * Обновляет состояние из переданных данных (мердж + нормализация + сохранение).
  */
 export function updateState(newData) {
+  console.log('[Store] updateState вызван, ключи:', Object.keys(newData));
   for (const key of Object.keys(newData)) {
     if (key in state) {
       state[key] = deepClone(newData[key]);
+      console.log(`[Store] Обновлён ключ: ${key}, размер: ${Object.keys(state[key]).length}`);
     }
   }
-  // Нормализация
   normalizeInventoryStructure();
   normalizeCaseModes();
   if (!state._categoryOrder || state._categoryOrder.length === 0) {
@@ -131,11 +114,8 @@ export function updateState(newData) {
   }
   saveState();
   notifySubscribers('*');
+  console.log('[Store] updateState завершён');
 }
-
-// ============================================================
-// ЗАГРУЗКА ИЗ localStorage
-// ============================================================
 
 export function loadState() {
   console.log('[Store] Загрузка состояния...');
@@ -167,6 +147,8 @@ export function loadState() {
       }
     }
     console.log('[Store] APP_DATA загружен, позиций:', Object.keys(state.itemProps).length);
+  } else {
+    console.warn('[Store] APP_DATA отсутствует');
   }
 
   const orderData = safeGetStorage(STORAGE_KEYS.ORDER_DATA, null);
@@ -237,10 +219,6 @@ export function loadState() {
   notifySubscribers('*');
 }
 
-// ============================================================
-// НОРМАЛИЗАЦИЯ
-// ============================================================
-
 function normalizeInventoryStructure() {
   for (const cat of Object.keys(state.inventory)) {
     const catData = state.inventory[cat];
@@ -274,10 +252,6 @@ function normalizeCaseModes() {
   }
 }
 
-// ============================================================
-// СОХРАНЕНИЕ
-// ============================================================
-
 export function saveState() {
   const appData = {
     inventory: state.inventory,
@@ -292,6 +266,7 @@ export function saveState() {
     projectItems: state.projectItems,
   };
   safeSetStorage(STORAGE_KEYS.APP_DATA, appData);
+  console.log('[Store] APP_DATA сохранён, позиций:', Object.keys(state.itemProps).length);
 
   const orderData = {
     order: state.order,
@@ -329,10 +304,6 @@ export function saveState() {
   console.log('[Store] Состояние сохранено');
 }
 
-// ============================================================
-// КЭШ
-// ============================================================
-
 export function getCachedCalculation(key) {
   if (state._calcCache instanceof Map) {
     return state._calcCache.get(key);
@@ -354,10 +325,6 @@ export function clearCalculationCache() {
     state._calcCache = new Map();
   }
 }
-
-// ============================================================
-// РЕСЕТ
-// ============================================================
 
 export function resetState() {
   state.inventory = { ...DEFAULT_INVENTORY };
@@ -399,17 +366,9 @@ export function resetState() {
   notifySubscribers('*');
 }
 
-// ============================================================
-// ИНИЦИАЛИЗАЦИЯ
-// ============================================================
-
 export function initStore() {
   loadState();
 }
-
-// ============================================================
-// ЭКСПОРТ
-// ============================================================
 
 export default {
   getState,
