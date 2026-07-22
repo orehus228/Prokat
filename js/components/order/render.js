@@ -513,52 +513,54 @@ export function updateCategoryTotalsOrder(catKey) {
 }
 
 // ============================================================
-// ГЛАВНАЯ ФУНКЦИЯ СТАТИСТИКИ — ПРЯМОЙ ДОСТУП К STATE
+// ГЛАВНАЯ ФУНКЦИЯ СТАТИСТИКИ — ПРЯМОЙ ПЕРЕБОР ВСЕХ ИСТОЧНИКОВ
 // ============================================================
 export function updateTotalsOrder() {
   const state = getState();
 
-  // 1. Собираем все уникальные пути
-  const allPaths = new Set();
+  // 1. Формируем массив items напрямую из всех источников
+  const items = [];
+  const seenPaths = new Set();
 
-  // Из order
-  for (let p in state.order) {
-    if (state.order[p] > 0) allPaths.add(p);
-  }
-  // Из orderExtra
-  for (let p in state.orderExtra) {
-    if (state.orderExtra[p] > 0) allPaths.add(p);
-  }
-  // Из orderPacking
+  // Из orderPacking + orderExtra
   for (let p in state.orderPacking) {
     const packing = state.orderPacking[p];
     const total = packing.reduce((s, item) => s + (item.pieces || 0), 0);
-    if (total > 0) allPaths.add(p);
+    const extra = state.orderExtra[p] || 0;
+    const qty = total + extra;
+    if (qty > 0) {
+      items.push({ path: p, qty });
+      seenPaths.add(p);
+    }
   }
-  // Из individualCaseValues
+
+  // Из order (обычное количество)
+  for (let p in state.order) {
+    if (state.order[p] > 0 && !seenPaths.has(p)) {
+      items.push({ path: p, qty: state.order[p] });
+      seenPaths.add(p);
+    }
+  }
+
+  // Из individualCaseValues (мультикофры)
   for (let p in state.individualCaseValues) {
     const vals = state.individualCaseValues[p];
-    if (vals.reduce((a, b) => a + b, 0) > 0) allPaths.add(p);
+    const total = vals.reduce((a, b) => a + b, 0);
+    if (total > 0 && !seenPaths.has(p)) {
+      items.push({ path: p, qty: total });
+      seenPaths.add(p);
+    }
   }
 
-  // 2. Формируем массив items
-  const items = [];
-  allPaths.forEach(path => {
-    const qty = getTotalQty(path);
-    if (qty > 0) {
-      items.push({ path, qty });
-    }
-  });
-
-  // 3. Считаем общие итоги
+  // 2. Считаем общие итоги
   const result = calculateTotals(items);
 
-  // 4. Обновляем глобальные цифры
+  // 3. Обновляем глобальные цифры
   document.getElementById('totalQty').textContent = result.totalQty;
   document.getElementById('totalWeight').textContent = result.totalWeight.toFixed(1);
   document.getElementById('totalVolume').textContent = result.totalVolume.toFixed(3);
 
-  // 5. Строим детальную статистику
+  // 4. Строим детальную статистику
   const detailsDiv = document.getElementById('globalDetails');
   if (!detailsDiv) return;
 
@@ -608,7 +610,6 @@ export function updateTotalsOrder() {
   detailsDiv.innerHTML = detailsHtml || '';
   renderCommonCaseIndicatorsOrder();
 
-  // Логирование для отладки
   console.log('[STATS] Общих кофров: шт=' + commonQty + ', вес=' + commonWeight + ', объём=' + commonVolume);
 }
 
