@@ -94,7 +94,7 @@ export const CAT_NAMES = {
 export const DUPLICATE_VIDEO_GROUPS = ['Экраны'];
 
 /** Статусы проекта */
-export const PROJECT_STATUSES = ['planned', 'active', 'completed'] as const;
+export const PROJECT_STATUSES = ['planned', 'active', 'completed'];
 export const DEFAULT_PROJECT_STATUS = 'planned';
 
 /** Максимальная глубина рекурсивного обхода дерева инвентаря (защита от зацикливания) */
