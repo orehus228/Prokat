@@ -23,48 +23,12 @@ import {
   safeGetStorage,
   safeSetStorage,
   normalizePathSlashes,
-  splitPath,
-  joinPath,
-  getCategory,
 } from './utils.js';
 import { emit } from './events.js';
 
 // ============================================================
 // СОСТОЯНИЕ (приватное)
 // ============================================================
-
-/**
- * @typedef {Object} AppState
- * @property {Object} inventory - дерево инвентаря { category: { subgroup: [items] } }
- * @property {Object} stock - остатки на складе { path: number }
- * @property {Object} specs - описания позиций { path: string }
- * @property {Object} itemProps - свойства позиций { path: { weight, dimensions, volume, individualCases, allowCommon, commonCases } }
- * @property {Object} catNames - отображаемые имена категорий { category: displayName }
- * @property {string[]} _categoryOrder - порядок категорий
- * @property {Object[]} commonCases - массив общих кофров
- * @property {Object[]} truckPresets - массив грузовиков
- * @property {Object[]} projects - массив проектов
- * @property {Object[]} projectItems - массив позиций проектов
- * @property {Object} order - основные позиции заказа { path: quantity }
- * @property {Object} orderSplits - разбивки по маршрутам { path: [{ target, qty }] }
- * @property {Object} links - привязки (линки) { src: [{ target, multiplier }] }
- * @property {Object} notes - заметки { path: string }
- * @property {Object} orderPacking - упаковка общими кофрами { path: [{ caseId, pieces }] }
- * @property {Object} individualCaseValues - значения для индивидуальных кофров { path: [number] }
- * @property {Object} commonRoutes - привязки к общим маршрутам { path: [{ target, multiplier }] }
- * @property {Object} caseModes - режимы кофров { path: { enabled, alt, selectedOption, accumulate, multiSelected, commonSelected, useAlt, criteria } }
- * @property {Object} orderExclude - исключения из загрузки { path: true }
- * @property {Object} orderExtra - количество вне кофров { path: number }
- * @property {Object} orderProject - привязка к проекту { id, name, start_date, end_date, status }
- * @property {Object} openChecked - состояние чекбоксов в открытом заказе { path: boolean }
- * @property {Object} openCategoryState - состояние открытых категорий в открытом заказе { path: boolean }
- * @property {Object} openDescState - состояние описаний в открытом заказе { path: boolean }
- * @property {boolean} detailsOpenOrder - открыта ли детальная статистика в заказе
- * @property {string[]} selectedTruckIds - ID выбранных грузовиков для загрузки
- * @property {boolean} matrixFullNames - показывать полные названия в матрице
- * @property {string} theme - тема ('dark' | 'light')
- * @property {Map} _calcCache - кэш расчётов
- */
 
 /** @type {AppState} */
 const state = {
@@ -102,7 +66,7 @@ const state = {
   selectedTruckIds: [],
   matrixFullNames: true,
   theme: 'dark',
-  _calcCache: new Map(),
+  _calcCache: new Map(), // <-- гарантированно Map
 };
 
 // ============================================================
@@ -116,38 +80,19 @@ let subscribers = [];
 // ПУБЛИЧНЫЕ МЕТОДЫ ДОСТУПА К СОСТОЯНИЮ
 // ============================================================
 
-/**
- * Возвращает копию всего состояния (только для чтения).
- * @returns {AppState} клон состояния
- */
 export function getState() {
   return deepClone(state);
 }
 
-/**
- * Возвращает значение по ключу (без клонирования).
- * @param {string} key - ключ состояния
- * @returns {*} значение
- */
 export function getStateKey(key) {
   return state[key];
 }
 
-/**
- * Устанавливает значение в состоянии и уведомляет подписчиков.
- * @param {string} key - ключ состояния
- * @param {*} value - новое значение
- */
 export function setStateKey(key, value) {
   state[key] = value;
   notifySubscribers(key);
 }
 
-/**
- * Подписывается на изменения состояния.
- * @param {Function} callback - функция (changedKey, newState)
- * @returns {Function} функция для отписки
- */
 export function subscribe(callback) {
   subscribers.push(callback);
   return () => {
@@ -155,10 +100,6 @@ export function subscribe(callback) {
   };
 }
 
-/**
- * Уведомляет всех подписчиков об изменении.
- * @param {string} changedKey - изменённый ключ
- */
 function notifySubscribers(changedKey) {
   const snapshot = getState();
   for (const cb of subscribers) {
@@ -174,9 +115,6 @@ function notifySubscribers(changedKey) {
 // ЗАГРУЗКА СОСТОЯНИЯ ИЗ localStorage
 // ============================================================
 
-/**
- * Загружает все данные из localStorage, нормализует и применяет.
- */
 export function loadState() {
   console.log('[Store] Загрузка состояния...');
 
@@ -185,7 +123,6 @@ export function loadState() {
   if (appData) {
     const { itemProps, stock, specs, ...rest } = appData;
 
-    // Нормализация путей (замена \ на |)
     const normalizeKeys = (obj) => {
       if (!obj || typeof obj !== 'object') return {};
       const result = {};
@@ -201,7 +138,6 @@ export function loadState() {
     state.stock = normalizeKeys(stock || {});
     state.specs = normalizeKeys(specs || {});
 
-    // Нормализация itemProps: добавление дефолтных полей
     for (const path of Object.keys(state.itemProps)) {
       const props = state.itemProps[path];
       if (props) {
@@ -220,7 +156,6 @@ export function loadState() {
   // 2. Данные заказа (ORDER_DATA)
   const orderData = safeGetStorage(STORAGE_KEYS.ORDER_DATA, null);
   if (orderData) {
-    // Нормализуем пути во всех вложенных объектах
     const normalizeOrderKeys = (obj) => {
       if (!obj || typeof obj !== 'object') return {};
       const result = {};
@@ -286,7 +221,6 @@ export function loadState() {
     state._categoryOrder = Object.keys(state.inventory);
   } else {
     state._categoryOrder = state._categoryOrder.filter(cat => state.inventory[cat] !== undefined);
-    // Добавляем недостающие категории
     for (const cat of Object.keys(state.inventory)) {
       if (!state._categoryOrder.includes(cat)) {
         state._categoryOrder.push(cat);
@@ -294,20 +228,21 @@ export function loadState() {
     }
   }
 
-  // 9. Очистка кэша
-  state._calcCache.clear();
+  // 9. Очистка кэша (гарантированно через Map)
+  if (!(state._calcCache instanceof Map)) {
+    state._calcCache = new Map();
+  } else {
+    state._calcCache.clear();
+  }
 
   console.log('[Store] Состояние загружено');
   notifySubscribers('*');
 }
 
 // ============================================================
-// НОРМАЛИЗАЦИЯ ДАННЫХ
+// НОРМАЛИЗАЦИЯ
 // ============================================================
 
-/**
- * Нормализует структуру инвентаря: добавляет _subOrder, если отсутствует.
- */
 function normalizeInventoryStructure() {
   for (const cat of Object.keys(state.inventory)) {
     const catData = state.inventory[cat];
@@ -315,9 +250,7 @@ function normalizeInventoryStructure() {
       if (!catData._subOrder) {
         catData._subOrder = Object.keys(catData).filter(k => k !== '_subOrder');
       } else {
-        // Удаляем несуществующие ключи из _subOrder
         catData._subOrder = catData._subOrder.filter(k => catData[k] !== undefined);
-        // Добавляем новые ключи
         for (const key of Object.keys(catData)) {
           if (key !== '_subOrder' && !catData._subOrder.includes(key)) {
             catData._subOrder.push(key);
@@ -328,9 +261,6 @@ function normalizeInventoryStructure() {
   }
 }
 
-/**
- * Нормализует режимы кофров: добавляет дефолтные поля.
- */
 function normalizeCaseModes() {
   for (const path of Object.keys(state.caseModes)) {
     const mode = state.caseModes[path];
@@ -350,11 +280,7 @@ function normalizeCaseModes() {
 // СОХРАНЕНИЕ СОСТОЯНИЯ
 // ============================================================
 
-/**
- * Сохраняет всё состояние в localStorage.
- */
 export function saveState() {
-  // APP_DATA
   const appData = {
     inventory: state.inventory,
     stock: state.stock,
@@ -369,7 +295,6 @@ export function saveState() {
   };
   safeSetStorage(STORAGE_KEYS.APP_DATA, appData);
 
-  // ORDER_DATA
   const orderData = {
     order: state.order,
     orderSplits: state.orderSplits,
@@ -385,7 +310,6 @@ export function saveState() {
   };
   safeSetStorage(STORAGE_KEYS.ORDER_DATA, orderData);
 
-  // UI_STATE
   const uiData = {
     openChecked: state.openChecked,
     openCategoryState: state.openCategoryState,
@@ -395,14 +319,14 @@ export function saveState() {
   };
   safeSetStorage(STORAGE_KEYS.UI_STATE, uiData);
 
-  // Выбранные грузовики
   safeSetStorage(STORAGE_KEYS.SELECTED_TRUCKS, state.selectedTruckIds);
-
-  // Тема
   safeSetStorage(STORAGE_KEYS.THEME, state.theme);
 
-  // Очистка кэша (при любом сохранении)
-  state._calcCache.clear();
+  if (state._calcCache instanceof Map) {
+    state._calcCache.clear();
+  } else {
+    state._calcCache = new Map();
+  }
 
   console.log('[Store] Состояние сохранено');
 }
@@ -411,38 +335,32 @@ export function saveState() {
 // КЭШИРОВАНИЕ РАСЧЁТОВ
 // ============================================================
 
-/**
- * Получает закэшированное значение расчёта.
- * @param {string} key - ключ кэша
- * @returns {*} значение или undefined
- */
 export function getCachedCalculation(key) {
-  return state._calcCache.get(key);
+  if (state._calcCache instanceof Map) {
+    return state._calcCache.get(key);
+  }
+  return undefined;
 }
 
-/**
- * Устанавливает значение в кэш расчётов.
- * @param {string} key - ключ кэша
- * @param {*} value - значение
- */
 export function setCachedCalculation(key, value) {
+  if (!(state._calcCache instanceof Map)) {
+    state._calcCache = new Map();
+  }
   state._calcCache.set(key, value);
 }
 
-/**
- * Очищает кэш расчётов.
- */
 export function clearCalculationCache() {
-  state._calcCache.clear();
+  if (state._calcCache instanceof Map) {
+    state._calcCache.clear();
+  } else {
+    state._calcCache = new Map();
+  }
 }
 
 // ============================================================
 // РЕСЕТ СОСТОЯНИЯ
 // ============================================================
 
-/**
- * Сбрасывает состояние до дефолтных значений.
- */
 export function resetState() {
   state.inventory = { ...DEFAULT_INVENTORY };
   state.stock = { ...DEFAULT_STOCK };
@@ -478,7 +396,7 @@ export function resetState() {
   state.selectedTruckIds = [];
   state.matrixFullNames = true;
   state.theme = 'dark';
-  state._calcCache.clear();
+  state._calcCache = new Map();
   saveState();
   notifySubscribers('*');
 }
@@ -487,9 +405,6 @@ export function resetState() {
 // ИНИЦИАЛИЗАЦИЯ
 // ============================================================
 
-/**
- * Инициализирует хранилище (загружает данные).
- */
 export function initStore() {
   loadState();
 }
