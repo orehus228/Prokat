@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Прокатошная</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="app">
+    <!-- Шапка -->
+    <div class="header">
+      <div class="logo">📦</div>
+      <h1>Прокатошная</h1>
+      <button class="theme-toggle" id="themeToggle" title="Переключить тему"></button>
+    </div>
+
+    <!-- КОНТЕЙНЕРЫ СТРАНИЦ -->
+    <div id="mMenu" style="display:none;"></div>          <!-- Меню -->
+    <div id="mPage" style="display:none;"></div>          <!-- Заказ -->
+    <div id="editorPage" style="display:none;"></div>     <!-- Редактор -->
+    <div id="sPage" style="display:none;"></div>          <!-- Открыть список -->
+    <div id="loadingPage" style="display:none;"></div>    <!-- Загрузка -->
+    <div id="monitoringPage" style="display:none;"></div> <!-- Мониторинг -->
+
+    <!-- МОДАЛКИ (общие для всех страниц) -->
+    <div class="modal-overlay" id="modalOverlay">
+      <div class="modal">
+        <h3 id="modalTitle">Новая позиция</h3>
+        <label id="modalLabel" for="modalInput">Название:</label>
+        <input type="text" id="modalInput" placeholder="Введите название...">
+        <div class="buttons">
+          <button class="cancel" id="modalCancel">Отмена</button>
+          <button class="confirm" id="modalConfirm">Добавить</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="confirmOverlay">
+      <div class="modal">
+        <h3 id="confirmTitle">Подтверждение</h3>
+        <div class="message" id="confirmMessage">Вы уверены?</div>
+        <div class="buttons">
+          <button class="cancel" id="confirmNo">Отмена</button>
+          <button class="confirm" id="confirmYes">Да</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Модалки, создаваемые компонентами (запасные контейнеры) -->
+    <div id="propsModal" class="modal-overlay" style="display:none;"></div>
+    <div id="caseSettingsModal" class="modal-overlay" style="display:none;"></div>
+    <div id="casesManagerModal" class="modal-overlay" style="display:none;"></div>
+    <div id="matrixModal" class="modal-overlay" style="display:none;"></div>
+    <div id="truckManagerModal" class="modal-overlay" style="display:none;"></div>
+
+    <!-- Тост -->
+    <div class="toast" id="toast"></div>
+  </div>
+
+  <!-- Скрипт -->
+  <script type="module" src="main.js"></script>
+</body>
+</html>
