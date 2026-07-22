@@ -474,159 +474,35 @@ export function buildQtyControls(path) {
   return div;
 }
 
+/**
+ * Обновляет строку путём полной замены DOM-элемента на новый.
+ */
 export function updateRow(path) {
   path = path.replace(/\\/g, '|');
-  console.log('[updateRow] вызван для пути:', path);
   const container = document.getElementById('categoryContents');
-  if (!container) {
-    console.warn('[updateRow] Контейнер не найден');
-    return;
-  }
+  if (!container) return;
 
+  // Находим старую строку
   const rows = container.querySelectorAll('.row');
-  console.log('[updateRow] Всего строк в контейнере:', rows.length);
-  let row = null;
+  let oldRow = null;
   for (const r of rows) {
     const p = r.dataset.path ? r.dataset.path.replace(/\\/g, '|') : '';
     if (p === path) {
-      row = r;
+      oldRow = r;
       break;
     }
   }
-  if (!row) {
-    console.warn('[updateRow] Строка НЕ найдена для пути:', path);
-    console.log('[updateRow] Доступные пути:', Array.from(rows).map(r => r.dataset.path));
+  if (!oldRow) {
+    console.warn('[updateRow] Строка не найдена:', path);
     return;
   }
-  console.log('[updateRow] Строка найдена, обновляем...');
 
-  const sq = getStockByPath(path);
-  const totalQty = getTotalQty(path);
-  row.classList.toggle('added', totalQty > 0);
-  row.classList.toggle('overstock', totalQty > sq);
+  // Определяем уровень вложенности для buildItemRow
+  const level = path.split('|').length - 1;
+  const newRow = buildItemRow(path, level);
+  oldRow.replaceWith(newRow);
 
-  // Обновляем поля ввода
-  const inputs = row.querySelectorAll('input');
-  console.log('[updateRow] Количество полей ввода:', inputs.length);
-  inputs.forEach(input => {
-    if (input.classList.contains('qty-input')) {
-      input.value = totalQty;
-    } else if (input.classList.contains('single-pieces-input')) {
-      const mode = getCaseMode(path);
-      const options = getItemPropsByPath(path).individualCases || [];
-      const vals = getIndividualCaseValues(path);
-      const pieces = vals[0] || 0;
-      input.value = pieces;
-    } else if (input.classList.contains('single-cases-input')) {
-      const mode = getCaseMode(path);
-      const options = getItemPropsByPath(path).individualCases || [];
-      const vals = getIndividualCaseValues(path);
-      const pieces = vals[0] || 0;
-      const opt = options[mode.selectedOption] || options[0];
-      const casesCount = opt && opt.qty ? Math.ceil(pieces / opt.qty) : 0;
-      input.value = casesCount;
-    } else if (input.classList.contains('child-multi-pieces')) {
-      const idx = parseInt(input.dataset.idx, 10);
-      const vals = getIndividualCaseValues(path);
-      if (!isNaN(idx) && vals[idx] !== undefined) {
-        input.value = vals[idx];
-      }
-    } else if (input.classList.contains('child-common-qty')) {
-      const caseId = input.dataset.caseid;
-      const packing = getOrderPacking(path);
-      const p = packing.find(p => p.caseId === caseId);
-      if (p) {
-        input.value = p.pieces || 0;
-      }
-    } else if (input.classList.contains('child-extra-qty')) {
-      const extra = getOrderExtra(path);
-      input.value = extra;
-    }
-  });
-
-  // Обновляем extra-info
-  const nameArea = row.querySelector('.name-area');
-  const extraInfo = nameArea?.querySelector('.extra-info');
-  if (extraInfo) {
-    const props = getItemPropsByPath(path);
-    const mode = getCaseMode(path);
-    const packing = getOrderPacking(path);
-    const individualVals = getIndividualCaseValues(path);
-    const extra = getOrderExtra(path);
-    const options = props.individualCases || [];
-    const isMulti = mode.enabled && options.length > 1 && mode.multiSelected && mode.multiSelected.some(v => v === true);
-    const hasCommonPacking = packing.length > 0;
-
-    let info = `<span><strong>${totalQty}</strong> шт добавлено</span>`;
-    info += `<span>в наличии: <strong>${sq}</strong></span>`;
-    // Вес и объём можно посчитать через packaging
-    const packResult = getPackaging(path, totalQty);
-    if (packResult.totalWeight > 0) info += `<span>${formatWeight(packResult.totalWeight)}</span>`;
-    if (packResult.totalVolume > 0) info += `<span>${formatVolume(packResult.totalVolume)}</span>`;
-    if (hasCommonPacking) {
-      const totalPieces = packing.reduce((s, p) => s + (p.pieces || 0), 0);
-      info += `<span>[Кофр] ${packing.length} шт (${totalPieces} шт)</span>`;
-    } else if (isMulti) {
-      const totalCases = individualVals.reduce((sum, v, idx) => {
-        if (v <= 0) return sum;
-        const opt = options[idx] || options[0];
-        return sum + Math.ceil(v / (opt.qty || 1));
-      }, 0);
-      info += `<span>[Мульти] ${totalCases} кофр${totalCases > 1 ? 'а' : ''}</span>`;
-    } else if (mode.enabled && individualVals.length === 1 && !hasCommonPacking && !isMulti) {
-      const opt = options[mode.selectedOption] || options[0];
-      const val = individualVals[0] || 0;
-      if (opt && val > 0) {
-        const casesCount = Math.ceil(val / (opt.qty || 1));
-        info += `<span>[Кофр] ${casesCount} шт</span>`;
-      }
-    }
-    extraInfo.innerHTML = info;
-  }
-
-  // Обновляем кнопки
-  const links = getLinks(path);
-  const hasLink = links.length > 0;
-  const linkBtn = row.querySelector('.link-btn');
-  if (linkBtn) {
-    linkBtn.textContent = 'Линк' + (hasLink ? ' ✓' : '');
-    linkBtn.classList.toggle('active', hasLink);
-  }
-
-  const note = getNote(path);
-  const hasNote = !!note;
-  const noteBtn = row.querySelector('.note-btn');
-  if (noteBtn) {
-    noteBtn.textContent = 'Заметка' + (hasNote ? ' ✓' : '');
-    noteBtn.classList.toggle('has-note', hasNote);
-  }
-
-  const caseBtn = row.querySelector('.case-btn');
-  if (caseBtn) {
-    const mode = getCaseMode(path);
-    const packing = getOrderPacking(path);
-    const options = getItemPropsByPath(path).individualCases || [];
-    const isMulti = mode.enabled && options.length > 1 && mode.multiSelected && mode.multiSelected.some(v => v === true);
-    const hasCommonPacking = packing.length > 0;
-    let statusText = 'Кофры';
-    let statusClass = '';
-    if (hasCommonPacking) {
-      statusText = 'Общие';
-      statusClass = 'common';
-    } else if (isMulti) {
-      statusText = 'Мульти';
-      statusClass = 'multi';
-    } else if (mode.enabled) {
-      statusText = 'Вкл';
-      statusClass = 'on';
-    } else {
-      statusText = 'Выкл';
-      statusClass = 'off';
-    }
-    caseBtn.textContent = statusText;
-    caseBtn.className = `action-btn case-btn ${mode.enabled ? 'active ' : ''}${statusClass}`;
-  }
-
+  // Обновляем дочерние элементы (кофры, мульти)
   updateChildRows(path);
 }
 
@@ -635,6 +511,7 @@ export function updateChildRows(path) {
   const container = document.getElementById('categoryContents');
   if (!container) return;
 
+  // Находим строку
   const rows = container.querySelectorAll('.row');
   let row = null;
   for (const r of rows) {
@@ -646,6 +523,7 @@ export function updateChildRows(path) {
   }
   if (!row) return;
 
+  // Удаляем существующие дочерние строки
   let next = row.nextElementSibling;
   while (next && next.classList.contains('child-row')) {
     const toRemove = next;
