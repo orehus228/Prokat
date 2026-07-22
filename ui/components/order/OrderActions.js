@@ -26,7 +26,6 @@ import { updateRow, updateCommonCaseIndicators, getCurrentCategory } from './Ord
 let currentCategoryForActions = null;
 
 export function setCurrentCategoryForActions(cat) {
-  console.log('[OrderActions] setCurrentCategoryForActions:', cat);
   currentCategoryForActions = cat;
 }
 

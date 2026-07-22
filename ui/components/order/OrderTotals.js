@@ -68,7 +68,9 @@ export function updateTotals() {
  * @param {string} catKey - ключ категории
  */
 export function updateCategoryTotals(catKey) {
-  const container = document.querySelector('#categoryContents');
+  // Если вдруг catKey пришёл с обратными слешами — нормализуем
+  catKey = catKey.replace(/\\/g, '|');
+  const container = document.getElementById('categoryContents');
   if (!container) return;
   const totalsDiv = container.querySelector('#categoryTotals');
   if (!totalsDiv) return;
