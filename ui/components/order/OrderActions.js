@@ -12,6 +12,7 @@ import {
   setOrderPacking,
   setIndividualCaseValues,
   setOrderExtra,
+  setCaseMode,  // <-- добавлен импорт
   getOrderPacking,
   getIndividualCaseValues,
   getOrderExtra,
@@ -83,7 +84,6 @@ export function changeQty(path, delta) {
   path = path.replace(/\\/g, '|');
   console.log('[OrderActions] changeQty called:', path, delta);
 
-  const state = getState();
   const current = getTotalQty(path);
   const sq = getStockByPath(path);
   let newVal = Math.max(0, current + delta);
@@ -92,23 +92,17 @@ export function changeQty(path, delta) {
     newVal = sq;
   }
 
-  // Принудительно очищаем все данные упаковки, чтобы getTotalQty брал из state.order
-  if (state.orderPacking[path]) {
-    delete state.orderPacking[path];
-  }
-  if (state.individualCaseValues[path]) {
-    delete state.individualCaseValues[path];
-  }
-  if (state.orderExtra[path]) {
-    delete state.orderExtra[path];
-  }
+  // Принудительно очищаем все данные упаковки через сеттеры, чтобы сохранить изменения
+  setOrderPacking(path, []);
+  setIndividualCaseValues(path, []);
+  setOrderExtra(path, 0);
   // Отключаем режим кофров
-  if (state.caseModes[path]) {
-    state.caseModes[path].enabled = false;
-  }
+  setCaseMode(path, { enabled: false, multiSelected: [], commonSelected: [] });
 
+  // Устанавливаем новое значение в основной заказ
   setOrderValue(path, newVal);
-  console.log('[changeQty] state.order после setOrderValue:', state.order);
+
+  console.log('[changeQty] state.order после setOrderValue:', getState().order);
   console.log('[changeQty] getTotalQty после setOrderValue:', getTotalQty(path));
 
   updateRow(path);
