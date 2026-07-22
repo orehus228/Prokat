@@ -6,9 +6,8 @@ import { debounce } from '../../../core/utils.js';
 import { CAT_NAMES, SEARCH_DEBOUNCE_DELAY } from '../../../core/config.js';
 import { showToast } from '../../toast.js';
 import { clearOrder } from '../../../services/order.js';
-import { handleQuantityChange, handleQuantityInput } from './OrderActions.js'; // <-- импорт
+import { handleQuantityChange, handleQuantityInput } from './OrderActions.js';
 
-// Импорт всех модулей OrderPage
 import {
   getAllPaths,
   filterPathsByQuery,
@@ -48,10 +47,6 @@ import {
   onProjectFieldsChange
 } from './OrderProjects.js';
 
-// ============================================================
-// ОСНОВНОЙ КОМПОНЕНТ
-// ============================================================
-
 export class OrderPage {
   constructor(container, callbacks = {}) {
     this.container = container;
@@ -60,8 +55,8 @@ export class OrderPage {
     this._unsubscribe = null;
     this._handlers = [];
     this._debouncedSearch = debounce(() => this._applySearch(), SEARCH_DEBOUNCE_DELAY);
-    this._contentsClickHandler = null; // для удаления
-    this._contentsInputHandler = null;
+    this._boundClickHandler = null;
+    this._boundInputHandler = null;
   }
 
   init() {
@@ -184,7 +179,7 @@ export class OrderPage {
   }
 
   // ============================================================
-  // ПРИВЯЗКА СОБЫТИЙ (делегирование)
+  // ПРИВЯЗКА СОБЫТИЙ ЧЕРЕЗ document (гарантирует перехват)
   // ============================================================
 
   _bindEvents() {
@@ -275,43 +270,46 @@ export class OrderPage {
     if (pDate) pDate.addEventListener('change', () => localStorage.setItem('last_date', pDate.value));
     if (pComment) pComment.addEventListener('input', () => localStorage.setItem('last_comment', pComment.value));
 
-    // ===== ДЕЛЕГИРОВАНИЕ СОБЫТИЙ ДЛЯ КНОПОК КОЛИЧЕСТВА =====
-    const contents = container.querySelector('#categoryContents');
-    if (contents) {
-      // Удаляем старые обработчики (если есть)
-      if (this._contentsClickHandler) {
-        contents.removeEventListener('click', this._contentsClickHandler);
-        contents.removeEventListener('input', this._contentsInputHandler);
-      }
-
-      this._contentsClickHandler = (e) => {
-        const btn = e.target.closest('.btn-c');
-        if (!btn) return;
-        e.preventDefault();
-        const path = btn.dataset.path;
-        const delta = parseInt(btn.dataset.delta, 10);
-        if (!path || isNaN(delta)) return;
-        console.log('[OrderPage] Делегированный клик по кнопке количества:', path, delta);
-        handleQuantityChange(btn, path, delta);
-      };
-
-      this._contentsInputHandler = (e) => {
-        const input = e.target;
-        if (!input) return;
-        if (input.classList.contains('qty-input') ||
-            input.classList.contains('single-pieces-input') ||
-            input.classList.contains('single-cases-input') ||
-            input.classList.contains('child-multi-pieces') ||
-            input.classList.contains('child-common-qty') ||
-            input.classList.contains('child-extra-qty')) {
-          console.log('[OrderPage] Делегированный ввод в поле количества:', input);
-          handleQuantityInput(input);
-        }
-      };
-
-      contents.addEventListener('click', this._contentsClickHandler);
-      contents.addEventListener('input', this._contentsInputHandler);
+    // ===== ДЕЛЕГИРОВАНИЕ СОБЫТИЙ ЧЕРЕЗ document (НАДЁЖНО) =====
+    // Удаляем старые обработчики, если они уже были
+    if (this._boundClickHandler) {
+      document.removeEventListener('click', this._boundClickHandler);
+      document.removeEventListener('input', this._boundInputHandler);
     }
+
+    this._boundClickHandler = (e) => {
+      const btn = e.target.closest('.btn-c');
+      if (!btn) return;
+      // Проверяем, что кнопка находится внутри #categoryContents
+      const contents = document.getElementById('categoryContents');
+      if (!contents || !contents.contains(btn)) return;
+      e.preventDefault();
+      const path = btn.dataset.path;
+      const delta = parseInt(btn.dataset.delta, 10);
+      if (!path || isNaN(delta)) return;
+      console.log('[OrderPage] document делегированный клик по кнопке количества:', path, delta);
+      handleQuantityChange(btn, path, delta);
+    };
+
+    this._boundInputHandler = (e) => {
+      const input = e.target;
+      if (!input) return;
+      const contents = document.getElementById('categoryContents');
+      if (!contents || !contents.contains(input)) return;
+      if (input.classList.contains('qty-input') ||
+          input.classList.contains('single-pieces-input') ||
+          input.classList.contains('single-cases-input') ||
+          input.classList.contains('child-multi-pieces') ||
+          input.classList.contains('child-common-qty') ||
+          input.classList.contains('child-extra-qty')) {
+        console.log('[OrderPage] document делегированный ввод в поле количества:', input);
+        handleQuantityInput(input);
+      }
+    };
+
+    document.addEventListener('click', this._boundClickHandler);
+    document.addEventListener('input', this._boundInputHandler);
+    console.log('[OrderPage] Делегирование через document установлено');
   }
 
   // ============================================================
@@ -559,19 +557,16 @@ tr:nth-child(even){background:#f9f9f9}
       if (typeof handler === 'function') handler();
     }
     this._handlers = [];
+    // Удаляем делегированные обработчики из document
+    if (this._boundClickHandler) {
+      document.removeEventListener('click', this._boundClickHandler);
+      this._boundClickHandler = null;
+    }
+    if (this._boundInputHandler) {
+      document.removeEventListener('input', this._boundInputHandler);
+      this._boundInputHandler = null;
+    }
     if (this.container) {
-      // Удаляем делегированные обработчики
-      const contents = this.container.querySelector('#categoryContents');
-      if (contents) {
-        if (this._contentsClickHandler) {
-          contents.removeEventListener('click', this._contentsClickHandler);
-          this._contentsClickHandler = null;
-        }
-        if (this._contentsInputHandler) {
-          contents.removeEventListener('input', this._contentsInputHandler);
-          this._contentsInputHandler = null;
-        }
-      }
       this.container.innerHTML = '';
     }
   }
