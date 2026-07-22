@@ -9,7 +9,7 @@
  */
 
 import { getState, subscribe, saveState } from '../../core/store.js';
-import { emit, EVENTS, on } from '../../core/events.js';
+import { emit, EVENTS } from '../../core/events.js';
 import { esc, deepClone, getItemName, getCategory, debounce } from '../../core/utils.js';
 import { MATRIX_BASE } from '../../core/config.js';
 import { showToast } from '../toast.js';
@@ -34,7 +34,6 @@ import {
 } from '../../services/matrix.js';
 import { getInventory, getCategoryOrder, getCategoryDisplayName } from '../../services/inventory.js';
 import { CAT_NAMES } from '../../core/config.js';
-import { updateLinkCountOrder } from './OrderPage.js'; // будем вызывать извне
 
 // ============================================================
 // СОСТОЯНИЕ МОДАЛКИ (глобальное для экземпляра)
@@ -506,7 +505,7 @@ export class MatrixModal {
   }
 
   // ============================================================
-  // ОБНОВЛЕНИЕ СЧЁТЧИКА ПРИВЯЗОК (вызывается извне)
+  // ОБНОВЛЕНИЕ СЧЁТЧИКА ПРИВЯЗОК
   // ============================================================
 
   _updateLinkCount() {
@@ -593,7 +592,6 @@ window._editMatrixCell = async function(td, src, target) {
 // ============================================================
 
 export function openMatrixModal(sourcePath, showPresets = true, category = null, onClose = null) {
-  // Закрываем предыдущий экземпляр
   if (matrixInstance) {
     matrixInstance.close();
   }
