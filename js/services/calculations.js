@@ -69,7 +69,7 @@ function getSelectedOption(path) {
 function calcItemWeight(path, qty, mode, packing, individualVals, extra) {
   if (qty <= 0) return 0;
   const props = getItemPropsByPath(path);
-  if (!props.weight) return 0;
+  const unitWeight = props.weight || 0;
 
   let result = 0;
 
@@ -79,19 +79,19 @@ function calcItemWeight(path, qty, mode, packing, individualVals, extra) {
     packing.forEach(p => {
       const caseObj = commonCases.find(c => c.id === p.caseId);
       if (caseObj && p.pieces > 0) {
+        // Вес позиций в кофре + вес пустого кофра (всегда)
         const emptyWeight = caseObj.emptyWeight || 0;
-        const unitWeight = props.weight;
-        result += p.pieces * unitWeight + (p.pieces > 0 ? emptyWeight : 0);
+        result += p.pieces * unitWeight + emptyWeight;
         totalPacked += p.pieces;
       }
     });
     const remainder = qty - totalPacked - (extra || 0);
-    if (remainder > 0) result += remainder * props.weight;
-    if (extra > 0) result += extra * props.weight;
+    if (remainder > 0) result += remainder * unitWeight;
+    if (extra > 0) result += extra * unitWeight;
   } else if (individualVals && individualVals.length > 0) {
     const options = getCaseOptions(path);
     if (options.length === 0) {
-      result = qty * props.weight;
+      result = qty * unitWeight;
     } else {
       let totalProcessed = 0;
       individualVals.forEach((v, idx) => {
@@ -99,22 +99,22 @@ function calcItemWeight(path, qty, mode, packing, individualVals, extra) {
         const opt = options[idx] || options[0];
         if (mode.accumulate) {
           const casesCount = Math.ceil(v / opt.qty);
-          const weightPerCase = (opt.weight || 0) + (opt.qty * props.weight);
+          const weightPerCase = (opt.weight || 0) + (opt.qty * unitWeight);
           result += casesCount * weightPerCase;
         } else {
           const fullCases = Math.floor(v / opt.qty);
           const rem = v % opt.qty;
-          const fullCaseWeight = (opt.weight || 0) + (opt.qty * props.weight);
+          const fullCaseWeight = (opt.weight || 0) + (opt.qty * unitWeight);
           result += fullCases * fullCaseWeight;
-          if (rem > 0) result += (opt.weight || 0) + (rem * props.weight);
+          if (rem > 0) result += (opt.weight || 0) + (rem * unitWeight);
         }
         totalProcessed += v;
       });
       const remainder = qty - totalProcessed;
-      if (remainder > 0) result += remainder * props.weight;
+      if (remainder > 0) result += remainder * unitWeight;
     }
   } else {
-    result = qty * props.weight;
+    result = qty * unitWeight;
   }
 
   return result;

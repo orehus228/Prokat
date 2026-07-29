@@ -643,7 +643,6 @@ body {
 .row .extra-info span {
     white-space: nowrap;
 }
-/* Убираем точку между элементами extra-info */
 .row .extra-info span:not(:last-child)::after {
     content: ' ';
     margin-left: 4px;
@@ -663,7 +662,7 @@ body {
     white-space: nowrap;
 }
 
-/* Правая часть: контрол количества (всегда прижат к правому краю) */
+/* Правая часть: контрол количества */
 .row .qty-controls {
     display: flex;
     align-items: center;
@@ -706,7 +705,6 @@ body {
     border-color: var(--text-secondary);
 }
 
-/* Индикация added/overstock — фон и полоса слева, всегда видны */
 .row.added {
     background: var(--added-bg) !important;
     border-left: 4px solid var(--success) !important;
@@ -719,7 +717,6 @@ body {
     background: var(--overstock-bg) !important;
     border-left: 4px solid var(--danger) !important;
 }
-/* При наведении сохраняем фон, но с небольшим затемнением для различия */
 .row.added:hover {
     background: color-mix(in srgb, var(--added-bg) 85%, black 15%) !important;
 }
@@ -730,13 +727,11 @@ body {
     background: color-mix(in srgb, var(--overstock-bg) 85%, black 15%) !important;
 }
 
-/* Убираем дублирующую информацию из контролов */
 .qty-controls .weight-vol-display,
 .qty-controls .stock-info {
     display: none !important;
 }
 
-/* ===== Цветные кнопки действий ===== */
 .action-btn {
     background: none;
     border: 1px solid var(--border-light);
@@ -794,7 +789,6 @@ body {
     color: #fff;
 }
 
-/* Блок описания и информации — после основной строки */
 .row-info,
 .desc-block {
     width: 100%;
@@ -832,7 +826,6 @@ body {
     display: block;
 }
 
-/* ===== ДОЧЕРНИЕ СТРОКИ ДЛЯ КОФРОВ ===== */
 .child-row {
     padding: 6px 12px 6px 20px;
     margin: 4px 0 4px 16px;
