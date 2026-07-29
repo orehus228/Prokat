@@ -327,7 +327,7 @@ export function exportOrderJSON() {
 }
 
 // ============================================================
-// ЭКСПОРТ PDF (исправлен: убрана вместимость, добавлены описание/заметки)
+// ЭКСПОРТ PDF (финальная версия)
 // ============================================================
 export function exportOrderPDF() {
   const state = getState();
@@ -356,7 +356,6 @@ export function exportOrderPDF() {
   const commonCasesUsed = {};
 
   allPaths.forEach(path => {
-    // Вычисляем количество напрямую из state
     const packing = state.orderPacking[path] || [];
     const totalPacked = packing.reduce((s, item) => s + (item.pieces || 0), 0);
     const extra = state.orderExtra[path] || 0;
@@ -372,7 +371,6 @@ export function exportOrderPDF() {
     const weight = calc.calcItemWeight(path, qty, mode, packing, individualVals, extra);
     const volume = calc.calcItemVolume(path, qty, mode, packing, individualVals, extra);
 
-    // Получаем описание и заметку
     const spec = state.specs[path] || '';
     const note = state.notes[path] || '';
 
@@ -384,7 +382,6 @@ export function exportOrderPDF() {
         if (!commonCasesUsed[p.caseId]) {
           commonCasesUsed[p.caseId] = {
             name: caseName,
-            qtyPerCase: c ? c.qty : '?',
             dims: c ? c.dimensions : '?',
             emptyWeight: c ? c.emptyWeight : '?',
             maxWeight: c ? c.maxWeight : '?',
@@ -430,8 +427,10 @@ export function exportOrderPDF() {
     .qty { text-align: center; white-space: nowrap; }
     .weight { text-align: right; white-space: nowrap; }
     .volume { text-align: right; white-space: nowrap; }
-    .case-info { font-size: 11px; color: #555; }
-    .extra-info { font-size: 11px; color: #777; margin-top: 2px; }
+    .case-info { font-size: 12px; font-weight: bold; color: #1a3a5a; }
+    .extra-info { font-size: 11px; margin-top: 2px; padding: 2px 6px; border-radius: 3px; display: inline-block; }
+    .spec-info { background: #fff3cd; border: 1px solid #ffc107; color: #856404; }
+    .note-info { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
     .common-cases { margin-top: 12px; border-top: 2px solid #2c3e50; padding-top: 8px; }
     .common-cases h3 { font-size: 14px; margin: 4px 0 6px 0; color: #2c3e50; }
     .case-detail { font-size: 12px; padding: 4px 0; border-bottom: 1px solid #eee; }
@@ -450,7 +449,7 @@ export function exportOrderPDF() {
 <h1>Чек-лист: ${esc(projectName)}</h1>
 <table>
   <thead>
-    <tr><th style="width:14%;">Категория</th><th style="width:30%;">Позиция</th><th style="width:8%;text-align:center;">Кол-во</th><th style="width:10%;text-align:right;">Вес, кг</th><th style="width:10%;text-align:right;">Объём, м³</th><th style="width:28%;">Упаковка / Примечание</th></tr>
+    <tr><th style="width:14%;">Категория</th><th style="width:30%;">Позиция</th><th style="width:8%;text-align:center;">Кол-во</th><th style="width:10%;text-align:right;">Вес, кг</th><th style="width:10%;text-align:right;">Объём, м³</th><th style="width:28%;">Упаковка</th></tr>
   </thead>
   <tbody>`;
 
@@ -467,8 +466,8 @@ export function exportOrderPDF() {
       catWeight += item.weight;
       catVolume += item.volume;
       let extraText = '';
-      if (item.spec) extraText += `<div class="extra-info">📝 ${esc(item.spec)}</div>`;
-      if (item.note) extraText += `<div class="extra-info">📌 ${esc(item.note)}</div>`;
+      if (item.spec) extraText += `<div class="extra-info spec-info">Описание: ${esc(item.spec)}</div>`;
+      if (item.note) extraText += `<div class="extra-info note-info">Заметка: ${esc(item.note)}</div>`;
       html += `<tr class="item">
         <td></td>
         <td>${esc(item.name)}${extraText}</td>
@@ -492,7 +491,7 @@ export function exportOrderPDF() {
 
   html += `</tbody></table>`;
 
-  // Блок общих кофров (убрана вместимость)
+  // Блок общих кофров
   const usedCaseIds = Object.keys(commonCasesUsed);
   if (usedCaseIds.length > 0) {
     html += `<div class="common-cases"><h3>Общие кофры</h3>`;
