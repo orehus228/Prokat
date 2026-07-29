@@ -327,7 +327,7 @@ export function exportOrderJSON() {
 }
 
 // ============================================================
-// ЭКСПОРТ PDF (финальная версия)
+// ЭКСПОРТ PDF (финальная версия, исправлен дублирующий вес кофров)
 // ============================================================
 export function exportOrderPDF() {
   const state = getState();
@@ -353,7 +353,7 @@ export function exportOrderPDF() {
   // Группировка по категориям
   const catMap = {};
   const commonCases = getCommonCases();
-  const commonCasesUsed = {};
+  const commonCasesUsed = {}; // caseId -> { name, dims, emptyWeight, maxWeight, items: [], totalContentWeight }
 
   allPaths.forEach(path => {
     const packing = state.orderPacking[path] || [];
@@ -366,9 +366,47 @@ export function exportOrderPDF() {
     const cat = parts[0];
     const name = parts.slice(1).join(' → ');
     const props = getItemPropsByPath(path);
+    const unitWeight = props.weight || 0;
     const mode = state.caseModes[path] || {};
     const individualVals = state.individualCaseValues[path] || [];
-    const weight = calc.calcItemWeight(path, qty, mode, packing, individualVals, extra);
+
+    // Вычисляем вес только содержимого (без учёта кофров)
+    let weightContent = 0;
+    if (packing.length > 0) {
+      // Для общих кофров: суммируем вес только позиций
+      packing.forEach(p => {
+        weightContent += p.pieces * unitWeight;
+      });
+      if (extra > 0) weightContent += extra * unitWeight;
+      // Для каждой позиции добавляем информацию в commonCasesUsed
+      packing.forEach(p => {
+        const c = commonCases.find(c => c.id === p.caseId);
+        if (c) {
+          if (!commonCasesUsed[p.caseId]) {
+            commonCasesUsed[p.caseId] = {
+              name: c.name,
+              dims: c.dimensions || '?',
+              emptyWeight: c.emptyWeight || 0,
+              maxWeight: c.maxWeight || 0,
+              items: [],
+              totalContentWeight: 0
+            };
+          }
+          commonCasesUsed[p.caseId].items.push({ name, pieces: p.pieces });
+          commonCasesUsed[p.caseId].totalContentWeight += p.pieces * unitWeight;
+        }
+      });
+    } else if (individualVals.length > 0 && mode.enabled) {
+      // Индивидуальные кофры: вес позиций уже учтён в unitWeight * qty
+      // Здесь мы не добавляем вес пустых кофров, т.к. они не общие
+      weightContent = qty * unitWeight;
+    } else {
+      // Обычные позиции
+      weightContent = qty * unitWeight;
+    }
+
+    // Полный вес (с кофрами) для общих кофров считается отдельно, здесь не используем
+
     const volume = calc.calcItemVolume(path, qty, mode, packing, individualVals, extra);
 
     const spec = state.specs[path] || '';
@@ -379,19 +417,9 @@ export function exportOrderPDF() {
       const caseDetails = packing.map(p => {
         const c = commonCases.find(c => c.id === p.caseId);
         const caseName = c ? c.name : 'удалённый кофр';
-        if (!commonCasesUsed[p.caseId]) {
-          commonCasesUsed[p.caseId] = {
-            name: caseName,
-            dims: c ? c.dimensions : '?',
-            emptyWeight: c ? c.emptyWeight : '?',
-            maxWeight: c ? c.maxWeight : '?',
-            items: []
-          };
-        }
-        commonCasesUsed[p.caseId].items.push({ name, pieces: p.pieces });
         return `${caseName} (${p.pieces} шт)`;
       }).join(', ');
-      caseInfo = `упаковано в: ${caseDetails}`;
+      caseInfo = `Кофр: ${caseDetails}`;
     } else if (individualVals.length > 0 && mode.enabled) {
       const options = calc.getCaseOptions(path);
       const details = individualVals.map((v, idx) => {
@@ -406,7 +434,7 @@ export function exportOrderPDF() {
     }
 
     if (!catMap[cat]) catMap[cat] = [];
-    catMap[cat].push({ name, qty, weight, volume, caseInfo, spec, note, path });
+    catMap[cat].push({ name, qty, weight: weightContent, volume, caseInfo, spec, note, path });
   });
 
   // Формируем HTML
@@ -427,7 +455,7 @@ export function exportOrderPDF() {
     .qty { text-align: center; white-space: nowrap; }
     .weight { text-align: right; white-space: nowrap; }
     .volume { text-align: right; white-space: nowrap; }
-    .case-info { font-size: 12px; font-weight: bold; color: #1a3a5a; }
+    .case-info { font-size: 12px; font-weight: bold; color: #1a3a5a; background: #eaf2f8; padding: 2px 6px; border-radius: 3px; display: inline-block; }
     .extra-info { font-size: 11px; margin-top: 2px; padding: 2px 6px; border-radius: 3px; display: inline-block; }
     .spec-info { background: #fff3cd; border: 1px solid #ffc107; color: #856404; }
     .note-info { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
@@ -435,6 +463,7 @@ export function exportOrderPDF() {
     .common-cases h3 { font-size: 14px; margin: 4px 0 6px 0; color: #2c3e50; }
     .case-detail { font-size: 12px; padding: 4px 0; border-bottom: 1px solid #eee; }
     .case-detail strong { color: #1a3a5a; }
+    .case-detail .case-weight { font-weight: bold; color: #c0392b; }
     .case-items { margin-left: 16px; font-size: 12px; color: #444; }
     .totals { margin-top: 12px; padding: 8px 12px; background: #e6f2ff; border-radius: 4px; font-weight: 600; font-size: 13px; display: flex; gap: 20px; flex-wrap: wrap; }
     .totals span { white-space: nowrap; }
@@ -453,7 +482,7 @@ export function exportOrderPDF() {
   </thead>
   <tbody>`;
 
-  let grandQty = 0, grandWeight = 0, grandVolume = 0;
+  let grandQty = 0, grandWeightContent = 0, grandVolume = 0;
   const orderKeys = state._categoryOrder || Object.keys(state.inventory);
 
   orderKeys.forEach(cat => {
@@ -485,7 +514,7 @@ export function exportOrderPDF() {
       <td></td>
     </tr>`;
     grandQty += catQty;
-    grandWeight += catWeight;
+    grandWeightContent += catWeight;
     grandVolume += catVolume;
   });
 
@@ -493,12 +522,15 @@ export function exportOrderPDF() {
 
   // Блок общих кофров
   const usedCaseIds = Object.keys(commonCasesUsed);
+  let totalCaseWeight = 0;
   if (usedCaseIds.length > 0) {
     html += `<div class="common-cases"><h3>Общие кофры</h3>`;
     usedCaseIds.forEach(caseId => {
       const data = commonCasesUsed[caseId];
+      const caseFullWeight = data.totalContentWeight + data.emptyWeight;
+      totalCaseWeight += caseFullWeight;
       html += `<div class="case-detail">
-        <strong>${esc(data.name)}</strong> — габариты: ${esc(data.dims)}, вес пустого: ${data.emptyWeight} кг, макс. вес: ${data.maxWeight} кг
+        <strong>${esc(data.name)}</strong> — габариты: ${esc(data.dims)}, вес пустого: ${data.emptyWeight} кг, макс. вес: ${data.maxWeight} кг, <span class="case-weight">вес с содержимым: ${caseFullWeight.toFixed(1)} кг</span>
         <div class="case-items">`;
       data.items.forEach(item => {
         html += `<div>${esc(item.name)} — ${item.pieces} шт</div>`;
@@ -508,9 +540,11 @@ export function exportOrderPDF() {
     html += `</div>`;
   }
 
+  // Общий вес = вес содержимого + вес всех кофров
+  const grandTotalWeight = grandWeightContent + totalCaseWeight;
   html += `<div class="totals">
     <span>Всего: ${grandQty} шт</span>
-    <span>Общий вес: ${grandWeight.toFixed(1)} кг</span>
+    <span>Общий вес: ${grandTotalWeight.toFixed(1)} кг</span>
     <span>Общий объём: ${grandVolume.toFixed(3)} м³</span>
   </div>`;
 
