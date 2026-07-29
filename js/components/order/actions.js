@@ -15,7 +15,7 @@ import {
   setOrderInstances,
   clearAllOrderInstances,
 } from '../../services/order-data.js';
-import { getAvailableQuantity, addProjectItem, getProject } from '../../services/project-data.js';
+import { getAvailableQuantity, addProjectItem, getProject, getProjects } from '../../services/project-data.js';
 import * as calc from '../../services/calculations.js';
 import { showToast } from '../../ui/toast.js';
 import {
@@ -41,8 +41,9 @@ import {
  * Синхронизирует позицию с проектом: резервирует или освобождает экземпляры.
  * @param {string} path - путь позиции
  * @param {number} quantity - новое количество (если не указано, берётся из заказа)
+ * @param {object|null} subrentInfo - информация о субаренде (пока не используется)
  */
-function syncProjectItem(path, quantity) {
+function syncProjectItem(path, quantity, subrentInfo = null) {
   const project = getOrderProject();
   if (!project.id || !project.start_date || !project.end_date) {
     // Если проект не задан или нет дат, ничего не делаем
@@ -50,12 +51,10 @@ function syncProjectItem(path, quantity) {
   }
 
   const qty = quantity !== undefined ? quantity : getTotalQty(path);
-  const subrentInfo = null; // пока не реализовано, можно будет добавить
 
   // Вызываем addProjectItem с новым количеством
   const result = addProjectItem(project.id, path, qty, { subrentInfo });
   if (!result.success) {
-    // Если ошибка, показываем тост, но не откатываем количество (это уже сделано)
     showToast(result.error, 'warning', 4000);
   }
 }
@@ -67,27 +66,6 @@ function syncProjectItem(path, quantity) {
 export function syncAllProjectItems() {
   const state = getState();
   const project = getOrderProject();
-  if (!project.id || !project.start_date || !project.end_date) {
-    // Если нет проекта, освобождаем все экземпляры
-    const allPaths = new Set();
-    for (let p in state.order) if (state.order[p] > 0) allPaths.add(p);
-    for (let p in state.orderPacking) {
-      const total = state.orderPacking[p].reduce((s, item) => s + (item.pieces || 0), 0);
-      if (total > 0) allPaths.add(p);
-    }
-    for (let p in state.individualCaseValues) {
-      const total = state.individualCaseValues[p].reduce((a, b) => a + b, 0);
-      if (total > 0) allPaths.add(p);
-    }
-    for (let p in state.orderExtra) if (state.orderExtra[p] > 0) allPaths.add(p);
-
-    for (let path of allPaths) {
-      addProjectItem(null, path, 0); // передаём projectId = null, чтобы удалить из всех проектов
-    }
-    // Очищаем orderInstances
-    clearAllOrderInstances();
-    return;
-  }
 
   // Собираем все пути с ненулевым количеством
   const allPaths = new Set();
@@ -102,23 +80,48 @@ export function syncAllProjectItems() {
   }
   for (let p in state.orderExtra) if (state.orderExtra[p] > 0) allPaths.add(p);
 
-  for (let path of allPaths) {
-    const qty = getTotalQty(path);
-    const subrentInfo = null; // позже можно добавить
-    const result = addProjectItem(project.id, path, qty, { subrentInfo });
-    if (!result.success) {
-      showToast(`Ошибка синхронизации "${path}": ${result.error}`, 'warning', 3000);
+  try {
+    if (!project.id || !project.start_date || !project.end_date) {
+      // Если нет проекта, освобождаем все экземпляры
+      for (let path of allPaths) {
+        // Освобождаем экземпляры напрямую, получая их из orderInstances
+        const instanceIds = getOrderInstances(path);
+        if (instanceIds && instanceIds.length > 0) {
+          // Удаляем из проекта, используя addProjectItem с projectId = null
+          // Временно передаём null и quantity = 0
+          addProjectItem(null, path, 0);
+        }
+      }
+      // Очищаем orderInstances
+      clearAllOrderInstances();
+      return;
     }
-  }
 
-  // Удаляем позиции, которые есть в проекте, но которых нет в заказе
-  const projectItems = getProject().projectItems || [];
-  for (let item of projectItems) {
-    const path = item.equipment_path;
-    if (!allPaths.has(path)) {
-      // Если позиция есть в проекте, но её нет в заказе — удаляем из проекта
-      addProjectItem(project.id, path, 0);
+    // Синхронизируем все позиции с проектом
+    for (let path of allPaths) {
+      const qty = getTotalQty(path);
+      const subrentInfo = null; // позже можно добавить
+      const result = addProjectItem(project.id, path, qty, { subrentInfo });
+      if (!result.success) {
+        showToast(`Ошибка синхронизации "${path}": ${result.error}`, 'warning', 3000);
+      }
     }
+
+    // Удаляем позиции, которые есть в проекте, но которых нет в заказе
+    const projectObj = getProject(project.id);
+    if (projectObj) {
+      const projectItems = projectObj.projectItems || [];
+      for (let item of projectItems) {
+        const path = item.equipment_path;
+        if (!allPaths.has(path)) {
+          // Если позиция есть в проекте, но её нет в заказе — удаляем из проекта
+          addProjectItem(project.id, path, 0);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Ошибка в syncAllProjectItems:', error);
+    showToast('Ошибка синхронизации с проектом: ' + error.message, 'error', 4000);
   }
 }
 
@@ -848,7 +851,7 @@ export async function clearOrderData() {
     }
   }
   
-  // Очищаем все поля
+  // Очищаем все поля заказа
   for (let key in state.order) delete state.order[key];
   for (let key in state.orderSplits) delete state.orderSplits[key];
   for (let key in state.links) delete state.links[key];
@@ -859,6 +862,8 @@ export async function clearOrderData() {
   for (let key in state.caseModes) delete state.caseModes[key];
   for (let key in state.orderExclude) delete state.orderExclude[key];
   for (let key in state.orderExtra) delete state.orderExtra[key];
+  
+  // Всегда очищаем orderInstances (даже если проект не был выбран)
   clearAllOrderInstances();
   
   saveState();

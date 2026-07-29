@@ -64,6 +64,33 @@ export function isInstanceUsedInOtherProject(instanceId, excludeProjectId = null
 }
 
 // ============================================================
+// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ДАТ
+// ============================================================
+
+/**
+ * Преобразует дату в UTC timestamp для корректного сравнения.
+ * @param {string} dateStr - дата в формате YYYY-MM-DD
+ * @returns {number} timestamp в миллисекундах
+ */
+function toUTCTimestamp(dateStr) {
+  if (!dateStr) return 0;
+  const parts = dateStr.split('-').map(Number);
+  return Date.UTC(parts[0], parts[1] - 1, parts[2]);
+}
+
+/**
+ * Проверяет пересечение двух периодов (включительно).
+ * @param {number} start1 - UTC timestamp начала первого периода
+ * @param {number} end1 - UTC timestamp окончания первого периода
+ * @param {number} start2 - UTC timestamp начала второго периода
+ * @param {number} end2 - UTC timestamp окончания второго периода
+ * @returns {boolean} true если периоды пересекаются
+ */
+function periodsOverlap(start1, end1, start2, end2) {
+  return start1 <= end2 && end1 >= start2;
+}
+
+// ============================================================
 // СОЗДАНИЕ / ОБНОВЛЕНИЕ / УДАЛЕНИЕ ПРОЕКТОВ
 // ============================================================
 
@@ -101,14 +128,38 @@ export function deleteProject(id) {
 
 /**
  * Добавляет или обновляет позицию в проекте с учётом экземпляров.
- * @param {string} projectId
- * @param {string} equipmentPath
+ * @param {string|null} projectId - id проекта (null для освобождения всех экземпляров)
+ * @param {string} equipmentPath - путь позиции
  * @param {number} quantity - запрашиваемое количество (может быть 0 для удаления)
  * @param {object} options - { subrentInfo: { isSubrent, counterparty }, instanceIds: [] } (опционально)
  * @returns {object} { success: boolean, error: string, reservedInstances: object[] }
  */
 export function addProjectItem(projectId, equipmentPath, quantity, options = {}) {
   const state = getState();
+
+  // ОСОБЫЙ СЛУЧАЙ: освобождение всех экземпляров для пути (отвязка проекта)
+  if (projectId === null && quantity === 0) {
+    // Находим все записи с этим путём в любом проекте
+    const allItems = state.projectItems.filter(item => item.equipment_path === equipmentPath);
+    let releasedCount = 0;
+    for (let item of allItems) {
+      if (item.instanceIds && item.instanceIds.length > 0) {
+        const result = releaseInstances(item.instanceIds, item.project_id, `Освобождение при отвязке проекта`);
+        releasedCount += result.released;
+      }
+      // Удаляем запись
+      const idx = state.projectItems.indexOf(item);
+      if (idx !== -1) state.projectItems.splice(idx, 1);
+    }
+    saveState();
+    return { success: true, reservedInstances: [] };
+  }
+
+  // Если projectId не указан, но quantity > 0 — ошибка
+  if (!projectId) {
+    return { success: false, error: 'Не указан проект', reservedInstances: [] };
+  }
+
   const existingIndex = state.projectItems.findIndex(
     item => item.project_id === projectId && item.equipment_path === equipmentPath
   );
@@ -269,7 +320,6 @@ export function clearProjectItems(projectId) {
 export function getAvailableQuantity(equipmentPath, startDate, endDate, requestedQty, currentProjectId = null) {
   if (!startDate || !endDate) {
     const totalStock = getStockValue(equipmentPath);
-    // Если нет дат, считаем, что всё доступно (но это не совсем правильно)
     return {
       available: requestedQty,
       conflicts: [],
@@ -279,6 +329,9 @@ export function getAvailableQuantity(equipmentPath, startDate, endDate, requeste
       instanceDetails: null,
     };
   }
+
+  const start = toUTCTimestamp(startDate);
+  const end = toUTCTimestamp(endDate);
 
   // Проверяем, есть ли экземпляры для этого пути
   const instances = getInstancesByPath(equipmentPath);
@@ -324,18 +377,16 @@ export function getAvailableQuantity(equipmentPath, startDate, endDate, requeste
     const projects = getProjects();
     const allItems = getAllProjectItems();
     const totalStock = getStockValue(equipmentPath);
-    const nStart = new Date(startDate).getTime();
-    const nEnd = new Date(endDate).getTime();
 
     const overlapping = projects.filter(p => {
       if (p.id === currentProjectId) return false;
       if (p.status === 'completed') return false;
-      const pStart = new Date(p.start_date).getTime();
-      const pEnd = new Date(p.end_date).getTime();
-      return (pStart <= nEnd && pEnd >= nStart);
+      if (!p.start_date || !p.end_date) return false;
+      const pStart = toUTCTimestamp(p.start_date);
+      const pEnd = toUTCTimestamp(p.end_date);
+      return periodsOverlap(start, end, pStart, pEnd);
     });
 
-    const overlapIds = overlapping.map(p => p.id);
     let allocated = 0;
     const conflicts = [];
     overlapping.forEach(p => {

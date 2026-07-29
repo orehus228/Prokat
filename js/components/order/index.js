@@ -5,7 +5,7 @@ import { getProjects, getProject, saveProject, addProjectItem } from '../../serv
 import { getItemProps, setItemProps, getCommonCases, getTruckPresets } from '../../data/editor-data.js';
 import { showToast, queueToast } from '../../ui/toast.js';
 import { showPrompt, showConfirm } from '../../ui/modal.js';
-import { esc, getElement } from '../../ui/dom.js';
+import { esc, getElement, debounce } from '../../ui/dom.js';
 import { initOrderUI, renderOrderAll, setCurrentCategory, clearSearchOrder } from './render.js';
 import { initOrderPresetsUI } from './presets.js';
 import { initOrderActions, clearOrderData, syncAllProjectItems } from './actions.js';
@@ -94,49 +94,57 @@ function setupProjectUIHandlers() {
     });
   }
 
+  // Создаём debounced-версию обработчика изменения полей проекта
+  const debouncedSync = debounce(() => {
+    const name = document.getElementById('pProjectName').value.trim();
+    const start = document.getElementById('pStartDate').value;
+    const end = document.getElementById('pEndDate').value;
+    const status = document.getElementById('pProjectStatus')?.value || 'planned';
+    
+    if (!name) {
+      // Если нет названия, сохраняем только даты и статус
+      setOrderProject({ id: null, name: '', start_date: start, end_date: end, status });
+      // Освобождаем все экземпляры, так как проект без названия невалиден
+      syncAllProjectItems();
+      return;
+    }
+    
+    let projectId = getOrderProject().id;
+    if (!projectId) {
+      // Создаём новый проект
+      const newProject = saveProject({ name, start_date: start, end_date: end, status });
+      projectId = newProject.id;
+      setOrderProject({ id: projectId, name, start_date: start, end_date: end, status });
+    } else {
+      // Обновляем существующий
+      const existing = getProject(projectId);
+      if (existing) {
+        saveProject({ id: projectId, name, start_date: start, end_date: end, status });
+        setOrderProject({ id: projectId, name, start_date: start, end_date: end, status });
+      } else {
+        // Если проект с таким id не найден, создаём новый
+        const newProject = saveProject({ name, start_date: start, end_date: end, status });
+        projectId = newProject.id;
+        setOrderProject({ id: projectId, name, start_date: start, end_date: end, status });
+      }
+    }
+    populateProjectSelect();
+    // Синхронизируем заказ с обновлённым проектом (с debounce)
+    syncAllProjectItems();
+    updateAllCommonCaseIndicators();
+  }, 500);
+
+  // Обработчики для полей проекта с debounce
   const fields = ['pProjectName', 'pStartDate', 'pEndDate'];
   fields.forEach(id => {
     const el = document.getElementById(id);
     if (el) {
-      el.addEventListener('change', function() {
-        const name = document.getElementById('pProjectName').value.trim();
-        const start = document.getElementById('pStartDate').value;
-        const end = document.getElementById('pEndDate').value;
-        const status = document.getElementById('pProjectStatus')?.value || 'planned';
-        if (!name) {
-          // Если нет названия, сохраняем только даты и статус
-          setOrderProject({ id: null, name: '', start_date: start, end_date: end, status });
-          // Освобождаем все экземпляры, так как проект без названия невалиден
-          syncAllProjectItems();
-          return;
-        }
-        let projectId = getOrderProject().id;
-        if (!projectId) {
-          // Создаём новый проект
-          const newProject = saveProject({ name, start_date: start, end_date: end, status });
-          projectId = newProject.id;
-          setOrderProject({ id: projectId, name, start_date: start, end_date: end, status });
-        } else {
-          // Обновляем существующий
-          const existing = getProject(projectId);
-          if (existing) {
-            saveProject({ id: projectId, name, start_date: start, end_date: end, status });
-            setOrderProject({ id: projectId, name, start_date: start, end_date: end, status });
-          } else {
-            // Если проект с таким id не найден, создаём новый
-            const newProject = saveProject({ name, start_date: start, end_date: end, status });
-            projectId = newProject.id;
-            setOrderProject({ id: projectId, name, start_date: start, end_date: end, status });
-          }
-        }
-        populateProjectSelect();
-        // Синхронизируем заказ с обновлённым проектом
-        syncAllProjectItems();
-        updateAllCommonCaseIndicators();
-      });
+      el.addEventListener('input', debouncedSync);
+      el.addEventListener('change', debouncedSync);
     }
   });
 
+  // Статус проекта – синхронизация сразу (без debounce, так как это менее критично)
   const statusSelect = document.getElementById('pProjectStatus');
   if (statusSelect) {
     statusSelect.addEventListener('change', function() {
