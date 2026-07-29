@@ -41,6 +41,14 @@ export function openInstanceListModal(path) {
       closeInstanceModal();
     }
   };
+
+  // Обработчик для кнопки "Закрыть"
+  const closeBtn = document.getElementById('instanceModalClose');
+  if (closeBtn) {
+    // Удаляем старый обработчик, чтобы избежать дублирования
+    closeBtn.removeEventListener('click', closeInstanceModal);
+    closeBtn.addEventListener('click', closeInstanceModal);
+  }
 }
 
 /**
@@ -184,10 +192,17 @@ async function handleChangeStatus(instanceId) {
     `Текущий статус: ${INSTANCE_STATUS_LABELS[instance.status] || instance.status}`,
     allowed
   );
-  if (!newStatus) return;
+
+  // Если пользователь отменил выбор, прерываем выполнение
+  if (!newStatus) {
+    return;
+  }
 
   let comment = await showPrompt('Комментарий (необязательно):', 'Комментарий:', '', 'Введите комментарий...');
-  if (comment === null) comment = '';
+  if (comment === null) {
+    // Если пользователь отменил ввод комментария, считаем, что комментарий пустой
+    comment = '';
+  }
 
   const success = updateInstanceStatus(instanceId, newStatus, null, comment || 'Изменение статуса в модалке');
   if (success) {

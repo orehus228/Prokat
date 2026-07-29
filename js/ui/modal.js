@@ -110,7 +110,8 @@ export function showChoice(title, message, options) {
   return new Promise((resolve) => {
     const overlay = document.getElementById('modalOverlay');
     if (!overlay) {
-      resolve(options[0]?.value || '');
+      // Если модалки нет, возвращаем первый вариант или null
+      resolve(options[0]?.value || null);
       return;
     }
     const titleEl = document.getElementById('modalTitle');
@@ -166,7 +167,7 @@ export function showChoice(title, message, options) {
 
     const getSelected = () => {
       const selected = document.querySelector('input[name="choice"]:checked');
-      return selected ? selected.value : (options[0]?.value || '');
+      return selected ? selected.value : (options[0]?.value || null);
     };
 
     const handleConfirm = () => {
@@ -175,7 +176,8 @@ export function showChoice(title, message, options) {
     };
     const handleCancel = () => {
       cleanup();
-      resolve(options[0]?.value || '');
+      // При отмене возвращаем null
+      resolve(null);
     };
     const handleKeydown = (e) => {
       if (e.key === 'Enter') handleConfirm();

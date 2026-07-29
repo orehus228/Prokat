@@ -858,16 +858,25 @@ export function setupInputListenersOrder() { }
 export function initOrderUI() {
   detailsOpenOrder = localStorage.getItem('detailsOpenOrder') === 'true';
 
+  // ---- Исправляем обработчик кнопки "Подробно" ----
   const detailToggle = document.getElementById('detailToggle');
   if (detailToggle) {
-    detailToggle.addEventListener('click', function() {
+    // Удаляем старый обработчик, если он был (используем сохранённую ссылку)
+    if (detailToggle._handler) {
+      detailToggle.removeEventListener('click', detailToggle._handler);
+    }
+    // Создаём новый обработчик
+    const handler = function() {
       const details = document.getElementById('globalDetails');
       if (!details) return;
       details.classList.toggle('open');
-      detailsOpenOrder = details.classList.contains('open');
-      localStorage.setItem('detailsOpenOrder', JSON.stringify(detailsOpenOrder));
-      this.textContent = detailsOpenOrder ? 'Скрыть' : 'Подробно';
-    });
+      const isOpen = details.classList.contains('open');
+      localStorage.setItem('detailsOpenOrder', JSON.stringify(isOpen));
+      this.textContent = isOpen ? 'Скрыть' : 'Подробно';
+      detailsOpenOrder = isOpen;
+    };
+    detailToggle._handler = handler;
+    detailToggle.addEventListener('click', handler);
   }
 
   const searchInput = document.getElementById('searchInput');
