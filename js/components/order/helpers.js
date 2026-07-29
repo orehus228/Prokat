@@ -266,7 +266,7 @@ export function updateChildRowsForPath(path) {
       html += `
         <div class="child-controls" data-caseid="${idx}" style="
           display: grid;
-          grid-template-columns: 44px 22px 22px 36px 22px 22px 22px 36px 22px 30px 60px 30px;
+          grid-template-columns: 44px 22px 22px 36px 22px 22px 36px 22px 30px 60px 30px;
           align-items: center;
           gap: 2px 4px;
           padding: 4px 6px;
@@ -345,13 +345,13 @@ export function updateChildRowsForPath(path) {
       const c = commonCases.find(c => c.id === p.caseId);
       const name = c ? c.name : 'удалённый кофр';
       const qty = p.pieces || 0;
-      const maxPack = c ? c.qty : 0;
       const unitWeight = props.weight || 0;
       const filledWeight = qty * unitWeight;
       const maxWeight = c?.maxWeight || Infinity;
       let fillPercent = 0;
       if (maxWeight > 0) fillPercent = Math.min(100, Math.round((filledWeight / maxWeight) * 100));
 
+      // Убираем вместимость (c.qty) из строки
       html += `
         <div class="child-controls" data-caseid="${p.caseId}" style="
           display: grid;
@@ -370,7 +370,7 @@ export function updateChildRowsForPath(path) {
           <span style="font-weight:600;font-size:12px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(name)}</span>
           <span>шт</span>
           <button class="btn-c child-common-btn" style="width:22px;height:22px;font-size:12px;padding:0;display:flex;align-items:center;justify-content:center;color:var(--text-primary);" data-path="${path}" data-caseid="${p.caseId}" data-delta="-1">−</button>
-          <input type="number" class="child-common-qty" data-path="${path}" data-caseid="${p.caseId}" value="${qty}" min="0" step="1" max="${maxPack}" style="width:36px;padding:1px 2px;font-size:12px;text-align:center;background:var(--bg-input);border:1px solid var(--border-light);border-radius:3px;color:var(--text-primary);">
+          <input type="number" class="child-common-qty" data-path="${path}" data-caseid="${p.caseId}" value="${qty}" min="0" step="1" style="width:36px;padding:1px 2px;font-size:12px;text-align:center;background:var(--bg-input);border:1px solid var(--border-light);border-radius:3px;color:var(--text-primary);">
           <button class="btn-c child-common-btn" style="width:22px;height:22px;font-size:12px;padding:0;display:flex;align-items:center;justify-content:center;color:var(--text-primary);" data-path="${path}" data-caseid="${p.caseId}" data-delta="1">+</button>
           <span class="case-fill-percent" style="font-size:11px;font-weight:bold;color:var(--text-secondary);">${fillPercent}%</span>
           <span style="font-size:10px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${c?.dimensions || ''}</span>

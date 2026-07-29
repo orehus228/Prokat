@@ -327,7 +327,7 @@ export function exportOrderJSON() {
 }
 
 // ============================================================
-// ЭКСПОРТ PDF (исправлен: прямой расчёт количества, блок общих кофров)
+// ЭКСПОРТ PDF (исправлен: убрана вместимость, добавлены описание/заметки)
 // ============================================================
 export function exportOrderPDF() {
   const state = getState();
@@ -372,6 +372,10 @@ export function exportOrderPDF() {
     const weight = calc.calcItemWeight(path, qty, mode, packing, individualVals, extra);
     const volume = calc.calcItemVolume(path, qty, mode, packing, individualVals, extra);
 
+    // Получаем описание и заметку
+    const spec = state.specs[path] || '';
+    const note = state.notes[path] || '';
+
     let caseInfo = '';
     if (packing.length > 0) {
       const caseDetails = packing.map(p => {
@@ -405,7 +409,7 @@ export function exportOrderPDF() {
     }
 
     if (!catMap[cat]) catMap[cat] = [];
-    catMap[cat].push({ name, qty, weight, volume, caseInfo, path });
+    catMap[cat].push({ name, qty, weight, volume, caseInfo, spec, note, path });
   });
 
   // Формируем HTML
@@ -427,6 +431,7 @@ export function exportOrderPDF() {
     .weight { text-align: right; white-space: nowrap; }
     .volume { text-align: right; white-space: nowrap; }
     .case-info { font-size: 11px; color: #555; }
+    .extra-info { font-size: 11px; color: #777; margin-top: 2px; }
     .common-cases { margin-top: 12px; border-top: 2px solid #2c3e50; padding-top: 8px; }
     .common-cases h3 { font-size: 14px; margin: 4px 0 6px 0; color: #2c3e50; }
     .case-detail { font-size: 12px; padding: 4px 0; border-bottom: 1px solid #eee; }
@@ -445,7 +450,7 @@ export function exportOrderPDF() {
 <h1>Чек-лист: ${esc(projectName)}</h1>
 <table>
   <thead>
-    <tr><th style="width:16%;">Категория</th><th style="width:34%;">Позиция</th><th style="width:8%;text-align:center;">Кол-во</th><th style="width:10%;text-align:right;">Вес, кг</th><th style="width:10%;text-align:right;">Объём, м³</th><th style="width:22%;">Упаковка</th></tr>
+    <tr><th style="width:14%;">Категория</th><th style="width:30%;">Позиция</th><th style="width:8%;text-align:center;">Кол-во</th><th style="width:10%;text-align:right;">Вес, кг</th><th style="width:10%;text-align:right;">Объём, м³</th><th style="width:28%;">Упаковка / Примечание</th></tr>
   </thead>
   <tbody>`;
 
@@ -461,9 +466,12 @@ export function exportOrderPDF() {
       catQty += item.qty;
       catWeight += item.weight;
       catVolume += item.volume;
+      let extraText = '';
+      if (item.spec) extraText += `<div class="extra-info">📝 ${esc(item.spec)}</div>`;
+      if (item.note) extraText += `<div class="extra-info">📌 ${esc(item.note)}</div>`;
       html += `<tr class="item">
         <td></td>
-        <td>${esc(item.name)}</td>
+        <td>${esc(item.name)}${extraText}</td>
         <td class="qty">${item.qty}</td>
         <td class="weight">${item.weight.toFixed(1)}</td>
         <td class="volume">${item.volume.toFixed(3)}</td>
@@ -484,14 +492,14 @@ export function exportOrderPDF() {
 
   html += `</tbody></table>`;
 
-  // Блок общих кофров
+  // Блок общих кофров (убрана вместимость)
   const usedCaseIds = Object.keys(commonCasesUsed);
   if (usedCaseIds.length > 0) {
     html += `<div class="common-cases"><h3>Общие кофры</h3>`;
     usedCaseIds.forEach(caseId => {
       const data = commonCasesUsed[caseId];
       html += `<div class="case-detail">
-        <strong>${esc(data.name)}</strong> — вместимость: ${data.qtyPerCase} шт, габариты: ${esc(data.dims)}, вес пустого: ${data.emptyWeight} кг, макс. вес: ${data.maxWeight} кг
+        <strong>${esc(data.name)}</strong> — габариты: ${esc(data.dims)}, вес пустого: ${data.emptyWeight} кг, макс. вес: ${data.maxWeight} кг
         <div class="case-items">`;
       data.items.forEach(item => {
         html += `<div>${esc(item.name)} — ${item.pieces} шт</div>`;

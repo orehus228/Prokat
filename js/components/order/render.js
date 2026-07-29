@@ -236,18 +236,20 @@ export function buildItemRow(fullPath, level) {
   let caseNameDisplay = '';
   if (hasCommonPacking) {
     const commonCases = getCommonCases();
-    const caseNames = packing.map(p => {
+    // Формируем список кофров с количеством штук в каждом
+    const caseDetails = packing.map(p => {
       const c = commonCases.find(c => c.id === p.caseId);
-      return c ? c.name : 'удалённый';
+      const name = c ? c.name : 'удалённый';
+      return `${name} (${p.pieces} шт)`;
     }).join(', ');
-    caseNameDisplay = ` (в кофре: ${caseNames})`;
+    caseNameDisplay = ` (в кофре: ${caseDetails})`;
+    // Для extraCaseInfo используем тот же формат, но без слова "в кофре"
+    extraCaseInfo = `Кофры: ${caseDetails}`;
   }
 
   if (hasCommonPacking) {
     caseStatusText = 'Общие';
     caseStatusClass = 'common';
-    const totalPieces = packing.reduce((s, p) => s + (p.pieces || 0), 0);
-    extraCaseInfo = `[Кофр] ${packing.length} шт (${totalPieces} шт)`;
   } else if (isMulti) {
     caseStatusText = 'Мульти';
     caseStatusClass = 'multi';
@@ -441,8 +443,14 @@ export function updateRowOrder(path, rebuildChildren = true) {
         if (volume > 0) info += `<span>${formatVolume(volume)}</span>`;
       }
       if (packing.length > 0) {
-        const totalPieces = packing.reduce((s, p) => s + (p.pieces || 0), 0);
-        info += `<span>[Кофр] ${packing.length} шт (${totalPieces} шт)</span>`;
+        // Отображаем названия кофров с количеством
+        const commonCases = getCommonCases();
+        const caseDetails = packing.map(p => {
+          const c = commonCases.find(c => c.id === p.caseId);
+          const name = c ? c.name : 'удалённый';
+          return `${name} (${p.pieces} шт)`;
+        }).join(', ');
+        info += `<span>Кофры: ${caseDetails}</span>`;
       }
     }
     extraInfo.innerHTML = info;
@@ -631,7 +639,6 @@ export function updateTotalsOrder() {
     if (!catMap[cat]) return;
     const catResult = catMap[cat];
     const catId = 'cat_detail_' + cat.replace(/[^a-zA-Z0-9]/g, '_');
-    // Убираем маркер (общий кофр) из названия категории
     detailsHtml += `<div class="cat-detail-wrap">
       <div class="cat-detail-header" data-target="${catId}" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:4px 8px;background:var(--bg-secondary);border-radius:6px;margin:4px 0;border-left:3px solid var(--accent);">
         <strong>${CAT_NAMES[cat] || cat}</strong>
@@ -659,7 +666,8 @@ export function updateTotalsOrder() {
     usedCaseIds.forEach(id => {
       const c = commonCases.find(c => c.id === id);
       if (c) {
-        caseListHtml += `<div style="font-size:13px;color:var(--text-secondary);padding-left:12px;">• ${esc(c.name)} (вместимость: ${c.qty} шт, габ: ${c.dimensions || 'н/д'}, вес пустого: ${c.emptyWeight || 0} кг, макс. вес: ${c.maxWeight || 0} кг)</div>`;
+        // Убираем вместимость (c.qty) из отображения
+        caseListHtml += `<div style="font-size:13px;color:var(--text-secondary);padding-left:12px;">• ${esc(c.name)} (габ: ${c.dimensions || 'н/д'}, вес пустого: ${c.emptyWeight || 0} кг, макс. вес: ${c.maxWeight || 0} кг)</div>`;
       }
     });
 
