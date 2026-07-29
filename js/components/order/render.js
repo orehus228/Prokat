@@ -631,11 +631,10 @@ export function updateTotalsOrder() {
     if (!catMap[cat]) return;
     const catResult = catMap[cat];
     const catId = 'cat_detail_' + cat.replace(/[^a-zA-Z0-9]/g, '_');
-    const hasCommon = commonByCategory[cat] && commonByCategory[cat].qty > 0;
-    const marker = hasCommon ? ' (общий кофр)' : '';
+    // Убираем маркер (общий кофр) из названия категории
     detailsHtml += `<div class="cat-detail-wrap">
       <div class="cat-detail-header" data-target="${catId}" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:4px 8px;background:var(--bg-secondary);border-radius:6px;margin:4px 0;border-left:3px solid var(--accent);">
-        <strong>${CAT_NAMES[cat] || cat}${marker}</strong>
+        <strong>${CAT_NAMES[cat] || cat}</strong>
         <span style="font-size:13px;color:var(--text-secondary);">${catResult.qty} шт, ${formatWeight(catResult.weight)}, ${formatVolume(catResult.volume)}</span>
         <span class="toggle-icon" style="font-size:14px;color:var(--text-muted);">▶</span>
       </div>

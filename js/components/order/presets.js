@@ -327,15 +327,17 @@ export function exportOrderJSON() {
 }
 
 // ============================================================
-// ЭКСПОРТ PDF (исправленный, с общими кофрами и позициями)
+// ЭКСПОРТ PDF (исправлен: прямой расчёт количества, блок общих кофров)
 // ============================================================
 export function exportOrderPDF() {
   const state = getState();
   const projectName = document.getElementById('pName')?.value.trim() || 'Мероприятие';
 
-  // Собираем все позиции из всех источников
+  // Собираем все позиции из всех источников напрямую
   const allPaths = new Set();
-  for (let p in state.order) if (state.order[p] > 0) allPaths.add(p);
+  for (let p in state.order) {
+    if (state.order[p] > 0) allPaths.add(p);
+  }
   for (let p in state.orderPacking) {
     const total = state.orderPacking[p].reduce((s, item) => s + (item.pieces || 0), 0);
     if (total > 0) allPaths.add(p);
@@ -344,7 +346,9 @@ export function exportOrderPDF() {
     const total = state.individualCaseValues[p].reduce((a, b) => a + b, 0);
     if (total > 0) allPaths.add(p);
   }
-  for (let p in state.orderExtra) if (state.orderExtra[p] > 0) allPaths.add(p);
+  for (let p in state.orderExtra) {
+    if (state.orderExtra[p] > 0) allPaths.add(p);
+  }
 
   // Группировка по категориям
   const catMap = {};
@@ -352,16 +356,19 @@ export function exportOrderPDF() {
   const commonCasesUsed = {};
 
   allPaths.forEach(path => {
-    const qty = Number(getTotalQty(path)) || 0;
+    // Вычисляем количество напрямую из state
+    const packing = state.orderPacking[path] || [];
+    const totalPacked = packing.reduce((s, item) => s + (item.pieces || 0), 0);
+    const extra = state.orderExtra[path] || 0;
+    const qty = totalPacked + extra + (state.order[path] || 0);
     if (qty <= 0) return;
+
     const parts = path.split('|');
     const cat = parts[0];
     const name = parts.slice(1).join(' → ');
     const props = getItemPropsByPath(path);
     const mode = state.caseModes[path] || {};
-    const packing = state.orderPacking[path] || [];
     const individualVals = state.individualCaseValues[path] || [];
-    const extra = state.orderExtra[path] || 0;
     const weight = calc.calcItemWeight(path, qty, mode, packing, individualVals, extra);
     const volume = calc.calcItemVolume(path, qty, mode, packing, individualVals, extra);
 
