@@ -343,7 +343,7 @@ export function saveState() {
 /**
  * Перестраивает индекс instancesByPath на основе текущих экземпляров.
  */
-function rebuildInstancesIndex() {
+export function rebuildInstancesIndex() {
   const newIndex = {};
   for (let id in state.instances) {
     const instance = state.instances[id];
