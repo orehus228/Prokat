@@ -66,8 +66,7 @@ export function renderOrderTabs() {
   orderKeys.forEach(key => {
     const tab = document.createElement('div');
     tab.className = 'category-tab' + (key === currentOrderCategory ? ' active' : '');
-    const label = CAT_NAMES[key] || key;
-    tab.textContent = label;
+    tab.textContent = CAT_NAMES[key] || key;
     tab.dataset.cat = key;
     tab.addEventListener('click', () => {
       if (searchModeOrder) {
@@ -573,7 +572,23 @@ export function updateTotalsOrder() {
 
   itemsMap.forEach((itemData, path) => {
     const { qty, packing, extra, individualVals, mode } = itemData;
+    const props = calc.getItemPropsByPath(path);
+    const unitWeight = props.weight || 0;
+
+    // Полный вес (с учётом кофров)
     const weightFull = calc.calcItemWeight(path, qty, mode, packing, individualVals, extra);
+    // Чистый вес позиций (без учёта кофров)
+    let weightPure = 0;
+    if (packing.length > 0) {
+      // Для позиций в общих кофрах – только вес самих позиций
+      packing.forEach(p => {
+        if (p.pieces > 0) weightPure += p.pieces * unitWeight;
+      });
+      if (extra > 0) weightPure += extra * unitWeight;
+    } else {
+      weightPure = weightFull;
+    }
+
     const volume = calc.calcItemVolume(path, qty, mode, packing, individualVals, extra);
     const cases = calc.calcItemCases(path, qty, mode, individualVals);
 
@@ -583,10 +598,9 @@ export function updateTotalsOrder() {
 
     if (!catMap[cat]) catMap[cat] = { qty: 0, weight: 0, volume: 0, cases: 0 };
     catMap[cat].qty += qty;
-    if (!hasCommonPacking) {
-      catMap[cat].weight += weightFull;
-      catMap[cat].volume += volume;
-    }
+    // В категорию добавляем чистый вес (без кофров)
+    catMap[cat].weight += weightPure;
+    catMap[cat].volume += volume;
     catMap[cat].cases += cases;
 
     totalQty += qty;
