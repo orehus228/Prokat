@@ -327,15 +327,13 @@ export function exportOrderJSON() {
 }
 
 // ============================================================
-// ЭКСПОРТ PDF (исправленный, без крашей и [object Object])
+// ЭКСПОРТ PDF — компактная таблица без эмодзи и лишней информации
 // ============================================================
 export function exportOrderPDF() {
   const state = getState();
   const projectName = document.getElementById('pName')?.value.trim() || 'Мероприятие';
-  const date = document.getElementById('pDate')?.value || new Date().toLocaleDateString('ru-RU');
-  const comment = document.getElementById('pComment')?.value.trim() || '';
 
-  // Собираем позиции с данными о упаковке
+  // Собираем все позиции
   const allPaths = new Set();
   for (let p in state.order) if (state.order[p] > 0) allPaths.add(p);
   for (let p in state.orderPacking) {
@@ -348,13 +346,13 @@ export function exportOrderPDF() {
   }
   for (let p in state.orderExtra) if (state.orderExtra[p] > 0) allPaths.add(p);
 
-  // Группировка по категориям с детальной информацией о кофрах
+  // Группировка по категориям
   const catMap = {};
   const commonCases = getCommonCases();
-  const commonCasesUsed = {}; // caseId -> { name, qtyPerCase, dims, emptyWeight, maxWeight, items: [] }
+  const commonCasesUsed = {};
 
   allPaths.forEach(path => {
-    const qty = getTotalQty(path);
+    const qty = Number(getTotalQty(path)) || 0;
     if (qty <= 0) return;
     const parts = path.split('|');
     const cat = parts[0];
@@ -367,7 +365,6 @@ export function exportOrderPDF() {
     const weight = calc.calcItemWeight(path, qty, mode, packing, individualVals, extra);
     const volume = calc.calcItemVolume(path, qty, mode, packing, individualVals, extra);
 
-    // Определяем, в какие кофры упаковано
     let caseInfo = '';
     if (packing.length > 0) {
       const caseDetails = packing.map(p => {
@@ -386,7 +383,7 @@ export function exportOrderPDF() {
         commonCasesUsed[p.caseId].items.push({ name, pieces: p.pieces });
         return `${caseName} (${p.pieces} шт)`;
       }).join(', ');
-      caseInfo = `🧳 упаковано в: ${caseDetails}`;
+      caseInfo = `упаковано в: ${caseDetails}`;
     } else if (individualVals.length > 0 && mode.enabled) {
       const options = calc.getCaseOptions(path);
       const details = individualVals.map((v, idx) => {
@@ -395,110 +392,121 @@ export function exportOrderPDF() {
         const casesCount = Math.ceil(v / opt.qty);
         return `вариант ${idx+1} (${v} шт, ${casesCount} кофр)`;
       }).filter(Boolean).join(', ');
-      caseInfo = `📦 индивидуальные кофры: ${details}`;
+      caseInfo = `индивидуальные кофры: ${details}`;
     } else if (extra > 0 && packing.length === 0) {
-      caseInfo = `📦 вне кофра (${extra} шт)`;
+      caseInfo = `вне кофра (${extra} шт)`;
     }
 
     if (!catMap[cat]) catMap[cat] = [];
     catMap[cat].push({ name, qty, weight, volume, caseInfo, path });
   });
 
-  // Начинаем HTML
+  // Формируем HTML
   let html = `<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><title>Чек-лист</title>
-<style>
-body{font-family:'Segoe UI',Arial,sans-serif;margin:40px;color:#222;background:#fff}
-h1{color:#2c3e50;border-bottom:2px solid #3498db;padding-bottom:10px}
-.meta{margin:20px 0;color:#555}
-.category{margin:20px 0 10px 0;background:#f8f9fa;border-radius:6px;padding:10px 14px;border-left:4px solid #3498db;}
-.category h3{margin:0 0 8px 0;color:#2c3e50;}
-.item{font-size:14px;padding:4px 0;border-bottom:1px solid #eee;display:flex;flex-wrap:wrap;gap:8px 20px;}
-.item .name{flex:2 1 200px;}
-.item .qty{flex:0 0 60px;}
-.item .weight{flex:0 0 80px;}
-.item .volume{flex:0 0 80px;}
-.item .case-info{flex:1 1 200px;color:#555;font-size:13px;}
-.common-cases{margin:20px 0;padding:12px;background:#f0f4f8;border-radius:6px;border:1px solid #d0d8e0;}
-.common-cases h3{margin:0 0 8px 0;color:#2c3e50;}
-.case-detail{margin:6px 0;padding:6px 10px;background:#fff;border-radius:4px;border:1px solid #e0e8f0;}
-.case-detail strong{color:#1a3a5a;}
-.case-items{font-size:13px;color:#444;margin-left:16px;}
-.case-items .item{font-size:13px;padding:2px 0;border-bottom:none;}
-.totals{margin-top:20px;padding:12px;background:#e6f2ff;border-radius:6px;font-weight:bold;display:flex;gap:30px;flex-wrap:wrap;}
-.actions{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);display:flex;gap:12px;background:white;padding:12px 24px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.2);z-index:1000;}
-.actions .print{background:#2c3e50;color:white;border:none;padding:8px 20px;border-radius:6px;cursor:pointer;}
-.actions .close{background:#ddd;color:#333;border:none;padding:8px 20px;border-radius:6px;cursor:pointer;}
-</style>
-</head><body>
-<h1>Чек-лист: ${esc(projectName)}</h1>
-<div class="meta"><strong>Дата:</strong> ${esc(date)}<br><strong>Комментарий:</strong> ${esc(comment || '—')}</div>`;
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Список заказа</title>
+  <style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; margin: 20px; font-size: 12px; color: #222; background: #fff; }
+    h1 { font-size: 18px; margin: 0 0 10px 0; color: #2c3e50; border-bottom: 1px solid #ccc; padding-bottom: 6px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+    th { background: #2c3e50; color: #fff; padding: 6px 8px; text-align: left; font-weight: 600; font-size: 12px; }
+    td { padding: 4px 8px; border-bottom: 1px solid #e0e0e0; vertical-align: top; }
+    .cat-header { background: #f0f4f8; font-weight: 700; font-size: 13px; border-top: 2px solid #2c3e50; }
+    .cat-header td { padding: 6px 8px; }
+    .item td { padding: 3px 8px; }
+    .qty { text-align: center; white-space: nowrap; }
+    .weight { text-align: right; white-space: nowrap; }
+    .volume { text-align: right; white-space: nowrap; }
+    .case-info { font-size: 11px; color: #555; }
+    .common-cases { margin-top: 12px; border-top: 2px solid #2c3e50; padding-top: 8px; }
+    .common-cases h3 { font-size: 14px; margin: 4px 0 6px 0; color: #2c3e50; }
+    .case-detail { font-size: 12px; padding: 4px 0; border-bottom: 1px solid #eee; }
+    .case-detail strong { color: #1a3a5a; }
+    .case-items { margin-left: 16px; font-size: 12px; color: #444; }
+    .totals { margin-top: 12px; padding: 8px 12px; background: #e6f2ff; border-radius: 4px; font-weight: 600; font-size: 13px; display: flex; gap: 20px; flex-wrap: wrap; }
+    .totals span { white-space: nowrap; }
+    .actions { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 12px; background: white; padding: 8px 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 1000; }
+    .actions button { padding: 6px 18px; border: none; border-radius: 4px; font-size: 13px; cursor: pointer; }
+    .print { background: #2c3e50; color: white; }
+    .close { background: #ddd; color: #333; }
+    @media print { .actions { display: none; } body { margin: 10px; } }
+  </style>
+</head>
+<body>
+<h1>Список заказа: ${esc(projectName)}</h1>
+<table>
+  <thead>
+    <tr><th style="width:16%;">Категория</th><th style="width:34%;">Позиция</th><th style="width:8%;text-align:center;">Кол-во</th><th style="width:10%;text-align:right;">Вес, кг</th><th style="width:10%;text-align:right;">Объём, м³</th><th style="width:22%;">Упаковка</th></tr>
+  </thead>
+  <tbody>`;
 
-  // Итоговые переменные
   let grandQty = 0, grandWeight = 0, grandVolume = 0;
-
-  // Вывод категорий
   const orderKeys = state._categoryOrder || Object.keys(state.inventory);
+
   orderKeys.forEach(cat => {
     if (!catMap[cat]) return;
     const items = catMap[cat];
     let catQty = 0, catWeight = 0, catVolume = 0;
-    html += `<div class="category"><h3>${CAT_NAMES[cat] || cat}</h3>`;
+    html += `<tr class="cat-header"><td colspan="6"><strong>${CAT_NAMES[cat] || cat}</strong></td></tr>`;
     items.forEach(item => {
       catQty += item.qty;
       catWeight += item.weight;
       catVolume += item.volume;
-      html += `<div class="item">
-        <span class="name">${esc(item.name)}</span>
-        <span class="qty">${item.qty} шт</span>
-        <span class="weight">${item.weight.toFixed(1)} кг</span>
-        <span class="volume">${item.volume.toFixed(3)} м³</span>
-        ${item.caseInfo ? `<span class="case-info">${esc(item.caseInfo)}</span>` : ''}
-      </div>`;
+      html += `<tr class="item">
+        <td></td>
+        <td>${esc(item.name)}</td>
+        <td class="qty">${item.qty}</td>
+        <td class="weight">${item.weight.toFixed(1)}</td>
+        <td class="volume">${item.volume.toFixed(3)}</td>
+        <td class="case-info">${item.caseInfo ? esc(item.caseInfo) : ''}</td>
+      </tr>`;
     });
-    html += `<div style="font-weight:bold;margin-top:4px;color:#2c3e50;">Итого в категории: ${catQty} шт, ${catWeight.toFixed(1)} кг, ${catVolume.toFixed(3)} м³</div>`;
-    html += `</div>`;
+    html += `<tr style="font-weight:600;background:#f8fafc;border-top:1px solid #ccc;">
+      <td colspan="2" style="text-align:right;">Итого в категории:</td>
+      <td class="qty">${catQty}</td>
+      <td class="weight">${catWeight.toFixed(1)}</td>
+      <td class="volume">${catVolume.toFixed(3)}</td>
+      <td></td>
+    </tr>`;
     grandQty += catQty;
     grandWeight += catWeight;
     grandVolume += catVolume;
   });
 
-  // Блок общих кофров (если есть)
+  html += `</tbody></table>`;
+
+  // Блок общих кофров
   const usedCaseIds = Object.keys(commonCasesUsed);
   if (usedCaseIds.length > 0) {
-    html += `<div class="common-cases"><h3>📦 Общие кофры</h3>`;
+    html += `<div class="common-cases"><h3>Общие кофры</h3>`;
     usedCaseIds.forEach(caseId => {
       const data = commonCasesUsed[caseId];
       html += `<div class="case-detail">
         <strong>${esc(data.name)}</strong> — вместимость: ${data.qtyPerCase} шт, габариты: ${esc(data.dims)}, вес пустого: ${data.emptyWeight} кг, макс. вес: ${data.maxWeight} кг
         <div class="case-items">`;
       data.items.forEach(item => {
-        html += `<div class="item">
-          <span class="name">${esc(item.name)}</span>
-          <span class="qty">${item.pieces} шт</span>
-        </div>`;
+        html += `<div>${esc(item.name)} — ${item.pieces} шт</div>`;
       });
       html += `</div></div>`;
     });
     html += `</div>`;
   }
 
-  // Общий итог
   html += `<div class="totals">
     <span>Всего: ${grandQty} шт</span>
     <span>Общий вес: ${grandWeight.toFixed(1)} кг</span>
     <span>Общий объём: ${grandVolume.toFixed(3)} м³</span>
   </div>`;
 
-  // Кнопки
   html += `<div class="actions">
     <button class="print" onclick="window.print()">Сохранить PDF</button>
-    <button class="close" onclick="window.close()">Назад</button>
+    <button class="close" onclick="window.close()">Закрыть</button>
   </div>
 </body></html>`;
 
-  // Открываем новое окно и пишем HTML
-  const win = window.open('', '_blank', 'width=800,height=600');
+  const win = window.open('', '_blank', 'width=900,height=700');
   if (win) {
     win.document.write(html);
     win.document.close();
