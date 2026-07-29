@@ -67,16 +67,7 @@ export function renderOrderTabs() {
     const tab = document.createElement('div');
     tab.className = 'category-tab' + (key === currentOrderCategory ? ' active' : '');
     const label = CAT_NAMES[key] || key;
-    // Проверяем, есть ли в этой категории позиции, упакованные в общие кофры
-    let hasCommon = false;
-    for (let p in state.orderPacking) {
-      if (p.startsWith(key + '|') && state.orderPacking[p].length > 0) {
-        hasCommon = true;
-        break;
-      }
-    }
-    const marker = hasCommon ? ' (общий кофр)' : '';
-    tab.textContent = label + marker;
+    tab.textContent = label;
     tab.dataset.cat = key;
     tab.addEventListener('click', () => {
       if (searchModeOrder) {
