@@ -285,7 +285,7 @@ export function importOrderPresets(file) {
 }
 
 // ============================================================
-// ЭКСПОРТ JSON И PDF (для текущего заказа)
+// ЭКСПОРТ JSON
 // ============================================================
 
 export function exportOrderJSON() {
@@ -327,7 +327,7 @@ export function exportOrderJSON() {
 }
 
 // ============================================================
-// PDF — полностью переработанный экспорт
+// ЭКСПОРТ PDF (исправленный, без крашей и [object Object])
 // ============================================================
 export function exportOrderPDF() {
   const state = getState();
@@ -351,7 +351,7 @@ export function exportOrderPDF() {
   // Группировка по категориям с детальной информацией о кофрах
   const catMap = {};
   const commonCases = getCommonCases();
-  const commonCasesUsed = {}; // для сбора информации об общих кофрах
+  const commonCasesUsed = {}; // caseId -> { name, qtyPerCase, dims, emptyWeight, maxWeight, items: [] }
 
   allPaths.forEach(path => {
     const qty = getTotalQty(path);
@@ -370,7 +370,6 @@ export function exportOrderPDF() {
     // Определяем, в какие кофры упаковано
     let caseInfo = '';
     if (packing.length > 0) {
-      // Общие кофры
       const caseDetails = packing.map(p => {
         const c = commonCases.find(c => c.id === p.caseId);
         const caseName = c ? c.name : 'удалённый кофр';
@@ -379,17 +378,16 @@ export function exportOrderPDF() {
             name: caseName,
             qtyPerCase: c ? c.qty : '?',
             dims: c ? c.dimensions : '?',
-            maxWeight: c ? c.maxWeight : '?',
             emptyWeight: c ? c.emptyWeight : '?',
+            maxWeight: c ? c.maxWeight : '?',
             items: []
           };
         }
-        commonCasesUsed[p.caseId].items.push({ path, name, pieces: p.pieces });
+        commonCasesUsed[p.caseId].items.push({ name, pieces: p.pieces });
         return `${caseName} (${p.pieces} шт)`;
       }).join(', ');
       caseInfo = `🧳 упаковано в: ${caseDetails}`;
     } else if (individualVals.length > 0 && mode.enabled) {
-      // Индивидуальные или мультикофры
       const options = calc.getCaseOptions(path);
       const details = individualVals.map((v, idx) => {
         if (v <= 0) return null;
@@ -499,7 +497,8 @@ h1{color:#2c3e50;border-bottom:2px solid #3498db;padding-bottom:10px}
   </div>
 </body></html>`;
 
-  const win = window.open('', '_blank');
+  // Открываем новое окно и пишем HTML
+  const win = window.open('', '_blank', 'width=800,height=600');
   if (win) {
     win.document.write(html);
     win.document.close();

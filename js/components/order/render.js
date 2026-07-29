@@ -243,6 +243,17 @@ export function buildItemRow(fullPath, level) {
   let caseStatusClass = '';
   let extraCaseInfo = '';
 
+  // Определяем, используется ли общий кофр, и если да – собираем названия кофров
+  let caseNameDisplay = '';
+  if (hasCommonPacking) {
+    const commonCases = getCommonCases();
+    const caseNames = packing.map(p => {
+      const c = commonCases.find(c => c.id === p.caseId);
+      return c ? c.name : 'удалённый';
+    }).join(', ');
+    caseNameDisplay = ` (в кофре: ${caseNames})`;
+  }
+
   if (hasCommonPacking) {
     caseStatusText = 'Общие';
     caseStatusClass = 'common';
@@ -291,7 +302,7 @@ export function buildItemRow(fullPath, level) {
   }
 
   const infoHtml = buildInfoHtml(fullPath, props, mode);
-  const escapedName = esc(fullPath.split('|').pop());
+  const escapedName = esc(fullPath.split('|').pop()) + caseNameDisplay;
   const isAdded = totalQty > 0;
   const rowClass = (isAdded ? 'added' : '') + (overstock ? ' overstock' : '');
 
@@ -533,13 +544,13 @@ export function updateCategoryTotalsOrder(catKey) {
 }
 
 // ============================================================
-// ГЛАВНАЯ ФУНКЦИЯ СТАТИСТИКИ — с раскрывающимися категориями
+// ГЛАВНАЯ ФУНКЦИЯ СТАТИСТИКИ — с раскрывающимися категориями и списком кофров
 // ============================================================
 export function updateTotalsOrder() {
   const state = getState();
 
   // 1. Собираем все позиции
-  const itemsMap = new Map(); // path -> { qty, packing, extra, individualVals, mode }
+  const itemsMap = new Map();
   const seenPaths = new Set();
 
   for (let p in state.orderPacking) {
@@ -570,44 +581,35 @@ export function updateTotalsOrder() {
   }
 
   // 2. Инициализируем структуры
-  const catMap = {}; // для категорий: qty, weight (только для не упакованных), volume, cases
-  const commonByCategory = {}; // для общих кофров: суммируем по категориям
+  const catMap = {};
+  const commonByCategory = {};
   let totalQty = 0, totalWeight = 0, totalVolume = 0;
   let commonTotalQty = 0, commonTotalWeight = 0, commonTotalVolume = 0;
+  const usedCaseIds = new Set(); // для сбора ID общих кофров
 
   // 3. Обрабатываем каждую позицию
   itemsMap.forEach((itemData, path) => {
     const { qty, packing, extra, individualVals, mode } = itemData;
-    const props = calc.getItemPropsByPath(path);
-    const unitWeight = props.weight || 0;
-
-    // Полный вес (с учётом кофров)
     const weightFull = calc.calcItemWeight(path, qty, mode, packing, individualVals, extra);
     const volume = calc.calcItemVolume(path, qty, mode, packing, individualVals, extra);
     const cases = calc.calcItemCases(path, qty, mode, individualVals);
 
     const parts = path.split('|');
     const cat = parts[0];
-
-    // Определяем, есть ли упаковка в общие кофры
     const hasCommonPacking = packing.length > 0;
 
-    // Добавляем в категорию
     if (!catMap[cat]) catMap[cat] = { qty: 0, weight: 0, volume: 0, cases: 0 };
     catMap[cat].qty += qty;
     if (!hasCommonPacking) {
-      // Если нет упаковки, учитываем полный вес (чистый вес позиций)
       catMap[cat].weight += weightFull;
       catMap[cat].volume += volume;
     }
     catMap[cat].cases += cases;
 
-    // Общие итоги (полный вес)
     totalQty += qty;
     totalWeight += weightFull;
     totalVolume += volume;
 
-    // Если есть упаковка, добавляем в общие кофры
     if (hasCommonPacking) {
       commonTotalQty += qty;
       commonTotalWeight += weightFull;
@@ -618,6 +620,8 @@ export function updateTotalsOrder() {
       commonByCategory[cat].qty += qty;
       commonByCategory[cat].weight += weightFull;
       commonByCategory[cat].volume += volume;
+      // Собираем ID кофров
+      packing.forEach(p => usedCaseIds.add(p.caseId));
     }
   });
 
@@ -626,14 +630,14 @@ export function updateTotalsOrder() {
   document.getElementById('totalWeight').textContent = totalWeight.toFixed(1);
   document.getElementById('totalVolume').textContent = totalVolume.toFixed(3);
 
-  // 5. Строим детальную статистику с раскрывающимися категориями
+  // 5. Строим детальную статистику
   const detailsDiv = document.getElementById('globalDetails');
   if (!detailsDiv) return;
 
   const orderKeys = state._categoryOrder || Object.keys(state.inventory);
   let detailsHtml = '';
 
-  // Итоги по категориям (с кликабельным заголовком)
+  // Категории (кликабельные)
   orderKeys.forEach(cat => {
     if (!catMap[cat]) return;
     const catResult = catMap[cat];
@@ -652,7 +656,7 @@ export function updateTotalsOrder() {
     </div>`;
   });
 
-  // Блок общих кофров (кратко, с процентами)
+  // Блок общих кофров
   if (commonTotalQty > 0) {
     let commonPercentages = '';
     const catNames = Object.keys(commonByCategory);
@@ -662,7 +666,22 @@ export function updateTotalsOrder() {
       commonPercentages += `${CAT_NAMES[cat] || cat}: ${percent.toFixed(1)}%`;
       if (idx < catNames.length - 1) commonPercentages += ', ';
     });
-    detailsHtml += `<div class="cat-detail common-case-detail"><strong>📦 Общие кофры</strong><br>${commonTotalQty} шт<br>${formatWeight(commonTotalWeight)}<br>${formatVolume(commonTotalVolume)}<br><span style="font-size:13px;color:var(--text-secondary);">${commonPercentages}</span></div>`;
+
+    // Список используемых общих кофров
+    let caseListHtml = '';
+    const commonCases = getCommonCases();
+    usedCaseIds.forEach(id => {
+      const c = commonCases.find(c => c.id === id);
+      if (c) {
+        caseListHtml += `<div style="font-size:13px;color:var(--text-secondary);padding-left:12px;">• ${esc(c.name)} (вместимость: ${c.qty} шт, габ: ${c.dimensions || 'н/д'}, вес пустого: ${c.emptyWeight || 0} кг, макс. вес: ${c.maxWeight || 0} кг)</div>`;
+      }
+    });
+
+    detailsHtml += `<div class="cat-detail common-case-detail"><strong>📦 Общие кофры</strong><br>${commonTotalQty} шт<br>${formatWeight(commonTotalWeight)}<br>${formatVolume(commonTotalVolume)}<br><span style="font-size:13px;color:var(--text-secondary);">${commonPercentages}</span>`;
+    if (caseListHtml) {
+      detailsHtml += `<div style="margin-top:4px;">${caseListHtml}</div>`;
+    }
+    detailsHtml += `</div>`;
   }
 
   detailsDiv.innerHTML = detailsHtml || '';
@@ -702,8 +721,18 @@ function buildCategoryItemList(cat, itemsMap, orderKeys) {
     const volume = calc.calcItemVolume(path, qty, mode, packing, individualVals, extra);
     const name = path.split('|').pop();
     const inCommon = packing.length > 0 ? ' 🧳' : '';
+    // Определяем название кофра, если есть
+    let caseName = '';
+    if (packing.length > 0) {
+      const commonCases = getCommonCases();
+      const names = packing.map(p => {
+        const c = commonCases.find(c => c.id === p.caseId);
+        return c ? c.name : 'удалённый';
+      }).join(', ');
+      caseName = ` (в кофре: ${names})`;
+    }
     html += `<div style="font-size:13px;color:var(--text-secondary);padding:2px 0;display:flex;gap:12px;border-bottom:1px solid var(--border-color);">
-      <span style="flex:1;">${esc(name)}${inCommon}</span>
+      <span style="flex:1;">${esc(name)}${inCommon}${caseName}</span>
       <span>${qty} шт</span>
       <span>${formatWeight(weightFull)}</span>
       <span>${formatVolume(volume)}</span>
