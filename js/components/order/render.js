@@ -575,12 +575,9 @@ export function updateTotalsOrder() {
     const props = calc.getItemPropsByPath(path);
     const unitWeight = props.weight || 0;
 
-    // Полный вес (с учётом кофров)
     const weightFull = calc.calcItemWeight(path, qty, mode, packing, individualVals, extra);
-    // Чистый вес позиций (без учёта кофров)
     let weightPure = 0;
     if (packing.length > 0) {
-      // Для позиций в общих кофрах – только вес самих позиций
       packing.forEach(p => {
         if (p.pieces > 0) weightPure += p.pieces * unitWeight;
       });
@@ -598,7 +595,6 @@ export function updateTotalsOrder() {
 
     if (!catMap[cat]) catMap[cat] = { qty: 0, weight: 0, volume: 0, cases: 0 };
     catMap[cat].qty += qty;
-    // В категорию добавляем чистый вес (без кофров)
     catMap[cat].weight += weightPure;
     catMap[cat].volume += volume;
     catMap[cat].cases += cases;

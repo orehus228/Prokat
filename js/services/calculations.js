@@ -79,8 +79,8 @@ function calcItemWeight(path, qty, mode, packing, individualVals, extra) {
     packing.forEach(p => {
       const caseObj = commonCases.find(c => c.id === p.caseId);
       if (caseObj && p.pieces > 0) {
-        // Вес позиций в кофре + вес пустого кофра (всегда)
         const emptyWeight = caseObj.emptyWeight || 0;
+        // Всегда добавляем вес пустого кофра и вес позиций в нём
         result += p.pieces * unitWeight + emptyWeight;
         totalPacked += p.pieces;
       }
