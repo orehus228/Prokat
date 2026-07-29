@@ -1,6 +1,6 @@
 // components/editor/render.js
-import { getState, saveState } from '../../core/state.js';
-import { CAT_NAMES } from '../../core/config.js';
+import { getState, saveState, rebuildInstancesIndex } from '../../core/state.js';
+import { CAT_NAMES, INSTANCE_STATUSES, INSTANCE_STATUS_LABELS, INSTANCE_STATUS_COLORS } from '../../core/config.js';
 import {
   getStock,
   setStock,
@@ -9,6 +9,13 @@ import {
   getItemProps,
   setItemProps,
   getCommonCases,
+  getPathInstances,
+  getPathInstanceStats,
+  addInstanceToPath,
+  removeInstance,
+  updateInstance,
+  syncInstancesWithStock,
+  getInstanceById,
 } from '../../data/editor-data.js';
 import {
   renameCategory,
@@ -19,7 +26,7 @@ import {
 } from '../../data/editor-data.js';
 import { esc, getElement, createElement } from '../../ui/dom.js';
 import { showToast, queueToast } from '../../ui/toast.js';
-import { showPrompt, showConfirm } from '../../ui/modal.js';
+import { showPrompt, showConfirm, showChoice } from '../../ui/modal.js';
 import { openPropsModalEditor } from '../cases/props-modal.js';
 import { openCasesManagerModal } from '../cases/common-manager.js';
 
@@ -162,7 +169,7 @@ async function renameCategoryHandler(key) {
 }
 
 async function deleteCategory(key) {
-  const confirmed = await showConfirm(`Удалить категорию "${key}"? Все позиции будут удалены.`);
+  const confirmed = await showConfirm(`Удалить категорию "${key}"? Все позиции и экземпляры будут удалены.`);
   if (!confirmed) return;
   const state = getState();
   delete state.inventory[key];
@@ -172,6 +179,14 @@ async function deleteCategory(key) {
   for (let k in state.stock) if (k.startsWith(prefix)) delete state.stock[k];
   for (let k in state.specs) if (k.startsWith(prefix)) delete state.specs[k];
   for (let k in state.itemProps) if (k.startsWith(prefix)) delete state.itemProps[k];
+  // Удаляем экземпляры для этой категории
+  const instances = state.instances || {};
+  for (let id in instances) {
+    if (instances[id].path && instances[id].path.startsWith(prefix)) {
+      delete instances[id];
+    }
+  }
+  rebuildInstancesIndex();
   if (currentCategory === key) {
     currentCategory = state._categoryOrder.length > 0 ? state._categoryOrder[0] : null;
   }
@@ -293,7 +308,7 @@ export function renderEditorCategory(catKey) {
     delBtn.className = 'danger';
     delBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
-      const confirmed = await showConfirm(`Удалить подгруппу "${subKey}"?`);
+      const confirmed = await showConfirm(`Удалить подгруппу "${subKey}"? Все позиции и экземпляры будут удалены.`);
       if (!confirmed) return;
       delete catData[subKey];
       const idx = catData._subOrder.indexOf(subKey);
@@ -303,6 +318,14 @@ export function renderEditorCategory(catKey) {
       for (let k in state.stock) if (k.startsWith(prefix)) delete state.stock[k];
       for (let k in state.specs) if (k.startsWith(prefix)) delete state.specs[k];
       for (let k in state.itemProps) if (k.startsWith(prefix)) delete state.itemProps[k];
+      // Удаляем экземпляры
+      const instances = state.instances || {};
+      for (let id in instances) {
+        if (instances[id].path && instances[id].path.startsWith(prefix)) {
+          delete instances[id];
+        }
+      }
+      rebuildInstancesIndex();
       saveState();
       renderEditorCategory(catKey);
       showToast('Подгруппа удалена', 'success');
@@ -454,7 +477,7 @@ function createItemRowEditor(catKey, subKey, itemName) {
   delBtn.textContent = '✕';
   delBtn.style.cssText = 'background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px;padding:0 4px;';
   delBtn.addEventListener('click', async () => {
-    const confirmed = await showConfirm(`Удалить позицию "${itemName}"?`);
+    const confirmed = await showConfirm(`Удалить позицию "${itemName}"? Все экземпляры будут удалены.`);
     if (!confirmed) return;
     const state = getState();
     let targetArray = subKey ? state.inventory[catKey][subKey] : state.inventory[catKey];
@@ -465,6 +488,14 @@ function createItemRowEditor(catKey, subKey, itemName) {
       delete state.stock[key];
       delete state.specs[key];
       delete state.itemProps[key];
+      // Удаляем экземпляры
+      const instances = state.instances || {};
+      for (let id in instances) {
+        if (instances[id].path === key) {
+          delete instances[id];
+        }
+      }
+      rebuildInstancesIndex();
       saveState();
       renderEditorCategory(catKey);
       showToast('Позиция удалена', 'success');
@@ -490,6 +521,202 @@ function createItemRowEditor(catKey, subKey, itemName) {
     <span>Общие кофры разрешены: ${props.allowCommon ? 'Да' : 'Нет'}</span>
   `;
   row.appendChild(infoDiv);
+
+  // ---- Блок экземпляров ----
+  const path = getStockKey(catKey, subKey, itemName);
+  const instances = getPathInstances(path);
+  const stats = getPathInstanceStats(path);
+  
+  const instanceDiv = document.createElement('div');
+  instanceDiv.className = 'instance-manager';
+  instanceDiv.style.cssText = 'padding:4px 0 0 12px;margin-left:12px;border-left:2px solid var(--color-link);font-size:13px;';
+  
+  let instanceHtml = `<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">`;
+  instanceHtml += `<span style="color:var(--text-secondary);font-weight:500;">Экземпляры:</span>`;
+  
+  if (instances.length === 0) {
+    instanceHtml += `<span style="color:var(--text-muted);">нет</span>`;
+  } else {
+    const parts = [];
+    if (stats.stock > 0) parts.push(`<span style="color:${INSTANCE_STATUS_COLORS[INSTANCE_STATUSES.STOCK]}">${stats.stock} скл.</span>`);
+    if (stats.reserved > 0) parts.push(`<span style="color:${INSTANCE_STATUS_COLORS[INSTANCE_STATUSES.RESERVED]}">${stats.reserved} рез.</span>`);
+    if (stats.issued > 0) parts.push(`<span style="color:${INSTANCE_STATUS_COLORS[INSTANCE_STATUSES.ISSUED]}">${stats.issued} выд.</span>`);
+    if (stats.repair > 0) parts.push(`<span style="color:${INSTANCE_STATUS_COLORS[INSTANCE_STATUSES.REPAIR]}">${stats.repair} рем.</span>`);
+    if (stats.writtenOff > 0) parts.push(`<span style="color:${INSTANCE_STATUS_COLORS[INSTANCE_STATUSES.WRITTEN_OFF]}">${stats.writtenOff} спис.</span>`);
+    instanceHtml += `<span>всего ${instances.length} (${parts.join(', ')})</span>`;
+    
+    // Кнопка для просмотра списка серийных номеров
+    const hasSerial = instances.some(i => i.serialNumber && i.serialNumber.trim() !== '');
+    if (hasSerial) {
+      instanceHtml += `<button class="btn btn-sm view-instances-btn" data-path="${path}" style="padding:2px 8px;font-size:12px;">📋 Серийные номера</button>`;
+    }
+  }
+  
+  // Кнопки управления
+  instanceHtml += `
+    <button class="btn btn-sm add-instance-btn" data-path="${path}" style="padding:2px 8px;font-size:12px;background:var(--success);color:white;">+ Добавить</button>
+    <button class="btn btn-sm sync-instances-btn" data-path="${path}" style="padding:2px 8px;font-size:12px;background:var(--color-link);color:white;">🔄 Синхр.</button>
+  `;
+  instanceHtml += `</div>`;
+  
+  // Детальный список (скрыт по умолчанию)
+  if (instances.length > 0) {
+    instanceHtml += `<div class="instance-list" style="display:none;margin-top:4px;padding:4px 8px;background:var(--bg-secondary);border-radius:4px;font-size:12px;">`;
+    instances.forEach(inst => {
+      const statusColor = INSTANCE_STATUS_COLORS[inst.status] || '#888';
+      const statusLabel = INSTANCE_STATUS_LABELS[inst.status] || inst.status;
+      const serial = inst.serialNumber || 'б/н';
+      instanceHtml += `<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid var(--border-color);">
+        <span>${esc(serial)}</span>
+        <span style="color:${statusColor};">${statusLabel}</span>
+        <div>
+          <button class="btn btn-sm change-instance-status-btn" data-id="${inst.id}" style="padding:0 4px;font-size:11px;">✏️</button>
+          <button class="btn btn-sm delete-instance-btn" data-id="${inst.id}" style="padding:0 4px;font-size:11px;color:var(--danger);">✕</button>
+        </div>
+      </div>`;
+    });
+    instanceHtml += `</div>`;
+  }
+  
+  instanceDiv.innerHTML = instanceHtml;
+  row.appendChild(instanceDiv);
+
+  // Обработчики для кнопок экземпляров
+  const viewBtn = instanceDiv.querySelector('.view-instances-btn');
+  if (viewBtn) {
+    viewBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      const list = this.closest('.instance-manager').querySelector('.instance-list');
+      if (list) {
+        list.style.display = list.style.display === 'none' ? 'block' : 'none';
+      }
+    });
+  }
+
+  const addBtn = instanceDiv.querySelector('.add-instance-btn');
+  if (addBtn) {
+    addBtn.addEventListener('click', async function(e) {
+      e.stopPropagation();
+      const path = this.dataset.path;
+      const serial = await showPrompt('Добавить экземпляр', 'Серийный номер (необязательно):', '', 'Введите номер...');
+      if (serial === null) return;
+      const statusOptions = [
+        { value: INSTANCE_STATUSES.STOCK, label: 'На складе' },
+        { value: INSTANCE_STATUSES.REPAIR, label: 'В ремонте' },
+        { value: INSTANCE_STATUSES.WRITTEN_OFF, label: 'Списано' },
+      ];
+      const status = await showChoice('Статус экземпляра', 'Выберите начальный статус:', statusOptions);
+      if (!status) return;
+      const subrent = await showConfirm('Это субаренда?');
+      let counterparty = '';
+      if (subrent) {
+        counterparty = await showPrompt('Контрагент', 'Название компании:', '', 'Введите название...');
+        if (counterparty === null) return;
+      }
+      const instance = addInstanceToPath(path, serial, status, {
+        isSubrent: subrent,
+        counterparty: counterparty || '',
+      });
+      if (instance) {
+        showToast('Экземпляр добавлен', 'success');
+        renderEditorCategory(catKey);
+      } else {
+        showToast('Ошибка добавления', 'error');
+      }
+    });
+  }
+
+  const syncBtn = instanceDiv.querySelector('.sync-instances-btn');
+  if (syncBtn) {
+    syncBtn.addEventListener('click', async function(e) {
+      e.stopPropagation();
+      const path = this.dataset.path;
+      const stock = getStock(catKey, subKey, itemName);
+      if (stock <= 0) {
+        showToast('Остаток на складе равен 0. Нечего синхронизировать.', 'warning');
+        return;
+      }
+      const confirmed = await showConfirm(`Синхронизировать экземпляры с остатком (${stock} шт)? Будут созданы недостающие экземпляры.`);
+      if (!confirmed) return;
+      const serialPrefix = itemName.replace(/[^a-zA-Z0-9]/g, '-').substring(0, 10);
+      const result = syncInstancesWithStock(path, null, serialPrefix);
+      if (result.created > 0) {
+        showToast(`Создано ${result.created} экземпляров`, 'success');
+      } else if (result.deleted > 0) {
+        showToast(`Удалено ${result.deleted} экземпляров`, 'neutral');
+      } else {
+        showToast('Количество экземпляров уже соответствует остатку', 'neutral');
+      }
+      if (result.errors.length > 0) {
+        showToast('Ошибки: ' + result.errors.join(', '), 'error');
+      }
+      renderEditorCategory(catKey);
+    });
+  }
+
+  // Обработчики для изменения статуса и удаления экземпляра (делегирование)
+  instanceDiv.addEventListener('click', async function(e) {
+    const target = e.target.closest('.change-instance-status-btn');
+    if (target) {
+      e.stopPropagation();
+      const id = target.dataset.id;
+      const instance = getInstanceById(id);
+      if (!instance) {
+        showToast('Экземпляр не найден', 'error');
+        return;
+      }
+      const statusOptions = [
+        { value: INSTANCE_STATUSES.STOCK, label: 'На складе' },
+        { value: INSTANCE_STATUSES.RESERVED, label: 'Зарезервировано' },
+        { value: INSTANCE_STATUSES.ISSUED, label: 'Выдано' },
+        { value: INSTANCE_STATUSES.REPAIR, label: 'В ремонте' },
+        { value: INSTANCE_STATUSES.WRITTEN_OFF, label: 'Списано' },
+      ];
+      // Исключаем недопустимые переходы (например, из списанного)
+      const allowed = statusOptions.filter(opt => {
+        if (instance.status === INSTANCE_STATUSES.WRITTEN_OFF && opt.value !== INSTANCE_STATUSES.WRITTEN_OFF) {
+          return false;
+        }
+        return true;
+      });
+      const newStatus = await showChoice('Изменить статус', `Текущий статус: ${INSTANCE_STATUS_LABELS[instance.status] || instance.status}`, allowed);
+      if (!newStatus) return;
+      const comment = await showPrompt('Комментарий (необязательно):', 'Комментарий:', '', 'Введите комментарий...');
+      const success = updateInstance(id, newStatus, comment || 'Изменение статуса в редакторе');
+      if (success) {
+        showToast('Статус обновлён', 'success');
+        renderEditorCategory(catKey);
+      } else {
+        showToast('Ошибка обновления статуса', 'error');
+      }
+      return;
+    }
+
+    const delTarget = e.target.closest('.delete-instance-btn');
+    if (delTarget) {
+      e.stopPropagation();
+      const id = delTarget.dataset.id;
+      const instance = getInstanceById(id);
+      if (!instance) {
+        showToast('Экземпляр не найден', 'error');
+        return;
+      }
+      if (instance.status !== INSTANCE_STATUSES.STOCK && instance.status !== INSTANCE_STATUSES.WRITTEN_OFF) {
+        showToast('Нельзя удалить экземпляр в статусе ' + (INSTANCE_STATUS_LABELS[instance.status] || instance.status), 'warning');
+        return;
+      }
+      const confirmed = await showConfirm(`Удалить экземпляр ${instance.serialNumber || 'б/н'}?`);
+      if (!confirmed) return;
+      const success = removeInstance(id);
+      if (success) {
+        showToast('Экземпляр удалён', 'success');
+        renderEditorCategory(catKey);
+      } else {
+        showToast('Ошибка удаления', 'error');
+      }
+    }
+  });
+
   return row;
 }
 
@@ -635,6 +862,8 @@ export function initRenderHandlers() {
         truckPresets: state.truckPresets,
         projects: state.projects,
         projectItems: state.projectItems,
+        instances: state.instances, // добавляем экземпляры
+        instancesByPath: state.instancesByPath,
       };
       const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -670,6 +899,8 @@ export function initRenderHandlers() {
           if (imported.truckPresets) state.truckPresets = imported.truckPresets;
           if (imported.projects) state.projects = imported.projects;
           if (imported.projectItems) state.projectItems = imported.projectItems;
+          if (imported.instances) state.instances = imported.instances;
+          if (imported.instancesByPath) state.instancesByPath = imported.instancesByPath;
           // Нормализация
           for (let cat in state.inventory) {
             const catData = state.inventory[cat];
@@ -686,6 +917,7 @@ export function initRenderHandlers() {
               }
             }
           }
+          rebuildInstancesIndex();
           saveState();
           renderEditorAll();
           showToast('Импорт выполнен', 'success');
@@ -702,7 +934,7 @@ export function initRenderHandlers() {
   const resetBtn = document.getElementById('resetBtn');
   if (resetBtn) {
     resetBtn.addEventListener('click', async () => {
-      const confirmed = await showConfirm('Сбросить все данные редактора? Это удалит все категории и позиции.');
+      const confirmed = await showConfirm('Сбросить все данные редактора? Это удалит все категории, позиции и экземпляры.');
       if (!confirmed) return;
       resetAllData();
       renderEditorAll();
@@ -747,7 +979,7 @@ tr:nth-child(even){background:#f9f9f9}
 </style>
 </head><body>
 <h1>Инвентарь склада</h1>
-<table><thead><tr><th>Категория</th><th>Подгруппа</th><th>Позиция</th><th>В наличии</th><th>Вес (кг)</th><th>Габариты (см)</th></tr></thead><tbody>`;
+<table><thead><tr><th>Категория</th><th>Подгруппа</th><th>Позиция</th><th>В наличии</th><th>Вес (кг)</th><th>Габариты (см)</th><th>Экземпляры</th></tr></thead><tbody>`;
 
   const order = state._categoryOrder || Object.keys(state.inventory);
   order.forEach(cat => {
@@ -758,7 +990,10 @@ tr:nth-child(even){background:#f9f9f9}
         const path = cat + '|' + item;
         const stock = state.stock[path] || 0;
         const props = state.itemProps[path] || {};
-        html += `<tr><td>${esc(cat)}</td><td></td><td>${esc(item)}</td><td>${stock}</td><td>${props.weight || ''}</td><td>${props.dimensions || ''}</td></tr>`;
+        const instances = getPathInstances(path);
+        const instCount = instances.length;
+        const instStatuses = instances.map(i => INSTANCE_STATUS_LABELS[i.status] || i.status).join(', ');
+        html += `<tr><td>${esc(cat)}</td><td></td><td>${esc(item)}</td><td>${stock}</td><td>${props.weight || ''}</td><td>${props.dimensions || ''}</td><td>${instCount} шт${instStatuses ? ' (' + esc(instStatuses) + ')' : ''}</td></tr>`;
       });
     } else if (typeof catData === 'object') {
       const subOrder = catData._subOrder || Object.keys(catData).filter(k => k !== '_subOrder');
@@ -769,7 +1004,10 @@ tr:nth-child(even){background:#f9f9f9}
           const path = cat + '|' + sub + '|' + item;
           const stock = state.stock[path] || 0;
           const props = state.itemProps[path] || {};
-          html += `<tr><td>${esc(cat)}</td><td>${esc(sub)}</td><td>${esc(item)}</td><td>${stock}</td><td>${props.weight || ''}</td><td>${props.dimensions || ''}</td></tr>`;
+          const instances = getPathInstances(path);
+          const instCount = instances.length;
+          const instStatuses = instances.map(i => INSTANCE_STATUS_LABELS[i.status] || i.status).join(', ');
+          html += `<tr><td>${esc(cat)}</td><td>${esc(sub)}</td><td>${esc(item)}</td><td>${stock}</td><td>${props.weight || ''}</td><td>${props.dimensions || ''}</td><td>${instCount} шт${instStatuses ? ' (' + esc(instStatuses) + ')' : ''}</td></tr>`;
         });
       });
     }

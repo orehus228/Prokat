@@ -1,14 +1,14 @@
 // components/order/index.js
 import { getState, setStateKey, saveState } from '../../core/state.js';
 import { getOrderProject, setOrderProject } from '../../services/order-data.js';
-import { getProjects, getProject, saveProject } from '../../services/project-data.js';
+import { getProjects, getProject, saveProject, addProjectItem } from '../../services/project-data.js';
 import { getItemProps, setItemProps, getCommonCases, getTruckPresets } from '../../data/editor-data.js';
 import { showToast, queueToast } from '../../ui/toast.js';
 import { showPrompt, showConfirm } from '../../ui/modal.js';
 import { esc, getElement } from '../../ui/dom.js';
 import { initOrderUI, renderOrderAll, setCurrentCategory, clearSearchOrder } from './render.js';
 import { initOrderPresetsUI } from './presets.js';
-import { initOrderActions, clearOrderData } from './actions.js';
+import { initOrderActions, clearOrderData, syncAllProjectItems } from './actions.js';
 import { updateLinkCountOrder, updateAllCommonCaseIndicators } from './helpers.js';
 import { openMatrixModal } from '../cases/matrix.js';
 import { openCasesManagerModal } from '../cases/common-manager.js';
@@ -23,6 +23,8 @@ export function initOrderPage() {
   setupExportButtons();
   updateLinkCountOrder();
   updateAllCommonCaseIndicators();
+  // Синхронизируем текущий заказ с проектом при загрузке
+  syncAllProjectItems();
   showToast('Страница заказа загружена', 'neutral', 1500);
 }
 
@@ -56,7 +58,20 @@ function setupProjectUIHandlers() {
   if (projectSelect) {
     projectSelect.addEventListener('change', function() {
       const projectId = this.value;
-      if (!projectId) return;
+      if (!projectId) {
+        // Если выбран пустой проект, сбрасываем данные проекта, но оставляем заказ
+        setOrderProject({ id: null, name: '', start_date: '', end_date: '', status: 'planned' });
+        document.getElementById('pProjectName').value = '';
+        document.getElementById('pStartDate').value = '';
+        document.getElementById('pEndDate').value = '';
+        const statusSelect = document.getElementById('pProjectStatus');
+        if (statusSelect) statusSelect.value = 'planned';
+        // Синхронизируем: освобождаем все экземпляры, так как проект не выбран
+        syncAllProjectItems();
+        showToast('Проект отвязан', 'neutral');
+        updateAllCommonCaseIndicators();
+        return;
+      }
       const project = getProject(projectId);
       if (project) {
         document.getElementById('pProjectName').value = project.name || '';
@@ -71,6 +86,8 @@ function setupProjectUIHandlers() {
           end_date: project.end_date,
           status: project.status || 'planned',
         });
+        // Синхронизируем заказ с выбранным проектом
+        syncAllProjectItems();
         showToast(`Проект "${project.name}" загружен`, 'success');
         updateAllCommonCaseIndicators();
       }
@@ -87,24 +104,34 @@ function setupProjectUIHandlers() {
         const end = document.getElementById('pEndDate').value;
         const status = document.getElementById('pProjectStatus')?.value || 'planned';
         if (!name) {
+          // Если нет названия, сохраняем только даты и статус
           setOrderProject({ id: null, name: '', start_date: start, end_date: end, status });
+          // Освобождаем все экземпляры, так как проект без названия невалиден
+          syncAllProjectItems();
           return;
         }
         let projectId = getOrderProject().id;
         if (!projectId) {
+          // Создаём новый проект
           const newProject = saveProject({ name, start_date: start, end_date: end, status });
           projectId = newProject.id;
+          setOrderProject({ id: projectId, name, start_date: start, end_date: end, status });
         } else {
+          // Обновляем существующий
           const existing = getProject(projectId);
           if (existing) {
             saveProject({ id: projectId, name, start_date: start, end_date: end, status });
+            setOrderProject({ id: projectId, name, start_date: start, end_date: end, status });
           } else {
+            // Если проект с таким id не найден, создаём новый
             const newProject = saveProject({ name, start_date: start, end_date: end, status });
             projectId = newProject.id;
+            setOrderProject({ id: projectId, name, start_date: start, end_date: end, status });
           }
         }
-        setOrderProject({ id: projectId, name, start_date: start, end_date: end, status });
         populateProjectSelect();
+        // Синхронизируем заказ с обновлённым проектом
+        syncAllProjectItems();
         updateAllCommonCaseIndicators();
       });
     }
@@ -121,6 +148,8 @@ function setupProjectUIHandlers() {
       if (name && projectId) {
         saveProject({ id: projectId, name, start_date: start, end_date: end, status });
         setOrderProject({ ...getOrderProject(), status });
+        // Синхронизация не требуется при смене статуса, но можно обновить индикаторы
+        updateAllCommonCaseIndicators();
       } else {
         setOrderProject({ ...getOrderProject(), status });
       }

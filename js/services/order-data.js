@@ -5,8 +5,9 @@ import {
   saveState,
   clearCalculationCache,
 } from '../core/state.js';
-// ⭐ Импортируем всё из calculations.js
 import * as calc from './calculations.js';
+import { INSTANCE_STATUSES } from '../core/config.js';
+import { getInstancesByPath, updateInstanceStatus, getInstancesForProject } from './instance-service.js';
 
 // ============================================================
 // БАЗОВЫЕ ГЕТТЕРЫ И СЕТТЕРЫ
@@ -53,6 +54,65 @@ export function getOrderExclude() {
 
 export function getOrderExtra() {
   return getState().orderExtra;
+}
+
+// Новые функции для работы с экземплярами в заказе
+/**
+ * Возвращает массив ID экземпляров, задействованных в заказе для указанного пути.
+ * @param {string} path
+ * @returns {string[]}
+ */
+export function getOrderInstances(path) {
+  const state = getState();
+  return state.orderInstances?.[path] || [];
+}
+
+/**
+ * Устанавливает список экземпляров для позиции в заказе.
+ * @param {string} path
+ * @param {string[]} instanceIds
+ */
+export function setOrderInstances(path, instanceIds) {
+  const state = getState();
+  if (!state.orderInstances) state.orderInstances = {};
+  if (instanceIds && instanceIds.length > 0) {
+    state.orderInstances[path] = instanceIds;
+  } else {
+    delete state.orderInstances[path];
+  }
+  saveState();
+  clearCalculationCache();
+}
+
+/**
+ * Добавляет экземпляры к позиции в заказе (дополняет существующий список).
+ * @param {string} path
+ * @param {string[]} instanceIds
+ */
+export function addOrderInstances(path, instanceIds) {
+  const current = getOrderInstances(path);
+  const newSet = new Set([...current, ...instanceIds]);
+  setOrderInstances(path, Array.from(newSet));
+}
+
+/**
+ * Удаляет экземпляры из позиции в заказе.
+ * @param {string} path
+ * @param {string[]} instanceIds
+ */
+export function removeOrderInstances(path, instanceIds) {
+  const current = getOrderInstances(path);
+  const newList = current.filter(id => !instanceIds.includes(id));
+  setOrderInstances(path, newList);
+}
+
+/**
+ * Очищает все экземпляры для всех позиций в заказе (при очистке заказа).
+ */
+export function clearAllOrderInstances() {
+  const state = getState();
+  state.orderInstances = {};
+  saveState();
 }
 
 export function getOrderProject() {
@@ -176,6 +236,10 @@ function updateAllPaths(oldPrefix, newPrefix, objectsToUpdate) {
             }
           });
         }
+        // Добавляем обработку для orderInstances
+        if (objName === 'orderInstances' && Array.isArray(obj[newKey])) {
+          // ID экземпляров не меняются, но сам ключ пути обновляется
+        }
       }
     });
   });
@@ -196,13 +260,23 @@ export function updateOrderPaths(oldPath, newPath) {
     state.caseModes,
     state.orderExclude,
     state.orderExtra,
+    state.orderInstances,
   ];
   objectsToUpdate.forEach(obj => {
-    if (obj[oldPath] !== undefined) {
+    if (obj && obj[oldPath] !== undefined) {
       obj[newPath] = obj[oldPath];
       delete obj[oldPath];
     }
   });
+  // Также обновляем пути в экземплярах, связанных с заказом
+  const instances = getState().instances || {};
+  for (let id in instances) {
+    if (instances[id].path === oldPath) {
+      instances[id].path = newPath;
+    }
+  }
+  // Перестраиваем индекс экземпляров
+  import('../core/state.js').then(module => module.rebuildInstancesIndex());
   saveState();
 }
 
@@ -218,8 +292,19 @@ export function updateAllPathsOnCategoryRename(oldPrefix, newPrefix) {
     'caseModes',
     'orderExclude',
     'orderExtra',
+    'orderInstances',
   ];
   updateAllPaths(oldPrefix, newPrefix, objectsToUpdate);
+  // Обновляем пути в экземплярах
+  const state = getState();
+  const instances = state.instances || {};
+  for (let id in instances) {
+    if (instances[id].path && instances[id].path.startsWith(oldPrefix)) {
+      instances[id].path = instances[id].path.replace(oldPrefix, newPrefix);
+    }
+  }
+  import('../core/state.js').then(module => module.rebuildInstancesIndex());
+  saveState();
 }
 
 // ============================================================
@@ -342,6 +427,11 @@ export default {
   getCaseModes,
   getOrderExclude,
   getOrderExtra,
+  getOrderInstances,
+  setOrderInstances,
+  addOrderInstances,
+  removeOrderInstances,
+  clearAllOrderInstances,
   getOrderProject,
   setOrderProject,
   resetOrderProject,

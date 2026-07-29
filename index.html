@@ -290,6 +290,20 @@
     </div>
 </div>
 
+<!-- Новая модалка для управления экземплярами -->
+<div class="modal-overlay" id="instanceModal">
+    <div class="modal" style="max-width:800px;max-height:80vh;display:flex;flex-direction:column;">
+        <h3 id="instanceModalTitle">Экземпляры</h3>
+        <div id="instanceStats" style="margin-bottom:10px;font-size:14px;color:var(--text-secondary);"></div>
+        <div id="instanceListContainer" style="overflow:auto;flex:1;">
+            <div id="instanceTable"></div>
+        </div>
+        <div class="buttons" style="margin-top:12px;justify-content:flex-end;">
+            <button class="cancel" id="instanceModalClose">Закрыть</button>
+        </div>
+    </div>
+</div>
+
 <div class="modal-overlay" id="truckManagerModal">
     <div class="modal" style="max-width:600px;">
         <h3>Управление грузовиками</h3>

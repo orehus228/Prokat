@@ -4,16 +4,27 @@ import {
   setStateKey,
   saveState,
   clearCalculationCache,
+  rebuildInstancesIndex,
 } from '../core/state.js';
 import {
   CAT_NAMES,
   DUPLICATE_VIDEO_GROUPS,
   DEFAULT_TRUCK_PRESETS,
+  INSTANCE_STATUSES,
 } from '../core/config.js';
 import {
   updateAllPathsOnCategoryRename,
   updateOrderPaths,
 } from '../services/order-data.js';
+import {
+  createInstance,
+  getInstancesByPath,
+  deleteInstance,
+  updateInstanceStatus,
+  ensureInstancesForPath,
+  getInstanceStats,
+  getInstance,
+} from '../services/instance-service.js';
 
 // ============================================================
 // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ РАБОТЫ С ПУТЯМИ
@@ -186,6 +197,109 @@ export function getTruckPreset(id) {
 }
 
 // ============================================================
+// РАБОТА С ЭКЗЕМПЛЯРАМИ (НОВЫЕ ФУНКЦИИ)
+// ============================================================
+
+/**
+ * Возвращает все экземпляры для позиции.
+ * @param {string} path - полный путь позиции
+ * @returns {object[]}
+ */
+export function getPathInstances(path) {
+  return getInstancesByPath(path);
+}
+
+/**
+ * Возвращает статистику по экземплярам для позиции.
+ * @param {string} path
+ * @returns {object}
+ */
+export function getPathInstanceStats(path) {
+  return getInstanceStats(path);
+}
+
+/**
+ * Создаёт новый экземпляр для позиции.
+ * @param {string} path
+ * @param {string} serialNumber
+ * @param {string} status
+ * @param {object} subrentInfo
+ * @returns {object}
+ */
+export function addInstanceToPath(path, serialNumber = '', status = INSTANCE_STATUSES.STOCK, subrentInfo = null) {
+  return createInstance(path, serialNumber, status, subrentInfo || { isSubrent: false, counterparty: '' });
+}
+
+/**
+ * Удаляет экземпляр (только если он в статусе 'stock' или 'written_off').
+ * @param {string} instanceId
+ * @returns {boolean}
+ */
+export function removeInstance(instanceId) {
+  return deleteInstance(instanceId);
+}
+
+/**
+ * Обновляет статус экземпляра.
+ * @param {string} instanceId
+ * @param {string} newStatus
+ * @param {string} comment
+ * @returns {boolean}
+ */
+export function updateInstance(instanceId, newStatus, comment = '') {
+  return updateInstanceStatus(instanceId, newStatus, null, comment);
+}
+
+/**
+ * Синхронизирует количество экземпляров с остатком на складе.
+ * Создаёт недостающие экземпляры или удаляет лишние (только в статусе 'stock').
+ * @param {string} path
+ * @param {number} targetCount - целевое количество (если не указано, берётся из stock)
+ * @param {string} serialPrefix - префикс для серийных номеров
+ * @returns {object} { created: number, deleted: number, errors: string[] }
+ */
+export function syncInstancesWithStock(path, targetCount = null, serialPrefix = 'SN') {
+  const state = getState();
+  const stock = getStockValue(path);
+  const target = targetCount !== null ? targetCount : stock;
+  const instances = getInstancesByPath(path);
+  const currentCount = instances.length;
+  const errors = [];
+  let created = 0;
+  let deleted = 0;
+
+  if (currentCount < target) {
+    // Создаём недостающие
+    const newInstances = ensureInstancesForPath(path, target, serialPrefix);
+    created = newInstances.length;
+  } else if (currentCount > target) {
+    // Удаляем лишние (только со статусом 'stock')
+    const toDelete = instances
+      .filter(inst => inst.status === INSTANCE_STATUSES.STOCK)
+      .slice(0, currentCount - target);
+    for (let inst of toDelete) {
+      const success = deleteInstance(inst.id);
+      if (success) deleted++;
+      else errors.push(`Не удалось удалить экземпляр ${inst.id}`);
+    }
+  }
+
+  // Перестраиваем индекс
+  rebuildInstancesIndex();
+  saveState();
+  return { created, deleted, errors };
+}
+
+/**
+ * Получает экземпляр по ID.
+ * @param {string} instanceId
+ * @returns {object|null}
+ */
+export function getInstanceById(instanceId) {
+  return getInstance(instanceId);
+}
+
+// ============================================================
 // ПЕРЕИМЕНОВАНИЕ КАТЕГОРИЙ, ПОДГРУПП, ПОЗИЦИЙ И ПЕРЕМЕЩЕНИЕ
 // ============================================================
 
@@ -203,6 +317,8 @@ export function renameCategory(oldName, newName) {
   }
   const oldPrefix = oldName + '|';
   const newPrefix = newName + '|';
+  
+  // Обновляем пути в stock, specs, itemProps
   const keysToUpdate = Object.keys(state.stock).filter(k => k.startsWith(oldPrefix));
   keysToUpdate.forEach(k => {
     const newK = k.replace(oldPrefix, newPrefix);
@@ -221,6 +337,16 @@ export function renameCategory(oldName, newName) {
     state.itemProps[newK] = state.itemProps[k];
     delete state.itemProps[k];
   });
+  
+  // Обновляем пути в экземплярах
+  const instances = state.instances || {};
+  for (let id in instances) {
+    if (instances[id].path && instances[id].path.startsWith(oldPrefix)) {
+      instances[id].path = instances[id].path.replace(oldPrefix, newPrefix);
+    }
+  }
+  rebuildInstancesIndex();
+  
   updateAllPathsOnCategoryRename(oldPrefix, newPrefix);
   saveState();
 }
@@ -258,6 +384,16 @@ export function renameSubgroup(catKey, oldSub, newSub) {
     state.itemProps[newK] = state.itemProps[k];
     delete state.itemProps[k];
   });
+  
+  // Обновляем пути в экземплярах
+  const instances = state.instances || {};
+  for (let id in instances) {
+    if (instances[id].path && instances[id].path.startsWith(oldPrefix)) {
+      instances[id].path = instances[id].path.replace(oldPrefix, newPrefix);
+    }
+  }
+  rebuildInstancesIndex();
+  
   updateAllPathsOnCategoryRename(oldPrefix, newPrefix);
   saveState();
 }
@@ -285,6 +421,16 @@ export function renameItem(catKey, subKey, oldName, newName) {
     state.itemProps[newPath] = state.itemProps[oldPath];
     delete state.itemProps[oldPath];
   }
+  
+  // Обновляем пути в экземплярах
+  const instances = state.instances || {};
+  for (let id in instances) {
+    if (instances[id].path === oldPath) {
+      instances[id].path = newPath;
+    }
+  }
+  rebuildInstancesIndex();
+  
   updateOrderPaths(oldPath, newPath);
   saveState();
 }
@@ -317,6 +463,16 @@ export function moveItem(catKey, subKey, itemName, targetCat, targetSub) {
     state.itemProps[newPath] = state.itemProps[oldPath];
     delete state.itemProps[oldPath];
   }
+  
+  // Обновляем пути в экземплярах
+  const instances = state.instances || {};
+  for (let id in instances) {
+    if (instances[id].path === oldPath) {
+      instances[id].path = newPath;
+    }
+  }
+  rebuildInstancesIndex();
+  
   updateOrderPaths(oldPath, newPath);
   saveState();
 }
@@ -348,6 +504,8 @@ export function resetAllData() {
   state.orderExclude = {};
   state.orderExtra = {};
   state.orderProject = { id: null, name: '', start_date: '', end_date: '', status: 'planned' };
+  state.instances = {};
+  state.instancesByPath = {};
   state._calcCache.clear();
   saveState();
 }
@@ -372,6 +530,14 @@ export default {
   updateTruckPreset,
   deleteTruckPreset,
   getTruckPreset,
+  // Новые функции для экземпляров
+  getPathInstances,
+  getPathInstanceStats,
+  addInstanceToPath,
+  removeInstance,
+  updateInstance,
+  syncInstancesWithStock,
+  getInstanceById,
   renameCategory,
   renameSubgroup,
   renameItem,

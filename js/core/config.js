@@ -11,6 +11,7 @@ export const STORAGE_KEYS = {
   THEME: 'theme',
   ORDER_DETAILS_OPEN: 'detailsOpenOrder',
   OPEN_PROJECT_ID: 'open_project_id',
+  INSTANCES: 'instances_data', // новый ключ для хранения экземпляров
 };
 
 export const CAT_NAMES = {
@@ -28,6 +29,8 @@ export const DEFAULT_SPECS = {};
 export const DEFAULT_PROPS = {};
 export const DEFAULT_COMMON_CASES = [];
 export const DEFAULT_CATEGORY_ORDER = [];
+export const DEFAULT_INSTANCES = {}; // новый объект для экземпляров
+export const DEFAULT_INSTANCES_BY_PATH = {}; // индекс
 
 export const DUPLICATE_VIDEO_GROUPS = ['Экраны'];
 
@@ -50,3 +53,30 @@ export const CASE_MODES_DEFAULTS = {
 
 export const DEFAULT_PROJECT_STATUS = 'planned';
 export const PROJECT_STATUSES = ['planned', 'active', 'completed'];
+
+// Статусы экземпляров
+export const INSTANCE_STATUSES = {
+  STOCK: 'stock',
+  RESERVED: 'reserved',
+  ISSUED: 'issued',
+  REPAIR: 'repair',
+  WRITTEN_OFF: 'written_off',
+};
+
+// Человеко-читаемые названия статусов
+export const INSTANCE_STATUS_LABELS = {
+  [INSTANCE_STATUSES.STOCK]: 'На складе',
+  [INSTANCE_STATUSES.RESERVED]: 'Зарезервировано',
+  [INSTANCE_STATUSES.ISSUED]: 'Выдано',
+  [INSTANCE_STATUSES.REPAIR]: 'В ремонте',
+  [INSTANCE_STATUSES.WRITTEN_OFF]: 'Списано',
+};
+
+// Цвета для статусов (для UI)
+export const INSTANCE_STATUS_COLORS = {
+  [INSTANCE_STATUSES.STOCK]: '#4CAF50',
+  [INSTANCE_STATUSES.RESERVED]: '#FF9800',
+  [INSTANCE_STATUSES.ISSUED]: '#2196F3',
+  [INSTANCE_STATUSES.REPAIR]: '#9C27B0',
+  [INSTANCE_STATUSES.WRITTEN_OFF]: '#F44336',
+};

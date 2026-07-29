@@ -788,6 +788,28 @@ body {
     background: var(--color-note);
     color: #fff;
 }
+/* Кнопка просмотра серийных номеров в строке заказа */
+.action-btn.instance-detail-btn {
+    border-color: var(--color-link);
+    color: var(--color-link);
+    font-size: 11px;
+    padding: 1px 6px;
+}
+.action-btn.instance-detail-btn:hover {
+    background: var(--color-link);
+    color: #fff;
+}
+
+/* Статистика экземпляров в строке заказа */
+.instance-stats {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    align-items: center;
+}
 
 .row-info,
 .desc-block {
@@ -1377,6 +1399,98 @@ body {
     background: var(--text-muted);
 }
 
+/* ===== НОВЫЕ СТИЛИ ДЛЯ УПРАВЛЕНИЯ ЭКЗЕМПЛЯРАМИ ===== */
+/* Блок управления экземплярами в редакторе */
+.instance-manager {
+    padding: 4px 0 0 12px;
+    margin-left: 12px;
+    border-left: 2px solid var(--color-link);
+    font-size: 13px;
+}
+.instance-manager .instance-list {
+    margin-top: 4px;
+    padding: 4px 8px;
+    background: var(--bg-secondary);
+    border-radius: 4px;
+    font-size: 12px;
+}
+.instance-manager .instance-list > div {
+    display: flex;
+    justify-content: space-between;
+    padding: 2px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+.instance-manager .instance-list > div:last-child {
+    border-bottom: none;
+}
+.instance-manager .btn-sm {
+    padding: 2px 8px;
+    font-size: 12px;
+    min-height: 26px;
+}
+
+/* Модалка экземпляров */
+#instanceModal .modal {
+    max-width: 800px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+}
+#instanceModal #instanceStats {
+    margin-bottom: 10px;
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+#instanceModal #instanceListContainer {
+    overflow: auto;
+    flex: 1;
+}
+#instanceModal #instanceTable {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+#instanceModal #instanceTable thead tr {
+    background: var(--bg-secondary);
+    border-bottom: 2px solid var(--border-color);
+}
+#instanceModal #instanceTable th {
+    padding: 6px 8px;
+    text-align: left;
+    font-weight: 600;
+}
+#instanceModal #instanceTable td {
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border-color);
+    vertical-align: middle;
+}
+#instanceModal #instanceTable .row-even {
+    background: var(--matrix-row-even);
+}
+#instanceModal #instanceTable .row-odd {
+    background: var(--matrix-row-odd);
+}
+#instanceModal #instanceTable .btn-sm {
+    padding: 2px 8px;
+    font-size: 12px;
+    min-height: 26px;
+}
+#instanceModal #instanceTable .change-instance-status-btn {
+    background: var(--color-link);
+    color: white;
+}
+#instanceModal #instanceTable .change-instance-status-btn:hover {
+    background: var(--color-link);
+    opacity: 0.8;
+}
+#instanceModal #instanceTable .delete-instance-btn {
+    background: var(--danger);
+    color: white;
+}
+#instanceModal #instanceTable .delete-instance-btn:hover {
+    background: var(--danger-hover);
+}
+
 /* ===== МОБИЛЬНАЯ АДАПТАЦИЯ ===== */
 @media (max-width: 768px) {
     .matrix-table {
@@ -1529,6 +1643,24 @@ body {
     .child-row .child-controls span {
         font-size: 11px;
     }
+
+    /* Адаптация модалки экземпляров */
+    #instanceModal .modal {
+        max-width: 95vw;
+        padding: 12px;
+    }
+    #instanceModal #instanceTable {
+        font-size: 12px;
+    }
+    #instanceModal #instanceTable th,
+    #instanceModal #instanceTable td {
+        padding: 3px 4px;
+    }
+    #instanceModal #instanceTable .btn-sm {
+        font-size: 10px;
+        padding: 1px 4px;
+        min-height: 22px;
+    }
 }
 
 @media (max-width: 480px) {
@@ -1663,6 +1795,24 @@ body {
     .child-row .child-controls {
         flex-wrap: wrap;
         gap: 2px 4px;
+    }
+
+    /* Адаптация модалки экземпляров для маленьких экранов */
+    #instanceModal .modal {
+        padding: 8px;
+        max-height: 85vh;
+    }
+    #instanceModal #instanceTable {
+        font-size: 11px;
+    }
+    #instanceModal #instanceTable th,
+    #instanceModal #instanceTable td {
+        padding: 2px 3px;
+    }
+    #instanceModal #instanceTable .btn-sm {
+        font-size: 9px;
+        padding: 1px 3px;
+        min-height: 20px;
     }
 }
 

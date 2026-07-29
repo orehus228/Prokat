@@ -10,9 +10,11 @@ import {
   getNotes,
   setOrderValue,
   setNote,
+  getOrderInstances,
 } from '../../services/order-data.js';
+import { getInstancesByPath, getInstanceStats } from '../../services/instance-service.js';
 import * as calc from '../../services/calculations.js';
-import { CAT_NAMES } from '../../core/config.js';
+import { CAT_NAMES, INSTANCE_STATUS_LABELS, INSTANCE_STATUS_COLORS } from '../../core/config.js';
 import { esc, getElement, debounce } from '../../ui/dom.js';
 import { showToast, queueToast } from '../../ui/toast.js';
 import { showPrompt, showConfirm } from '../../ui/modal.js';
@@ -236,14 +238,12 @@ export function buildItemRow(fullPath, level) {
   let caseNameDisplay = '';
   if (hasCommonPacking) {
     const commonCases = getCommonCases();
-    // Формируем список кофров с количеством штук в каждом
     const caseDetails = packing.map(p => {
       const c = commonCases.find(c => c.id === p.caseId);
       const name = c ? c.name : 'удалённый';
       return `${name} (${p.pieces} шт)`;
     }).join(', ');
     caseNameDisplay = ` (в кофре: ${caseDetails})`;
-    // Для extraCaseInfo используем тот же формат, но без слова "в кофре"
     extraCaseInfo = `Кофры: ${caseDetails}`;
   }
 
@@ -291,6 +291,35 @@ export function buildItemRow(fullPath, level) {
     volumeDisplay = formatVolume(volume);
   }
 
+  // ---- Блок информации об экземплярах ----
+  const instances = getInstancesByPath(fullPath);
+  let instanceInfoHtml = '';
+  if (instances.length > 0) {
+    const stats = getInstanceStats(fullPath);
+    const orderInstanceIds = getOrderInstances(fullPath) || [];
+    const reservedInOrder = orderInstanceIds.length;
+    // Показываем краткую статистику
+    const parts = [];
+    if (stats.stock > 0) parts.push(`<span style="color:${INSTANCE_STATUS_COLORS.stock}">${stats.stock} на складе</span>`);
+    if (stats.reserved > 0) parts.push(`<span style="color:${INSTANCE_STATUS_COLORS.reserved}">${stats.reserved} зарезервировано</span>`);
+    if (stats.issued > 0) parts.push(`<span style="color:${INSTANCE_STATUS_COLORS.issued}">${stats.issued} выдано</span>`);
+    if (stats.repair > 0) parts.push(`<span style="color:${INSTANCE_STATUS_COLORS.repair}">${stats.repair} в ремонте</span>`);
+    if (stats.writtenOff > 0) parts.push(`<span style="color:${INSTANCE_STATUS_COLORS.written_off}">${stats.writtenOff} списано</span>`);
+    if (instances.length > 0) {
+      instanceInfoHtml = `<div class="instance-stats" style="font-size:12px;color:var(--text-secondary);margin-top:2px;">Экз.: всего ${instances.length} (${parts.join(', ')})</div>`;
+      // Если есть серийные номера, показываем кнопку для просмотра
+      const hasSerial = instances.some(i => i.serialNumber && i.serialNumber.trim() !== '');
+      if (hasSerial) {
+        instanceInfoHtml += `<button class="action-btn instance-detail-btn" data-path="${esc(fullPath)}" style="font-size:11px;padding:1px 6px;border-color:var(--color-link);color:var(--color-link);">Серийные номера</button>`;
+      }
+    }
+  } else {
+    // Если нет экземпляров, но есть остаток на складе, предлагаем создать
+    if (sq > 0) {
+      instanceInfoHtml = `<div style="font-size:12px;color:var(--text-muted);">Нет экземпляров (остаток: ${sq})</div>`;
+    }
+  }
+
   const infoHtml = buildInfoHtml(fullPath, props, mode);
   const escapedName = esc(fullPath.split('|').pop()) + caseNameDisplay;
   const isAdded = totalQty > 0;
@@ -320,6 +349,7 @@ export function buildItemRow(fullPath, level) {
     <div class="name-area">
       <span class="name">${escapedName}</span>
       ${extraInfo}
+      ${instanceInfoHtml}
     </div>
     <div class="action-buttons">
       <button class="action-btn info-btn" data-path="${esc(fullPath)}" title="Информация">Инфо</button>
@@ -443,7 +473,6 @@ export function updateRowOrder(path, rebuildChildren = true) {
         if (volume > 0) info += `<span>${formatVolume(volume)}</span>`;
       }
       if (packing.length > 0) {
-        // Отображаем названия кофров с количеством
         const commonCases = getCommonCases();
         const caseDetails = packing.map(p => {
           const c = commonCases.find(c => c.id === p.caseId);
@@ -454,6 +483,19 @@ export function updateRowOrder(path, rebuildChildren = true) {
       }
     }
     extraInfo.innerHTML = info;
+  }
+
+  // Обновляем статистику экземпляров
+  const instanceStatsContainer = row.querySelector('.instance-stats');
+  if (instanceStatsContainer) {
+    const stats = getInstanceStats(path);
+    const parts = [];
+    if (stats.stock > 0) parts.push(`<span style="color:${INSTANCE_STATUS_COLORS.stock}">${stats.stock} на складе</span>`);
+    if (stats.reserved > 0) parts.push(`<span style="color:${INSTANCE_STATUS_COLORS.reserved}">${stats.reserved} зарезервировано</span>`);
+    if (stats.issued > 0) parts.push(`<span style="color:${INSTANCE_STATUS_COLORS.issued}">${stats.issued} выдано</span>`);
+    if (stats.repair > 0) parts.push(`<span style="color:${INSTANCE_STATUS_COLORS.repair}">${stats.repair} в ремонте</span>`);
+    if (stats.writtenOff > 0) parts.push(`<span style="color:${INSTANCE_STATUS_COLORS.written_off}">${stats.writtenOff} списано</span>`);
+    instanceStatsContainer.innerHTML = `Экз.: всего ${stats.total} (${parts.join(', ')})`;
   }
 
   const linkBtn = row.querySelector('.link-btn');
@@ -666,7 +708,6 @@ export function updateTotalsOrder() {
     usedCaseIds.forEach(id => {
       const c = commonCases.find(c => c.id === id);
       if (c) {
-        // Убираем вместимость (c.qty) из отображения
         caseListHtml += `<div style="font-size:13px;color:var(--text-secondary);padding-left:12px;">• ${esc(c.name)} (габ: ${c.dimensions || 'н/д'}, вес пустого: ${c.emptyWeight || 0} кг, макс. вес: ${c.maxWeight || 0} кг)</div>`;
       }
     });
@@ -850,6 +891,17 @@ export function initOrderUI() {
       localStorage.setItem('last_comment', this.value);
     });
   }
+
+  // Обработчик для кнопки просмотра серийных номеров (делегирование)
+  document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.instance-detail-btn');
+    if (btn) {
+      const path = btn.dataset.path;
+      import('../instance/instance-modal.js').then(module => {
+        module.openInstanceListModal(path);
+      });
+    }
+  });
 }
 
 export function renderOrderAll() {

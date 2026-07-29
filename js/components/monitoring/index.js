@@ -7,12 +7,15 @@ import {
   saveProject,
   deleteProject,
   getAvailableQuantity,
+  getProjectInstances,
 } from '../../services/project-data.js';
+import { getInstancesByPath, getInstanceStats } from '../../services/instance-service.js';
 import { getItemPropsByPath, getStockValue } from '../../data/editor-data.js';
 import { showToast } from '../../ui/toast.js';
 import { showConfirm, showPrompt } from '../../ui/modal.js';
 import { esc } from '../../ui/dom.js';
 import { emit, EVENTS } from '../../core/events.js';
+import { INSTANCE_STATUS_LABELS, INSTANCE_STATUS_COLORS } from '../../core/config.js';
 
 let currentTab = 'list';
 
@@ -109,34 +112,69 @@ function renderProjectCard(project) {
   const statusLabel = getProjectStatusLabel(project.status);
 
   let conflictsHtml = '';
+  let instanceDetailsHtml = '';
+
   if (project.start_date && project.end_date) {
     const allItems = getProjectItems(project.id);
     let hasConflict = false;
     const conflictList = [];
+    const instanceStatsList = [];
+
     allItems.forEach(item => {
+      const path = item.equipment_path;
+      const qty = item.quantity;
       const result = getAvailableQuantity(
-        item.equipment_path,
+        path,
         project.start_date,
         project.end_date,
-        item.quantity,
+        qty,
         project.id
       );
+      
+      // Информация об экземплярах
+      const instances = getInstancesByPath(path);
+      if (instances.length > 0) {
+        const stats = getInstanceStats(path);
+        const name = path.split('|').pop();
+        instanceStatsList.push(
+          `${name}: ${stats.total} экз. (${stats.stock} скл., ${stats.reserved} рез., ${stats.issued} выд., ${stats.repair} рем.)`
+        );
+      }
+
       if (result.isConflict) {
         hasConflict = true;
-        const name = item.equipment_path.split('|').pop();
-        conflictList.push(`${name} (доступно ${result.available} из ${result.totalStock})`);
+        const name = path.split('|').pop();
+        const conflictInfo = result.instanceDetails
+          ? ` (всего ${result.instanceDetails.total}, доступно ${result.available})`
+          : ` (доступно ${result.available} из ${result.totalStock})`;
+        conflictList.push(`${name}${conflictInfo}`);
+        if (result.conflicts.length > 0) {
+          result.conflicts.forEach(c => {
+            conflictList.push(`  → ${c.project}: ${c.quantity} шт`);
+          });
+        }
       }
     });
+
     if (hasConflict) {
-      conflictsHtml = `<div style="color:var(--danger);font-size:12px;margin-top:4px;">⚠️ Конфликт оборудования: ${conflictList.join(', ')}</div>`;
+      conflictsHtml = `<div style="color:var(--danger);font-size:12px;margin-top:4px;">⚠️ Конфликт оборудования:<br>${conflictList.join('<br>')}</div>`;
+    }
+
+    if (instanceStatsList.length > 0) {
+      instanceDetailsHtml = `<div style="font-size:11px;color:var(--text-muted);margin-top:4px;border-top:1px solid var(--border-color);padding-top:4px;">📦 ${instanceStatsList.join('; ')}</div>`;
     }
   }
+
+  // Проверяем, есть ли в проекте субаренда
+  const projectItems = getProjectItems(project.id);
+  const hasSubrent = projectItems.some(item => item.subrentInfo && item.subrentInfo.isSubrent);
+  const subrentLabel = hasSubrent ? ' 🔄' : '';
 
   return `
     <div style="padding:8px 10px;margin-bottom:8px;background:var(--bg-card);border-radius:6px;border-left:4px solid ${color};border:1px solid var(--border-color);">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
         <div style="flex:1;">
-          <strong style="font-size:14px;">${esc(project.name)}</strong>
+          <strong style="font-size:14px;">${esc(project.name)}${subrentLabel}</strong>
           <div style="font-size:12px;color:var(--text-secondary);">
             ${formatDate(project.start_date)} – ${formatDate(project.end_date)}
           </div>
@@ -144,6 +182,7 @@ function renderProjectCard(project) {
             📦 ${totalItems} позиций | ${statusLabel}
           </div>
           ${conflictsHtml}
+          ${instanceDetailsHtml}
         </div>
         <div style="display:flex;gap:4px;flex-shrink:0;">
           <button class="btn btn-sm" onclick="window.editProject('${project.id}')" title="Редактировать" style="padding:2px 6px;font-size:12px;">✏️</button>
@@ -224,15 +263,35 @@ function renderTimeline(container) {
     const color = getProjectStatusColor(p.status);
     const statusLabel = getProjectStatusLabel(p.status);
 
+    // Проверяем конфликты для отображения на таймлайне
+    let hasConflict = false;
+    if (p.start_date && p.end_date) {
+      const items = getProjectItems(p.id);
+      for (let item of items) {
+        const result = getAvailableQuantity(
+          item.equipment_path,
+          p.start_date,
+          p.end_date,
+          item.quantity,
+          p.id
+        );
+        if (result.isConflict) {
+          hasConflict = true;
+          break;
+        }
+      }
+    }
+
     html += `
       <div style="display:flex;align-items:center;margin:4px 0;padding:2px 0;">
         <div style="width:200px;flex-shrink:0;font-size:13px;padding-right:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(p.name)}">
           ${esc(p.name)}
+          ${hasConflict ? '⚠️' : ''}
         </div>
         <div style="flex:1;position:relative;height:28px;background:var(--bg-input);border-radius:4px;overflow:hidden;">
-          <div style="position:absolute;left:${offset * dayWidth}px;width:${duration * dayWidth}px;height:100%;background:${color};border-radius:4px;opacity:0.8;transition:0.3s;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;color:white;text-shadow:0 0 4px rgba(0,0,0,0.5);"
+          <div style="position:absolute;left:${offset * dayWidth}px;width:${duration * dayWidth}px;height:100%;background:${color};border-radius:4px;opacity:0.8;transition:0.3s;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;color:white;text-shadow:0 0 4px rgba(0,0,0,0.5);${hasConflict ? 'border:2px solid var(--danger);' : ''}"
                onclick="window.openProjectList('${p.id}')"
-               title="${esc(p.name)} (${statusLabel})">
+               title="${esc(p.name)} (${statusLabel})${hasConflict ? ' ⚠️ Конфликт!' : ''}">
             ${duration > 3 ? `${duration} дн.` : ''}
           </div>
         </div>
@@ -282,7 +341,7 @@ window.openProjectList = function(id) {
 };
 
 window.deleteProjectConfirm = async function(id) {
-  const confirmed = await showConfirm('Удалить проект и все его позиции?');
+  const confirmed = await showConfirm('Удалить проект и все его позиции? Все зарезервированные экземпляры будут освобождены.');
   if (!confirmed) return;
   deleteProject(id);
   showToast('Проект удалён', 'neutral');

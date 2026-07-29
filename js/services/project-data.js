@@ -1,6 +1,15 @@
 // services/project-data.js
 import { getState, setStateKey, saveState } from '../core/state.js';
-import { getStockValue } from '../data/editor-data.js'; // будет создан позже
+import { getStockValue } from '../data/editor-data.js';
+import {
+  reserveInstances,
+  releaseInstances,
+  getAvailableInstances,
+  getInstancesByPath,
+  updateInstanceStatus,
+  getInstanceStats,
+} from './instance-service.js';
+import { INSTANCE_STATUSES } from '../core/config.js';
 
 // ============================================================
 // ГЕТТЕРЫ
@@ -23,6 +32,37 @@ export function getAllProjectItems() {
   return getState().projectItems || [];
 }
 
+/**
+ * Возвращает список instanceId для позиции в проекте.
+ * @param {string} projectId
+ * @param {string} path
+ * @returns {string[]}
+ */
+export function getProjectItemInstances(projectId, path) {
+  const items = getProjectItems(projectId);
+  const item = items.find(i => i.equipment_path === path);
+  return item?.instanceIds || [];
+}
+
+/**
+ * Проверяет, используется ли экземпляр в каком-либо проекте (кроме указанного).
+ * @param {string} instanceId
+ * @param {string} excludeProjectId
+ * @returns {boolean}
+ */
+export function isInstanceUsedInOtherProject(instanceId, excludeProjectId = null) {
+  const state = getState();
+  const instance = state.instances[instanceId];
+  if (!instance) return false;
+  if (instance.status !== INSTANCE_STATUSES.RESERVED && instance.status !== INSTANCE_STATUSES.ISSUED) {
+    return false;
+  }
+  if (instance.currentProjectId && instance.currentProjectId !== excludeProjectId) {
+    return true;
+  }
+  return false;
+}
+
 // ============================================================
 // СОЗДАНИЕ / ОБНОВЛЕНИЕ / УДАЛЕНИЕ ПРОЕКТОВ
 // ============================================================
@@ -43,6 +83,13 @@ export function saveProject(project) {
 
 export function deleteProject(id) {
   const state = getState();
+  // Освобождаем все экземпляры, привязанные к этому проекту
+  const items = getProjectItems(id);
+  for (let item of items) {
+    if (item.instanceIds && item.instanceIds.length > 0) {
+      releaseInstances(item.instanceIds, id, `Удаление проекта ${id}`);
+    }
+  }
   state.projects = state.projects.filter(p => p.id !== id);
   state.projectItems = state.projectItems.filter(item => item.project_id !== id);
   saveState();
@@ -52,31 +99,156 @@ export function deleteProject(id) {
 // РАБОТА С ПОЗИЦИЯМИ ПРОЕКТА
 // ============================================================
 
-export function addProjectItem(projectId, equipmentPath, quantity) {
+/**
+ * Добавляет или обновляет позицию в проекте с учётом экземпляров.
+ * @param {string} projectId
+ * @param {string} equipmentPath
+ * @param {number} quantity - запрашиваемое количество (может быть 0 для удаления)
+ * @param {object} options - { subrentInfo: { isSubrent, counterparty }, instanceIds: [] } (опционально)
+ * @returns {object} { success: boolean, error: string, reservedInstances: object[] }
+ */
+export function addProjectItem(projectId, equipmentPath, quantity, options = {}) {
   const state = getState();
-  const items = state.projectItems;
-  const existing = items.find(item => item.project_id === projectId && item.equipment_path === equipmentPath);
-  if (existing) {
-    existing.quantity = quantity;
-  } else {
-    items.push({
-      id: Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-      project_id: projectId,
-      equipment_path: equipmentPath,
-      quantity,
-    });
+  const existingIndex = state.projectItems.findIndex(
+    item => item.project_id === projectId && item.equipment_path === equipmentPath
+  );
+
+  // Если количество 0 или меньше, удаляем позицию
+  if (quantity <= 0) {
+    if (existingIndex !== -1) {
+      const item = state.projectItems[existingIndex];
+      // Освобождаем экземпляры
+      if (item.instanceIds && item.instanceIds.length > 0) {
+        releaseInstances(item.instanceIds, projectId, `Удаление позиции ${equipmentPath} из проекта`);
+      }
+      state.projectItems.splice(existingIndex, 1);
+      saveState();
+      return { success: true, reservedInstances: [] };
+    }
+    return { success: true, reservedInstances: [] };
   }
+
+  // Проверяем, есть ли экземпляры для этого пути
+  const instances = getInstancesByPath(equipmentPath);
+  let reserved = [];
+  let instanceIds = options.instanceIds || [];
+
+  // Если есть экземпляры, используем резервирование
+  if (instances.length > 0) {
+    // Получаем проект для дат
+    const project = getProject(projectId);
+    if (!project) {
+      return { success: false, error: 'Проект не найден', reservedInstances: [] };
+    }
+    if (!project.start_date || !project.end_date) {
+      return { success: false, error: 'У проекта не заданы даты', reservedInstances: [] };
+    }
+
+    // Проверяем, не превышает ли запрошенное количество доступных экземпляров
+    const available = getAvailableInstances(equipmentPath, project.start_date, project.end_date, projectId);
+    if (available.length < quantity) {
+      return {
+        success: false,
+        error: `Недостаточно доступных экземпляров для "${equipmentPath}" (доступно: ${available.length}, требуется: ${quantity})`,
+        reservedInstances: [],
+      };
+    }
+
+    // Освобождаем старые экземпляры, если обновляем
+    if (existingIndex !== -1) {
+      const oldItem = state.projectItems[existingIndex];
+      if (oldItem.instanceIds && oldItem.instanceIds.length > 0) {
+        releaseInstances(oldItem.instanceIds, projectId, `Обновление позиции ${equipmentPath}`);
+      }
+    }
+
+    // Резервируем новые
+    const subrentInfo = options.subrentInfo || null;
+    const result = reserveInstances(
+      equipmentPath,
+      quantity,
+      projectId,
+      project.start_date,
+      project.end_date,
+      subrentInfo
+    );
+    if (!result.success) {
+      return result;
+    }
+    reserved = result.reservedInstances;
+    instanceIds = reserved.map(inst => inst.id);
+  } else {
+    // Если экземпляров нет, используем старую логику (только количество)
+    // Проверяем остаток на складе
+    const stock = getStockValue(equipmentPath);
+    // Получаем уже занятое количество в других проектах
+    const otherProjects = getProjects().filter(p => p.id !== projectId);
+    let usedInOther = 0;
+    for (let p of otherProjects) {
+      const items = getProjectItems(p.id);
+      const item = items.find(i => i.equipment_path === equipmentPath);
+      if (item) usedInOther += item.quantity;
+    }
+    const available = stock - usedInOther;
+    if (quantity > available) {
+      return {
+        success: false,
+        error: `Недостаточно доступного количества для "${equipmentPath}" (доступно: ${available}, требуется: ${quantity})`,
+        reservedInstances: [],
+      };
+    }
+  }
+
+  // Сохраняем или обновляем позицию
+  const newItem = {
+    id: existingIndex !== -1 ? state.projectItems[existingIndex].id : Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+    project_id: projectId,
+    equipment_path: equipmentPath,
+    quantity: quantity,
+    instanceIds: instanceIds,
+    subrentInfo: options.subrentInfo || null,
+  };
+
+  if (existingIndex !== -1) {
+    state.projectItems[existingIndex] = newItem;
+  } else {
+    state.projectItems.push(newItem);
+  }
+
   saveState();
+  return { success: true, reservedInstances: reserved };
 }
 
+/**
+ * Удаляет позицию из проекта (освобождает экземпляры).
+ * @param {string} id - id записи projectItems
+ * @returns {boolean}
+ */
 export function removeProjectItem(id) {
   const state = getState();
-  state.projectItems = state.projectItems.filter(item => item.id !== id);
+  const index = state.projectItems.findIndex(item => item.id === id);
+  if (index === -1) return false;
+  const item = state.projectItems[index];
+  if (item.instanceIds && item.instanceIds.length > 0) {
+    releaseInstances(item.instanceIds, item.project_id, `Удаление позиции ${item.equipment_path}`);
+  }
+  state.projectItems.splice(index, 1);
   saveState();
+  return true;
 }
 
+/**
+ * Очищает все позиции проекта (освобождает все экземпляры).
+ * @param {string} projectId
+ */
 export function clearProjectItems(projectId) {
   const state = getState();
+  const items = getProjectItems(projectId);
+  for (let item of items) {
+    if (item.instanceIds && item.instanceIds.length > 0) {
+      releaseInstances(item.instanceIds, projectId, `Очистка проекта ${projectId}`);
+    }
+  }
   state.projectItems = state.projectItems.filter(item => item.project_id !== projectId);
   saveState();
 }
@@ -85,46 +257,127 @@ export function clearProjectItems(projectId) {
 // ПРОВЕРКА ДОСТУПНОСТИ (С КОНФЛИКТАМИ)
 // ============================================================
 
+/**
+ * Проверяет доступность позиции на указанный период с учётом экземпляров.
+ * @param {string} equipmentPath
+ * @param {string} startDate
+ * @param {string} endDate
+ * @param {number} requestedQty
+ * @param {string|null} currentProjectId
+ * @returns {object} { available, conflicts, totalStock, allocated, isConflict, instanceDetails }
+ */
 export function getAvailableQuantity(equipmentPath, startDate, endDate, requestedQty, currentProjectId = null) {
   if (!startDate || !endDate) {
     const totalStock = getStockValue(equipmentPath);
-    return { available: requestedQty, conflicts: [], allocated: 0, totalStock };
+    // Если нет дат, считаем, что всё доступно (но это не совсем правильно)
+    return {
+      available: requestedQty,
+      conflicts: [],
+      allocated: 0,
+      totalStock,
+      isConflict: requestedQty > totalStock,
+      instanceDetails: null,
+    };
   }
 
-  const projects = getProjects();
-  const allItems = getAllProjectItems();
-  const totalStock = getStockValue(equipmentPath);
-  const nStart = new Date(startDate).getTime();
-  const nEnd = new Date(endDate).getTime();
+  // Проверяем, есть ли экземпляры для этого пути
+  const instances = getInstancesByPath(equipmentPath);
+  if (instances.length > 0) {
+    // Используем экземплярный учёт
+    const availableInstances = getAvailableInstances(equipmentPath, startDate, endDate, currentProjectId);
+    const totalStock = getStockValue(equipmentPath);
+    const allocated = instances.length - availableInstances.length;
 
-  const overlapping = projects.filter(p => {
-    if (p.id === currentProjectId) return false;
-    if (p.status === 'completed') return false;
-    const pStart = new Date(p.start_date).getTime();
-    const pEnd = new Date(p.end_date).getTime();
-    return (pStart <= nEnd && pEnd >= nStart);
-  });
-
-  const overlapIds = overlapping.map(p => p.id);
-  let allocated = 0;
-  const conflicts = [];
-  overlapping.forEach(p => {
-    const items = allItems.filter(item => item.project_id === p.id && item.equipment_path === equipmentPath);
-    const totalInProject = items.reduce((sum, item) => sum + item.quantity, 0);
-    if (totalInProject > 0) {
-      allocated += totalInProject;
-      conflicts.push({ project: p.name, quantity: totalInProject, projectId: p.id });
+    // Собираем конфликты (проекты, которые занимают экземпляры)
+    const conflictMap = new Map();
+    for (let inst of instances) {
+      if (inst.currentProjectId && inst.currentProjectId !== currentProjectId) {
+        const project = getProject(inst.currentProjectId);
+        if (project) {
+          if (!conflictMap.has(project.id)) {
+            conflictMap.set(project.id, { project: project.name, quantity: 0 });
+          }
+          conflictMap.get(project.id).quantity += 1;
+        }
+      }
     }
-  });
+    const conflicts = Array.from(conflictMap.values());
 
-  const available = totalStock - allocated;
-  return {
-    available: Math.max(0, available),
-    conflicts,
-    totalStock,
-    allocated,
-    isConflict: requestedQty > available,
-  };
+    const available = availableInstances.length;
+    return {
+      available: available,
+      conflicts: conflicts,
+      allocated: allocated,
+      totalStock: totalStock,
+      isConflict: requestedQty > available,
+      instanceDetails: {
+        total: instances.length,
+        stock: instances.filter(i => i.status === INSTANCE_STATUSES.STOCK).length,
+        reserved: instances.filter(i => i.status === INSTANCE_STATUSES.RESERVED).length,
+        issued: instances.filter(i => i.status === INSTANCE_STATUSES.ISSUED).length,
+        repair: instances.filter(i => i.status === INSTANCE_STATUSES.REPAIR).length,
+        writtenOff: instances.filter(i => i.status === INSTANCE_STATUSES.WRITTEN_OFF).length,
+      },
+    };
+  } else {
+    // Старая логика (без серийников)
+    const projects = getProjects();
+    const allItems = getAllProjectItems();
+    const totalStock = getStockValue(equipmentPath);
+    const nStart = new Date(startDate).getTime();
+    const nEnd = new Date(endDate).getTime();
+
+    const overlapping = projects.filter(p => {
+      if (p.id === currentProjectId) return false;
+      if (p.status === 'completed') return false;
+      const pStart = new Date(p.start_date).getTime();
+      const pEnd = new Date(p.end_date).getTime();
+      return (pStart <= nEnd && pEnd >= nStart);
+    });
+
+    const overlapIds = overlapping.map(p => p.id);
+    let allocated = 0;
+    const conflicts = [];
+    overlapping.forEach(p => {
+      const items = allItems.filter(item => item.project_id === p.id && item.equipment_path === equipmentPath);
+      const totalInProject = items.reduce((sum, item) => sum + item.quantity, 0);
+      if (totalInProject > 0) {
+        allocated += totalInProject;
+        conflicts.push({ project: p.name, quantity: totalInProject, projectId: p.id });
+      }
+    });
+
+    const available = totalStock - allocated;
+    return {
+      available: Math.max(0, available),
+      conflicts,
+      totalStock,
+      allocated,
+      isConflict: requestedQty > available,
+      instanceDetails: null,
+    };
+  }
+}
+
+/**
+ * Возвращает все экземпляры, задействованные в проекте.
+ * @param {string} projectId
+ * @returns {object[]}
+ */
+export function getProjectInstances(projectId) {
+  const items = getProjectItems(projectId);
+  const state = getState();
+  const result = [];
+  for (let item of items) {
+    if (item.instanceIds) {
+      for (let id of item.instanceIds) {
+        if (state.instances[id]) {
+          result.push(state.instances[id]);
+        }
+      }
+    }
+  }
+  return result;
 }
 
 // ============================================================
@@ -135,10 +388,13 @@ export default {
   getProject,
   getProjectItems,
   getAllProjectItems,
+  getProjectItemInstances,
+  isInstanceUsedInOtherProject,
   saveProject,
   deleteProject,
   addProjectItem,
   removeProjectItem,
   clearProjectItems,
   getAvailableQuantity,
+  getProjectInstances,
 };

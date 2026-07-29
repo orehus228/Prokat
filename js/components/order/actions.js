@@ -11,8 +11,11 @@ import {
   setIndividualCaseValues,
   setOrderExtra,
   getOrderProject,
+  getOrderInstances,
+  setOrderInstances,
+  clearAllOrderInstances,
 } from '../../services/order-data.js';
-import { getAvailableQuantity } from '../../services/project-data.js';
+import { getAvailableQuantity, addProjectItem, getProject } from '../../services/project-data.js';
 import * as calc from '../../services/calculations.js';
 import { showToast } from '../../ui/toast.js';
 import {
@@ -31,6 +34,95 @@ import {
 } from './helpers.js';
 
 // ============================================================
+// СИНХРОНИЗАЦИЯ С ПРОЕКТОМ
+// ============================================================
+
+/**
+ * Синхронизирует позицию с проектом: резервирует или освобождает экземпляры.
+ * @param {string} path - путь позиции
+ * @param {number} quantity - новое количество (если не указано, берётся из заказа)
+ */
+function syncProjectItem(path, quantity) {
+  const project = getOrderProject();
+  if (!project.id || !project.start_date || !project.end_date) {
+    // Если проект не задан или нет дат, ничего не делаем
+    return;
+  }
+
+  const qty = quantity !== undefined ? quantity : getTotalQty(path);
+  const subrentInfo = null; // пока не реализовано, можно будет добавить
+
+  // Вызываем addProjectItem с новым количеством
+  const result = addProjectItem(project.id, path, qty, { subrentInfo });
+  if (!result.success) {
+    // Если ошибка, показываем тост, но не откатываем количество (это уже сделано)
+    showToast(result.error, 'warning', 4000);
+  }
+}
+
+/**
+ * Синхронизирует все позиции заказа с текущим проектом.
+ * Используется при смене проекта.
+ */
+export function syncAllProjectItems() {
+  const state = getState();
+  const project = getOrderProject();
+  if (!project.id || !project.start_date || !project.end_date) {
+    // Если нет проекта, освобождаем все экземпляры
+    const allPaths = new Set();
+    for (let p in state.order) if (state.order[p] > 0) allPaths.add(p);
+    for (let p in state.orderPacking) {
+      const total = state.orderPacking[p].reduce((s, item) => s + (item.pieces || 0), 0);
+      if (total > 0) allPaths.add(p);
+    }
+    for (let p in state.individualCaseValues) {
+      const total = state.individualCaseValues[p].reduce((a, b) => a + b, 0);
+      if (total > 0) allPaths.add(p);
+    }
+    for (let p in state.orderExtra) if (state.orderExtra[p] > 0) allPaths.add(p);
+
+    for (let path of allPaths) {
+      addProjectItem(null, path, 0); // передаём projectId = null, чтобы удалить из всех проектов
+    }
+    // Очищаем orderInstances
+    clearAllOrderInstances();
+    return;
+  }
+
+  // Собираем все пути с ненулевым количеством
+  const allPaths = new Set();
+  for (let p in state.order) if (state.order[p] > 0) allPaths.add(p);
+  for (let p in state.orderPacking) {
+    const total = state.orderPacking[p].reduce((s, item) => s + (item.pieces || 0), 0);
+    if (total > 0) allPaths.add(p);
+  }
+  for (let p in state.individualCaseValues) {
+    const total = state.individualCaseValues[p].reduce((a, b) => a + b, 0);
+    if (total > 0) allPaths.add(p);
+  }
+  for (let p in state.orderExtra) if (state.orderExtra[p] > 0) allPaths.add(p);
+
+  for (let path of allPaths) {
+    const qty = getTotalQty(path);
+    const subrentInfo = null; // позже можно добавить
+    const result = addProjectItem(project.id, path, qty, { subrentInfo });
+    if (!result.success) {
+      showToast(`Ошибка синхронизации "${path}": ${result.error}`, 'warning', 3000);
+    }
+  }
+
+  // Удаляем позиции, которые есть в проекте, но которых нет в заказе
+  const projectItems = getProject().projectItems || [];
+  for (let item of projectItems) {
+    const path = item.equipment_path;
+    if (!allPaths.has(path)) {
+      // Если позиция есть в проекте, но её нет в заказе — удаляем из проекта
+      addProjectItem(project.id, path, 0);
+    }
+  }
+}
+
+// ============================================================
 // ПРОВЕРКА ДОСТУПНОСТИ В ПРОЕКТАХ
 // ============================================================
 
@@ -41,7 +133,10 @@ function checkAndWarnAvailability(path, requestedQty) {
   const result = getAvailableQuantity(path, project.start_date, project.end_date, requestedQty, project.id);
   if (result.isConflict) {
     const conflictNames = result.conflicts.map(c => `${c.project} (${c.quantity} шт)`).join(', ');
-    showToast(`⚠️ Доступно: ${result.available} шт (из ${result.totalStock} на складе). Занято в проектах: ${conflictNames}`, 'warning', 4000);
+    const instanceInfo = result.instanceDetails
+      ? ` (всего экз.: ${result.instanceDetails.total}, занято: ${result.instanceDetails.reserved + result.instanceDetails.issued})`
+      : '';
+    showToast(`⚠️ Доступно: ${result.available} шт${instanceInfo}. Занято в проектах: ${conflictNames}`, 'warning', 4000);
     return false;
   }
   return true;
@@ -73,6 +168,8 @@ function handleQtyChange(path, delta) {
   inp.dataset.oldValue = val;
   inp.value = val;
   setOrderValue(path, val);
+  // Синхронизация с проектом
+  syncProjectItem(path, val);
   updateRowOrder(path, false);
   updateTotalsOrder();
   updateCategoryTotalsOrder(currentOrderCategory);
@@ -116,6 +213,8 @@ function handleSinglePieceChange(path, delta) {
     const casesInput = row.querySelector('.single-cases-input');
     if (casesInput) casesInput.value = casesCount;
   }
+  // Синхронизация с проектом
+  syncProjectItem(path);
   updateRowOrder(path, false);
   updateTotalsOrder();
   updateCategoryTotalsOrder(currentOrderCategory);
@@ -150,6 +249,8 @@ function handleSingleCaseChange(path, delta) {
         if (piecesInput) piecesInput.value = newPieces;
         setIndividualCaseValues(path, [newPieces]);
         setOrderValue(path, newPieces);
+        // Синхронизация с проектом
+        syncProjectItem(path);
         updateRowOrder(path, false);
         updateTotalsOrder();
         updateCategoryTotalsOrder(currentOrderCategory);
@@ -167,6 +268,8 @@ function handleSingleCaseChange(path, delta) {
     if (piecesInput) piecesInput.value = pieces;
     setIndividualCaseValues(path, [pieces]);
     setOrderValue(path, pieces);
+    // Синхронизация с проектом
+    syncProjectItem(path);
     updateRowOrder(path, false);
     updateTotalsOrder();
     updateCategoryTotalsOrder(currentOrderCategory);
@@ -214,6 +317,8 @@ function handleMultiPieceChange(path, idx, delta) {
   const casesCount = Math.ceil(val / opt.qty);
   const inputCases = childRow.querySelector(`.child-multi-cases[data-idx="${idx}"]`);
   if (inputCases) inputCases.value = casesCount;
+  // Синхронизация с проектом
+  syncProjectItem(path);
   updateRowOrder(path, false);
   updateTotalsOrder();
   updateCategoryTotalsOrder(currentOrderCategory);
@@ -261,6 +366,8 @@ function handleMultiCaseChange(path, idx, delta) {
   const casesCount = Math.ceil(val / opt.qty);
   const inputCases = childRow.querySelector(`.child-multi-cases[data-idx="${idx}"]`);
   if (inputCases) inputCases.value = casesCount;
+  // Синхронизация с проектом
+  syncProjectItem(path);
   updateRowOrder(path, false);
   updateTotalsOrder();
   updateCategoryTotalsOrder(currentOrderCategory);
@@ -306,6 +413,8 @@ function handleCommonQtyChange(path, caseId, delta) {
     input.value = val;
     p.pieces = val;
     setOrderPacking(path, packing);
+    // Синхронизация с проектом
+    syncProjectItem(path);
     updateRowOrder(path, false);
     updateTotalsOrder();
     updateCategoryTotalsOrder(currentOrderCategory);
@@ -340,6 +449,8 @@ function handleExtraQtyChange(path, delta) {
   input.dataset.oldValue = val;
   input.value = val;
   setOrderExtra(path, val);
+  // Синхронизация с проектом
+  syncProjectItem(path);
   updateRowOrder(path, false);
   updateTotalsOrder();
   updateCategoryTotalsOrder(currentOrderCategory);
@@ -437,7 +548,6 @@ function handleContainerClick(e) {
       module.openCaseSettingsModal(caseBtn.dataset.path, () => {
         refreshRow(caseBtn.dataset.path);
         updateAllCommonCaseIndicators();
-        // ⭐ Обновляем общую статистику после настройки кофров
         updateTotalsOrder();
       });
     });
@@ -455,6 +565,7 @@ function handleContainerInput(e) {
     if (isNaN(val) || val < 0) val = 0;
     target.value = val;
     setOrderValue(path, val);
+    syncProjectItem(path);
     updateRowOrder(path, false);
     updateTotalsOrder();
     updateCategoryTotalsOrder(currentOrderCategory);
@@ -483,6 +594,7 @@ function handleContainerInput(e) {
       const casesInput = singlePieces.parentElement.querySelector('.single-cases-input');
       if (casesInput) casesInput.value = casesCount;
     }
+    syncProjectItem(path);
     updateRowOrder(path, false);
     updateTotalsOrder();
     updateCategoryTotalsOrder(currentOrderCategory);
@@ -516,6 +628,7 @@ function handleContainerInput(e) {
           if (piecesInput) piecesInput.value = newPieces;
           setIndividualCaseValues(path, [newPieces]);
           setOrderValue(path, newPieces);
+          syncProjectItem(path);
           updateRowOrder(path, false);
           updateTotalsOrder();
           updateCategoryTotalsOrder(currentOrderCategory);
@@ -526,6 +639,7 @@ function handleContainerInput(e) {
       if (piecesInput) piecesInput.value = pieces;
       setIndividualCaseValues(path, [pieces]);
       setOrderValue(path, pieces);
+      syncProjectItem(path);
       updateRowOrder(path, false);
       updateTotalsOrder();
       updateCategoryTotalsOrder(currentOrderCategory);
@@ -556,6 +670,7 @@ function handleContainerInput(e) {
       const casesCount = Math.ceil(val / opt.qty);
       const inputCases = multiPieces.parentElement.querySelector(`.child-multi-cases[data-idx="${idx}"]`);
       if (inputCases) inputCases.value = casesCount;
+      syncProjectItem(path);
       updateRowOrder(path, false);
       updateTotalsOrder();
       updateCategoryTotalsOrder(currentOrderCategory);
@@ -595,6 +710,7 @@ function handleContainerInput(e) {
           setIndividualCaseValues(path, vals);
           const total = vals.reduce((a, b) => a + b, 0);
           setOrderValue(path, total);
+          syncProjectItem(path);
           updateRowOrder(path, false);
           updateTotalsOrder();
           updateCategoryTotalsOrder(currentOrderCategory);
@@ -610,6 +726,7 @@ function handleContainerInput(e) {
       setIndividualCaseValues(path, vals);
       const total = vals.reduce((a, b) => a + b, 0);
       setOrderValue(path, total);
+      syncProjectItem(path);
       updateRowOrder(path, false);
       updateTotalsOrder();
       updateCategoryTotalsOrder(currentOrderCategory);
@@ -644,6 +761,7 @@ function handleContainerInput(e) {
       }
       p.pieces = val;
       setOrderPacking(path, packing);
+      syncProjectItem(path);
       updateRowOrder(path, false);
       updateTotalsOrder();
       updateCategoryTotalsOrder(currentOrderCategory);
@@ -658,6 +776,7 @@ function handleContainerInput(e) {
     if (isNaN(val) || val < 0) val = 0;
     extraQty.value = val;
     setOrderExtra(path, val);
+    syncProjectItem(path);
     updateRowOrder(path, false);
     updateTotalsOrder();
     updateCategoryTotalsOrder(currentOrderCategory);
@@ -704,9 +823,32 @@ export function setupEventDelegation() {
 
 export async function clearOrderData() {
   const { showConfirm } = await import('../../ui/modal.js');
-  const confirmed = await showConfirm('Очистить список?');
+  const confirmed = await showConfirm('Очистить список? Все зарезервированные экземпляры будут освобождены.');
   if (!confirmed) return;
   const state = getState();
+  
+  // Освобождаем все экземпляры, задействованные в заказе
+  const project = getOrderProject();
+  if (project.id) {
+    // Получаем все пути из заказа
+    const allPaths = new Set();
+    for (let p in state.order) if (state.order[p] > 0) allPaths.add(p);
+    for (let p in state.orderPacking) {
+      const total = state.orderPacking[p].reduce((s, item) => s + (item.pieces || 0), 0);
+      if (total > 0) allPaths.add(p);
+    }
+    for (let p in state.individualCaseValues) {
+      const total = state.individualCaseValues[p].reduce((a, b) => a + b, 0);
+      if (total > 0) allPaths.add(p);
+    }
+    for (let p in state.orderExtra) if (state.orderExtra[p] > 0) allPaths.add(p);
+    
+    for (let path of allPaths) {
+      addProjectItem(project.id, path, 0);
+    }
+  }
+  
+  // Очищаем все поля
   for (let key in state.order) delete state.order[key];
   for (let key in state.orderSplits) delete state.orderSplits[key];
   for (let key in state.links) delete state.links[key];
@@ -717,11 +859,13 @@ export async function clearOrderData() {
   for (let key in state.caseModes) delete state.caseModes[key];
   for (let key in state.orderExclude) delete state.orderExclude[key];
   for (let key in state.orderExtra) delete state.orderExtra[key];
+  clearAllOrderInstances();
+  
   saveState();
   const { renderOrderAll } = await import('./render.js');
   renderOrderAll();
   updateAllCommonCaseIndicators();
-  showToast('Список очищен', 'success');
+  showToast('Список очищен, экземпляры освобождены', 'success');
 }
 
 // ============================================================
@@ -736,4 +880,5 @@ export default {
   setupEventDelegation,
   initOrderActions,
   clearOrderData,
+  syncAllProjectItems,
 };

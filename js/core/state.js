@@ -9,6 +9,9 @@ import {
   DEFAULT_CATEGORY_ORDER,
   DEFAULT_TRUCK_PRESETS,
   CASE_MODES_DEFAULTS,
+  DEFAULT_INSTANCES,
+  DEFAULT_INSTANCES_BY_PATH,
+  INSTANCE_STATUSES,
 } from './config.js';
 import {
   cleanupInventory,
@@ -52,6 +55,9 @@ const state = {
   selectedTruckIds: [],
   matrixFullNames: true,
   _calcCache: new Map(),
+  // Новые поля для экземпляров
+  instances: {}, // { instanceId: { id, path, serialNumber, status, currentProjectId, subrentInfo, history } }
+  instancesByPath: {}, // { path: [instanceId, ...] } — индекс для быстрого доступа
 };
 
 if (typeof window !== 'undefined') {
@@ -92,11 +98,9 @@ export function loadState() {
   }
 
   if (parsed) {
-    // Копируем всё, кроме itemProps, stock, specs – их нормализуем отдельно
     const { itemProps, stock, specs, ...rest } = parsed;
     Object.assign(state, rest);
 
-    // Нормализация itemProps (замена обратных слешей на прямые)
     if (itemProps) {
       const normalizedItemProps = {};
       for (let key in itemProps) {
@@ -107,7 +111,6 @@ export function loadState() {
       console.log('[state] itemProps нормализованы, ключей:', Object.keys(state.itemProps).length);
     }
 
-    // Нормализация stock
     if (stock) {
       const normalizedStock = {};
       for (let key in stock) {
@@ -116,7 +119,6 @@ export function loadState() {
       state.stock = normalizedStock;
     }
 
-    // Нормализация specs
     if (specs) {
       const normalizedSpecs = {};
       for (let key in specs) {
@@ -131,7 +133,6 @@ export function loadState() {
     const orderRaw = localStorage.getItem(STORAGE_KEYS.ORDER_DATA);
     if (orderRaw) {
       const orderData = JSON.parse(orderRaw);
-      // Нормализуем объекты с путями
       const orderKeys = [
         'order', 'orderSplits', 'links', 'notes',
         'orderPacking', 'individualCaseValues', 'commonRoutes',
@@ -146,7 +147,6 @@ export function loadState() {
           orderData[key] = normalized;
         }
       });
-      // Присваиваем в state
       Object.keys(orderData).forEach(key => {
         if (key in state && key !== 'inventory' && key !== 'stock' && key !== 'specs' &&
             key !== 'itemProps' && key !== 'catNames' && key !== '_categoryOrder' &&
@@ -196,12 +196,27 @@ export function loadState() {
     state.theme = 'dark';
   }
 
-  // ---- 6. Нормализация общих структур (без cleanupInventory) ----
-  // Временно закомментировал cleanupInventory, чтобы проверить, не удаляет ли он нужные ключи
-  // cleanupInventory(state.inventory, state.stock, state.specs, state.itemProps);
+  // ---- 6. Загружаем экземпляры ----
+  try {
+    const instancesRaw = localStorage.getItem(STORAGE_KEYS.INSTANCES);
+    if (instancesRaw) {
+      const instancesData = JSON.parse(instancesRaw);
+      state.instances = instancesData.instances || {};
+      state.instancesByPath = instancesData.instancesByPath || {};
+      console.log('[state] INSTANCES загружены, количество:', Object.keys(state.instances).length);
+    } else {
+      state.instances = { ...DEFAULT_INSTANCES };
+      state.instancesByPath = { ...DEFAULT_INSTANCES_BY_PATH };
+    }
+  } catch (e) {
+    console.warn('[state] INSTANCES ошибка:', e);
+    state.instances = { ...DEFAULT_INSTANCES };
+    state.instancesByPath = { ...DEFAULT_INSTANCES_BY_PATH };
+  }
+
+  // ---- 7. Нормализация общих структур ----
   normalizeSubgroups(state.inventory);
 
-  // Нормализация itemProps (добавление отсутствующих полей)
   for (let key in state.itemProps) {
     const props = state.itemProps[key];
     if (!props) continue;
@@ -219,10 +234,8 @@ export function loadState() {
     if (props.volume === undefined) props.volume = 0;
   }
 
-  // Нормализация caseModes (уже нормализованы при загрузке, но ещё раз)
   normalizeCaseModes(state.caseModes);
 
-  // ГАРАНТИРОВАННАЯ НОРМАЛИЗАЦИЯ ДЛЯ МУЛЬТИКОФРОВ
   for (let path in state.itemProps) {
     const props = state.itemProps[path];
     if (props.individualCases && props.individualCases.length > 1) {
@@ -242,7 +255,6 @@ export function loadState() {
     }
   }
 
-  // Для всех позиций с individualCases > 0 создаём запись в caseModes
   for (let path in state.itemProps) {
     const props = state.itemProps[path];
     if (props.individualCases && props.individualCases.length > 0) {
@@ -265,30 +277,14 @@ export function loadState() {
   }
   state._calcCache.clear();
 
+  // ---- 8. Нормализация экземпляров: проверка целостности, обновление индекса ----
+  rebuildInstancesIndex();
+
   console.log('[state] Нормализация завершена');
-
-  // ---- 7. Проверка наличия нужного ключа ----
-  const testPath = 'video|Экран|Экран 0.5x0.5 LED P2.6 (192x192)';
-  if (state.itemProps[testPath]) {
-    console.log('[state] ✅ Данные для', testPath, 'загружены:', state.itemProps[testPath]);
-  } else {
-    console.warn('[state] ❌ Данные для', testPath, 'НЕ загружены');
-    // Поиск в raw данных
-    const raw = localStorage.getItem(STORAGE_KEYS.APP_DATA);
-    if (raw) {
-      try {
-        const parsedRaw = JSON.parse(raw);
-        const keys = Object.keys(parsedRaw.itemProps || {});
-        const similar = keys.filter(k => k.includes('0.5x0.5') || k.includes('Экран'));
-        console.warn('[state] Похожие ключи в RAW:', similar);
-      } catch (e) {}
-    }
-  }
-
   notifySubscribers('*');
 }
 
-// ---- saveState и остальные функции без изменений ----
+// ---- saveState и остальные функции ----
 export function saveState() {
   const toSave = {
     inventory: state.inventory,
@@ -334,7 +330,38 @@ export function saveState() {
     localStorage.setItem(STORAGE_KEYS.THEME, state.theme);
   }
 
+  // Сохраняем экземпляры отдельно
+  const instancesToSave = {
+    instances: state.instances,
+    instancesByPath: state.instancesByPath,
+  };
+  localStorage.setItem(STORAGE_KEYS.INSTANCES, JSON.stringify(instancesToSave));
+
   state._calcCache.clear();
+}
+
+/**
+ * Перестраивает индекс instancesByPath на основе текущих экземпляров.
+ */
+function rebuildInstancesIndex() {
+  const newIndex = {};
+  for (let id in state.instances) {
+    const instance = state.instances[id];
+    if (!instance) continue;
+    const path = instance.path;
+    if (!newIndex[path]) newIndex[path] = [];
+    newIndex[path].push(id);
+  }
+  state.instancesByPath = newIndex;
+}
+
+/**
+ * Сбрасывает состояние экземпляров (для тестов или сброса данных).
+ */
+export function resetInstances() {
+  state.instances = { ...DEFAULT_INSTANCES };
+  state.instancesByPath = { ...DEFAULT_INSTANCES_BY_PATH };
+  saveState();
 }
 
 function resetState() {
@@ -359,6 +386,8 @@ function resetState() {
   state.orderExclude = {};
   state.orderExtra = {};
   state.orderProject = { id: null, name: '', start_date: '', end_date: '', status: 'planned' };
+  state.instances = { ...DEFAULT_INSTANCES };
+  state.instancesByPath = { ...DEFAULT_INSTANCES_BY_PATH };
   state._calcCache.clear();
 }
 
@@ -389,4 +418,6 @@ export default {
   setCachedCalculation,
   clearCalculationCache,
   initState,
+  resetInstances,
+  rebuildInstancesIndex,
 };
