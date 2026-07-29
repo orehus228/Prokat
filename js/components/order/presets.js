@@ -30,7 +30,7 @@ function saveOrderPresets(presets) {
 }
 
 // ============================================================
-// НОРМАЛИЗАЦИЯ ДАННЫХ ПРЕСЕТА (конвертация старых форматов)
+// НОРМАЛИЗАЦИЯ ДАННЫХ ПРЕСЕТА
 // ============================================================
 
 function normalizePresetData(data) {
@@ -327,13 +327,13 @@ export function exportOrderJSON() {
 }
 
 // ============================================================
-// ЭКСПОРТ PDF — компактная таблица без эмодзи и лишней информации
+// ЭКСПОРТ PDF (исправленный, с общими кофрами)
 // ============================================================
 export function exportOrderPDF() {
   const state = getState();
   const projectName = document.getElementById('pName')?.value.trim() || 'Мероприятие';
 
-  // Собираем все позиции
+  // Собираем все позиции из всех источников
   const allPaths = new Set();
   for (let p in state.order) if (state.order[p] > 0) allPaths.add(p);
   for (let p in state.orderPacking) {
@@ -406,7 +406,7 @@ export function exportOrderPDF() {
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Список заказа</title>
+  <title>Чек-лист</title>
   <style>
     body { font-family: 'Segoe UI', Arial, sans-serif; margin: 20px; font-size: 12px; color: #222; background: #fff; }
     h1 { font-size: 18px; margin: 0 0 10px 0; color: #2c3e50; border-bottom: 1px solid #ccc; padding-bottom: 6px; }
@@ -435,7 +435,7 @@ export function exportOrderPDF() {
   </style>
 </head>
 <body>
-<h1>Список заказа: ${esc(projectName)}</h1>
+<h1>Чек-лист: ${esc(projectName)}</h1>
 <table>
   <thead>
     <tr><th style="width:16%;">Категория</th><th style="width:34%;">Позиция</th><th style="width:8%;text-align:center;">Кол-во</th><th style="width:10%;text-align:right;">Вес, кг</th><th style="width:10%;text-align:right;">Объём, м³</th><th style="width:22%;">Упаковка</th></tr>
