@@ -66,7 +66,17 @@ export function renderOrderTabs() {
   orderKeys.forEach(key => {
     const tab = document.createElement('div');
     tab.className = 'category-tab' + (key === currentOrderCategory ? ' active' : '');
-    tab.textContent = CAT_NAMES[key] || key;
+    const label = CAT_NAMES[key] || key;
+    // Проверяем, есть ли в этой категории позиции, упакованные в общие кофры
+    let hasCommon = false;
+    for (let p in state.orderPacking) {
+      if (p.startsWith(key + '|') && state.orderPacking[p].length > 0) {
+        hasCommon = true;
+        break;
+      }
+    }
+    const marker = hasCommon ? ' 🧳' : '';
+    tab.textContent = label + marker;
     tab.dataset.cat = key;
     tab.addEventListener('click', () => {
       if (searchModeOrder) {
@@ -523,7 +533,7 @@ export function updateCategoryTotalsOrder(catKey) {
 }
 
 // ============================================================
-// ГЛАВНАЯ ФУНКЦИЯ СТАТИСТИКИ — ФИНАЛЬНАЯ ВЕРСИЯ
+// ГЛАВНАЯ ФУНКЦИЯ СТАТИСТИКИ — с раскрывающимися категориями
 // ============================================================
 export function updateTotalsOrder() {
   const state = getState();
@@ -616,44 +626,31 @@ export function updateTotalsOrder() {
   document.getElementById('totalWeight').textContent = totalWeight.toFixed(1);
   document.getElementById('totalVolume').textContent = totalVolume.toFixed(3);
 
-  // 5. Строим детальную статистику
+  // 5. Строим детальную статистику с раскрывающимися категориями
   const detailsDiv = document.getElementById('globalDetails');
   if (!detailsDiv) return;
 
   const orderKeys = state._categoryOrder || Object.keys(state.inventory);
   let detailsHtml = '';
 
-  // Итоги по категориям (без общих кофров)
+  // Итоги по категориям (с кликабельным заголовком)
   orderKeys.forEach(cat => {
     if (!catMap[cat]) return;
     const catResult = catMap[cat];
-    detailsHtml += `<div class="cat-detail"><strong>${CAT_NAMES[cat] || cat}</strong><br>${catResult.qty} шт<br>${formatWeight(catResult.weight)}<br>${formatVolume(catResult.volume)}</div>`;
-  });
-
-  // Список всех позиций (с полным весом)
-  let listHtml = `<div style="width:100%;margin-top:8px;border-top:1px solid var(--border-color);padding-top:8px;"><strong>Все позиции:</strong></div>`;
-  const allPaths = Array.from(itemsMap.keys()).sort((a, b) => {
-    const catA = a.split('|')[0];
-    const catB = b.split('|')[0];
-    const idxA = orderKeys.indexOf(catA);
-    const idxB = orderKeys.indexOf(catB);
-    return (idxA === -1 ? Infinity : idxA) - (idxB === -1 ? Infinity : idxB);
-  });
-  allPaths.forEach(path => {
-    const itemData = itemsMap.get(path);
-    const { qty, packing, extra, individualVals, mode } = itemData;
-    const weightFull = calc.calcItemWeight(path, qty, mode, packing, individualVals, extra);
-    const volume = calc.calcItemVolume(path, qty, mode, packing, individualVals, extra);
-    const name = path.split('|').pop();
-    const inCommon = packing.length > 0 ? ' 🧳' : '';
-    listHtml += `<div style="font-size:13px;color:var(--text-secondary);padding:2px 0;display:flex;gap:12px;">
-      <span>${esc(name)}${inCommon}</span>
-      <span>${qty} шт</span>
-      <span>${formatWeight(weightFull)}</span>
-      <span>${formatVolume(volume)}</span>
+    const catId = 'cat_detail_' + cat.replace(/[^a-zA-Z0-9]/g, '_');
+    const hasCommon = commonByCategory[cat] && commonByCategory[cat].qty > 0;
+    const marker = hasCommon ? ' 🧳' : '';
+    detailsHtml += `<div class="cat-detail-wrap">
+      <div class="cat-detail-header" data-target="${catId}" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:4px 8px;background:var(--bg-secondary);border-radius:6px;margin:4px 0;border-left:3px solid var(--accent);">
+        <strong>${CAT_NAMES[cat] || cat}${marker}</strong>
+        <span style="font-size:13px;color:var(--text-secondary);">${catResult.qty} шт, ${formatWeight(catResult.weight)}, ${formatVolume(catResult.volume)}</span>
+        <span class="toggle-icon" style="font-size:14px;color:var(--text-muted);">▶</span>
+      </div>
+      <div class="cat-detail-items" id="${catId}" style="display:none;padding-left:16px;margin-top:4px;">
+        ${buildCategoryItemList(cat, itemsMap, orderKeys)}
+      </div>
     </div>`;
   });
-  detailsHtml += listHtml;
 
   // Блок общих кофров (кратко, с процентами)
   if (commonTotalQty > 0) {
@@ -671,8 +668,48 @@ export function updateTotalsOrder() {
   detailsDiv.innerHTML = detailsHtml || '';
   renderCommonCaseIndicatorsOrder();
 
+  // Обработчики кликов для раскрытия
+  detailsDiv.querySelectorAll('.cat-detail-header').forEach(header => {
+    header.addEventListener('click', function() {
+      const targetId = this.dataset.target;
+      const items = document.getElementById(targetId);
+      if (items) {
+        const isOpen = items.style.display !== 'none';
+        items.style.display = isOpen ? 'none' : 'block';
+        const icon = this.querySelector('.toggle-icon');
+        if (icon) icon.textContent = isOpen ? '▶' : '▼';
+      }
+    });
+  });
+
   console.log('[STATS] Всего: шт=' + totalQty + ', вес=' + totalWeight + ', объём=' + totalVolume);
   console.log('[STATS] Общих кофров: шт=' + commonTotalQty + ', вес=' + commonTotalWeight);
+}
+
+// Вспомогательная функция для построения списка позиций внутри категории
+function buildCategoryItemList(cat, itemsMap, orderKeys) {
+  let html = '';
+  const paths = Array.from(itemsMap.keys()).filter(p => p.startsWith(cat + '|'));
+  paths.sort((a, b) => {
+    const nameA = a.split('|').pop();
+    const nameB = b.split('|').pop();
+    return nameA.localeCompare(nameB);
+  });
+  paths.forEach(path => {
+    const itemData = itemsMap.get(path);
+    const { qty, packing, extra, individualVals, mode } = itemData;
+    const weightFull = calc.calcItemWeight(path, qty, mode, packing, individualVals, extra);
+    const volume = calc.calcItemVolume(path, qty, mode, packing, individualVals, extra);
+    const name = path.split('|').pop();
+    const inCommon = packing.length > 0 ? ' 🧳' : '';
+    html += `<div style="font-size:13px;color:var(--text-secondary);padding:2px 0;display:flex;gap:12px;border-bottom:1px solid var(--border-color);">
+      <span style="flex:1;">${esc(name)}${inCommon}</span>
+      <span>${qty} шт</span>
+      <span>${formatWeight(weightFull)}</span>
+      <span>${formatVolume(volume)}</span>
+    </div>`;
+  });
+  return html;
 }
 
 // Вспомогательная функция для подсчёта итогов по категории (используется в updateCategoryTotalsOrder)

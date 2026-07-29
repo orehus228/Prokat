@@ -8,6 +8,9 @@ import { showPrompt, showConfirm } from '../../ui/modal.js';
 import { esc, getElement } from '../../ui/dom.js';
 import { renderOrderAll } from './render.js';
 import { invalidateFlatItemsCache } from './helpers.js';
+import { CAT_NAMES } from '../../core/config.js';
+import { getCommonCases } from '../../data/editor-data.js';
+import * as calc from '../../services/calculations.js';
 
 // ============================================================
 // ПОЛУЧЕНИЕ И СОХРАНЕНИЕ ПРЕСЕТОВ
@@ -31,7 +34,6 @@ function saveOrderPresets(presets) {
 // ============================================================
 
 function normalizePresetData(data) {
-  // Нормализация packing: если есть поле qty, преобразуем в pieces
   if (data.packing) {
     for (let path in data.packing) {
       data.packing[path] = data.packing[path].map(p => {
@@ -118,12 +120,10 @@ export async function loadOrderPreset(overlay = true) {
     return;
   }
 
-  // Нормализуем данные пресета перед загрузкой
   const data = normalizePresetData(preset.data);
   const state = getState();
 
   if (!overlay) {
-    // Очищаем все поля заказа
     for (let key in state.order) delete state.order[key];
     for (let key in state.orderSplits) delete state.orderSplits[key];
     for (let key in state.links) delete state.links[key];
@@ -137,7 +137,6 @@ export async function loadOrderPreset(overlay = true) {
   }
 
   if (overlay) {
-    // Наложение: суммируем количества
     for (let path in data.order) {
       state.order[path] = (state.order[path] || 0) + data.order[path];
     }
@@ -161,7 +160,6 @@ export async function loadOrderPreset(overlay = true) {
     for (let path in data.packing) {
       if (!state.orderPacking[path]) state.orderPacking[path] = [];
       data.packing[path].forEach(p => {
-        // ИСПРАВЛЕНО: используем pieces вместо qty
         const existing = state.orderPacking[path].find(ep => ep.caseId === p.caseId);
         if (existing) {
           existing.pieces = (existing.pieces || 0) + (p.pieces || 0);
@@ -198,7 +196,6 @@ export async function loadOrderPreset(overlay = true) {
       state.orderExtra[path] = (state.orderExtra[path] || 0) + data.extra[path];
     }
   } else {
-    // Замена: просто присваиваем
     Object.assign(state.order, data.order);
     Object.assign(state.orderSplits, JSON.parse(JSON.stringify(data.splits)));
     Object.assign(state.links, JSON.parse(JSON.stringify(data.links)));
@@ -329,81 +326,177 @@ export function exportOrderJSON() {
   showToast('JSON сохранён', 'success');
 }
 
+// ============================================================
+// PDF — полностью переработанный экспорт
+// ============================================================
 export function exportOrderPDF() {
   const state = getState();
   const projectName = document.getElementById('pName')?.value.trim() || 'Мероприятие';
   const date = document.getElementById('pDate')?.value || new Date().toLocaleDateString('ru-RU');
   const comment = document.getElementById('pComment')?.value.trim() || '';
 
-  // Собираем позиции
-  const items = [];
-  for (let path in state.order) {
-    if (state.order[path] > 0) items.push({ path, qty: state.order[path] });
+  // Собираем позиции с данными о упаковке
+  const allPaths = new Set();
+  for (let p in state.order) if (state.order[p] > 0) allPaths.add(p);
+  for (let p in state.orderPacking) {
+    const total = state.orderPacking[p].reduce((s, item) => s + (item.pieces || 0), 0);
+    if (total > 0) allPaths.add(p);
   }
-  for (let path in state.orderSplits) {
-    state.orderSplits[path].forEach(seg => {
-      if (seg.qty > 0) items.push({ path, qty: seg.qty });
-    });
+  for (let p in state.individualCaseValues) {
+    const total = state.individualCaseValues[p].reduce((a, b) => a + b, 0);
+    if (total > 0) allPaths.add(p);
   }
-  for (let path in state.orderExtra) {
-    if (state.orderExtra[path] > 0) items.push({ path, qty: state.orderExtra[path] });
-  }
+  for (let p in state.orderExtra) if (state.orderExtra[p] > 0) allPaths.add(p);
 
-  if (items.length === 0) {
-    showToast('Нет позиций для экспорта', 'warning');
-    return;
-  }
+  // Группировка по категориям с детальной информацией о кофрах
+  const catMap = {};
+  const commonCases = getCommonCases();
+  const commonCasesUsed = {}; // для сбора информации об общих кофрах
 
-  // Группировка по категориям
-  const catItems = {};
-  items.forEach(({ path, qty }) => {
+  allPaths.forEach(path => {
+    const qty = getTotalQty(path);
+    if (qty <= 0) return;
     const parts = path.split('|');
     const cat = parts[0];
     const name = parts.slice(1).join(' → ');
-    if (!catItems[cat]) catItems[cat] = [];
-    catItems[cat].push({ name, qty });
+    const props = getItemPropsByPath(path);
+    const mode = state.caseModes[path] || {};
+    const packing = state.orderPacking[path] || [];
+    const individualVals = state.individualCaseValues[path] || [];
+    const extra = state.orderExtra[path] || 0;
+    const weight = calc.calcItemWeight(path, qty, mode, packing, individualVals, extra);
+    const volume = calc.calcItemVolume(path, qty, mode, packing, individualVals, extra);
+
+    // Определяем, в какие кофры упаковано
+    let caseInfo = '';
+    if (packing.length > 0) {
+      // Общие кофры
+      const caseDetails = packing.map(p => {
+        const c = commonCases.find(c => c.id === p.caseId);
+        const caseName = c ? c.name : 'удалённый кофр';
+        if (!commonCasesUsed[p.caseId]) {
+          commonCasesUsed[p.caseId] = {
+            name: caseName,
+            qtyPerCase: c ? c.qty : '?',
+            dims: c ? c.dimensions : '?',
+            maxWeight: c ? c.maxWeight : '?',
+            emptyWeight: c ? c.emptyWeight : '?',
+            items: []
+          };
+        }
+        commonCasesUsed[p.caseId].items.push({ path, name, pieces: p.pieces });
+        return `${caseName} (${p.pieces} шт)`;
+      }).join(', ');
+      caseInfo = `🧳 упаковано в: ${caseDetails}`;
+    } else if (individualVals.length > 0 && mode.enabled) {
+      // Индивидуальные или мультикофры
+      const options = calc.getCaseOptions(path);
+      const details = individualVals.map((v, idx) => {
+        if (v <= 0) return null;
+        const opt = options[idx] || options[0];
+        const casesCount = Math.ceil(v / opt.qty);
+        return `вариант ${idx+1} (${v} шт, ${casesCount} кофр)`;
+      }).filter(Boolean).join(', ');
+      caseInfo = `📦 индивидуальные кофры: ${details}`;
+    } else if (extra > 0 && packing.length === 0) {
+      caseInfo = `📦 вне кофра (${extra} шт)`;
+    }
+
+    if (!catMap[cat]) catMap[cat] = [];
+    catMap[cat].push({ name, qty, weight, volume, caseInfo, path });
   });
 
+  // Начинаем HTML
   let html = `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>Чек-лист</title>
 <style>
 body{font-family:'Segoe UI',Arial,sans-serif;margin:40px;color:#222;background:#fff}
 h1{color:#2c3e50;border-bottom:2px solid #3498db;padding-bottom:10px}
 .meta{margin:20px 0;color:#555}
-table{width:100%;border-collapse:collapse;margin-top:20px;font-size:14px}
-th{background:#2c3e50;color:#fff;padding:8px;text-align:left}
-td{padding:6px 8px;border-bottom:1px solid #ddd}
-tr:nth-child(even){background:#f9f9f9}
-.total-row{font-weight:bold;background:#e6f2ff!important;border-top:2px solid #3498db}
-.grand-total{font-weight:bold;background:#d4e6ff!important;border-top:3px solid #1a3a5a;font-size:16px}
+.category{margin:20px 0 10px 0;background:#f8f9fa;border-radius:6px;padding:10px 14px;border-left:4px solid #3498db;}
+.category h3{margin:0 0 8px 0;color:#2c3e50;}
+.item{font-size:14px;padding:4px 0;border-bottom:1px solid #eee;display:flex;flex-wrap:wrap;gap:8px 20px;}
+.item .name{flex:2 1 200px;}
+.item .qty{flex:0 0 60px;}
+.item .weight{flex:0 0 80px;}
+.item .volume{flex:0 0 80px;}
+.item .case-info{flex:1 1 200px;color:#555;font-size:13px;}
+.common-cases{margin:20px 0;padding:12px;background:#f0f4f8;border-radius:6px;border:1px solid #d0d8e0;}
+.common-cases h3{margin:0 0 8px 0;color:#2c3e50;}
+.case-detail{margin:6px 0;padding:6px 10px;background:#fff;border-radius:4px;border:1px solid #e0e8f0;}
+.case-detail strong{color:#1a3a5a;}
+.case-items{font-size:13px;color:#444;margin-left:16px;}
+.case-items .item{font-size:13px;padding:2px 0;border-bottom:none;}
+.totals{margin-top:20px;padding:12px;background:#e6f2ff;border-radius:6px;font-weight:bold;display:flex;gap:30px;flex-wrap:wrap;}
 .actions{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);display:flex;gap:12px;background:white;padding:12px 24px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.2);z-index:1000;}
-.actions .print{background:#2c3e50;color:white;}
-.actions .close{background:#ddd;color:#333;}
+.actions .print{background:#2c3e50;color:white;border:none;padding:8px 20px;border-radius:6px;cursor:pointer;}
+.actions .close{background:#ddd;color:#333;border:none;padding:8px 20px;border-radius:6px;cursor:pointer;}
 </style>
 </head><body>
 <h1>Чек-лист: ${esc(projectName)}</h1>
-<div class="meta"><strong>Дата:</strong> ${esc(date)}<br><strong>Комментарий:</strong> ${esc(comment || '—')}</div>
-<table><thead><tr><th>Категория</th><th>Позиция</th><th>Кол-во (шт)</th></tr></thead><tbody>`;
+<div class="meta"><strong>Дата:</strong> ${esc(date)}<br><strong>Комментарий:</strong> ${esc(comment || '—')}</div>`;
 
-  let grandQty = 0;
+  // Итоговые переменные
+  let grandQty = 0, grandWeight = 0, grandVolume = 0;
+
+  // Вывод категорий
   const orderKeys = state._categoryOrder || Object.keys(state.inventory);
   orderKeys.forEach(cat => {
-    if (!catItems[cat]) return;
-    let first = true, catQty = 0;
-    for (let item of catItems[cat]) {
+    if (!catMap[cat]) return;
+    const items = catMap[cat];
+    let catQty = 0, catWeight = 0, catVolume = 0;
+    html += `<div class="category"><h3>${CAT_NAMES[cat] || cat}</h3>`;
+    items.forEach(item => {
       catQty += item.qty;
-      html += `<tr><td>${first ? esc(cat) : ''}</td><td>${esc(item.name)}</td><td>${item.qty}</td></tr>`;
-      first = false;
-    }
+      catWeight += item.weight;
+      catVolume += item.volume;
+      html += `<div class="item">
+        <span class="name">${esc(item.name)}</span>
+        <span class="qty">${item.qty} шт</span>
+        <span class="weight">${item.weight.toFixed(1)} кг</span>
+        <span class="volume">${item.volume.toFixed(3)} м³</span>
+        ${item.caseInfo ? `<span class="case-info">${esc(item.caseInfo)}</span>` : ''}
+      </div>`;
+    });
+    html += `<div style="font-weight:bold;margin-top:4px;color:#2c3e50;">Итого в категории: ${catQty} шт, ${catWeight.toFixed(1)} кг, ${catVolume.toFixed(3)} м³</div>`;
+    html += `</div>`;
     grandQty += catQty;
-    html += `<tr class="total-row"><td colspan="2"><strong>Итого в категории</strong></td><td><strong>${catQty} шт</strong></td></tr>`;
+    grandWeight += catWeight;
+    grandVolume += catVolume;
   });
-  html += `<tr class="grand-total"><td colspan="2"><strong>Общий итог</strong></td><td><strong>${grandQty} шт</strong></td></tr>`;
-  html += `</tbody></table>
-<div class="actions">
-  <button class="print" onclick="window.print()">Сохранить PDF</button>
-  <button class="close" onclick="window.close()">Назад</button>
-</div>
+
+  // Блок общих кофров (если есть)
+  const usedCaseIds = Object.keys(commonCasesUsed);
+  if (usedCaseIds.length > 0) {
+    html += `<div class="common-cases"><h3>📦 Общие кофры</h3>`;
+    usedCaseIds.forEach(caseId => {
+      const data = commonCasesUsed[caseId];
+      html += `<div class="case-detail">
+        <strong>${esc(data.name)}</strong> — вместимость: ${data.qtyPerCase} шт, габариты: ${esc(data.dims)}, вес пустого: ${data.emptyWeight} кг, макс. вес: ${data.maxWeight} кг
+        <div class="case-items">`;
+      data.items.forEach(item => {
+        html += `<div class="item">
+          <span class="name">${esc(item.name)}</span>
+          <span class="qty">${item.pieces} шт</span>
+        </div>`;
+      });
+      html += `</div></div>`;
+    });
+    html += `</div>`;
+  }
+
+  // Общий итог
+  html += `<div class="totals">
+    <span>Всего: ${grandQty} шт</span>
+    <span>Общий вес: ${grandWeight.toFixed(1)} кг</span>
+    <span>Общий объём: ${grandVolume.toFixed(3)} м³</span>
+  </div>`;
+
+  // Кнопки
+  html += `<div class="actions">
+    <button class="print" onclick="window.print()">Сохранить PDF</button>
+    <button class="close" onclick="window.close()">Назад</button>
+  </div>
 </body></html>`;
 
   const win = window.open('', '_blank');

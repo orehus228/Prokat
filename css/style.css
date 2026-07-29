@@ -1697,3 +1697,33 @@ body {
         border-bottom: 1px solid #ddd;
     }
 }
+
+/* ===== Раскрывающиеся списки в детальной статистике ===== */
+.cat-detail-wrap {
+  margin: 6px 0;
+}
+.cat-detail-header {
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.2s;
+}
+.cat-detail-header:hover {
+  background: var(--bg-hover);
+}
+.cat-detail-items {
+  padding-left: 16px;
+  margin-top: 4px;
+}
+.cat-detail-items > div {
+  border-bottom: 1px solid var(--border-color);
+}
+.cat-detail-items > div:last-child {
+  border-bottom: none;
+}
+
+/* Пометка об общем кофре в заголовке вкладки */
+.category-tab .icon-common {
+  font-size: 14px;
+  margin-left: 4px;
+  color: var(--color-case);
+}
