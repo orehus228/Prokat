@@ -1,5 +1,5 @@
 // components/instance/instance-modal.js
-import { getState, saveState } from '../../core/state.js';
+import { getState, saveState, rebuildInstancesIndex } from '../../core/state.js';
 import {
   getInstancesByPath,
   getInstanceStats,
@@ -17,13 +17,16 @@ import { showConfirm, showPrompt, showChoice } from '../../ui/modal.js';
 import { esc } from '../../ui/dom.js';
 
 let currentModalPath = null;
-let modalInstanceList = [];
 
 /**
  * Открывает модалку со списком экземпляров для указанного пути.
  * @param {string} path - путь позиции
  */
 export function openInstanceListModal(path) {
+  if (!path) {
+    showToast('Путь не указан', 'error');
+    return;
+  }
   currentModalPath = path;
   const modal = document.getElementById('instanceModal');
   if (!modal) {
@@ -33,7 +36,6 @@ export function openInstanceListModal(path) {
 
   renderInstanceList(path);
   modal.classList.add('open');
-  modal.dataset.path = path;
 
   // Обработчик закрытия по клику на оверлей
   modal.onclick = function(e) {
@@ -45,7 +47,6 @@ export function openInstanceListModal(path) {
   // Обработчик для кнопки "Закрыть"
   const closeBtn = document.getElementById('instanceModalClose');
   if (closeBtn) {
-    // Удаляем старый обработчик, чтобы избежать дублирования
     closeBtn.removeEventListener('click', closeInstanceModal);
     closeBtn.addEventListener('click', closeInstanceModal);
   }
@@ -58,7 +59,6 @@ export function closeInstanceModal() {
   const modal = document.getElementById('instanceModal');
   if (modal) modal.classList.remove('open');
   currentModalPath = null;
-  modalInstanceList = [];
 }
 
 /**
@@ -66,12 +66,22 @@ export function closeInstanceModal() {
  * @param {string} path
  */
 function renderInstanceList(path) {
+  if (!path) {
+    console.warn('renderInstanceList: путь не указан');
+    return;
+  }
+
   const container = document.getElementById('instanceListContainer');
-  if (!container) return;
+  if (!container) {
+    console.warn('renderInstanceList: контейнер не найден');
+    return;
+  }
+
+  // Перестраиваем индекс для гарантии актуальности
+  rebuildInstancesIndex();
 
   const instances = getInstancesByPath(path);
   const stats = getInstanceStats(path);
-  modalInstanceList = instances;
 
   // Заголовок
   const title = document.getElementById('instanceModalTitle');
@@ -94,7 +104,10 @@ function renderInstanceList(path) {
 
   // Таблица
   const table = document.getElementById('instanceTable');
-  if (!table) return;
+  if (!table) {
+    console.warn('renderInstanceList: таблица не найдена');
+    return;
+  }
 
   if (instances.length === 0) {
     table.innerHTML = '<div class="empty-message" style="padding:20px;text-align:center;">Нет экземпляров для этой позиции</div>';
@@ -142,7 +155,7 @@ function renderInstanceList(path) {
   html += `</tbody></table>`;
   table.innerHTML = html;
 
-  // Обработчики для кнопок изменения статуса и удаления (делегирование)
+  // Обработчики для кнопок (делегирование через таблицу)
   table.querySelectorAll('.change-instance-status-btn').forEach(btn => {
     btn.addEventListener('click', async function(e) {
       e.stopPropagation();
@@ -193,23 +206,29 @@ async function handleChangeStatus(instanceId) {
     allowed
   );
 
-  // Если пользователь отменил выбор, прерываем выполнение
   if (!newStatus) {
     return;
   }
 
   let comment = await showPrompt('Комментарий (необязательно):', 'Комментарий:', '', 'Введите комментарий...');
   if (comment === null) {
-    // Если пользователь отменил ввод комментария, считаем, что комментарий пустой
     comment = '';
   }
 
   const success = updateInstanceStatus(instanceId, newStatus, null, comment || 'Изменение статуса в модалке');
   if (success) {
     showToast('Статус обновлён', 'success');
-    // Перерисовываем список
-    if (currentModalPath) {
+    // Принудительно обновляем индекс и перерисовываем список
+    rebuildInstancesIndex();
+    // Получаем обновлённый экземпляр, чтобы узнать путь
+    const updated = getInstance(instanceId);
+    if (updated && updated.path) {
+      renderInstanceList(updated.path);
+    } else if (currentModalPath) {
       renderInstanceList(currentModalPath);
+    } else {
+      // Если путь не найден, пытаемся восстановить из старого экземпляра
+      renderInstanceList(instance.path);
     }
   } else {
     showToast('Ошибка обновления статуса', 'error');
@@ -239,16 +258,18 @@ async function handleDeleteInstance(instanceId) {
   const success = deleteInstance(instanceId);
   if (success) {
     showToast('Экземпляр удалён', 'success');
-    // Перерисовываем список
+    rebuildInstancesIndex();
     if (currentModalPath) {
       renderInstanceList(currentModalPath);
+    } else {
+      renderInstanceList(instance.path);
     }
   } else {
     showToast('Ошибка удаления', 'error');
   }
 }
 
-// Глобальная функция для вызова из onclick (для кнопок, если будут)
+// Глобальные функции для вызова из onclick (для кнопок, если будут)
 window.openInstanceListModal = openInstanceListModal;
 window.closeInstanceModal = closeInstanceModal;
 
