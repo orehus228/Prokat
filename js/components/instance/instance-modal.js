@@ -83,6 +83,8 @@ function renderInstanceList(path) {
   const instances = getInstancesByPath(path);
   const stats = getInstanceStats(path);
 
+  console.log('[renderInstanceList] Экземпляры для', path, instances.map(i => ({ id: i.id, status: i.status })));
+
   // Заголовок
   const title = document.getElementById('instanceModalTitle');
   if (title) {
@@ -215,20 +217,32 @@ async function handleChangeStatus(instanceId) {
     comment = '';
   }
 
+  const oldStatus = instance.status;
   const success = updateInstanceStatus(instanceId, newStatus, null, comment || 'Изменение статуса в модалке');
+
   if (success) {
-    showToast('Статус обновлён', 'success');
-    // Принудительно обновляем индекс и перерисовываем список
-    rebuildInstancesIndex();
-    // Получаем обновлённый экземпляр, чтобы узнать путь
+    // Проверяем, изменился ли статус в объекте
     const updated = getInstance(instanceId);
-    if (updated && updated.path) {
-      renderInstanceList(updated.path);
-    } else if (currentModalPath) {
+    if (updated && updated.status === newStatus) {
+      showToast('Статус обновлён', 'success');
+      rebuildInstancesIndex();
+      // Обновляем currentModalPath и перерисовываем
+      currentModalPath = updated.path;
       renderInstanceList(currentModalPath);
     } else {
-      // Если путь не найден, пытаемся восстановить из старого экземпляра
-      renderInstanceList(instance.path);
+      // Если статус не изменился, пробуем принудительно сохранить состояние ещё раз
+      console.warn('Статус не изменился после updateInstanceStatus, пробуем принудительно сохранить');
+      saveState();
+      rebuildInstancesIndex();
+      const reUpdated = getInstance(instanceId);
+      if (reUpdated && reUpdated.status === newStatus) {
+        showToast('Статус обновлён (принудительно)', 'success');
+        currentModalPath = reUpdated.path;
+        renderInstanceList(currentModalPath);
+      } else {
+        showToast('Не удалось обновить статус', 'error');
+        console.error('Статус не изменился даже после принудительного сохранения. instanceId:', instanceId, 'newStatus:', newStatus);
+      }
     }
   } else {
     showToast('Ошибка обновления статуса', 'error');
