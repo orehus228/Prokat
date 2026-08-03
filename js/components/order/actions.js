@@ -50,13 +50,11 @@ import {
 function syncProjectItem(path, quantity, subrentInfo = null) {
   const project = getOrderProject();
   if (!project.id || !project.start_date || !project.end_date) {
-    // Если проект не задан или нет дат, ничего не делаем
     return;
   }
 
   const qty = quantity !== undefined ? quantity : getTotalQty(path);
 
-  // Вызываем addProjectItem с новым количеством
   const result = addProjectItem(project.id, path, qty, { subrentInfo });
   if (!result.success) {
     showToast(result.error, 'warning', 4000);
@@ -71,7 +69,6 @@ export function syncAllProjectItems() {
   const state = getState();
   const project = getOrderProject();
 
-  // Собираем все пути с ненулевым количеством
   const allPaths = new Set();
   for (let p in state.order) if (state.order[p] > 0) allPaths.add(p);
   for (let p in state.orderPacking) {
@@ -86,7 +83,6 @@ export function syncAllProjectItems() {
 
   try {
     if (!project.id || !project.start_date || !project.end_date) {
-      // Если нет проекта, освобождаем все экземпляры
       for (let path of allPaths) {
         const instanceIds = getOrderInstances(path);
         if (instanceIds && instanceIds.length > 0) {
@@ -97,7 +93,6 @@ export function syncAllProjectItems() {
       return;
     }
 
-    // Синхронизируем все позиции с проектом
     for (let path of allPaths) {
       const qty = getTotalQty(path);
       const subrentInfo = null;
@@ -107,7 +102,6 @@ export function syncAllProjectItems() {
       }
     }
 
-    // Удаляем позиции, которые есть в проекте, но которых нет в заказе
     const projectObj = getProject(project.id);
     if (projectObj) {
       const projectItems = projectObj.projectItems || [];
@@ -162,7 +156,6 @@ function changeQuantity(path, delta, config = {}) {
   const { mode, idx, caseId, onSuccess } = config;
   const state = getState();
 
-  // --- 1. Получаем текущее значение ---
   let currentVal = 0;
   let sourceArray = null;
 
@@ -192,10 +185,8 @@ function changeQuantity(path, delta, config = {}) {
       return;
   }
 
-  // --- 2. Вычисляем новое значение ---
   let newVal = Math.max(0, currentVal + delta);
 
-  // --- 3. Проверка на остаток (stock) для прямых режимов ---
   const stock = getStockValue(path);
   if (mode === 'order' || mode === 'single' || mode === 'multi') {
     if (newVal > stock) {
@@ -205,8 +196,6 @@ function changeQuantity(path, delta, config = {}) {
     }
   }
 
-  // --- 4. Проверка доступности (конфликты с проектами) ---
-  // Вычисляем общее количество позиции после изменения
   let totalAfterChange = 0;
   switch (mode) {
     case 'order':
@@ -240,11 +229,9 @@ function changeQuantity(path, delta, config = {}) {
   }
 
   if (!checkAndWarnAvailability(path, totalAfterChange)) {
-    // Если недоступно, не меняем значение
     return;
   }
 
-  // --- 5. Сохраняем новое значение ---
   switch (mode) {
     case 'order':
       setOrderValue(path, newVal);
@@ -281,10 +268,8 @@ function changeQuantity(path, delta, config = {}) {
     }
   }
 
-  // --- 6. Синхронизация с проектом ---
   syncProjectItem(path);
 
-  // --- 7. Обновление UI ---
   updateRowOrder(path, true);
   updateTotalsOrder();
   updateCategoryTotalsOrder(currentOrderCategory);
@@ -293,7 +278,6 @@ function changeQuantity(path, delta, config = {}) {
   if (onSuccess) onSuccess();
 }
 
-// Вспомогательные функции для подсчёта дополнительных количеств
 function getSegmentsSum(path) {
   const state = getState();
   if (!state.orderSplits[path]) return 0;
@@ -317,7 +301,7 @@ function getExtraTotal(path) {
  * @param {string} id - ID позиции субаренды
  * @param {number} delta - изменение
  */
-function handleSubrentQuantityChange(id, delta) {
+async function handleSubrentQuantityChange(id, delta) {
   const subrentItems = getOrderSubrent();
   const item = subrentItems.find(it => it.id === id);
   if (!item) {
@@ -327,7 +311,6 @@ function handleSubrentQuantityChange(id, delta) {
   const newQty = Math.max(0, (item.qty || 0) + delta);
   updateSubrentItem(id, { qty: newQty });
   updateTotalsOrder();
-  // Перерисовываем категорию, чтобы обновить отображение субаренды
   const { renderOrderCategory } = await import('./render.js');
   renderOrderCategory(currentOrderCategory);
 }
@@ -337,7 +320,7 @@ function handleSubrentQuantityChange(id, delta) {
  * @param {string} id - ID позиции
  * @param {number} newVal - новое значение
  */
-function handleSubrentQuantityInput(id, newVal) {
+async function handleSubrentQuantityInput(id, newVal) {
   const subrentItems = getOrderSubrent();
   const item = subrentItems.find(it => it.id === id);
   if (!item) {
@@ -391,7 +374,6 @@ function startRepeat(btn) {
     } else if (btn.classList.contains('child-extra-btn')) {
       mode = 'extra';
     } else if (btn.classList.contains('subrent-qty-btn')) {
-      // Обработка субаренды
       const id = btn.dataset.id;
       if (id) handleSubrentQuantityChange(id, delta);
       return;
@@ -400,10 +382,8 @@ function startRepeat(btn) {
     changeQuantity(path, delta, { mode, idx, caseId });
   };
 
-  // Выполняем сразу
   doAction();
 
-  // Запускаем повтор с задержкой
   if (repeatTimer) clearTimeout(repeatTimer);
   repeatTimer = setTimeout(() => {
     repeatInterval = setInterval(() => {
@@ -445,7 +425,6 @@ function handleContainerInput(e) {
   const target = e.target.closest('input[type="number"]');
   if (!target) return;
 
-  // Проверка на субаренду
   if (target.classList.contains('subrent-qty-input')) {
     const id = target.dataset.id;
     if (id) {
@@ -462,7 +441,6 @@ function handleContainerInput(e) {
   if (isNaN(newVal) || newVal < 0) newVal = 0;
   target.value = newVal;
 
-  // Определяем режим и дополнительные параметры
   let mode = 'order';
   let idx, caseId;
 
@@ -478,13 +456,11 @@ function handleContainerInput(e) {
     mode = 'extra';
   }
 
-  // Вычисляем дельту относительно сохранённого старого значения
   const oldVal = parseInt(target.dataset.oldValue) || 0;
   const delta = newVal - oldVal;
   if (delta === 0) return;
   target.dataset.oldValue = newVal;
 
-  // Для полей кофров требуется дополнительная логика
   const options = calc.getCaseOptions(path);
   let deltaInPieces = delta;
 
@@ -517,14 +493,13 @@ function handleContainerInput(e) {
 }
 
 // ============================================================
-// ОБРАБОТЧИК КЛИКОВ (кнопки Инфо, Описание, Линк, Заметка, кофры, субаренда)
+// ОБРАБОТЧИК КЛИКОВ
 // ============================================================
 
 function handleContainerClick(e) {
   const target = e.target.closest('.btn-c');
-  if (target) return; // обработано pointerdown
+  if (target) return;
 
-  // --- Обработка субаренды ---
   const editBtn = e.target.closest('.edit-subrent-btn');
   if (editBtn) {
     const id = editBtn.dataset.id;
@@ -537,7 +512,7 @@ function handleContainerClick(e) {
     const id = deleteBtn.dataset.id;
     if (id) {
       import('../../ui/modal.js').then(({ showConfirm }) => {
-        showConfirm('Удалить позицию субаренды?').then(confirmed => {
+        showConfirm('Удалить позицию субаренды?').then(async (confirmed) => {
           if (confirmed) {
             const success = removeSubrentItem(id);
             if (success) {
@@ -555,7 +530,6 @@ function handleContainerClick(e) {
     return;
   }
 
-  // --- Остальные кнопки ---
   const infoBtn = e.target.closest('.info-btn');
   if (infoBtn) { toggleInfoOrder(infoBtn); return; }
   const descBtn = e.target.closest('.desc-btn');
@@ -653,7 +627,7 @@ export async function clearOrderData() {
   for (let key in state.caseModes) delete state.caseModes[key];
   for (let key in state.orderExclude) delete state.orderExclude[key];
   for (let key in state.orderExtra) delete state.orderExtra[key];
-  state.orderSubrent = []; // <-- Очищаем субаренду
+  state.orderSubrent = [];
   
   clearAllOrderInstances();
   
@@ -665,7 +639,7 @@ export async function clearOrderData() {
 }
 
 // ============================================================
-// ИНИЦИАЛИЗАЦИЯ (вызов из main)
+// ИНИЦИАЛИЗАЦИЯ
 // ============================================================
 
 export function initOrderActions() {
