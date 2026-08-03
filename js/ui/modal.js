@@ -103,7 +103,7 @@ export function showConfirm(message, title = 'Подтверждение') {
 }
 
 // ============================================================
-// CHOICE — выбор одного из нескольких вариантов (исправлен)
+// CHOICE — выбор одного из нескольких вариантов (исправлен с использованием select)
 // ============================================================
 
 export function showChoice(title, message, options) {
@@ -122,34 +122,21 @@ export function showChoice(title, message, options) {
     if (input) {
       input.style.display = 'none';
       const container = input.parentNode;
-      const oldGroup = container.querySelector('.radio-group');
-      if (oldGroup) oldGroup.remove();
-      const radioGroup = document.createElement('div');
-      radioGroup.className = 'radio-group';
-      radioGroup.style.margin = '12px 0';
-      options.forEach((opt, idx) => {
-        const label = document.createElement('label');
-        label.style.display = 'block';
-        label.style.margin = '6px 0';
-        label.style.cursor = 'pointer';
-        const radio = document.createElement('input');
-        radio.type = 'radio';
-        radio.name = 'choice';
-        radio.value = opt.value;
-        if (idx === 0) radio.checked = true;
-        label.appendChild(radio);
-        label.appendChild(document.createTextNode(' ' + opt.label));
-        if (opt.description) {
-          const desc = document.createElement('span');
-          desc.style.fontSize = '12px';
-          desc.style.color = 'var(--text-muted)';
-          desc.style.marginLeft = '12px';
-          desc.textContent = ' (' + opt.description + ')';
-          label.appendChild(desc);
-        }
-        radioGroup.appendChild(label);
+      const oldSelect = container.querySelector('.choice-select');
+      if (oldSelect) oldSelect.remove();
+
+      const select = document.createElement('select');
+      select.className = 'choice-select';
+      select.style.cssText = 'width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);font-size:14px;margin:12px 0;';
+      options.forEach((opt) => {
+        const option = document.createElement('option');
+        option.value = opt.value;
+        option.textContent = opt.label + (opt.description ? ' (' + opt.description + ')' : '');
+        select.appendChild(option);
       });
-      container.insertBefore(radioGroup, input.nextSibling);
+      container.insertBefore(select, input.nextSibling);
+      // Фокус на select
+      select.focus();
     }
     overlay.classList.add('open');
 
@@ -157,8 +144,8 @@ export function showChoice(title, message, options) {
       overlay.classList.remove('open');
       if (input) {
         input.style.display = '';
-        const radioGroup = input.parentNode.querySelector('.radio-group');
-        if (radioGroup) radioGroup.remove();
+        const select = input.parentNode.querySelector('.choice-select');
+        if (select) select.remove();
       }
     };
 
@@ -166,8 +153,13 @@ export function showChoice(title, message, options) {
     const cancelBtn = document.getElementById('modalCancel');
 
     const getSelected = () => {
-      const selected = document.querySelector('input[name="choice"]:checked');
-      return selected ? selected.value : (options[0]?.value || null);
+      const select = document.querySelector('.choice-select');
+      if (select) {
+        const val = select.value;
+        console.log('[showChoice] Выбрано значение:', val);
+        return val;
+      }
+      return options[0]?.value || null;
     };
 
     const handleConfirm = () => {
@@ -176,7 +168,6 @@ export function showChoice(title, message, options) {
     };
     const handleCancel = () => {
       cleanup();
-      // При отмене возвращаем null
       resolve(null);
     };
     const handleKeydown = (e) => {
