@@ -111,23 +111,19 @@ export function updateInstanceStatus(instanceId, newStatus, projectId = null, co
     return false;
   }
   
-  // Проверка допустимости перехода (можно расширить)
   const oldStatus = instance.status;
   if (oldStatus === newStatus) {
-    return true; // ничего не меняем
+    return true;
   }
   
-  // Запрещаем переход из written_off в другие статусы
   if (oldStatus === INSTANCE_STATUSES.WRITTEN_OFF) {
     console.warn('Нельзя изменить статус списанного экземпляра');
     return false;
   }
   
-  // Обновляем статус
   instance.status = newStatus;
   instance.currentProjectId = projectId;
   
-  // Добавляем запись в историю
   instance.history.push({
     timestamp: new Date().toISOString(),
     status: newStatus,
@@ -136,6 +132,9 @@ export function updateInstanceStatus(instanceId, newStatus, projectId = null, co
   });
   
   saveState();
+  // Обновляем индекс, чтобы getInstancesByPath сразу видел изменения
+  rebuildInstancesIndex();
+  
   return true;
 }
 
@@ -162,9 +161,6 @@ export function addHistoryEntry(instanceId, status, projectId = null, comment = 
 
 /**
  * Возвращает доступные экземпляры для позиции на указанный период.
- * Экземпляр считается доступным, если:
- * - его статус 'stock' (на складе)
- * - или он зарезервирован в проекте, который не пересекается с указанным периодом (если передан excludeProjectId)
  * @param {string} path
  * @param {string} startDate - дата начала (YYYY-MM-DD)
  * @param {string} endDate - дата окончания (YYYY-MM-DD)
@@ -174,7 +170,6 @@ export function addHistoryEntry(instanceId, status, projectId = null, comment = 
 export function getAvailableInstances(path, startDate, endDate, excludeProjectId = null) {
   const instances = getInstancesByPath(path);
   if (instances.length === 0) {
-    // Если экземпляров нет, возможно это позиция без серийников — возвращаем пустой массив
     return [];
   }
   
@@ -182,26 +177,21 @@ export function getAvailableInstances(path, startDate, endDate, excludeProjectId
   const end = new Date(endDate).getTime();
   
   const available = instances.filter(instance => {
-    // Если статус не 'stock', проверяем, может ли он быть доступен
     if (instance.status === INSTANCE_STATUSES.STOCK) {
       return true;
     }
     
-    // Если зарезервирован или выдан, проверяем, не занят ли в другом проекте в указанный период
     if (instance.currentProjectId && instance.currentProjectId !== excludeProjectId) {
-      // Получаем проект
       const project = getState().projects.find(p => p.id === instance.currentProjectId);
       if (project) {
         const pStart = new Date(project.start_date).getTime();
         const pEnd = new Date(project.end_date).getTime();
-        // Если периоды пересекаются, экземпляр недоступен
         if (pStart <= end && pEnd >= start) {
           return false;
         }
       }
     }
     
-    // Если статус 'repair' или 'written_off' — недоступен
     if (instance.status === INSTANCE_STATUSES.REPAIR || instance.status === INSTANCE_STATUSES.WRITTEN_OFF) {
       return false;
     }
@@ -214,8 +204,6 @@ export function getAvailableInstances(path, startDate, endDate, excludeProjectId
 
 /**
  * Резервирует указанное количество экземпляров для проекта.
- * Для позиций с серийными номерами выбирает конкретные экземпляры.
- * Для позиций без серийников (если нет экземпляров) резервирует количество из stock.
  * @param {string} path
  * @param {number} quantity - количество для резервирования
  * @param {string} projectId
@@ -232,11 +220,8 @@ export function reserveInstances(path, quantity, projectId, startDate, endDate, 
   const instances = getAvailableInstances(path, startDate, endDate, projectId);
   
   if (instances.length === 0) {
-    // Если нет экземпляров, пытаемся создать их, если есть остаток на складе
     const stock = getStockValue(path);
     if (stock > 0) {
-      // Создаём экземпляры для всего количества на складе (или только для запрошенного)
-      // Но лучше создавать заранее, поэтому здесь просто возвращаем ошибку
       return {
         success: false,
         reservedInstances: [],
@@ -250,7 +235,6 @@ export function reserveInstances(path, quantity, projectId, startDate, endDate, 
     };
   }
   
-  // Берем первые quantity экземпляров
   const toReserve = instances.slice(0, quantity);
   if (toReserve.length < quantity) {
     return {
@@ -260,10 +244,8 @@ export function reserveInstances(path, quantity, projectId, startDate, endDate, 
     };
   }
   
-  // Резервируем каждый
   const reserved = [];
   for (let instance of toReserve) {
-    // Если передана информация о субаренде, обновляем её
     if (subrentInfo) {
       instance.subrentInfo = { ...instance.subrentInfo, ...subrentInfo };
     }
@@ -271,7 +253,6 @@ export function reserveInstances(path, quantity, projectId, startDate, endDate, 
     if (updated) {
       reserved.push(instance);
     } else {
-      // Если не удалось обновить, откатываем уже зарезервированные
       for (let r of reserved) {
         updateInstanceStatus(r.id, INSTANCE_STATUSES.STOCK, null, 'Откат резервирования');
       }
@@ -311,7 +292,6 @@ export function releaseInstances(instanceIds, projectId, comment = 'Освобо
       errors.push(`Экземпляр ${id} не принадлежит проекту ${projectId}`);
       continue;
     }
-    // Если экземпляр уже в stock, пропускаем
     if (instance.status === INSTANCE_STATUSES.STOCK) {
       released++;
       continue;
@@ -355,7 +335,6 @@ export function ensureInstancesForPath(path, targetCount = null, serialPrefix = 
     created.push(instance);
   }
   
-  // Перестраиваем индекс
   rebuildInstancesIndex();
   saveState();
   
@@ -372,13 +351,11 @@ export function deleteInstance(instanceId) {
   const instance = state.instances[instanceId];
   if (!instance) return false;
   
-  // Нельзя удалить зарезервированный или выданный экземпляр
   if (instance.status !== INSTANCE_STATUSES.STOCK && instance.status !== INSTANCE_STATUSES.WRITTEN_OFF) {
     console.warn('Нельзя удалить экземпляр в статусе:', instance.status);
     return false;
   }
   
-  // Удаляем из индекса
   const path = instance.path;
   if (state.instancesByPath[path]) {
     state.instancesByPath[path] = state.instancesByPath[path].filter(id => id !== instanceId);

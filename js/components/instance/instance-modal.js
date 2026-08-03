@@ -37,14 +37,12 @@ export function openInstanceListModal(path) {
   renderInstanceList(path);
   modal.classList.add('open');
 
-  // Обработчик закрытия по клику на оверлей
   modal.onclick = function(e) {
     if (e.target === modal) {
       closeInstanceModal();
     }
   };
 
-  // Обработчик для кнопки "Закрыть"
   const closeBtn = document.getElementById('instanceModalClose');
   if (closeBtn) {
     closeBtn.removeEventListener('click', closeInstanceModal);
@@ -77,7 +75,6 @@ function renderInstanceList(path) {
     return;
   }
 
-  // Перестраиваем индекс для гарантии актуальности
   rebuildInstancesIndex();
 
   const instances = getInstancesByPath(path);
@@ -85,14 +82,12 @@ function renderInstanceList(path) {
 
   console.log('[renderInstanceList] Экземпляры для', path, instances.map(i => ({ id: i.id, status: i.status })));
 
-  // Заголовок
   const title = document.getElementById('instanceModalTitle');
   if (title) {
     const name = path.split('|').pop();
     title.textContent = `Экземпляры: ${name}`;
   }
 
-  // Статистика
   const statsEl = document.getElementById('instanceStats');
   if (statsEl) {
     const parts = [];
@@ -104,7 +99,6 @@ function renderInstanceList(path) {
     statsEl.innerHTML = `Всего: ${instances.length} (${parts.join(', ')})`;
   }
 
-  // Таблица
   const table = document.getElementById('instanceTable');
   if (!table) {
     console.warn('renderInstanceList: таблица не найдена');
@@ -157,7 +151,6 @@ function renderInstanceList(path) {
   html += `</tbody></table>`;
   table.innerHTML = html;
 
-  // Обработчики для кнопок (делегирование через таблицу)
   table.querySelectorAll('.change-instance-status-btn').forEach(btn => {
     btn.addEventListener('click', async function(e) {
       e.stopPropagation();
@@ -194,7 +187,6 @@ async function handleChangeStatus(instanceId) {
     { value: INSTANCE_STATUSES.WRITTEN_OFF, label: 'Списано' },
   ];
 
-  // Исключаем недопустимые переходы
   const allowed = statusOptions.filter(opt => {
     if (instance.status === INSTANCE_STATUSES.WRITTEN_OFF && opt.value !== INSTANCE_STATUSES.WRITTEN_OFF) {
       return false;
@@ -217,28 +209,34 @@ async function handleChangeStatus(instanceId) {
     comment = '';
   }
 
-  const oldStatus = instance.status;
+  console.log('[handleChangeStatus] Новый статус:', newStatus);
   const success = updateInstanceStatus(instanceId, newStatus, null, comment || 'Изменение статуса в модалке');
+  console.log('[handleChangeStatus] success:', success);
 
   if (success) {
-    // Проверяем, изменился ли статус в объекте
     const updated = getInstance(instanceId);
+    console.log('[handleChangeStatus] updated:', updated);
     if (updated && updated.status === newStatus) {
       showToast('Статус обновлён', 'success');
+      // Индекс обновлён внутри updateInstanceStatus, но для уверенности перестраиваем
       rebuildInstancesIndex();
-      // Обновляем currentModalPath и перерисовываем
-      currentModalPath = updated.path;
-      renderInstanceList(currentModalPath);
+      if (currentModalPath) {
+        renderInstanceList(currentModalPath);
+      } else {
+        renderInstanceList(instance.path);
+      }
     } else {
-      // Если статус не изменился, пробуем принудительно сохранить состояние ещё раз
-      console.warn('Статус не изменился после updateInstanceStatus, пробуем принудительно сохранить');
+      console.warn('Статус не изменился после updateInstanceStatus, пробуем принудительно сохранить состояние ещё раз');
       saveState();
       rebuildInstancesIndex();
       const reUpdated = getInstance(instanceId);
       if (reUpdated && reUpdated.status === newStatus) {
         showToast('Статус обновлён (принудительно)', 'success');
-        currentModalPath = reUpdated.path;
-        renderInstanceList(currentModalPath);
+        if (currentModalPath) {
+          renderInstanceList(currentModalPath);
+        } else {
+          renderInstanceList(instance.path);
+        }
       } else {
         showToast('Не удалось обновить статус', 'error');
         console.error('Статус не изменился даже после принудительного сохранения. instanceId:', instanceId, 'newStatus:', newStatus);
@@ -283,7 +281,6 @@ async function handleDeleteInstance(instanceId) {
   }
 }
 
-// Глобальные функции для вызова из onclick (для кнопок, если будут)
 window.openInstanceListModal = openInstanceListModal;
 window.closeInstanceModal = closeInstanceModal;
 
