@@ -7,6 +7,7 @@ import {
   getInstance,
 } from '../../services/instance-service.js';
 import { getProject } from '../../services/project-data.js';
+import { getOrderInstances } from '../../services/order-data.js'; // <-- новый импорт
 import {
   INSTANCE_STATUSES,
   INSTANCE_STATUS_LABELS,
@@ -15,27 +16,29 @@ import {
 import { showToast } from '../../ui/toast.js';
 import { showConfirm, showPrompt, showChoice } from '../../ui/modal.js';
 import { esc } from '../../ui/dom.js';
-import { emit, EVENTS } from '../../core/events.js'; // <-- ДОБАВЛЕНО
 
 let currentModalPath = null;
+let currentOrderPath = null; // для передачи пути из заказа
 
 /**
  * Открывает модалку со списком экземпляров для указанного пути.
  * @param {string} path - путь позиции
+ * @param {string} orderPath - путь позиции в заказе (для подсветки зарезервированных)
  */
-export function openInstanceListModal(path) {
+export function openInstanceListModal(path, orderPath = null) {
   if (!path) {
     showToast('Путь не указан', 'error');
     return;
   }
   currentModalPath = path;
+  currentOrderPath = orderPath || path; // если не передан, используем тот же путь
   const modal = document.getElementById('instanceModal');
   if (!modal) {
     showToast('Модалка экземпляров не найдена', 'error');
     return;
   }
 
-  renderInstanceList(path);
+  renderInstanceList(path, currentOrderPath);
   modal.classList.add('open');
 
   modal.onclick = function(e) {
@@ -58,13 +61,15 @@ export function closeInstanceModal() {
   const modal = document.getElementById('instanceModal');
   if (modal) modal.classList.remove('open');
   currentModalPath = null;
+  currentOrderPath = null;
 }
 
 /**
  * Отрисовывает список экземпляров в модалке.
  * @param {string} path
+ * @param {string} orderPath - путь в заказе для подсветки зарезервированных
  */
-function renderInstanceList(path) {
+function renderInstanceList(path, orderPath = null) {
   if (!path) {
     console.warn('renderInstanceList: путь не указан');
     return;
@@ -81,7 +86,14 @@ function renderInstanceList(path) {
   const instances = getInstancesByPath(path);
   const stats = getInstanceStats(path);
 
+  // Получаем ID экземпляров, зарезервированных в текущем заказе (если передан orderPath)
+  let reservedInOrderIds = [];
+  if (orderPath) {
+    reservedInOrderIds = getOrderInstances(orderPath) || [];
+  }
+
   console.log('[renderInstanceList] Экземпляры для', path, instances.map(i => ({ id: i.id, status: i.status })));
+  console.log('[renderInstanceList] Зарезервированные в заказе:', reservedInOrderIds);
 
   const title = document.getElementById('instanceModalTitle');
   if (title) {
@@ -116,10 +128,12 @@ function renderInstanceList(path) {
       <thead>
         <tr style="background:var(--bg-secondary);border-bottom:2px solid var(--border-color);">
           <th style="padding:6px 8px;text-align:left;">№</th>
+          <th style="padding:6px 8px;text-align:left;">ID</th>
           <th style="padding:6px 8px;text-align:left;">Серийный номер</th>
           <th style="padding:6px 8px;text-align:left;">Статус</th>
           <th style="padding:6px 8px;text-align:left;">Проект</th>
           <th style="padding:6px 8px;text-align:left;">Субаренда</th>
+          <th style="padding:6px 8px;text-align:left;">В заказе</th>
           <th style="padding:6px 8px;text-align:left;">Действия</th>
         </tr>
       </thead>
@@ -134,13 +148,20 @@ function renderInstanceList(path) {
     const serial = inst.serialNumber || 'б/н';
     const rowClass = index % 2 === 0 ? 'row-even' : 'row-odd';
 
+    // Проверяем, зарезервирован ли этот экземпляр в текущем заказе
+    const isInOrder = reservedInOrderIds.includes(inst.id);
+    const inOrderLabel = isInOrder ? '📌 Да' : '—';
+    const rowBg = isInOrder ? 'background:rgba(74, 122, 90, 0.2);' : '';
+
     html += `
-      <tr class="${rowClass}" style="border-bottom:1px solid var(--border-color);">
+      <tr class="${rowClass}" style="border-bottom:1px solid var(--border-color);${rowBg}">
         <td style="padding:4px 8px;">${index + 1}</td>
+        <td style="padding:4px 8px;font-size:11px;color:var(--text-muted);">${esc(inst.id)}</td>
         <td style="padding:4px 8px;font-weight:500;">${esc(serial)}</td>
         <td style="padding:4px 8px;color:${statusColor};">${statusLabel}</td>
         <td style="padding:4px 8px;">${esc(projectName)}</td>
         <td style="padding:4px 8px;">${subrent}</td>
+        <td style="padding:4px 8px;font-weight:${isInOrder ? 'bold' : 'normal'};color:${isInOrder ? 'var(--success)' : 'var(--text-muted)'};">${inOrderLabel}</td>
         <td style="padding:4px 8px;">
           <button class="btn btn-sm change-instance-status-btn" data-id="${inst.id}" style="padding:2px 8px;font-size:12px;background:var(--color-link);color:white;">Изменить статус</button>
           ${inst.status === INSTANCE_STATUSES.STOCK || inst.status === INSTANCE_STATUSES.WRITTEN_OFF ? `<button class="btn btn-sm delete-instance-btn" data-id="${inst.id}" style="padding:2px 8px;font-size:12px;background:var(--danger);color:white;">Удалить</button>` : ''}
@@ -205,6 +226,12 @@ async function handleChangeStatus(instanceId) {
     return;
   }
 
+  // Если новый статус совпадает со старым — предупреждаем и не закрываем
+  if (newStatus === instance.status) {
+    showToast('Статус уже установлен, выберите другой', 'warning');
+    return;
+  }
+
   let comment = await showPrompt('Комментарий (необязательно):', 'Комментарий:', '', 'Введите комментарий...');
   if (comment === null) {
     comment = '';
@@ -221,12 +248,10 @@ async function handleChangeStatus(instanceId) {
       showToast('Статус обновлён', 'success');
       rebuildInstancesIndex();
       if (currentModalPath) {
-        renderInstanceList(currentModalPath);
+        renderInstanceList(currentModalPath, currentOrderPath);
       } else {
-        renderInstanceList(instance.path);
+        renderInstanceList(instance.path, currentOrderPath);
       }
-      // ---- Оповещаем остальные компоненты об изменении статуса ----
-      emit(EVENTS.INSTANCE_STATUS_CHANGED, { path: instance.path, instanceId: instanceId });
     } else {
       console.warn('Статус не изменился после updateInstanceStatus, пробуем принудительно сохранить состояние ещё раз');
       saveState();
@@ -235,11 +260,10 @@ async function handleChangeStatus(instanceId) {
       if (reUpdated && reUpdated.status === newStatus) {
         showToast('Статус обновлён (принудительно)', 'success');
         if (currentModalPath) {
-          renderInstanceList(currentModalPath);
+          renderInstanceList(currentModalPath, currentOrderPath);
         } else {
-          renderInstanceList(instance.path);
+          renderInstanceList(instance.path, currentOrderPath);
         }
-        emit(EVENTS.INSTANCE_STATUS_CHANGED, { path: instance.path, instanceId: instanceId });
       } else {
         showToast('Не удалось обновить статус', 'error');
         console.error('Статус не изменился даже после принудительного сохранения. instanceId:', instanceId, 'newStatus:', newStatus);
@@ -275,17 +299,16 @@ async function handleDeleteInstance(instanceId) {
     showToast('Экземпляр удалён', 'success');
     rebuildInstancesIndex();
     if (currentModalPath) {
-      renderInstanceList(currentModalPath);
+      renderInstanceList(currentModalPath, currentOrderPath);
     } else {
-      renderInstanceList(instance.path);
+      renderInstanceList(instance.path, currentOrderPath);
     }
-    // ---- Оповещаем остальные компоненты об изменении статуса (удаление) ----
-    emit(EVENTS.INSTANCE_STATUS_CHANGED, { path: instance.path, instanceId: instanceId });
   } else {
     showToast('Ошибка удаления', 'error');
   }
 }
 
+// Для совместимости с onclick (если используется)
 window.openInstanceListModal = openInstanceListModal;
 window.closeInstanceModal = closeInstanceModal;
 
