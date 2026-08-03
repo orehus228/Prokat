@@ -65,7 +65,12 @@ export function getOrderExtra() {
  * @returns {Array} массив объектов субаренды
  */
 export function getOrderSubrent() {
-  return getState().orderSubrent || [];
+  const state = getState();
+  // Защита от не-массива (например, при загрузке старых данных)
+  if (!Array.isArray(state.orderSubrent)) {
+    state.orderSubrent = [];
+  }
+  return state.orderSubrent;
 }
 
 /**
@@ -106,6 +111,9 @@ export function addSubrentItem(item) {
     end_date: item.end_date || '',
     comment: item.comment || '',
   };
+  if (!Array.isArray(state.orderSubrent)) {
+    state.orderSubrent = [];
+  }
   state.orderSubrent.push(newItem);
   saveState();
   clearCalculationCache();
@@ -119,6 +127,10 @@ export function addSubrentItem(item) {
  */
 export function removeSubrentItem(id) {
   const state = getState();
+  if (!Array.isArray(state.orderSubrent)) {
+    state.orderSubrent = [];
+    return false;
+  }
   const index = state.orderSubrent.findIndex(item => item.id === id);
   if (index === -1) return false;
   state.orderSubrent.splice(index, 1);
@@ -135,6 +147,10 @@ export function removeSubrentItem(id) {
  */
 export function updateSubrentItem(id, data) {
   const state = getState();
+  if (!Array.isArray(state.orderSubrent)) {
+    state.orderSubrent = [];
+    return false;
+  }
   const item = state.orderSubrent.find(item => item.id === id);
   if (!item) return false;
   Object.assign(item, data);
@@ -305,7 +321,7 @@ function updateAllPaths(oldPrefix, newPrefix, objectsToUpdate) {
           });
         }
         if (objName === 'orderInstances' && Array.isArray(obj[newKey])) {
-          // ID экземпляров не меняются, но ключ пути обновляется
+          // ID экземпляров не меняются
         }
       }
     });
@@ -396,10 +412,6 @@ export function getTotalQty(path) {
   return total;
 }
 
-/**
- * Возвращает общее количество всех позиций в заказе, включая субаренду.
- * @returns {number} общее количество
- */
 export function getTotalOrderQty() {
   const state = getState();
   let total = 0;
@@ -411,8 +423,8 @@ export function getTotalOrderQty() {
   for (let p in state.orderPacking) {
     total += state.orderPacking[p].reduce((s, item) => s + (item.pieces || 0), 0);
   }
-  // Субаренда
-  for (let item of state.orderSubrent) {
+  const subrent = getOrderSubrent();
+  for (let item of subrent) {
     total += item.qty || 0;
   }
   return total;

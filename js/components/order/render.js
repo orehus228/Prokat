@@ -114,7 +114,6 @@ export function renderOrderCategory(catKey, filterQuery = '') {
   const query = (filterQuery || searchQueryOrder || '').toLowerCase().trim();
   const isSearchMode = !!query;
 
-  // --- Блок субаренды (всегда показываем, если есть позиции, но только не в поиске) ---
   if (!isSearchMode) {
     renderSubrentBlock(wrapper);
   }
@@ -128,12 +127,10 @@ export function renderOrderCategory(catKey, filterQuery = '') {
       return name.includes(query) || spec.includes(query);
     });
     if (filteredPaths.length === 0) {
-      // Если в поиске ничего не найдено, и субаренды нет, показываем сообщение
       const subrentItems = getOrderSubrent();
       if (subrentItems.length === 0) {
         wrapper.innerHTML = '<div class="empty-message">Ничего не найдено</div>';
       }
-      // Если субаренда есть, она уже отрендерена, но позиций нет — оставляем как есть
       return;
     }
     const grouped = {};
@@ -152,16 +149,8 @@ export function renderOrderCategory(catKey, filterQuery = '') {
         html += buildItemRow(path, 1);
       });
     });
-    // Добавляем HTML субаренды, если она есть (уже отрендерена ранее)
-    // Но в поиске мы не показываем субаренду отдельно, она уже выведена выше.
-    // Поэтому просто добавляем HTML субаренды, если она есть, но не дублируем.
-    // Однако renderSubrentBlock уже вызван и добавил свой блок до этого.
-    // В поиске мы не хотим показывать субаренду, потому что она не фильтруется по запросу.
-    // Поэтому убираем блок субаренды при поиске.
-    // Для этого нам нужно удалить блок субаренды, если он есть.
     const subrentBlock = wrapper.querySelector('.subrent-block');
     if (subrentBlock) subrentBlock.remove();
-    // И вставляем только найденные позиции
     wrapper.innerHTML = html;
     searchModeOrder = true;
     currentOrderCategory = 'all';
@@ -211,7 +200,7 @@ export function renderOrderCategory(catKey, filterQuery = '') {
 }
 
 // ============================================================
-// БЛОК СУБАРЕНДЫ
+// БЛОК СУБАРЕНДЫ (ИСПРАВЛЕННАЯ ВЕРСИЯ)
 // ============================================================
 
 /**
@@ -220,9 +209,8 @@ export function renderOrderCategory(catKey, filterQuery = '') {
  */
 function renderSubrentBlock(container) {
   const subrentItems = getOrderSubrent();
-  if (subrentItems.length === 0) return;
+  if (!Array.isArray(subrentItems) || subrentItems.length === 0) return;
 
-  // Удаляем старый блок, если есть
   const oldBlock = container.querySelector('.subrent-block');
   if (oldBlock) oldBlock.remove();
 
@@ -267,7 +255,7 @@ function renderSubrentBlock(container) {
   });
 
   block.innerHTML = html;
-  container.prepend(block); // вставляем в начало контейнера
+  container.prepend(block);
 }
 
 /**
@@ -317,7 +305,7 @@ function buildCategoryHTML(data, path, level) {
 }
 
 // ============================================================
-// ПОСТРОЕНИЕ СТРОКИ ПОЗИЦИИ (без изменений, оставлено как есть)
+// ПОСТРОЕНИЕ СТРОКИ ПОЗИЦИИ
 // ============================================================
 
 export function buildItemRow(fullPath, level) {
@@ -490,7 +478,7 @@ export function buildItemRow(fullPath, level) {
 }
 
 // ============================================================
-// РЕНДЕРИНГ КОНТРОЛЛЕЙ КОЛИЧЕСТВА (без изменений)
+// РЕНДЕРИНГ КОНТРОЛЛЕЙ КОЛИЧЕСТВА
 // ============================================================
 
 function renderQtyControls(path) {
@@ -535,7 +523,7 @@ function renderQtyControls(path) {
 }
 
 // ============================================================
-// ОБНОВЛЕНИЕ СТРОКИ (без изменений)
+// ОБНОВЛЕНИЕ СТРОКИ
 // ============================================================
 
 export function updateRowOrder(path, rebuildChildren = true) {
@@ -682,7 +670,7 @@ export function refreshRow(path) {
 }
 
 // ============================================================
-// ОБНОВЛЕНИЕ ИТОГОВ (без изменений)
+// ОБНОВЛЕНИЕ ИТОГОВ
 // ============================================================
 
 export function updateCategoryTotalsOrder(catKey) {
@@ -790,19 +778,20 @@ export function updateTotalsOrder() {
     }
   });
 
-  // Добавляем субаренду в общие итоги
   const subrentItems = getOrderSubrent();
   let subrentQty = 0, subrentWeight = 0, subrentVolume = 0;
-  subrentItems.forEach(item => {
-    subrentQty += item.qty || 0;
-    subrentWeight += (item.weight || 0) * (item.qty || 0);
-    if (item.dimensions) {
-      const dims = item.dimensions.split('x').map(parseFloat);
-      if (dims.length === 3 && dims.every(v => !isNaN(v) && v > 0)) {
-        subrentVolume += (dims[0] * dims[1] * dims[2]) / 1000000 * (item.qty || 0);
+  if (Array.isArray(subrentItems)) {
+    subrentItems.forEach(item => {
+      subrentQty += item.qty || 0;
+      subrentWeight += (item.weight || 0) * (item.qty || 0);
+      if (item.dimensions) {
+        const dims = item.dimensions.split('x').map(parseFloat);
+        if (dims.length === 3 && dims.every(v => !isNaN(v) && v > 0)) {
+          subrentVolume += (dims[0] * dims[1] * dims[2]) / 1000000 * (item.qty || 0);
+        }
       }
-    }
-  });
+    });
+  }
 
   document.getElementById('totalQty').textContent = totalQty + subrentQty;
   document.getElementById('totalWeight').textContent = (totalWeight + subrentWeight).toFixed(1);
@@ -830,7 +819,6 @@ export function updateTotalsOrder() {
     </div>`;
   });
 
-  // Добавляем субаренду в детали
   if (subrentQty > 0) {
     detailsHtml += `<div class="cat-detail-wrap">
       <div class="cat-detail-header" style="background:var(--bg-secondary);border-radius:6px;margin:4px 0;border-left:3px solid var(--color-link);padding:4px 8px;">
@@ -898,7 +886,7 @@ export function updateTotalsOrder() {
 }
 
 // ============================================================
-// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (без изменений)
+// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 // ============================================================
 
 function buildCategoryItemList(cat, itemsMap, orderKeys) {
