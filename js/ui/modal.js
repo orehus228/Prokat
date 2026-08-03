@@ -23,6 +23,10 @@ export function showPrompt(title, label = 'Введите значение:', de
     if (input) {
       input.value = defaultValue;
       input.placeholder = placeholder || '';
+      input.style.display = '';
+      // Удаляем старый radio-group, если есть
+      const oldGroup = input.parentNode.querySelector('.radio-group');
+      if (oldGroup) oldGroup.remove();
     }
     overlay.classList.add('open');
     if (input) {
@@ -103,7 +107,7 @@ export function showConfirm(message, title = 'Подтверждение') {
 }
 
 // ============================================================
-// CHOICE — выбор одного из нескольких вариантов (исправлен с использованием select)
+// CHOICE — выбор одного из нескольких вариантов (ИСПРАВЛЕНА)
 // ============================================================
 
 export function showChoice(title, message, options) {
@@ -114,62 +118,107 @@ export function showChoice(title, message, options) {
       resolve(options[0]?.value || null);
       return;
     }
+
+    // ---- 1. Настраиваем заголовок и сообщение ----
     const titleEl = document.getElementById('modalTitle');
     if (titleEl) titleEl.textContent = title;
     const labelEl = document.getElementById('modalLabel');
     if (labelEl) labelEl.textContent = message;
-    const input = document.getElementById('modalInput');
-    if (input) {
-      input.style.display = 'none';
-      const container = input.parentNode;
-      const oldSelect = container.querySelector('.choice-select');
-      if (oldSelect) oldSelect.remove();
 
-      const select = document.createElement('select');
-      select.className = 'choice-select';
-      select.style.cssText = 'width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);font-size:14px;margin:12px 0;';
-      options.forEach((opt) => {
-        const option = document.createElement('option');
-        option.value = opt.value;
-        option.textContent = opt.label + (opt.description ? ' (' + opt.description + ')' : '');
-        select.appendChild(option);
-      });
-      container.insertBefore(select, input.nextSibling);
-      // Фокус на select
-      select.focus();
+    // ---- 2. Скрываем поле ввода и создаём radio-group ----
+    const input = document.getElementById('modalInput');
+    if (!input) {
+      resolve(options[0]?.value || null);
+      return;
     }
+    input.style.display = 'none';
+    input.value = ''; // очищаем
+
+    // Удаляем старую группу, если есть
+    const container = input.parentNode;
+    const oldGroup = container.querySelector('.radio-group');
+    if (oldGroup) oldGroup.remove();
+
+    // Создаём новую группу
+    const radioGroup = document.createElement('div');
+    radioGroup.className = 'radio-group';
+    radioGroup.style.margin = '12px 0';
+
+    // Если options пустые — закрываем и возвращаем null
+    if (!options || options.length === 0) {
+      overlay.classList.remove('open');
+      resolve(null);
+      return;
+    }
+
+    options.forEach((opt, idx) => {
+      const label = document.createElement('label');
+      label.style.display = 'block';
+      label.style.margin = '6px 0';
+      label.style.cursor = 'pointer';
+      const radio = document.createElement('input');
+      radio.type = 'radio';
+      radio.name = 'choice';
+      radio.value = opt.value;
+      // По умолчанию выбираем первый вариант (или можно не выбирать)
+      if (idx === 0) radio.checked = true;
+      label.appendChild(radio);
+      label.appendChild(document.createTextNode(' ' + opt.label));
+      if (opt.description) {
+        const desc = document.createElement('span');
+        desc.style.fontSize = '12px';
+        desc.style.color = 'var(--text-muted)';
+        desc.style.marginLeft = '12px';
+        desc.textContent = ' (' + opt.description + ')';
+        label.appendChild(desc);
+      }
+      radioGroup.appendChild(label);
+    });
+
+    container.insertBefore(radioGroup, input.nextSibling);
+
+    // ---- 3. Открываем модалку ----
     overlay.classList.add('open');
 
+    // ---- 4. Функция получения выбранного значения ----
+    const getSelected = () => {
+      const selected = document.querySelector('input[name="choice"]:checked');
+      if (selected) {
+        console.log('[showChoice] Выбран:', selected.value);
+        return selected.value;
+      }
+      // Если ничего не выбрано — возвращаем первый вариант
+      console.warn('[showChoice] Ничего не выбрано, возвращаем первый вариант');
+      return options[0]?.value || null;
+    };
+
+    // ---- 5. Обработчики ----
     const cleanup = () => {
       overlay.classList.remove('open');
+      // Восстанавливаем поле ввода
       if (input) {
         input.style.display = '';
-        const select = input.parentNode.querySelector('.choice-select');
-        if (select) select.remove();
+        const group = container.querySelector('.radio-group');
+        if (group) group.remove();
       }
     };
 
     const confirmBtn = document.getElementById('modalConfirm');
     const cancelBtn = document.getElementById('modalCancel');
 
-    const getSelected = () => {
-      const select = document.querySelector('.choice-select');
-      if (select) {
-        const val = select.value;
-        console.log('[showChoice] Выбрано значение:', val);
-        return val;
-      }
-      return options[0]?.value || null;
+    const handleConfirm = () => {
+      const val = getSelected();
+      console.log('[showChoice] handleConfirm, значение:', val);
+      cleanup();
+      resolve(val);
     };
 
-    const handleConfirm = () => {
-      cleanup();
-      resolve(getSelected());
-    };
     const handleCancel = () => {
+      console.log('[showChoice] Отмена');
       cleanup();
       resolve(null);
     };
+
     const handleKeydown = (e) => {
       if (e.key === 'Enter') handleConfirm();
       if (e.key === 'Escape') handleCancel();
@@ -179,6 +228,10 @@ export function showChoice(title, message, options) {
     if (cancelBtn) cancelBtn.onclick = handleCancel;
     if (input) input.onkeydown = handleKeydown;
     overlay.onclick = (e) => { if (e.target === overlay) handleCancel(); };
+
+    // Сохраняем ссылки для очистки, если модалка закроется иначе
+    modalResolve = handleConfirm;
+    modalReject = handleCancel;
   });
 }
 
