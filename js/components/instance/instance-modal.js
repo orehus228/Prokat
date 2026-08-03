@@ -15,6 +15,7 @@ import {
 import { showToast } from '../../ui/toast.js';
 import { showConfirm, showPrompt, showChoice } from '../../ui/modal.js';
 import { esc } from '../../ui/dom.js';
+import { emit, EVENTS } from '../../core/events.js'; // <-- ДОБАВЛЕНО
 
 let currentModalPath = null;
 
@@ -218,13 +219,14 @@ async function handleChangeStatus(instanceId) {
     console.log('[handleChangeStatus] updated:', updated);
     if (updated && updated.status === newStatus) {
       showToast('Статус обновлён', 'success');
-      // Индекс обновлён внутри updateInstanceStatus, но для уверенности перестраиваем
       rebuildInstancesIndex();
       if (currentModalPath) {
         renderInstanceList(currentModalPath);
       } else {
         renderInstanceList(instance.path);
       }
+      // ---- Оповещаем остальные компоненты об изменении статуса ----
+      emit(EVENTS.INSTANCE_STATUS_CHANGED, { path: instance.path, instanceId: instanceId });
     } else {
       console.warn('Статус не изменился после updateInstanceStatus, пробуем принудительно сохранить состояние ещё раз');
       saveState();
@@ -237,6 +239,7 @@ async function handleChangeStatus(instanceId) {
         } else {
           renderInstanceList(instance.path);
         }
+        emit(EVENTS.INSTANCE_STATUS_CHANGED, { path: instance.path, instanceId: instanceId });
       } else {
         showToast('Не удалось обновить статус', 'error');
         console.error('Статус не изменился даже после принудительного сохранения. instanceId:', instanceId, 'newStatus:', newStatus);
@@ -276,6 +279,8 @@ async function handleDeleteInstance(instanceId) {
     } else {
       renderInstanceList(instance.path);
     }
+    // ---- Оповещаем остальные компоненты об изменении статуса (удаление) ----
+    emit(EVENTS.INSTANCE_STATUS_CHANGED, { path: instance.path, instanceId: instanceId });
   } else {
     showToast('Ошибка удаления', 'error');
   }

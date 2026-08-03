@@ -92,6 +92,8 @@ export const EVENTS = {
   ITEMS_UPDATED: 'items:updated',
   // Событие для перехода к проекту
   OPEN_PROJECT_REQUESTED: 'project:openRequested',
+  // НОВОЕ: изменение статуса экземпляра
+  INSTANCE_STATUS_CHANGED: 'instance:statusChanged',
 };
 
 export default {

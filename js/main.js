@@ -154,6 +154,13 @@ function initApp() {
   initOpenUI();
   initTruckManagerHandlers();
 
+  // ---- Подписка на изменение статуса экземпляра ----
+  on(EVENTS.INSTANCE_STATUS_CHANGED, (data) => {
+    console.log('[main] INSTANCE_STATUS_CHANGED, перерисовка страницы:', data);
+    // Перерисовываем текущую страницу
+    switchMode(currentMode);
+  });
+
   const themeToggle = document.getElementById('themeToggle');
   if (themeToggle) {
     themeToggle.addEventListener('click', toggleTheme);
