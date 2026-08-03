@@ -56,22 +56,104 @@ export function getOrderExtra() {
   return getState().orderExtra;
 }
 
-// Новые функции для работы с экземплярами в заказе
+// ============================================================
+// РАБОТА С СУБАРЕНДОЙ
+// ============================================================
+
 /**
- * Возвращает массив ID экземпляров, задействованных в заказе для указанного пути.
- * @param {string} path
- * @returns {string[]}
+ * Возвращает массив субарендных позиций.
+ * @returns {Array} массив объектов субаренды
  */
+export function getOrderSubrent() {
+  return getState().orderSubrent || [];
+}
+
+/**
+ * Устанавливает весь массив субаренды.
+ * @param {Array} subrent - массив объектов субаренды
+ */
+export function setOrderSubrent(subrent) {
+  const state = getState();
+  state.orderSubrent = Array.isArray(subrent) ? subrent : [];
+  saveState();
+  clearCalculationCache();
+}
+
+/**
+ * Добавляет новую субарендную позицию.
+ * @param {object} item - данные субаренды
+ * @param {string} item.name - название
+ * @param {number} item.qty - количество
+ * @param {number} item.weight - вес 1 шт (кг)
+ * @param {string} item.dimensions - габариты (ДхШхВ, см)
+ * @param {string} item.counterparty - контрагент
+ * @param {string} item.start_date - дата начала (YYYY-MM-DD)
+ * @param {string} item.end_date - дата окончания (YYYY-MM-DD)
+ * @param {string} item.comment - комментарий
+ * @param {string} [item.id] - уникальный ID (генерируется автоматически)
+ * @returns {object} добавленный объект
+ */
+export function addSubrentItem(item) {
+  const state = getState();
+  const newItem = {
+    id: 'subrent_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+    name: item.name || 'Без названия',
+    qty: Math.max(1, parseInt(item.qty) || 1),
+    weight: parseFloat(item.weight) || 0,
+    dimensions: item.dimensions || '',
+    counterparty: item.counterparty || '',
+    start_date: item.start_date || '',
+    end_date: item.end_date || '',
+    comment: item.comment || '',
+  };
+  state.orderSubrent.push(newItem);
+  saveState();
+  clearCalculationCache();
+  return newItem;
+}
+
+/**
+ * Удаляет субарендную позицию по ID.
+ * @param {string} id
+ * @returns {boolean} успешно ли удалено
+ */
+export function removeSubrentItem(id) {
+  const state = getState();
+  const index = state.orderSubrent.findIndex(item => item.id === id);
+  if (index === -1) return false;
+  state.orderSubrent.splice(index, 1);
+  saveState();
+  clearCalculationCache();
+  return true;
+}
+
+/**
+ * Обновляет субарендную позицию.
+ * @param {string} id
+ * @param {object} data - обновляемые поля
+ * @returns {boolean} успешно ли обновлено
+ */
+export function updateSubrentItem(id, data) {
+  const state = getState();
+  const item = state.orderSubrent.find(item => item.id === id);
+  if (!item) return false;
+  Object.assign(item, data);
+  if (item.qty !== undefined) item.qty = Math.max(1, parseInt(item.qty) || 1);
+  if (item.weight !== undefined) item.weight = parseFloat(item.weight) || 0;
+  saveState();
+  clearCalculationCache();
+  return true;
+}
+
+// ============================================================
+// РАБОТА С ЭКЗЕМПЛЯРАМИ В ЗАКАЗЕ
+// ============================================================
+
 export function getOrderInstances(path) {
   const state = getState();
   return state.orderInstances?.[path] || [];
 }
 
-/**
- * Устанавливает список экземпляров для позиции в заказе.
- * @param {string} path
- * @param {string[]} instanceIds
- */
 export function setOrderInstances(path, instanceIds) {
   const state = getState();
   if (!state.orderInstances) state.orderInstances = {};
@@ -84,31 +166,18 @@ export function setOrderInstances(path, instanceIds) {
   clearCalculationCache();
 }
 
-/**
- * Добавляет экземпляры к позиции в заказе (дополняет существующий список).
- * @param {string} path
- * @param {string[]} instanceIds
- */
 export function addOrderInstances(path, instanceIds) {
   const current = getOrderInstances(path);
   const newSet = new Set([...current, ...instanceIds]);
   setOrderInstances(path, Array.from(newSet));
 }
 
-/**
- * Удаляет экземпляры из позиции в заказе.
- * @param {string} path
- * @param {string[]} instanceIds
- */
 export function removeOrderInstances(path, instanceIds) {
   const current = getOrderInstances(path);
   const newList = current.filter(id => !instanceIds.includes(id));
   setOrderInstances(path, newList);
 }
 
-/**
- * Очищает все экземпляры для всех позиций в заказе (при очистке заказа).
- */
 export function clearAllOrderInstances() {
   const state = getState();
   state.orderInstances = {};
@@ -214,7 +283,6 @@ function updateAllPaths(oldPrefix, newPrefix, objectsToUpdate) {
         const newKey = oldKey.replace(oldPrefix, newPrefix);
         obj[newKey] = obj[oldKey];
         delete obj[oldKey];
-        // Дополнительная обработка для вложенных структур
         if (objName === 'orderSplits' && Array.isArray(obj[newKey])) {
           obj[newKey].forEach(seg => {
             if (seg.path && seg.path.startsWith(oldPrefix)) {
@@ -236,9 +304,8 @@ function updateAllPaths(oldPrefix, newPrefix, objectsToUpdate) {
             }
           });
         }
-        // Добавляем обработку для orderInstances
         if (objName === 'orderInstances' && Array.isArray(obj[newKey])) {
-          // ID экземпляров не меняются, но сам ключ пути обновляется
+          // ID экземпляров не меняются, но ключ пути обновляется
         }
       }
     });
@@ -268,14 +335,12 @@ export function updateOrderPaths(oldPath, newPath) {
       delete obj[oldPath];
     }
   });
-  // Также обновляем пути в экземплярах, связанных с заказом
   const instances = getState().instances || {};
   for (let id in instances) {
     if (instances[id].path === oldPath) {
       instances[id].path = newPath;
     }
   }
-  // Перестраиваем индекс экземпляров
   import('../core/state.js').then(module => module.rebuildInstancesIndex());
   saveState();
 }
@@ -295,7 +360,6 @@ export function updateAllPathsOnCategoryRename(oldPrefix, newPrefix) {
     'orderInstances',
   ];
   updateAllPaths(oldPrefix, newPrefix, objectsToUpdate);
-  // Обновляем пути в экземплярах
   const state = getState();
   const instances = state.instances || {};
   for (let id in instances) {
@@ -332,6 +396,28 @@ export function getTotalQty(path) {
   return total;
 }
 
+/**
+ * Возвращает общее количество всех позиций в заказе, включая субаренду.
+ * @returns {number} общее количество
+ */
+export function getTotalOrderQty() {
+  const state = getState();
+  let total = 0;
+  for (let p in state.order) total += state.order[p] || 0;
+  for (let p in state.orderExtra) total += state.orderExtra[p] || 0;
+  for (let p in state.individualCaseValues) {
+    total += state.individualCaseValues[p].reduce((a, b) => a + b, 0);
+  }
+  for (let p in state.orderPacking) {
+    total += state.orderPacking[p].reduce((s, item) => s + (item.pieces || 0), 0);
+  }
+  // Субаренда
+  for (let item of state.orderSubrent) {
+    total += item.qty || 0;
+  }
+  return total;
+}
+
 export function getSegmentsSum(path) {
   const state = getState();
   if (!state.orderSplits[path]) return 0;
@@ -355,7 +441,7 @@ export function setOrderValue(path, val) {
 }
 
 // ============================================================
-// РАБОТА С ПРИВЯЗКАМИ (LINKS) – ДЛЯ МАТРИЦЫ
+// РАБОТА С ПРИВЯЗКАМИ (LINKS)
 // ============================================================
 
 export function addLink(src, target, multiplier) {
@@ -427,6 +513,11 @@ export default {
   getCaseModes,
   getOrderExclude,
   getOrderExtra,
+  getOrderSubrent,
+  setOrderSubrent,
+  addSubrentItem,
+  removeSubrentItem,
+  updateSubrentItem,
   getOrderInstances,
   setOrderInstances,
   addOrderInstances,
@@ -444,6 +535,7 @@ export default {
   updateOrderPaths,
   updateAllPathsOnCategoryRename,
   getTotalQty,
+  getTotalOrderQty,
   getSegmentsSum,
   setOrderValue,
   addLink,

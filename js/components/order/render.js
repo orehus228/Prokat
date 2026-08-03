@@ -11,6 +11,9 @@ import {
   setOrderValue,
   setNote,
   getOrderInstances,
+  getOrderSubrent,
+  removeSubrentItem,
+  updateSubrentItem,
 } from '../../services/order-data.js';
 import { getInstancesByPath, getInstanceStats } from '../../services/instance-service.js';
 import * as calc from '../../services/calculations.js';
@@ -54,6 +57,10 @@ export function resetInfoBlocks() {
   document.querySelectorAll('.info-btn').forEach(btn => { btn.textContent = 'Инфо'; });
 }
 
+// ============================================================
+// ОТРИСОВКА ВКЛАДОК
+// ============================================================
+
 export function renderOrderTabs() {
   const container = document.getElementById('categoryTabs');
   if (!container) return;
@@ -92,6 +99,10 @@ export function renderOrderTabs() {
   }
 }
 
+// ============================================================
+// ОТРИСОВКА КАТЕГОРИИ (включая субаренду)
+// ============================================================
+
 export function renderOrderCategory(catKey, filterQuery = '') {
   const container = document.getElementById('categoryContents');
   if (!container) return;
@@ -103,6 +114,11 @@ export function renderOrderCategory(catKey, filterQuery = '') {
   const query = (filterQuery || searchQueryOrder || '').toLowerCase().trim();
   const isSearchMode = !!query;
 
+  // --- Блок субаренды (всегда показываем, если есть позиции, но только не в поиске) ---
+  if (!isSearchMode) {
+    renderSubrentBlock(wrapper);
+  }
+
   if (isSearchMode) {
     const allPaths = buildFlatItemsList();
     const filteredPaths = allPaths.filter(path => {
@@ -112,7 +128,12 @@ export function renderOrderCategory(catKey, filterQuery = '') {
       return name.includes(query) || spec.includes(query);
     });
     if (filteredPaths.length === 0) {
-      wrapper.innerHTML = '<div class="empty-message">Ничего не найдено</div>';
+      // Если в поиске ничего не найдено, и субаренды нет, показываем сообщение
+      const subrentItems = getOrderSubrent();
+      if (subrentItems.length === 0) {
+        wrapper.innerHTML = '<div class="empty-message">Ничего не найдено</div>';
+      }
+      // Если субаренда есть, она уже отрендерена, но позиций нет — оставляем как есть
       return;
     }
     const grouped = {};
@@ -131,6 +152,16 @@ export function renderOrderCategory(catKey, filterQuery = '') {
         html += buildItemRow(path, 1);
       });
     });
+    // Добавляем HTML субаренды, если она есть (уже отрендерена ранее)
+    // Но в поиске мы не показываем субаренду отдельно, она уже выведена выше.
+    // Поэтому просто добавляем HTML субаренды, если она есть, но не дублируем.
+    // Однако renderSubrentBlock уже вызван и добавил свой блок до этого.
+    // В поиске мы не хотим показывать субаренду, потому что она не фильтруется по запросу.
+    // Поэтому убираем блок субаренды при поиске.
+    // Для этого нам нужно удалить блок субаренды, если он есть.
+    const subrentBlock = wrapper.querySelector('.subrent-block');
+    if (subrentBlock) subrentBlock.remove();
+    // И вставляем только найденные позиции
     wrapper.innerHTML = html;
     searchModeOrder = true;
     currentOrderCategory = 'all';
@@ -152,7 +183,7 @@ export function renderOrderCategory(catKey, filterQuery = '') {
       wrapper.innerHTML = '<div class="empty-message">Категория пуста</div>';
       return;
     }
-    wrapper.innerHTML = buildCategoryHTML(catData, [catKey], 0);
+    wrapper.innerHTML += buildCategoryHTML(catData, [catKey], 0);
     currentOrderCategory = catKey;
   }
 
@@ -179,6 +210,87 @@ export function renderOrderCategory(catKey, filterQuery = '') {
   updateAllCommonCaseIndicators();
 }
 
+// ============================================================
+// БЛОК СУБАРЕНДЫ
+// ============================================================
+
+/**
+ * Отрисовывает блок субаренды в контейнере.
+ * @param {HTMLElement} container - контейнер для вставки
+ */
+function renderSubrentBlock(container) {
+  const subrentItems = getOrderSubrent();
+  if (subrentItems.length === 0) return;
+
+  // Удаляем старый блок, если есть
+  const oldBlock = container.querySelector('.subrent-block');
+  if (oldBlock) oldBlock.remove();
+
+  const block = document.createElement('div');
+  block.className = 'subrent-block';
+  block.style.cssText = 'margin-bottom:16px;padding:10px 12px;background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border-color);';
+
+  let html = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <h4 style="color:var(--text-secondary);font-weight:600;font-size:15px;">🔄 Субаренда (${subrentItems.length})</h4>
+      <button class="btn btn-sm add-subrent-btn" style="padding:4px 12px;font-size:13px;background:var(--accent);color:white;">+ Добавить</button>
+    </div>
+  `;
+
+  subrentItems.forEach((item, index) => {
+    const caseInfo = subrentToCaseInfo(item);
+    html += `
+      <div class="row subrent-row" data-id="${esc(item.id)}" style="border-left:3px solid var(--color-link);background:var(--bg-input);margin-bottom:4px;padding:4px 8px;border-radius:4px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;">
+        <div class="name-area" style="flex:1 1 180px;">
+          <span class="name" style="font-weight:500;">${esc(item.name)}</span>
+          <div class="extra-info" style="font-size:12px;color:var(--text-secondary);">
+            <span>${item.qty} шт</span>
+            <span>${item.weight ? item.weight + ' кг' : ''}</span>
+            <span>${item.dimensions || ''}</span>
+            <span>${item.counterparty ? 'Контрагент: ' + esc(item.counterparty) : ''}</span>
+            ${item.start_date ? `с ${esc(item.start_date)}` : ''}
+            ${item.end_date ? `по ${esc(item.end_date)}` : ''}
+            ${item.comment ? `(${esc(item.comment)})` : ''}
+          </div>
+        </div>
+        <div class="action-buttons" style="display:flex;gap:4px;flex-shrink:0;">
+          <button class="action-btn edit-subrent-btn" data-id="${esc(item.id)}" style="border-color:var(--color-link);color:var(--color-link);">✏️</button>
+          <button class="action-btn delete-subrent-btn" data-id="${esc(item.id)}" style="border-color:var(--danger);color:var(--danger);">✕</button>
+        </div>
+        <div class="qty-controls" style="margin-left:auto;display:flex;gap:4px;align-items:center;">
+          <button class="btn-c subrent-qty-btn" data-id="${esc(item.id)}" data-delta="-1" style="width:26px;height:26px;font-size:14px;">−</button>
+          <input type="number" class="subrent-qty-input" data-id="${esc(item.id)}" value="${item.qty}" min="0" step="1" style="width:48px;padding:2px 4px;background:var(--bg-input);border:1px solid var(--border-light);border-radius:4px;color:var(--text-primary);text-align:center;font-size:14px;">
+          <button class="btn-c subrent-qty-btn" data-id="${esc(item.id)}" data-delta="1" style="width:26px;height:26px;font-size:14px;">+</button>
+        </div>
+      </div>
+    `;
+  });
+
+  block.innerHTML = html;
+  container.prepend(block); // вставляем в начало контейнера
+}
+
+/**
+ * Форматирует информацию о субаренде для отображения.
+ * @param {object} item - объект субаренды
+ * @returns {string} HTML-строка с информацией
+ */
+function subrentToCaseInfo(item) {
+  const parts = [];
+  if (item.qty) parts.push(`${item.qty} шт`);
+  if (item.weight) parts.push(`${item.weight} кг`);
+  if (item.dimensions) parts.push(item.dimensions);
+  if (item.counterparty) parts.push(`Контрагент: ${esc(item.counterparty)}`);
+  if (item.start_date) parts.push(`с ${esc(item.start_date)}`);
+  if (item.end_date) parts.push(`по ${esc(item.end_date)}`);
+  if (item.comment) parts.push(`(${esc(item.comment)})`);
+  return parts.join(' · ');
+}
+
+// ============================================================
+// ПОСТРОЕНИЕ HTML КАТЕГОРИИ (рекурсивно)
+// ============================================================
+
 function buildCategoryHTML(data, path, level) {
   if (level > 15) { console.warn('Превышена глубина обхода', path); return ''; }
   let html = '';
@@ -203,6 +315,10 @@ function buildCategoryHTML(data, path, level) {
   }
   return '';
 }
+
+// ============================================================
+// ПОСТРОЕНИЕ СТРОКИ ПОЗИЦИИ (без изменений, оставлено как есть)
+// ============================================================
 
 export function buildItemRow(fullPath, level) {
   const state = getState();
@@ -291,14 +407,12 @@ export function buildItemRow(fullPath, level) {
     volumeDisplay = formatVolume(volume);
   }
 
-  // ---- Блок информации об экземплярах ----
   const instances = getInstancesByPath(fullPath);
   let instanceInfoHtml = '';
   if (instances.length > 0) {
     const stats = getInstanceStats(fullPath);
     const orderInstanceIds = getOrderInstances(fullPath) || [];
     const reservedInOrder = orderInstanceIds.length;
-    // Показываем краткую статистику
     const parts = [];
     if (stats.stock > 0) parts.push(`<span style="color:${INSTANCE_STATUS_COLORS.stock}">${stats.stock} на складе</span>`);
     if (stats.reserved > 0) parts.push(`<span style="color:${INSTANCE_STATUS_COLORS.reserved}">${stats.reserved} зарезервировано</span>`);
@@ -307,14 +421,12 @@ export function buildItemRow(fullPath, level) {
     if (stats.writtenOff > 0) parts.push(`<span style="color:${INSTANCE_STATUS_COLORS.written_off}">${stats.writtenOff} списано</span>`);
     if (instances.length > 0) {
       instanceInfoHtml = `<div class="instance-stats" style="font-size:12px;color:var(--text-secondary);margin-top:2px;">Экз.: всего ${instances.length} (${parts.join(', ')})</div>`;
-      // Если есть серийные номера, показываем кнопку для просмотра
       const hasSerial = instances.some(i => i.serialNumber && i.serialNumber.trim() !== '');
       if (hasSerial) {
         instanceInfoHtml += `<button class="action-btn instance-detail-btn" data-path="${esc(fullPath)}" style="font-size:11px;padding:1px 6px;border-color:var(--color-link);color:var(--color-link);">Серийные номера</button>`;
       }
     }
   } else {
-    // Если нет экземпляров, но есть остаток на складе, предлагаем создать
     if (sq > 0) {
       instanceInfoHtml = `<div style="font-size:12px;color:var(--text-muted);">Нет экземпляров (остаток: ${sq})</div>`;
     }
@@ -377,6 +489,10 @@ export function buildItemRow(fullPath, level) {
   return html;
 }
 
+// ============================================================
+// РЕНДЕРИНГ КОНТРОЛЛЕЙ КОЛИЧЕСТВА (без изменений)
+// ============================================================
+
 function renderQtyControls(path) {
   const mode = calc.getCaseMode(path);
   const individualVals = getIndividualCaseValues(path);
@@ -417,6 +533,10 @@ function renderQtyControls(path) {
     <span style="font-size:13px;color:var(--text-secondary);">${totalQty} шт</span>
   `;
 }
+
+// ============================================================
+// ОБНОВЛЕНИЕ СТРОКИ (без изменений)
+// ============================================================
 
 export function updateRowOrder(path, rebuildChildren = true) {
   const row = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
@@ -485,7 +605,6 @@ export function updateRowOrder(path, rebuildChildren = true) {
     extraInfo.innerHTML = info;
   }
 
-  // Обновляем статистику экземпляров
   const instanceStatsContainer = row.querySelector('.instance-stats');
   if (instanceStatsContainer) {
     const stats = getInstanceStats(path);
@@ -561,6 +680,10 @@ export function refreshRow(path) {
   updateCategoryTotalsOrder(currentOrderCategory);
   updateAllCommonCaseIndicators();
 }
+
+// ============================================================
+// ОБНОВЛЕНИЕ ИТОГОВ (без изменений)
+// ============================================================
 
 export function updateCategoryTotalsOrder(catKey) {
   const container = document.querySelector('#categoryContents .category-content.active');
@@ -667,9 +790,23 @@ export function updateTotalsOrder() {
     }
   });
 
-  document.getElementById('totalQty').textContent = totalQty;
-  document.getElementById('totalWeight').textContent = totalWeight.toFixed(1);
-  document.getElementById('totalVolume').textContent = totalVolume.toFixed(3);
+  // Добавляем субаренду в общие итоги
+  const subrentItems = getOrderSubrent();
+  let subrentQty = 0, subrentWeight = 0, subrentVolume = 0;
+  subrentItems.forEach(item => {
+    subrentQty += item.qty || 0;
+    subrentWeight += (item.weight || 0) * (item.qty || 0);
+    if (item.dimensions) {
+      const dims = item.dimensions.split('x').map(parseFloat);
+      if (dims.length === 3 && dims.every(v => !isNaN(v) && v > 0)) {
+        subrentVolume += (dims[0] * dims[1] * dims[2]) / 1000000 * (item.qty || 0);
+      }
+    }
+  });
+
+  document.getElementById('totalQty').textContent = totalQty + subrentQty;
+  document.getElementById('totalWeight').textContent = (totalWeight + subrentWeight).toFixed(1);
+  document.getElementById('totalVolume').textContent = (totalVolume + subrentVolume).toFixed(3);
 
   const detailsDiv = document.getElementById('globalDetails');
   if (!detailsDiv) return;
@@ -692,6 +829,27 @@ export function updateTotalsOrder() {
       </div>
     </div>`;
   });
+
+  // Добавляем субаренду в детали
+  if (subrentQty > 0) {
+    detailsHtml += `<div class="cat-detail-wrap">
+      <div class="cat-detail-header" style="background:var(--bg-secondary);border-radius:6px;margin:4px 0;border-left:3px solid var(--color-link);padding:4px 8px;">
+        <strong>🔄 Субаренда</strong>
+        <span style="font-size:13px;color:var(--text-secondary);">${subrentQty} шт, ${formatWeight(subrentWeight)}, ${formatVolume(subrentVolume)}</span>
+      </div>
+      <div style="padding-left:16px;margin-top:4px;">
+        ${subrentItems.map(item => `
+          <div style="font-size:13px;color:var(--text-secondary);padding:2px 0;border-bottom:1px solid var(--border-color);display:flex;gap:12px;">
+            <span style="flex:1;">${esc(item.name)}</span>
+            <span>${item.qty} шт</span>
+            <span>${formatWeight((item.weight||0) * (item.qty||0))}</span>
+            <span>${item.dimensions ? formatVolume((item.dimensions.split('x').map(parseFloat).reduce((a,b)=>a*b,1))/1000000 * (item.qty||0)) : ''}</span>
+            <span style="color:var(--text-muted);">${item.counterparty ? 'Контрагент: ' + esc(item.counterparty) : ''}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>`;
+  }
 
   if (commonTotalQty > 0) {
     let commonPercentages = '';
@@ -735,9 +893,13 @@ export function updateTotalsOrder() {
     });
   });
 
-  console.log('[STATS] Всего: шт=' + totalQty + ', вес=' + totalWeight + ', объём=' + totalVolume);
+  console.log('[STATS] Всего: шт=' + (totalQty + subrentQty) + ', вес=' + (totalWeight + subrentWeight) + ', объём=' + (totalVolume + subrentVolume));
   console.log('[STATS] Общих кофров: шт=' + commonTotalQty + ', вес=' + commonTotalWeight);
 }
+
+// ============================================================
+// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (без изменений)
+// ============================================================
 
 function buildCategoryItemList(cat, itemsMap, orderKeys) {
   let html = '';
@@ -858,14 +1020,11 @@ export function setupInputListenersOrder() { }
 export function initOrderUI() {
   detailsOpenOrder = localStorage.getItem('detailsOpenOrder') === 'true';
 
-  // ---- Исправляем обработчик кнопки "Подробно" ----
   const detailToggle = document.getElementById('detailToggle');
   if (detailToggle) {
-    // Удаляем старый обработчик, если он был (используем сохранённую ссылку)
     if (detailToggle._handler) {
       detailToggle.removeEventListener('click', detailToggle._handler);
     }
-    // Создаём новый обработчик
     const handler = function() {
       const details = document.getElementById('globalDetails');
       if (!details) return;
@@ -901,7 +1060,6 @@ export function initOrderUI() {
     });
   }
 
-  // Обработчик для кнопки просмотра серийных номеров (делегирование)
   document.addEventListener('click', function(e) {
     const btn = e.target.closest('.instance-detail-btn');
     if (btn) {

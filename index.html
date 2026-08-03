@@ -71,6 +71,7 @@
         <button class="matrix-btn" id="openMatrixModal">Матрица привязок</button>
         <span style="font-size:14px;color:#888;" id="linkCount">(0 активных)</span>
         <button class="matrix-btn" id="openCommonCasesManager">Общие кофры</button>
+        <button class="matrix-btn" id="addSubrentBtn" style="background:var(--color-link);color:white;">➕ Добавить субаренду</button>
     </div>
     <div class="preset-bar">
         <select id="orderPresetSelect"><option value="">— Выберите пресет —</option></select>
@@ -324,6 +325,46 @@
                 <button class="cancel" id="truckManagerClose">Закрыть</button>
                 <button class="confirm" id="truckAddBtn">+ Добавить</button>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Новая модалка для субаренды -->
+<div class="modal-overlay" id="subrentModal">
+    <div class="modal" style="max-width:550px;">
+        <h3 id="subrentModalTitle">Добавление субаренды</h3>
+        <label for="subrentName">Название позиции *</label>
+        <input type="text" id="subrentName" placeholder="Например: Сцена 6x4" class="input-field">
+
+        <label for="subrentQty">Количество *</label>
+        <input type="number" id="subrentQty" value="1" min="1" step="1" class="input-field">
+
+        <label for="subrentWeight">Вес 1 шт (кг)</label>
+        <input type="number" id="subrentWeight" step="0.1" min="0" placeholder="0.0" class="input-field">
+
+        <label for="subrentDimensions">Габариты (Д×Ш×В, см)</label>
+        <input type="text" id="subrentDimensions" placeholder="120x80x60" class="input-field">
+
+        <label for="subrentCounterparty">Контрагент</label>
+        <input type="text" id="subrentCounterparty" placeholder="Название компании" class="input-field">
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <div style="flex:1;">
+                <label for="subrentStartDate">Дата начала</label>
+                <input type="date" id="subrentStartDate" class="input-field">
+            </div>
+            <div style="flex:1;">
+                <label for="subrentEndDate">Дата окончания</label>
+                <input type="date" id="subrentEndDate" class="input-field">
+            </div>
+        </div>
+
+        <label for="subrentComment">Комментарий</label>
+        <input type="text" id="subrentComment" placeholder="Дополнительная информация" class="input-field">
+
+        <div class="buttons" style="margin-top:12px;">
+            <button class="cancel" id="subrentCancelBtn">Отмена</button>
+            <button class="confirm" id="subrentSaveBtn">Сохранить</button>
         </div>
     </div>
 </div>

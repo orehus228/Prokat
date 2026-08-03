@@ -1,8 +1,9 @@
 // components/order/presets.js
 import { getState, saveState } from '../../core/state.js';
 import { STORAGE_KEYS } from '../../core/config.js';
-import { getOrder, getOrderSplits, getLinks, getNotes, getOrderPacking, getIndividualCaseValues, getCommonRoutes, getCaseModes, getOrderExclude, getOrderExtra, getTotalQty, getOrderProject } from '../../services/order-data.js';
+import { getOrder, getOrderSplits, getLinks, getNotes, getOrderPacking, getIndividualCaseValues, getCommonRoutes, getCaseModes, getOrderExclude, getOrderExtra, getTotalQty, getOrderProject, getOrderSubrent } from '../../services/order-data.js';
 import { getItemPropsByPath } from '../../services/calculations.js';
+import { getAvailableQuantity } from '../../services/project-data.js';
 import { showToast } from '../../ui/toast.js';
 import { showPrompt, showConfirm } from '../../ui/modal.js';
 import { esc, getElement } from '../../ui/dom.js';
@@ -43,6 +44,20 @@ function normalizePresetData(data) {
         return p;
       });
     }
+  }
+  // Субаренда — массив объектов, нормализация не требуется
+  if (data.subrent && Array.isArray(data.subrent)) {
+    data.subrent = data.subrent.map(item => ({
+      id: item.id || 'subrent_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+      name: item.name || 'Без названия',
+      qty: Math.max(1, parseInt(item.qty) || 1),
+      weight: parseFloat(item.weight) || 0,
+      dimensions: item.dimensions || '',
+      counterparty: item.counterparty || '',
+      start_date: item.start_date || '',
+      end_date: item.end_date || '',
+      comment: item.comment || '',
+    }));
   }
   return data;
 }
@@ -93,6 +108,7 @@ export async function saveOrderPreset() {
     caseModes: JSON.parse(JSON.stringify(state.caseModes)),
     exclude: { ...state.orderExclude },
     extra: { ...state.orderExtra },
+    subrent: JSON.parse(JSON.stringify(state.orderSubrent)), // <-- ДОБАВЛЕНО
   };
 
   presets.push({ name: name.trim(), data: snapshot });
@@ -102,7 +118,7 @@ export async function saveOrderPreset() {
 }
 
 // ============================================================
-// ЗАГРУЗКА ПРЕСЕТА
+// ЗАГРУЗКА ПРЕСЕТА (С ПРОВЕРКОЙ ДОСТУПНОСТИ)
 // ============================================================
 
 export async function loadOrderPreset(overlay = true) {
@@ -122,96 +138,255 @@ export async function loadOrderPreset(overlay = true) {
 
   const data = normalizePresetData(preset.data);
   const state = getState();
+  const project = getOrderProject();
 
-  if (!overlay) {
-    for (let key in state.order) delete state.order[key];
-    for (let key in state.orderSplits) delete state.orderSplits[key];
-    for (let key in state.links) delete state.links[key];
-    for (let key in state.notes) delete state.notes[key];
-    for (let key in state.orderPacking) delete state.orderPacking[key];
-    for (let key in state.individualCaseValues) delete state.individualCaseValues[key];
-    for (let key in state.commonRoutes) delete state.commonRoutes[key];
-    for (let key in state.caseModes) delete state.caseModes[key];
-    for (let key in state.orderExclude) delete state.orderExclude[key];
-    for (let key in state.orderExtra) delete state.orderExtra[key];
+  // Список пропущенных позиций
+  const skipped = [];
+
+  // Вспомогательная функция для проверки доступности
+  function checkAvailability(path, requestedQty) {
+    if (requestedQty <= 0) return true;
+    if (!project.start_date || !project.end_date) return true;
+
+    const result = getAvailableQuantity(path, project.start_date, project.end_date, requestedQty, project.id);
+    if (result.isConflict) {
+      const conflictNames = result.conflicts.map(c => `${c.project} (${c.quantity} шт)`).join(', ');
+      console.warn(`[presets] Конфликт для "${path}": доступно ${result.available}, конфликты: ${conflictNames}`);
+      return false;
+    }
+    return true;
   }
 
-  if (overlay) {
+  function checkPathWithOverlay(path, addedQty) {
+    const currentQty = getTotalQty(path);
+    const totalAfter = currentQty + addedQty;
+    return checkAvailability(path, totalAfter);
+  }
+
+  // --- Обработка order (прямые количества) ---
+  if (data.order) {
     for (let path in data.order) {
-      state.order[path] = (state.order[path] || 0) + data.order[path];
+      const addedQty = data.order[path];
+      if (addedQty <= 0) continue;
+      if (overlay) {
+        if (!checkPathWithOverlay(path, addedQty)) {
+          skipped.push(path + ' (order)');
+          continue;
+        }
+        state.order[path] = (state.order[path] || 0) + addedQty;
+      } else {
+        if (!checkAvailability(path, addedQty)) {
+          skipped.push(path + ' (order)');
+          continue;
+        }
+        state.order[path] = addedQty;
+      }
     }
+  }
+
+  // --- Обработка splits ---
+  if (data.splits) {
     for (let path in data.splits) {
-      if (!state.orderSplits[path]) state.orderSplits[path] = [];
-      data.splits[path].forEach(seg => {
-        state.orderSplits[path].push({ ...seg });
-      });
+      const segments = data.splits[path] || [];
+      if (segments.length === 0) continue;
+      const totalAdded = segments.reduce((s, seg) => s + (seg.qty || 0), 0);
+      if (totalAdded <= 0) continue;
+      if (overlay) {
+        if (!checkPathWithOverlay(path, totalAdded)) {
+          skipped.push(path + ' (splits)');
+          continue;
+        }
+        if (!state.orderSplits[path]) state.orderSplits[path] = [];
+        segments.forEach(seg => {
+          state.orderSplits[path].push({ ...seg });
+        });
+      } else {
+        if (!checkAvailability(path, totalAdded)) {
+          skipped.push(path + ' (splits)');
+          continue;
+        }
+        state.orderSplits[path] = segments.map(seg => ({ ...seg }));
+      }
     }
-    for (let path in data.links) {
-      if (!state.links[path]) state.links[path] = [];
-      data.links[path].forEach(pl => {
-        const existing = state.links[path].find(l => l.target === pl.target);
-        if (existing) existing.multiplier += pl.multiplier;
-        else state.links[path].push({ ...pl });
-      });
+  }
+
+  // --- Обработка links (матрица привязок) ---
+  if (data.links) {
+    for (let src in data.links) {
+      const links = data.links[src] || [];
+      if (links.length === 0) continue;
+      // Проверку не делаем, так как links не изменяют количество напрямую
+      if (overlay) {
+        if (!state.links[src]) state.links[src] = [];
+        links.forEach(pl => {
+          const existing = state.links[src].find(l => l.target === pl.target);
+          if (existing) existing.multiplier += pl.multiplier;
+          else state.links[src].push({ ...pl });
+        });
+      } else {
+        state.links[src] = links.map(pl => ({ ...pl }));
+      }
     }
+  }
+
+  // --- Обработка notes ---
+  if (data.notes) {
     for (let path in data.notes) {
-      if (!state.notes[path]) state.notes[path] = data.notes[path];
+      if (overlay) {
+        if (!state.notes[path]) state.notes[path] = data.notes[path];
+      } else {
+        state.notes[path] = data.notes[path];
+      }
     }
+  }
+
+  // --- Обработка packing (общие кофры) ---
+  if (data.packing) {
     for (let path in data.packing) {
-      if (!state.orderPacking[path]) state.orderPacking[path] = [];
-      data.packing[path].forEach(p => {
-        const existing = state.orderPacking[path].find(ep => ep.caseId === p.caseId);
-        if (existing) {
-          existing.pieces = (existing.pieces || 0) + (p.pieces || 0);
-        } else {
-          state.orderPacking[path].push({ caseId: p.caseId, pieces: p.pieces || 0 });
+      const packingItems = data.packing[path] || [];
+      if (packingItems.length === 0) continue;
+      const totalAdded = packingItems.reduce((s, p) => s + (p.pieces || 0), 0);
+      if (totalAdded <= 0) continue;
+      if (overlay) {
+        if (!checkPathWithOverlay(path, totalAdded)) {
+          skipped.push(path + ' (packing)');
+          continue;
         }
-      });
+        if (!state.orderPacking[path]) state.orderPacking[path] = [];
+        packingItems.forEach(p => {
+          const existing = state.orderPacking[path].find(ep => ep.caseId === p.caseId);
+          if (existing) {
+            existing.pieces = (existing.pieces || 0) + (p.pieces || 0);
+          } else {
+            state.orderPacking[path].push({ caseId: p.caseId, pieces: p.pieces || 0 });
+          }
+        });
+      } else {
+        if (!checkAvailability(path, totalAdded)) {
+          skipped.push(path + ' (packing)');
+          continue;
+        }
+        state.orderPacking[path] = packingItems.map(p => ({ caseId: p.caseId, pieces: p.pieces || 0 }));
+      }
     }
+  }
+
+  // --- Обработка individualCases (индивидуальные кофры) ---
+  if (data.individualCases) {
     for (let path in data.individualCases) {
-      if (!state.individualCaseValues[path]) state.individualCaseValues[path] = [];
-      data.individualCases[path].forEach((v, idx) => {
-        if (state.individualCaseValues[path][idx] !== undefined) {
-          state.individualCaseValues[path][idx] += v;
-        } else {
-          state.individualCaseValues[path][idx] = v;
+      const vals = data.individualCases[path] || [];
+      const totalAdded = vals.reduce((a, b) => a + b, 0);
+      if (totalAdded <= 0) continue;
+      if (overlay) {
+        if (!checkPathWithOverlay(path, totalAdded)) {
+          skipped.push(path + ' (individualCases)');
+          continue;
         }
-      });
+        if (!state.individualCaseValues[path]) state.individualCaseValues[path] = [];
+        vals.forEach((v, idx) => {
+          if (state.individualCaseValues[path][idx] !== undefined) {
+            state.individualCaseValues[path][idx] += v;
+          } else {
+            state.individualCaseValues[path][idx] = v;
+          }
+        });
+      } else {
+        if (!checkAvailability(path, totalAdded)) {
+          skipped.push(path + ' (individualCases)');
+          continue;
+        }
+        state.individualCaseValues[path] = vals.map(v => v);
+      }
     }
+  }
+
+  // --- Обработка routes ---
+  if (data.routes) {
     for (let path in data.routes) {
-      if (!state.commonRoutes[path]) state.commonRoutes[path] = [];
-      data.routes[path].forEach(r => {
-        const existing = state.commonRoutes[path].find(er => er.target === r.target);
-        if (existing) existing.multiplier += r.multiplier;
-        else state.commonRoutes[path].push({ ...r });
-      });
+      const routes = data.routes[path] || [];
+      if (routes.length === 0) continue;
+      if (overlay) {
+        if (!state.commonRoutes[path]) state.commonRoutes[path] = [];
+        routes.forEach(r => {
+          const existing = state.commonRoutes[path].find(er => er.target === r.target);
+          if (existing) existing.multiplier += r.multiplier;
+          else state.commonRoutes[path].push({ ...r });
+        });
+      } else {
+        state.commonRoutes[path] = routes.map(r => ({ ...r }));
+      }
     }
+  }
+
+  // --- Обработка caseModes ---
+  if (data.caseModes) {
     for (let path in data.caseModes) {
-      if (!state.caseModes[path]) state.caseModes[path] = { ...data.caseModes[path] };
+      if (overlay) {
+        if (!state.caseModes[path]) state.caseModes[path] = { ...data.caseModes[path] };
+      } else {
+        state.caseModes[path] = { ...data.caseModes[path] };
+      }
     }
+  }
+
+  // --- Обработка exclude ---
+  if (data.exclude) {
     for (let path in data.exclude) {
       state.orderExclude[path] = true;
     }
-    for (let path in data.extra) {
-      state.orderExtra[path] = (state.orderExtra[path] || 0) + data.extra[path];
-    }
-  } else {
-    Object.assign(state.order, data.order);
-    Object.assign(state.orderSplits, JSON.parse(JSON.stringify(data.splits)));
-    Object.assign(state.links, JSON.parse(JSON.stringify(data.links)));
-    Object.assign(state.notes, data.notes);
-    Object.assign(state.orderPacking, JSON.parse(JSON.stringify(data.packing)));
-    Object.assign(state.individualCaseValues, JSON.parse(JSON.stringify(data.individualCases)));
-    Object.assign(state.commonRoutes, JSON.parse(JSON.stringify(data.routes)));
-    Object.assign(state.caseModes, JSON.parse(JSON.stringify(data.caseModes)));
-    Object.assign(state.orderExclude, data.exclude);
-    Object.assign(state.orderExtra, data.extra || {});
   }
 
+  // --- Обработка extra (остаток вне кофров) ---
+  if (data.extra) {
+    for (let path in data.extra) {
+      const addedQty = data.extra[path] || 0;
+      if (addedQty <= 0) continue;
+      if (overlay) {
+        if (!checkPathWithOverlay(path, addedQty)) {
+          skipped.push(path + ' (extra)');
+          continue;
+        }
+        state.orderExtra[path] = (state.orderExtra[path] || 0) + addedQty;
+      } else {
+        if (!checkAvailability(path, addedQty)) {
+          skipped.push(path + ' (extra)');
+          continue;
+        }
+        state.orderExtra[path] = addedQty;
+      }
+    }
+  }
+
+  // --- Обработка subrent (субаренда) ---
+  if (data.subrent && Array.isArray(data.subrent) && data.subrent.length > 0) {
+    if (overlay) {
+      // Добавляем новые элементы, избегая дублирования по id
+      const existingIds = new Set(state.orderSubrent.map(item => item.id));
+      data.subrent.forEach(item => {
+        if (!existingIds.has(item.id)) {
+          state.orderSubrent.push({ ...item });
+          existingIds.add(item.id);
+        } else {
+          // Если id совпадает, можно обновить существующий (опционально)
+          // Для простоты пропускаем дубли
+        }
+      });
+    } else {
+      state.orderSubrent = data.subrent.map(item => ({ ...item }));
+    }
+  }
+
+  // Сохраняем состояние
   saveState();
   invalidateFlatItemsCache();
   renderOrderAll();
-  showToast(`Пресет "${name}" загружен ${overlay ? '(наложение)' : '(замена)'}`, 'success');
+
+  // Показываем уведомление о пропущенных позициях
+  if (skipped.length > 0) {
+    showToast(`Пропущены позиции из-за конфликтов: ${skipped.join(', ')}`, 'warning', 5000);
+  } else {
+    showToast(`Пресет "${name}" загружен ${overlay ? '(наложение)' : '(замена)'}`, 'success');
+  }
 }
 
 // ============================================================
@@ -308,10 +483,11 @@ export function exportOrderJSON() {
     notes: state.notes,
     exclude: state.orderExclude,
     extra: state.orderExtra,
+    subrent: state.orderSubrent || [], // <-- ДОБАВЛЕНО
   };
 
   const totalItems = Object.keys(state.order).length + Object.keys(state.orderSplits).length + Object.keys(state.orderExtra).length;
-  if (totalItems === 0 && Object.keys(state.orderPacking).length === 0) {
+  if (totalItems === 0 && Object.keys(state.orderPacking).length === 0 && state.orderSubrent.length === 0) {
     showToast('Список пуст', 'warning');
     return;
   }
@@ -327,13 +503,13 @@ export function exportOrderJSON() {
 }
 
 // ============================================================
-// ЭКСПОРТ PDF (финальная версия, исправлен дублирующий вес кофров)
+// ЭКСПОРТ PDF (с добавлением субаренды)
 // ============================================================
+
 export function exportOrderPDF() {
   const state = getState();
   const projectName = document.getElementById('pName')?.value.trim() || 'Мероприятие';
 
-  // Собираем все позиции из всех источников напрямую
   const allPaths = new Set();
   for (let p in state.order) {
     if (state.order[p] > 0) allPaths.add(p);
@@ -350,10 +526,9 @@ export function exportOrderPDF() {
     if (state.orderExtra[p] > 0) allPaths.add(p);
   }
 
-  // Группировка по категориям
   const catMap = {};
   const commonCases = getCommonCases();
-  const commonCasesUsed = {}; // caseId -> { name, dims, emptyWeight, maxWeight, items: [], totalContentWeight }
+  const commonCasesUsed = {};
 
   allPaths.forEach(path => {
     const packing = state.orderPacking[path] || [];
@@ -370,15 +545,12 @@ export function exportOrderPDF() {
     const mode = state.caseModes[path] || {};
     const individualVals = state.individualCaseValues[path] || [];
 
-    // Вычисляем вес только содержимого (без учёта кофров)
     let weightContent = 0;
     if (packing.length > 0) {
-      // Для общих кофров: суммируем вес только позиций
       packing.forEach(p => {
         weightContent += p.pieces * unitWeight;
       });
       if (extra > 0) weightContent += extra * unitWeight;
-      // Для каждой позиции добавляем информацию в commonCasesUsed
       packing.forEach(p => {
         const c = commonCases.find(c => c.id === p.caseId);
         if (c) {
@@ -397,15 +569,10 @@ export function exportOrderPDF() {
         }
       });
     } else if (individualVals.length > 0 && mode.enabled) {
-      // Индивидуальные кофры: вес позиций уже учтён в unitWeight * qty
-      // Здесь мы не добавляем вес пустых кофров, т.к. они не общие
       weightContent = qty * unitWeight;
     } else {
-      // Обычные позиции
       weightContent = qty * unitWeight;
     }
-
-    // Полный вес (с кофрами) для общих кофров считается отдельно, здесь не используем
 
     const volume = calc.calcItemVolume(path, qty, mode, packing, individualVals, extra);
 
@@ -437,6 +604,9 @@ export function exportOrderPDF() {
     catMap[cat].push({ name, qty, weight: weightContent, volume, caseInfo, spec, note, path });
   });
 
+  // --- Субаренда ---
+  const subrentItems = getOrderSubrent();
+
   // Формируем HTML
   let html = `<!DOCTYPE html>
 <html>
@@ -459,6 +629,7 @@ export function exportOrderPDF() {
     .extra-info { font-size: 11px; margin-top: 2px; padding: 2px 6px; border-radius: 3px; display: inline-block; }
     .spec-info { background: #fff3cd; border: 1px solid #ffc107; color: #856404; }
     .note-info { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+    .subrent-row td { background: #e8f0fe; }
     .common-cases { margin-top: 12px; border-top: 2px solid #2c3e50; padding-top: 8px; }
     .common-cases h3 { font-size: 14px; margin: 4px 0 6px 0; color: #2c3e50; }
     .case-detail { font-size: 12px; padding: 4px 0; border-bottom: 1px solid #eee; }
@@ -478,7 +649,7 @@ export function exportOrderPDF() {
 <h1>Чек-лист: ${esc(projectName)}</h1>
 <table>
   <thead>
-    <tr><th style="width:14%;">Категория</th><th style="width:30%;">Позиция</th><th style="width:8%;text-align:center;">Кол-во</th><th style="width:10%;text-align:right;">Вес, кг</th><th style="width:10%;text-align:right;">Объём, м³</th><th style="width:28%;">Упаковка</th></tr>
+    <tr><th style="width:14%;">Категория</th><th style="width:30%;">Позиция</th><th style="width:8%;text-align:center;">Кол-во</th><th style="width:10%;text-align:right;">Вес, кг</th><th style="width:10%;text-align:right;">Объём, м³</th><th style="width:28%;">Упаковка / Контрагент</th></tr>
   </thead>
   <tbody>`;
 
@@ -518,6 +689,50 @@ export function exportOrderPDF() {
     grandVolume += catVolume;
   });
 
+  // --- Субаренда ---
+  if (subrentItems.length > 0) {
+    let subrentQty = 0, subrentWeight = 0, subrentVolume = 0;
+    html += `<tr class="cat-header"><td colspan="6"><strong>🔄 Субаренда</strong></td></tr>`;
+    subrentItems.forEach(item => {
+      const qty = item.qty || 0;
+      const weight = (item.weight || 0) * qty;
+      let volume = 0;
+      if (item.dimensions) {
+        const dims = item.dimensions.split('x').map(parseFloat);
+        if (dims.length === 3 && dims.every(v => !isNaN(v) && v > 0)) {
+          volume = (dims[0] * dims[1] * dims[2]) / 1000000 * qty;
+        }
+      }
+      subrentQty += qty;
+      subrentWeight += weight;
+      subrentVolume += volume;
+      const info = [
+        item.counterparty ? 'Контрагент: ' + esc(item.counterparty) : '',
+        item.start_date ? 'с ' + esc(item.start_date) : '',
+        item.end_date ? 'по ' + esc(item.end_date) : '',
+        item.comment ? '(' + esc(item.comment) + ')' : ''
+      ].filter(Boolean).join(' ');
+      html += `<tr class="item subrent-row">
+        <td></td>
+        <td>🔄 ${esc(item.name)}<div class="extra-info" style="font-size:11px;color:#555;">${info}</div></td>
+        <td class="qty">${qty}</td>
+        <td class="weight">${weight.toFixed(1)}</td>
+        <td class="volume">${volume.toFixed(3)}</td>
+        <td></td>
+      </tr>`;
+    });
+    html += `<tr style="font-weight:600;background:#f8fafc;border-top:1px solid #ccc;">
+      <td colspan="2" style="text-align:right;">Итого субаренда:</td>
+      <td class="qty">${subrentQty}</td>
+      <td class="weight">${subrentWeight.toFixed(1)}</td>
+      <td class="volume">${subrentVolume.toFixed(3)}</td>
+      <td></td>
+    </tr>`;
+    grandQty += subrentQty;
+    grandWeightContent += subrentWeight;
+    grandVolume += subrentVolume;
+  }
+
   html += `</tbody></table>`;
 
   // Блок общих кофров
@@ -540,7 +755,6 @@ export function exportOrderPDF() {
     html += `</div>`;
   }
 
-  // Общий вес = вес содержимого + вес всех кофров
   const grandTotalWeight = grandWeightContent + totalCaseWeight;
   html += `<div class="totals">
     <span>Всего: ${grandQty} шт</span>

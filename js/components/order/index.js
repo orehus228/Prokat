@@ -12,6 +12,7 @@ import { initOrderActions, clearOrderData, syncAllProjectItems } from './actions
 import { updateLinkCountOrder, updateAllCommonCaseIndicators } from './helpers.js';
 import { openMatrixModal } from '../cases/matrix.js';
 import { openCasesManagerModal } from '../cases/common-manager.js';
+import { openSubrentModal } from './subrent-modal.js'; // <-- ДОБАВЛЕНО
 
 export function initOrderPage() {
   initOrderUI();
@@ -21,9 +22,9 @@ export function initOrderPage() {
   loadProjectDataIntoUI();
   setupProjectUIHandlers();
   setupExportButtons();
+  setupSubrentUI(); // <-- ДОБАВЛЕНО
   updateLinkCountOrder();
   updateAllCommonCaseIndicators();
-  // Синхронизируем текущий заказ с проектом при загрузке
   syncAllProjectItems();
   showToast('Страница заказа загружена', 'neutral', 1500);
 }
@@ -59,14 +60,12 @@ function setupProjectUIHandlers() {
     projectSelect.addEventListener('change', function() {
       const projectId = this.value;
       if (!projectId) {
-        // Если выбран пустой проект, сбрасываем данные проекта, но оставляем заказ
         setOrderProject({ id: null, name: '', start_date: '', end_date: '', status: 'planned' });
         document.getElementById('pProjectName').value = '';
         document.getElementById('pStartDate').value = '';
         document.getElementById('pEndDate').value = '';
         const statusSelect = document.getElementById('pProjectStatus');
         if (statusSelect) statusSelect.value = 'planned';
-        // Синхронизируем: освобождаем все экземпляры, так как проект не выбран
         syncAllProjectItems();
         showToast('Проект отвязан', 'neutral');
         updateAllCommonCaseIndicators();
@@ -86,7 +85,6 @@ function setupProjectUIHandlers() {
           end_date: project.end_date,
           status: project.status || 'planned',
         });
-        // Синхронизируем заказ с выбранным проектом
         syncAllProjectItems();
         showToast(`Проект "${project.name}" загружен`, 'success');
         updateAllCommonCaseIndicators();
@@ -94,47 +92,39 @@ function setupProjectUIHandlers() {
     });
   }
 
-  // Создаём debounced-версию обработчика изменения полей проекта
-  const debouncedSync = debounce(() => {
+  const debouncedSync = debounce(async () => {
     const name = document.getElementById('pProjectName').value.trim();
     const start = document.getElementById('pStartDate').value;
     const end = document.getElementById('pEndDate').value;
     const status = document.getElementById('pProjectStatus')?.value || 'planned';
     
     if (!name) {
-      // Если нет названия, сохраняем только даты и статус
       setOrderProject({ id: null, name: '', start_date: start, end_date: end, status });
-      // Освобождаем все экземпляры, так как проект без названия невалиден
       syncAllProjectItems();
       return;
     }
     
     let projectId = getOrderProject().id;
     if (!projectId) {
-      // Создаём новый проект
       const newProject = saveProject({ name, start_date: start, end_date: end, status });
       projectId = newProject.id;
       setOrderProject({ id: projectId, name, start_date: start, end_date: end, status });
     } else {
-      // Обновляем существующий
       const existing = getProject(projectId);
       if (existing) {
         saveProject({ id: projectId, name, start_date: start, end_date: end, status });
         setOrderProject({ id: projectId, name, start_date: start, end_date: end, status });
       } else {
-        // Если проект с таким id не найден, создаём новый
         const newProject = saveProject({ name, start_date: start, end_date: end, status });
         projectId = newProject.id;
         setOrderProject({ id: projectId, name, start_date: start, end_date: end, status });
       }
     }
     populateProjectSelect();
-    // Синхронизируем заказ с обновлённым проектом (с debounce)
     syncAllProjectItems();
     updateAllCommonCaseIndicators();
   }, 500);
 
-  // Обработчики для полей проекта с debounce
   const fields = ['pProjectName', 'pStartDate', 'pEndDate'];
   fields.forEach(id => {
     const el = document.getElementById(id);
@@ -144,7 +134,6 @@ function setupProjectUIHandlers() {
     }
   });
 
-  // Статус проекта – синхронизация сразу (без debounce, так как это менее критично)
   const statusSelect = document.getElementById('pProjectStatus');
   if (statusSelect) {
     statusSelect.addEventListener('change', function() {
@@ -156,7 +145,6 @@ function setupProjectUIHandlers() {
       if (name && projectId) {
         saveProject({ id: projectId, name, start_date: start, end_date: end, status });
         setOrderProject({ ...getOrderProject(), status });
-        // Синхронизация не требуется при смене статуса, но можно обновить индикаторы
         updateAllCommonCaseIndicators();
       } else {
         setOrderProject({ ...getOrderProject(), status });
@@ -197,6 +185,21 @@ function setupExportButtons() {
         updateAllCommonCaseIndicators();
       });
     });
+  }
+}
+
+/**
+ * Настраивает кнопку добавления субаренды.
+ * Кнопка должна иметь id="addSubrentBtn" и находиться на странице заказа.
+ */
+function setupSubrentUI() {
+  const addBtn = document.getElementById('addSubrentBtn');
+  if (addBtn) {
+    addBtn.addEventListener('click', () => {
+      openSubrentModal(); // режим добавления
+    });
+  } else {
+    console.warn('Кнопка добавления субаренды (#addSubrentBtn) не найдена');
   }
 }
 

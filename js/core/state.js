@@ -41,6 +41,7 @@ const state = {
   caseModes: {},
   orderExclude: {},
   orderExtra: {},
+  orderSubrent: [], // <-- НОВОЕ ПОЛЕ: массив объектов субаренды
   orderProject: {
     id: null,
     name: '',
@@ -55,9 +56,8 @@ const state = {
   selectedTruckIds: [],
   matrixFullNames: true,
   _calcCache: new Map(),
-  // Новые поля для экземпляров
-  instances: {}, // { instanceId: { id, path, serialNumber, status, currentProjectId, subrentInfo, history } }
-  instancesByPath: {}, // { path: [instanceId, ...] } — индекс для быстрого доступа
+  instances: {},
+  instancesByPath: {},
 };
 
 if (typeof window !== 'undefined') {
@@ -136,7 +136,7 @@ export function loadState() {
       const orderKeys = [
         'order', 'orderSplits', 'links', 'notes',
         'orderPacking', 'individualCaseValues', 'commonRoutes',
-        'caseModes', 'orderExclude', 'orderExtra'
+        'caseModes', 'orderExclude', 'orderExtra', 'orderSubrent' // <-- ДОБАВЛЕН orderSubrent
       ];
       orderKeys.forEach(key => {
         if (orderData[key] && typeof orderData[key] === 'object') {
@@ -155,6 +155,10 @@ export function loadState() {
           state[key] = orderData[key];
         }
       });
+      // Дополнительно загружаем orderSubrent как массив (не объект)
+      if (orderData.orderSubrent && Array.isArray(orderData.orderSubrent)) {
+        state.orderSubrent = orderData.orderSubrent;
+      }
       console.log('[state] ORDER_DATA загружен и нормализован');
     }
   } catch (e) {
@@ -277,14 +281,12 @@ export function loadState() {
   }
   state._calcCache.clear();
 
-  // ---- 8. Нормализация экземпляров: проверка целостности, обновление индекса ----
   rebuildInstancesIndex();
 
   console.log('[state] Нормализация завершена');
   notifySubscribers('*');
 }
 
-// ---- saveState и остальные функции ----
 export function saveState() {
   const toSave = {
     inventory: state.inventory,
@@ -311,6 +313,7 @@ export function saveState() {
     caseModes: state.caseModes,
     orderExclude: state.orderExclude,
     orderExtra: state.orderExtra,
+    orderSubrent: state.orderSubrent, // <-- ДОБАВЛЕНО
     orderProject: state.orderProject,
   };
   localStorage.setItem(STORAGE_KEYS.ORDER_DATA, JSON.stringify(orderToSave));
@@ -330,7 +333,6 @@ export function saveState() {
     localStorage.setItem(STORAGE_KEYS.THEME, state.theme);
   }
 
-  // Сохраняем экземпляры отдельно
   const instancesToSave = {
     instances: state.instances,
     instancesByPath: state.instancesByPath,
@@ -340,9 +342,6 @@ export function saveState() {
   state._calcCache.clear();
 }
 
-/**
- * Перестраивает индекс instancesByPath на основе текущих экземпляров.
- */
 export function rebuildInstancesIndex() {
   const newIndex = {};
   for (let id in state.instances) {
@@ -355,9 +354,6 @@ export function rebuildInstancesIndex() {
   state.instancesByPath = newIndex;
 }
 
-/**
- * Сбрасывает состояние экземпляров (для тестов или сброса данных).
- */
 export function resetInstances() {
   state.instances = { ...DEFAULT_INSTANCES };
   state.instancesByPath = { ...DEFAULT_INSTANCES_BY_PATH };
@@ -385,6 +381,7 @@ function resetState() {
   state.caseModes = {};
   state.orderExclude = {};
   state.orderExtra = {};
+  state.orderSubrent = []; // <-- ДОБАВЛЕНО
   state.orderProject = { id: null, name: '', start_date: '', end_date: '', status: 'planned' };
   state.instances = { ...DEFAULT_INSTANCES };
   state.instancesByPath = { ...DEFAULT_INSTANCES_BY_PATH };
