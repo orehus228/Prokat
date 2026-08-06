@@ -3,16 +3,21 @@
 /**
  * Открывает отдельное окно с 3D-визуализацией загрузки грузовиков.
  * @param {object} loadingResult - результат расчёта загрузки (из calculateLoading)
+ * @param {Array} trucksData - массив грузовиков с полями: id, name, width, height, depth (в см), maxWeight
  * @param {number} truckIndex - индекс грузовика для отображения (по умолчанию 0)
  */
-export function open3DView(loadingResult, truckIndex = 0) {
+export function open3DView(loadingResult, trucksData, truckIndex = 0) {
   if (!loadingResult || !loadingResult.trucks || loadingResult.trucks.length === 0) {
     alert('Нет данных для 3D-отображения');
     return;
   }
+  if (!trucksData || trucksData.length === 0) {
+    alert('Нет данных о грузовиках');
+    return;
+  }
 
   // Создаём HTML-страницу для нового окна
-  const htmlContent = generate3DPage(loadingResult, truckIndex);
+  const htmlContent = generate3DPage(loadingResult, trucksData, truckIndex);
   const win = window.open('', '_blank', 'width=1200,height=800,scrollbars=yes');
   if (!win) {
     alert('Не удалось открыть окно. Разрешите всплывающие окна для этого сайта.');
@@ -26,7 +31,7 @@ export function open3DView(loadingResult, truckIndex = 0) {
 /**
  * Генерирует полный HTML для 3D-страницы.
  */
-function generate3DPage(loadingResult, initialTruckIndex) {
+function generate3DPage(loadingResult, trucksData, initialTruckIndex) {
   const trucks = loadingResult.trucks;
   const totalTrucks = trucks.length;
 
@@ -153,12 +158,13 @@ function generate3DPage(loadingResult, initialTruckIndex) {
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"><\/script>
 
   <script>
-    // Передаём данные в глобальную переменную для доступа из скрипта
+    // Передаём данные в глобальную переменную
     const LOADING_DATA = ${JSON.stringify(loadingResult)};
+    const TRUCKS_DATA = ${JSON.stringify(trucksData)};
     let currentTruckIndex = ${initialTruckIndex};
     const trucks = LOADING_DATA.trucks;
     let scene, camera, renderer, controls;
-    let truckGroup; // группа для объектов текущего грузовика
+    let truckGroup;
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
     const tooltip = document.getElementById('tooltip');
@@ -168,14 +174,12 @@ function generate3DPage(loadingResult, initialTruckIndex) {
       scene = new THREE.Scene();
       scene.background = new THREE.Color(0x1a1a1a);
 
-      // Камера
       const containerWidth = window.innerWidth;
       const containerHeight = window.innerHeight;
       camera = new THREE.PerspectiveCamera(45, containerWidth / containerHeight, 0.1, 1000);
       camera.position.set(6, 4, 8);
       camera.lookAt(0, 0, 0);
 
-      // Рендерер
       renderer = new THREE.WebGLRenderer({ antialias: true });
       renderer.setSize(containerWidth, containerHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
@@ -183,7 +187,6 @@ function generate3DPage(loadingResult, initialTruckIndex) {
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       document.body.appendChild(renderer.domElement);
 
-      // Орбит контрол
       controls = new THREE.OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
       controls.dampingFactor = 0.1;
@@ -206,12 +209,10 @@ function generate3DPage(loadingResult, initialTruckIndex) {
       fillLight.position.set(-5, 0, 5);
       scene.add(fillLight);
 
-      // Добавляем сетку для пола (опционально)
       const gridHelper = new THREE.GridHelper(10, 10, 0x888888, 0x444444);
       gridHelper.position.y = -0.01;
       scene.add(gridHelper);
 
-      // Обработчики событий
       renderer.domElement.addEventListener('click', onCanvasClick);
       renderer.domElement.addEventListener('mousemove', onCanvasMouseMove);
       window.addEventListener('resize', onWindowResize);
@@ -219,7 +220,6 @@ function generate3DPage(loadingResult, initialTruckIndex) {
 
     // Построение грузовика и предметов
     function buildTruck(truckIndex) {
-      // Удаляем старую группу, если есть
       if (truckGroup) {
         scene.remove(truckGroup);
         truckGroup = null;
@@ -228,29 +228,15 @@ function generate3DPage(loadingResult, initialTruckIndex) {
       const truckData = trucks[truckIndex];
       if (!truckData) return;
 
+      // Получаем размеры грузовика из TRUCKS_DATA (в см), переводим в метры
+      const truckInfo = TRUCKS_DATA[truckIndex] || {};
+      const truckW = (truckInfo.width || 200) / 100;   // см -> м
+      const truckH = (truckInfo.height || 200) / 100;
+      const truckD = (truckInfo.depth || 400) / 100;
+
       truckGroup = new THREE.Group();
 
       // --- 1. Полупрозрачный параллелепипед грузовика ---
-      // Вычисляем габариты грузовика из первого предмета? У нас нет прямой информации о размерах кузова.
-      // Используем приближение: берём максимальные размеры по всем предметам и добавляем запас.
-      let maxW = 0, maxH = 0, maxD = 0;
-      if (truckData.items && truckData.items.length > 0) {
-        truckData.items.forEach(item => {
-          const w = item.w || 0;
-          const h = item.h || 0;
-          const d = item.d || 0;
-          const maxCoord = Math.max(w, h, d);
-          if (w > maxW) maxW = w;
-          if (h > maxH) maxH = h;
-          if (d > maxD) maxD = d;
-        });
-      }
-      // Добавляем поля: используем максимальные координаты из упаковки плюс 0.3м запаса
-      const truckW = maxW + 0.6;
-      const truckH = maxH + 0.6;
-      const truckD = maxD + 0.6;
-
-      // Материал полупрозрачный
       const boxMat = new THREE.MeshPhongMaterial({
         color: 0x3a5a8a,
         transparent: true,
@@ -263,11 +249,9 @@ function generate3DPage(loadingResult, initialTruckIndex) {
 
       const boxGeo = new THREE.BoxGeometry(truckW, truckH, truckD);
       const boxMesh = new THREE.Mesh(boxGeo, boxMat);
-      // Центрируем грузовик так, чтобы дно было на уровне y=0
       boxMesh.position.set(0, truckH/2, 0);
       truckGroup.add(boxMesh);
 
-      // Рёбра грузовика
       const edges = new THREE.EdgesGeometry(boxGeo);
       const line = new THREE.LineSegments(edges, wireframeMat);
       line.position.copy(boxMesh.position);
@@ -279,21 +263,24 @@ function generate3DPage(loadingResult, initialTruckIndex) {
       let colorIdx = 0;
 
       items.forEach((item, idx) => {
-        const w = item.w || 0.5;
-        const h = item.h || 0.5;
-        const d = item.d || 0.5;
-        // Координаты центра предмета: item.x, item.y, item.z уже дают нижний-левый-задний угол?
-        // В функции packItems мы сохраняли x,y,z как координаты левого нижнего заднего угла.
-        // Центр будет: x + w/2, y + h/2, z + d/2
-        const cx = (item.x || 0) + w/2;
-        const cy = (item.y || 0) + h/2;
-        const cz = (item.z || 0) + d/2;
+        // Размеры в см -> м, минимальный размер 0.05 м
+        let w = (item.w || 0.01) / 100;
+        let h = (item.h || 0.01) / 100;
+        let d = (item.d || 0.01) / 100;
+        if (w < 0.05) w = 0.05;
+        if (h < 0.05) h = 0.05;
+        if (d < 0.05) d = 0.05;
 
-        // Выбираем цвет
+        // Координаты уже в метрах? В packItems мы сохраняли координаты в сантиметрах?
+        // В packItems мы используем ширину/глубину/высоту в сантиметрах, и координаты также в сантиметрах.
+        // При переводе в метры делим всё на 100.
+        const cx = ((item.x || 0) + w/2);
+        const cy = ((item.y || 0) + h/2);
+        const cz = ((item.z || 0) + d/2);
+
         const color = colors[colorIdx % colors.length];
         colorIdx++;
 
-        // Создаём блок
         const mat = new THREE.MeshPhongMaterial({ color: color, emissive: 0x000000, shininess: 30 });
         const geo = new THREE.BoxGeometry(w, h, d);
         const mesh = new THREE.Mesh(geo, mat);
@@ -303,24 +290,17 @@ function generate3DPage(loadingResult, initialTruckIndex) {
         mesh.userData = { itemIndex: idx, name: item.name || 'Предмет' };
         truckGroup.add(mesh);
 
-        // Добавляем тонкую рамку вокруг блока для чёткости
         const edgeGeo = new THREE.EdgesGeometry(geo);
         const edgeMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.2 });
         const edgeLine = new THREE.LineSegments(edgeGeo, edgeMat);
         edgeLine.position.copy(mesh.position);
         truckGroup.add(edgeLine);
 
-        // Подпись (Sprite с текстом) — сделаем позже, чтобы не перегружать.
-        // Добавим текстовую метку как спрайт (CanvasTexture)
+        // Подпись (спрайт)
         const label = createTextSprite(item.name || '');
         label.position.set(cx, cy + h/2 + 0.15, cz);
         truckGroup.add(label);
       });
-
-      // Центрируем всю группу грузовика по центру сцены
-      // Сдвигаем группу так, чтобы центр грузовика был в (0, truckH/2, 0) ?
-      // Мы уже разместили объекты относительно координат из упаковки, которые начинаются с (0,0,0).
-      // Оставляем как есть.
 
       scene.add(truckGroup);
 
@@ -340,7 +320,6 @@ function generate3DPage(loadingResult, initialTruckIndex) {
       ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      // Обрезаем длинные имена
       let displayText = text;
       if (displayText.length > 20) displayText = displayText.substring(0, 18) + '…';
       ctx.fillText(displayText, canvas.width/2, canvas.height/2);
@@ -352,11 +331,11 @@ function generate3DPage(loadingResult, initialTruckIndex) {
       return sprite;
     }
 
-    // Обновление информационной панели
     function updateInfo(index) {
       const truck = trucks[index];
       if (!truck) return;
-      document.getElementById('truckNameDisplay').textContent = truck.truckName || 'Грузовик';
+      const truckInfo = TRUCKS_DATA[index] || {};
+      document.getElementById('truckNameDisplay').textContent = truckInfo.name || truck.truckName || 'Грузовик';
       document.getElementById('itemCountDisplay').textContent = truck.items ? truck.items.length : 0;
       document.getElementById('weightDisplay').textContent = (truck.totalWeight || 0).toFixed(1) + ' кг';
       document.getElementById('volumeDisplay').textContent = (truck.totalVolume || 0).toFixed(3) + ' м³';
@@ -365,7 +344,6 @@ function generate3DPage(loadingResult, initialTruckIndex) {
       document.getElementById('nextTruck').disabled = (index === trucks.length - 1);
     }
 
-    // Обработка клика по блоку
     function onCanvasClick(event) {
       const rect = renderer.domElement.getBoundingClientRect();
       mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -376,16 +354,14 @@ function generate3DPage(loadingResult, initialTruckIndex) {
       if (intersects.length > 0) {
         const hit = intersects[0].object;
         if (hit.userData && hit.userData.name) {
-          alert('Предмет: ' + hit.userData.name + '\nРазмеры: ' + 
-            (hit.geometry.parameters ? 
-              hit.geometry.parameters.width.toFixed(1) + '×' + 
-              hit.geometry.parameters.height.toFixed(1) + '×' + 
-              hit.geometry.parameters.depth.toFixed(1) + ' м' : ''));
+          const w = hit.geometry.parameters ? hit.geometry.parameters.width.toFixed(2) : '?';
+          const h = hit.geometry.parameters ? hit.geometry.parameters.height.toFixed(2) : '?';
+          const d = hit.geometry.parameters ? hit.geometry.parameters.depth.toFixed(2) : '?';
+          alert('Предмет: ' + hit.userData.name + '\nРазмеры: ' + w + '×' + h + '×' + d + ' м');
         }
       }
     }
 
-    // Обработка наведения для тултипа
     function onCanvasMouseMove(event) {
       const rect = renderer.domElement.getBoundingClientRect();
       mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -415,27 +391,23 @@ function generate3DPage(loadingResult, initialTruckIndex) {
       renderer.setSize(window.innerWidth, window.innerHeight);
     }
 
-    // Анимационный цикл
     function animate() {
       requestAnimationFrame(animate);
       controls.update();
       renderer.render(scene, camera);
     }
 
-    // Переключение грузовика
     function switchTruck(index) {
       if (index < 0 || index >= trucks.length) return;
       currentTruckIndex = index;
       buildTruck(currentTruckIndex);
     }
 
-    // Инициализация после загрузки
     window.onload = function() {
       initScene();
       buildTruck(currentTruckIndex);
       animate();
 
-      // Обработчики кнопок
       document.getElementById('prevTruck').addEventListener('click', function() {
         if (currentTruckIndex > 0) switchTruck(currentTruckIndex - 1);
       });
@@ -443,7 +415,6 @@ function generate3DPage(loadingResult, initialTruckIndex) {
         if (currentTruckIndex < trucks.length - 1) switchTruck(currentTruckIndex + 1);
       });
 
-      // Клавиатура
       document.addEventListener('keydown', function(e) {
         if (e.key === 'ArrowLeft' && currentTruckIndex > 0) switchTruck(currentTruckIndex - 1);
         if (e.key === 'ArrowRight' && currentTruckIndex < trucks.length - 1) switchTruck(currentTruckIndex + 1);
