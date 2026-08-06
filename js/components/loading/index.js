@@ -7,6 +7,7 @@ import { showToast } from '../../ui/toast.js';
 import { showConfirm } from '../../ui/modal.js';
 import { esc } from '../../ui/dom.js';
 import { STORAGE_KEYS } from '../../core/config.js';
+import { open3DView } from './3d-view.js'; // <-- НОВЫЙ ИМПОРТ
 
 const SELECTED_TRUCKS_KEY = STORAGE_KEYS.SELECTED_TRUCKS;
 
@@ -252,15 +253,23 @@ function renderResult(result) {
   html += `<span>Общий вес: ${result.totalWeight.toFixed(1)} кг</span> | `;
   html += `<span>Общий объём: ${result.totalVolume.toFixed(3)} м³</span>`;
   html += `</div>`;
-  html += `<div style="margin-top:12px;display:flex;gap:10px;">`;
+  html += `<div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;">`;
   html += `<button class="btn btn-green" id="exportLoadingJson">Экспорт JSON</button>`;
   html += `<button class="btn btn-orange" id="exportLoadingPdf">Экспорт PDF</button>`;
+  // Новая кнопка для 3D
+  html += `<button class="btn btn-purple" id="show3DViewBtn">Показать 3D</button>`;
   html += `</div>`;
   html += `</div>`;
   container.innerHTML = html;
 
   document.getElementById('exportLoadingJson')?.addEventListener('click', exportLoadingJSON);
   document.getElementById('exportLoadingPdf')?.addEventListener('click', exportLoadingPDF);
+
+  // Обработчик для 3D
+  document.getElementById('show3DViewBtn')?.addEventListener('click', () => {
+    // Передаём результат расчёта и индекс первого грузовика (0)
+    open3DView(result, 0);
+  });
 }
 
 function openTruckManager() {
