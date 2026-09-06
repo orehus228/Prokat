@@ -1,22 +1,7 @@
 // components/editor/render.js
 import { getState, saveState, rebuildInstancesIndex } from '../../core/state.js';
 import { CAT_NAMES, INSTANCE_STATUSES, INSTANCE_STATUS_LABELS, INSTANCE_STATUS_COLORS } from '../../core/config.js';
-import {
-  getStock,
-  setStock,
-  getSpec,
-  setSpec,
-  getItemProps,
-  setItemProps,
-  getCommonCases,
-  getPathInstances,
-  getPathInstanceStats,
-  addInstanceToPath,
-  removeInstance,
-  updateInstance,
-  syncInstancesWithStock,
-  getInstanceById,
-} from '../../data/editor-data.js';
+import { inventoryRepo } from '../../repositories/InventoryRepository.js';
 import {
   renameCategory,
   renameSubgroup,
@@ -196,7 +181,7 @@ async function deleteCategory(key) {
 }
 
 // ============================================================
-// ОТРИСОВКА СОДЕРЖИМОГО КАТЕГОРИИ
+// ОТРИСОВКА СОДЕРЖИМОГО КАТЕГОРИИ (использует репозиторий)
 // ============================================================
 
 export function renderEditorCategory(catKey) {
@@ -383,12 +368,14 @@ export function renderEditorCategory(catKey) {
 }
 
 // ============================================================
-// СОЗДАНИЕ СТРОКИ ПОЗИЦИИ В РЕДАКТОРЕ
+// СОЗДАНИЕ СТРОКИ ПОЗИЦИИ В РЕДАКТОРЕ (использует репозиторий)
 // ============================================================
 
 function createItemRowEditor(catKey, subKey, itemName) {
   const row = document.createElement('div');
   row.className = 'item-row';
+  const path = getStockKey(catKey, subKey, itemName);
+
   const mainLine = document.createElement('div');
   mainLine.className = 'main-line';
   mainLine.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:4px 0;';
@@ -407,12 +394,12 @@ function createItemRowEditor(catKey, subKey, itemName) {
   qtyInput.type = 'number';
   qtyInput.className = 'qty';
   qtyInput.style.cssText = 'width:70px;padding:4px 6px;border:1px solid var(--border-light);border-radius:4px;font-size:14px;text-align:center;background:var(--bg-input);color:var(--text-primary);flex-shrink:0;';
-  qtyInput.value = getStock(catKey, subKey, itemName);
+  qtyInput.value = inventoryRepo.getStock(path);
   qtyInput.addEventListener('change', () => {
     let val = parseInt(qtyInput.value, 10);
     if (isNaN(val) || val < 0) val = 0;
     qtyInput.value = val;
-    setStock(catKey, subKey, itemName, val);
+    inventoryRepo.setStock(path, val);
   });
   mainLine.appendChild(qtyInput);
 
@@ -421,9 +408,9 @@ function createItemRowEditor(catKey, subKey, itemName) {
   specInput.className = 'spec';
   specInput.style.cssText = 'flex:2 1 200px;padding:4px 6px;border:1px solid var(--border-light);border-radius:4px;font-size:13px;min-width:120px;background:var(--bg-input);color:var(--text-primary);';
   specInput.placeholder = 'Комментарий...';
-  specInput.value = getSpec(catKey, subKey, itemName);
+  specInput.value = inventoryRepo.getSpec(path);
   specInput.addEventListener('change', () => {
-    setSpec(catKey, subKey, itemName, specInput.value);
+    inventoryRepo.setSpec(path, specInput.value);
   });
   mainLine.appendChild(specInput);
 
@@ -505,7 +492,7 @@ function createItemRowEditor(catKey, subKey, itemName) {
   mainLine.appendChild(actions);
   row.appendChild(mainLine);
 
-  const props = getItemProps(catKey, subKey, itemName);
+  const props = inventoryRepo.getProps(path);
   const infoDiv = document.createElement('div');
   infoDiv.className = 'props-info';
   infoDiv.style.cssText = 'font-size:12px;color:var(--text-secondary);padding:4px 0 0 12px;border-left:2px solid var(--accent);margin-left:12px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;';
@@ -522,10 +509,9 @@ function createItemRowEditor(catKey, subKey, itemName) {
   `;
   row.appendChild(infoDiv);
 
-  // ---- Блок экземпляров ----
-  const path = getStockKey(catKey, subKey, itemName);
-  const instances = getPathInstances(path);
-  const stats = getPathInstanceStats(path);
+  // ---- Блок экземпляров (использует репозиторий) ----
+  const instances = inventoryRepo.getInstances(path);
+  const stats = inventoryRepo.getInstanceStats(path);
   
   const instanceDiv = document.createElement('div');
   instanceDiv.className = 'instance-manager';
@@ -545,21 +531,18 @@ function createItemRowEditor(catKey, subKey, itemName) {
     if (stats.writtenOff > 0) parts.push(`<span style="color:${INSTANCE_STATUS_COLORS[INSTANCE_STATUSES.WRITTEN_OFF]}">${stats.writtenOff} спис.</span>`);
     instanceHtml += `<span>всего ${instances.length} (${parts.join(', ')})</span>`;
     
-    // Кнопка для просмотра списка серийных номеров
     const hasSerial = instances.some(i => i.serialNumber && i.serialNumber.trim() !== '');
     if (hasSerial) {
       instanceHtml += `<button class="btn btn-sm view-instances-btn" data-path="${path}" style="padding:2px 8px;font-size:12px;">📋 Серийные номера</button>`;
     }
   }
   
-  // Кнопки управления
   instanceHtml += `
     <button class="btn btn-sm add-instance-btn" data-path="${path}" style="padding:2px 8px;font-size:12px;background:var(--success);color:white;">+ Добавить</button>
     <button class="btn btn-sm sync-instances-btn" data-path="${path}" style="padding:2px 8px;font-size:12px;background:var(--color-link);color:white;">🔄 Синхр.</button>
   `;
   instanceHtml += `</div>`;
   
-  // Детальный список (скрыт по умолчанию)
   if (instances.length > 0) {
     instanceHtml += `<div class="instance-list" style="display:none;margin-top:4px;padding:4px 8px;background:var(--bg-secondary);border-radius:4px;font-size:12px;">`;
     instances.forEach(inst => {
@@ -581,7 +564,7 @@ function createItemRowEditor(catKey, subKey, itemName) {
   instanceDiv.innerHTML = instanceHtml;
   row.appendChild(instanceDiv);
 
-  // Обработчики для кнопок экземпляров
+  // Обработчики для кнопок экземпляров (используют репозиторий)
   const viewBtn = instanceDiv.querySelector('.view-instances-btn');
   if (viewBtn) {
     viewBtn.addEventListener('click', function(e) {
@@ -613,7 +596,7 @@ function createItemRowEditor(catKey, subKey, itemName) {
         counterparty = await showPrompt('Контрагент', 'Название компании:', '', 'Введите название...');
         if (counterparty === null) return;
       }
-      const instance = addInstanceToPath(path, serial, status, {
+      const instance = inventoryRepo.addInstance(path, serial, status, {
         isSubrent: subrent,
         counterparty: counterparty || '',
       });
@@ -631,7 +614,7 @@ function createItemRowEditor(catKey, subKey, itemName) {
     syncBtn.addEventListener('click', async function(e) {
       e.stopPropagation();
       const path = this.dataset.path;
-      const stock = getStock(catKey, subKey, itemName);
+      const stock = inventoryRepo.getStock(path);
       if (stock <= 0) {
         showToast('Остаток на складе равен 0. Нечего синхронизировать.', 'warning');
         return;
@@ -639,7 +622,7 @@ function createItemRowEditor(catKey, subKey, itemName) {
       const confirmed = await showConfirm(`Синхронизировать экземпляры с остатком (${stock} шт)? Будут созданы недостающие экземпляры.`);
       if (!confirmed) return;
       const serialPrefix = itemName.replace(/[^a-zA-Z0-9]/g, '-').substring(0, 10);
-      const result = syncInstancesWithStock(path, null, serialPrefix);
+      const result = inventoryRepo.syncInstancesWithStock(path, null, serialPrefix);
       if (result.created > 0) {
         showToast(`Создано ${result.created} экземпляров`, 'success');
       } else if (result.deleted > 0) {
@@ -654,13 +637,13 @@ function createItemRowEditor(catKey, subKey, itemName) {
     });
   }
 
-  // Обработчики для изменения статуса и удаления экземпляра (делегирование)
+  // Обработчики для изменения статуса и удаления экземпляра (используют репозиторий)
   instanceDiv.addEventListener('click', async function(e) {
     const target = e.target.closest('.change-instance-status-btn');
     if (target) {
       e.stopPropagation();
       const id = target.dataset.id;
-      const instance = getInstanceById(id);
+      const instance = inventoryRepo.getInstanceById(id);
       if (!instance) {
         showToast('Экземпляр не найден', 'error');
         return;
@@ -672,7 +655,6 @@ function createItemRowEditor(catKey, subKey, itemName) {
         { value: INSTANCE_STATUSES.REPAIR, label: 'В ремонте' },
         { value: INSTANCE_STATUSES.WRITTEN_OFF, label: 'Списано' },
       ];
-      // Исключаем недопустимые переходы (например, из списанного)
       const allowed = statusOptions.filter(opt => {
         if (instance.status === INSTANCE_STATUSES.WRITTEN_OFF && opt.value !== INSTANCE_STATUSES.WRITTEN_OFF) {
           return false;
@@ -682,7 +664,7 @@ function createItemRowEditor(catKey, subKey, itemName) {
       const newStatus = await showChoice('Изменить статус', `Текущий статус: ${INSTANCE_STATUS_LABELS[instance.status] || instance.status}`, allowed);
       if (!newStatus) return;
       const comment = await showPrompt('Комментарий (необязательно):', 'Комментарий:', '', 'Введите комментарий...');
-      const success = updateInstance(id, newStatus, comment || 'Изменение статуса в редакторе');
+      const success = inventoryRepo.updateInstance(id, newStatus, comment || 'Изменение статуса в редакторе');
       if (success) {
         showToast('Статус обновлён', 'success');
         renderEditorCategory(catKey);
@@ -696,7 +678,7 @@ function createItemRowEditor(catKey, subKey, itemName) {
     if (delTarget) {
       e.stopPropagation();
       const id = delTarget.dataset.id;
-      const instance = getInstanceById(id);
+      const instance = inventoryRepo.getInstanceById(id);
       if (!instance) {
         showToast('Экземпляр не найден', 'error');
         return;
@@ -707,7 +689,7 @@ function createItemRowEditor(catKey, subKey, itemName) {
       }
       const confirmed = await showConfirm(`Удалить экземпляр ${instance.serialNumber || 'б/н'}?`);
       if (!confirmed) return;
-      const success = removeInstance(id);
+      const success = inventoryRepo.deleteInstance(id);
       if (success) {
         showToast('Экземпляр удалён', 'success');
         renderEditorCategory(catKey);
@@ -862,7 +844,7 @@ export function initRenderHandlers() {
         truckPresets: state.truckPresets,
         projects: state.projects,
         projectItems: state.projectItems,
-        instances: state.instances, // добавляем экземпляры
+        instances: state.instances,
         instancesByPath: state.instancesByPath,
       };
       const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
@@ -960,7 +942,7 @@ export function initRenderHandlers() {
 }
 
 // ============================================================
-// ЭКСПОРТ ИНВЕНТАРЯ В HTML (PDF)
+// ЭКСПОРТ ИНВЕНТАРЯ В HTML (PDF) (использует репозиторий)
 // ============================================================
 
 export function exportInventoryHTML() {
@@ -988,9 +970,9 @@ tr:nth-child(even){background:#f9f9f9}
     if (Array.isArray(catData)) {
       catData.forEach(item => {
         const path = cat + '|' + item;
-        const stock = state.stock[path] || 0;
-        const props = state.itemProps[path] || {};
-        const instances = getPathInstances(path);
+        const stock = inventoryRepo.getStock(path);
+        const props = inventoryRepo.getProps(path);
+        const instances = inventoryRepo.getInstances(path);
         const instCount = instances.length;
         const instStatuses = instances.map(i => INSTANCE_STATUS_LABELS[i.status] || i.status).join(', ');
         html += `<tr><td>${esc(cat)}</td><td></td><td>${esc(item)}</td><td>${stock}</td><td>${props.weight || ''}</td><td>${props.dimensions || ''}</td><td>${instCount} шт${instStatuses ? ' (' + esc(instStatuses) + ')' : ''}</td></tr>`;
@@ -1002,9 +984,9 @@ tr:nth-child(even){background:#f9f9f9}
         if (!Array.isArray(items)) return;
         items.forEach(item => {
           const path = cat + '|' + sub + '|' + item;
-          const stock = state.stock[path] || 0;
-          const props = state.itemProps[path] || {};
-          const instances = getPathInstances(path);
+          const stock = inventoryRepo.getStock(path);
+          const props = inventoryRepo.getProps(path);
+          const instances = inventoryRepo.getInstances(path);
           const instCount = instances.length;
           const instStatuses = instances.map(i => INSTANCE_STATUS_LABELS[i.status] || i.status).join(', ');
           html += `<tr><td>${esc(cat)}</td><td>${esc(sub)}</td><td>${esc(item)}</td><td>${stock}</td><td>${props.weight || ''}</td><td>${props.dimensions || ''}</td><td>${instCount} шт${instStatuses ? ' (' + esc(instStatuses) + ')' : ''}</td></tr>`;
@@ -1030,9 +1012,6 @@ tr:nth-child(even){background:#f9f9f9}
   }
 }
 
-// ============================================================
-// ЭКСПОРТ ПО УМОЛЧАНИЮ
-// ============================================================
 export default {
   renderEditorTabs,
   renderEditorCategory,
