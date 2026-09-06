@@ -7,14 +7,27 @@
  * @param {number} truckIndex - индекс грузовика для отображения (по умолчанию 0)
  */
 export function open3DView(loadingResult, trucksData, truckIndex = 0) {
+  console.log('[3D] open3DView вызван', { loadingResult, trucksData, truckIndex });
+
   if (!loadingResult || !loadingResult.trucks || loadingResult.trucks.length === 0) {
-    alert('Нет данных для 3D-отображения');
+    alert('Нет данных для 3D-отображения (loadingResult пуст)');
+    console.warn('[3D] loadingResult пуст или нет trucks', loadingResult);
     return;
   }
   if (!trucksData || trucksData.length === 0) {
     alert('Нет данных о грузовиках');
+    console.warn('[3D] trucksData пуст', trucksData);
     return;
   }
+
+  // Проверяем, есть ли предметы в первом грузовике
+  const firstTruck = loadingResult.trucks[truckIndex];
+  if (!firstTruck) {
+    alert(`Грузовик с индексом ${truckIndex} не найден`);
+    return;
+  }
+  console.log('[3D] Первый грузовик:', firstTruck);
+  console.log('[3D] Количество предметов в нём:', firstTruck.items ? firstTruck.items.length : 0);
 
   // Создаём HTML-страницу для нового окна
   const htmlContent = generate3DPage(loadingResult, trucksData, truckIndex);
@@ -169,6 +182,10 @@ function generate3DPage(loadingResult, trucksData, initialTruckIndex) {
     const mouse = new THREE.Vector2();
     const tooltip = document.getElementById('tooltip');
 
+    console.log('[3D] LOADING_DATA:', LOADING_DATA);
+    console.log('[3D] TRUCKS_DATA:', TRUCKS_DATA);
+    console.log('[3D] trucks:', trucks);
+
     // Инициализация сцены
     function initScene() {
       scene = new THREE.Scene();
@@ -226,13 +243,18 @@ function generate3DPage(loadingResult, trucksData, initialTruckIndex) {
       }
 
       const truckData = trucks[truckIndex];
-      if (!truckData) return;
+      if (!truckData) {
+        console.warn('[3D] Нет данных для грузовика', truckIndex);
+        return;
+      }
+      console.log('[3D] Строим грузовик', truckIndex, truckData);
 
       // Получаем размеры грузовика из TRUCKS_DATA (в см), переводим в метры
       const truckInfo = TRUCKS_DATA[truckIndex] || {};
       const truckW = (truckInfo.width || 200) / 100;   // см -> м
       const truckH = (truckInfo.height || 200) / 100;
       const truckD = (truckInfo.depth || 400) / 100;
+      console.log('[3D] Размеры грузовика (м):', { truckW, truckH, truckD });
 
       truckGroup = new THREE.Group();
 
@@ -259,6 +281,7 @@ function generate3DPage(loadingResult, trucksData, initialTruckIndex) {
 
       // --- 2. Предметы ---
       const items = truckData.items || [];
+      console.log('[3D] Предметов для отрисовки:', items.length);
       const colors = [0xff6b6b, 0x4ecdc4, 0x45b7d1, 0xf9a825, 0xab47bc, 0x66bb6a, 0xffa726, 0x42a5f5, 0xef5350, 0x26a69a];
       let colorIdx = 0;
 
@@ -271,10 +294,10 @@ function generate3DPage(loadingResult, trucksData, initialTruckIndex) {
         if (h < 0.05) h = 0.05;
         if (d < 0.05) d = 0.05;
 
-        // Координаты в см -> м
-        const cx = ((item.x || 0) / 100) + w/2;
-        const cy = ((item.y || 0) / 100) + h/2;
-        const cz = ((item.z || 0) / 100) + d/2;
+        // Координаты уже в сантиметрах, переводим в метры
+        const cx = ((item.x || 0) + w/2);
+        const cy = ((item.y || 0) + h/2);
+        const cz = ((item.z || 0) + d/2);
 
         const color = colors[colorIdx % colors.length];
         colorIdx++;
@@ -402,6 +425,7 @@ function generate3DPage(loadingResult, trucksData, initialTruckIndex) {
     }
 
     window.onload = function() {
+      console.log('[3D] window.onload');
       initScene();
       buildTruck(currentTruckIndex);
       animate();
