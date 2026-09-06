@@ -24,19 +24,16 @@ export function open3DView(loadingResult, trucksData, truckIndex = 0) {
     return;
   }
 
-  // Если предметов нет, показываем сообщение и не открываем 3D
   const items = firstTruck.items || [];
   if (items.length === 0) {
     alert('В этом грузовике нет предметов для визуализации');
     return;
   }
 
-  // Безопасно преобразуем данные в JSON
   const loadingDataJson = JSON.stringify(loadingResult);
   const trucksDataJson = JSON.stringify(trucksData);
   const initialIndex = truckIndex;
 
-  // Создаём HTML-страницу
   const htmlContent = generate3DPage(loadingDataJson, trucksDataJson, initialIndex);
   const win = window.open('', '_blank', 'width=1200,height=800,scrollbars=yes');
   if (!win) {
@@ -48,9 +45,6 @@ export function open3DView(loadingResult, trucksData, truckIndex = 0) {
   win.focus();
 }
 
-/**
- * Генерирует полный HTML для 3D-страницы, получая данные уже в виде JSON-строк.
- */
 function generate3DPage(loadingDataJson, trucksDataJson, initialTruckIndex) {
   return `<!DOCTYPE html>
 <html lang="ru">
@@ -170,12 +164,10 @@ function generate3DPage(loadingDataJson, trucksDataJson, initialTruckIndex) {
 
   <div class="tooltip" id="tooltip"></div>
 
-  <!-- Подключаем Three.js и OrbitControls -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"><\/script>
 
   <script>
-    // Безопасно парсим данные из переданных строк
     const LOADING_DATA = JSON.parse('${loadingDataJson.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}');
     const TRUCKS_DATA = JSON.parse('${trucksDataJson.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}');
     let currentTruckIndex = ${initialTruckIndex};
@@ -186,10 +178,6 @@ function generate3DPage(loadingDataJson, trucksDataJson, initialTruckIndex) {
     const mouse = new THREE.Vector2();
     const tooltip = document.getElementById('tooltip');
 
-    console.log('[3D] LOADING_DATA:', LOADING_DATA);
-    console.log('[3D] TRUCKS_DATA:', TRUCKS_DATA);
-    console.log('[3D] trucks:', trucks);
-
     function initScene() {
       scene = new THREE.Scene();
       scene.background = new THREE.Color(0x1a1a1a);
@@ -197,7 +185,7 @@ function generate3DPage(loadingDataJson, trucksDataJson, initialTruckIndex) {
       const containerWidth = window.innerWidth;
       const containerHeight = window.innerHeight;
       camera = new THREE.PerspectiveCamera(45, containerWidth / containerHeight, 0.1, 1000);
-      camera.position.set(6, 4, 8);
+      camera.position.set(8, 6, 10);
       camera.lookAt(0, 0, 0);
 
       renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -244,19 +232,17 @@ function generate3DPage(loadingDataJson, trucksDataJson, initialTruckIndex) {
       }
 
       const truckData = trucks[truckIndex];
-      if (!truckData) {
-        console.warn('[3D] Нет данных для грузовика', truckIndex);
-        return;
-      }
+      if (!truckData) return;
 
       const truckInfo = TRUCKS_DATA[truckIndex] || {};
+      // Размеры в метрах
       const truckW = (truckInfo.width || 200) / 100;
       const truckH = (truckInfo.height || 200) / 100;
       const truckD = (truckInfo.depth || 400) / 100;
 
       truckGroup = new THREE.Group();
 
-      // Корпус грузовика (полупрозрачный)
+      // Полупрозрачный корпус грузовика (центрирован)
       const boxMat = new THREE.MeshPhongMaterial({
         color: 0x3a5a8a,
         transparent: true,
@@ -268,7 +254,7 @@ function generate3DPage(loadingDataJson, trucksDataJson, initialTruckIndex) {
 
       const boxGeo = new THREE.BoxGeometry(truckW, truckH, truckD);
       const boxMesh = new THREE.Mesh(boxGeo, boxMat);
-      boxMesh.position.set(0, truckH/2, 0);
+      boxMesh.position.set(0, truckH/2, 0); // центр по Y на половине высоты
       truckGroup.add(boxMesh);
 
       const edges = new THREE.EdgesGeometry(boxGeo);
@@ -282,16 +268,20 @@ function generate3DPage(loadingDataJson, trucksDataJson, initialTruckIndex) {
       let colorIdx = 0;
 
       items.forEach((item, idx) => {
+        // Размеры в метрах
         let w = (item.w || 0.01) / 100;
         let h = (item.h || 0.01) / 100;
         let d = (item.d || 0.01) / 100;
-        if (w < 0.05) w = 0.05;
-        if (h < 0.05) h = 0.05;
-        if (d < 0.05) d = 0.05;
+        if (w < 0.02) w = 0.02;
+        if (h < 0.02) h = 0.02;
+        if (d < 0.02) d = 0.02;
 
-        const cx = ((item.x || 0) + w/2);
-        const cy = ((item.y || 0) + h/2);
-        const cz = ((item.z || 0) + d/2);
+        // Координаты в сантиметрах -> метры, но центрируем относительно грузовика
+        // item.x, item.y, item.z – это координаты левого нижнего угла предмета в см
+        // Переводим в метры и смещаем так, чтобы центр грузовика был в (0,0,0)
+        const cx = (item.x || 0) / 100 - truckW/2 + w/2;
+        const cy = (item.y || 0) / 100 + h/2; // y уже от низа, оставляем как есть
+        const cz = (item.z || 0) / 100 - truckD/2 + d/2;
 
         const color = colors[colorIdx % colors.length];
         colorIdx++;
@@ -313,7 +303,7 @@ function generate3DPage(loadingDataJson, trucksDataJson, initialTruckIndex) {
 
         // Подпись
         const label = createTextSprite(item.name || '');
-        label.position.set(cx, cy + h/2 + 0.15, cz);
+        label.position.set(cx, cy + h/2 + 0.1, cz);
         truckGroup.add(label);
       });
 
