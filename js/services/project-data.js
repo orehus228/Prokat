@@ -1,5 +1,5 @@
 // services/project-data.js
-import { getState, setStateKey, saveState } from '../core/state.js';
+import { getState, saveState } from '../core/state.js';
 import { getStockValue } from '../data/editor-data.js';
 import {
   reserveInstances,
@@ -10,82 +10,46 @@ import {
   getInstanceStats,
 } from './instance-service.js';
 import { INSTANCE_STATUSES } from '../core/config.js';
+import { projectRepo } from '../repositories/ProjectRepository.js';
 
 // ============================================================
-// ГЕТТЕРЫ
+// ГЕТТЕРЫ (перенаправление на репозиторий)
 // ============================================================
 
 export function getProjects() {
-  return getState().projects || [];
+  return projectRepo.getProjects();
 }
 
 export function getProject(id) {
-  return getProjects().find(p => p.id === id);
+  return projectRepo.getProject(id);
 }
 
 export function getProjectItems(projectId) {
-  const state = getState();
-  return state.projectItems.filter(item => item.project_id === projectId);
+  return projectRepo.getProjectItems(projectId);
 }
 
 export function getAllProjectItems() {
-  return getState().projectItems || [];
+  return projectRepo.getAllProjectItems();
 }
 
-/**
- * Возвращает список instanceId для позиции в проекте.
- * @param {string} projectId
- * @param {string} path
- * @returns {string[]}
- */
 export function getProjectItemInstances(projectId, path) {
-  const items = getProjectItems(projectId);
-  const item = items.find(i => i.equipment_path === path);
-  return item?.instanceIds || [];
+  return projectRepo.getProjectItemInstances(projectId, path);
 }
 
-/**
- * Проверяет, используется ли экземпляр в каком-либо проекте (кроме указанного).
- * @param {string} instanceId
- * @param {string} excludeProjectId
- * @returns {boolean}
- */
-export function isInstanceUsedInOtherProject(instanceId, excludeProjectId = null) {
-  const state = getState();
-  const instance = state.instances[instanceId];
-  if (!instance) return false;
-  if (instance.status !== INSTANCE_STATUSES.RESERVED && instance.status !== INSTANCE_STATUSES.ISSUED) {
-    return false;
-  }
-  if (instance.currentProjectId && instance.currentProjectId !== excludeProjectId) {
-    return true;
-  }
-  return false;
+export function getProjectInstances(projectId) {
+  return projectRepo.getProjectInstances(projectId);
 }
 
 // ============================================================
 // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ДАТ
 // ============================================================
 
-/**
- * Преобразует дату в UTC timestamp для корректного сравнения.
- * @param {string} dateStr - дата в формате YYYY-MM-DD
- * @returns {number} timestamp в миллисекундах
- */
 function toUTCTimestamp(dateStr) {
   if (!dateStr) return 0;
   const parts = dateStr.split('-').map(Number);
   return Date.UTC(parts[0], parts[1] - 1, parts[2]);
 }
 
-/**
- * Проверяет пересечение двух периодов (включительно).
- * @param {number} start1 - UTC timestamp начала первого периода
- * @param {number} end1 - UTC timestamp окончания первого периода
- * @param {number} start2 - UTC timestamp начала второго периода
- * @param {number} end2 - UTC timestamp окончания второго периода
- * @returns {boolean} true если периоды пересекаются
- */
 function periodsOverlap(start1, end1, start2, end2) {
   return start1 <= end2 && end1 >= start2;
 }
@@ -95,21 +59,10 @@ function periodsOverlap(start1, end1, start2, end2) {
 // ============================================================
 
 export function saveProject(project) {
-  const state = getState();
-  const projects = state.projects;
-  const index = projects.findIndex(p => p.id === project.id);
-  if (index !== -1) {
-    projects[index] = { ...projects[index], ...project };
-  } else {
-    project.id = project.id || Date.now() + '_' + Math.random().toString(36).substr(2, 5);
-    projects.push(project);
-  }
-  saveState();
-  return project;
+  return projectRepo.saveProject(project);
 }
 
 export function deleteProject(id) {
-  const state = getState();
   // Освобождаем все экземпляры, привязанные к этому проекту
   const items = getProjectItems(id);
   for (let item of items) {
@@ -117,23 +70,13 @@ export function deleteProject(id) {
       releaseInstances(item.instanceIds, id, `Удаление проекта ${id}`);
     }
   }
-  state.projects = state.projects.filter(p => p.id !== id);
-  state.projectItems = state.projectItems.filter(item => item.project_id !== id);
-  saveState();
+  projectRepo.deleteProject(id);
 }
 
 // ============================================================
-// РАБОТА С ПОЗИЦИЯМИ ПРОЕКТА
+// РАБОТА С ПОЗИЦИЯМИ ПРОЕКТА (с логикой резервирования)
 // ============================================================
 
-/**
- * Добавляет или обновляет позицию в проекте с учётом экземпляров.
- * @param {string|null} projectId - id проекта (null для освобождения всех экземпляров)
- * @param {string} equipmentPath - путь позиции
- * @param {number} quantity - запрашиваемое количество (может быть 0 для удаления)
- * @param {object} options - { subrentInfo: { isSubrent, counterparty }, instanceIds: [] } (опционально)
- * @returns {object} { success: boolean, error: string, reservedInstances: object[] }
- */
 export function addProjectItem(projectId, equipmentPath, quantity, options = {}) {
   const state = getState();
 
@@ -147,9 +90,8 @@ export function addProjectItem(projectId, equipmentPath, quantity, options = {})
         const result = releaseInstances(item.instanceIds, item.project_id, `Освобождение при отвязке проекта`);
         releasedCount += result.released;
       }
-      // Удаляем запись
-      const idx = state.projectItems.indexOf(item);
-      if (idx !== -1) state.projectItems.splice(idx, 1);
+      // Удаляем запись через репозиторий
+      projectRepo.removeProjectItem(item.id);
     }
     saveState();
     return { success: true, reservedInstances: [] };
@@ -168,12 +110,10 @@ export function addProjectItem(projectId, equipmentPath, quantity, options = {})
   if (quantity <= 0) {
     if (existingIndex !== -1) {
       const item = state.projectItems[existingIndex];
-      // Освобождаем экземпляры
       if (item.instanceIds && item.instanceIds.length > 0) {
         releaseInstances(item.instanceIds, projectId, `Удаление позиции ${equipmentPath} из проекта`);
       }
-      state.projectItems.splice(existingIndex, 1);
-      saveState();
+      projectRepo.removeProjectItem(item.id);
       return { success: true, reservedInstances: [] };
     }
     return { success: true, reservedInstances: [] };
@@ -230,7 +170,6 @@ export function addProjectItem(projectId, equipmentPath, quantity, options = {})
     instanceIds = reserved.map(inst => inst.id);
   } else {
     // Если экземпляров нет, используем старую логику (только количество)
-    // Проверяем остаток на складе
     const stock = getStockValue(equipmentPath);
     // Получаем уже занятое количество в других проектах
     const otherProjects = getProjects().filter(p => p.id !== projectId);
@@ -250,31 +189,15 @@ export function addProjectItem(projectId, equipmentPath, quantity, options = {})
     }
   }
 
-  // Сохраняем или обновляем позицию
-  const newItem = {
-    id: existingIndex !== -1 ? state.projectItems[existingIndex].id : Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-    project_id: projectId,
-    equipment_path: equipmentPath,
-    quantity: quantity,
-    instanceIds: instanceIds,
+  // Сохраняем или обновляем позицию через репозиторий
+  const result = projectRepo.addProjectItem(projectId, equipmentPath, quantity, {
+    instanceIds,
     subrentInfo: options.subrentInfo || null,
-  };
+  });
 
-  if (existingIndex !== -1) {
-    state.projectItems[existingIndex] = newItem;
-  } else {
-    state.projectItems.push(newItem);
-  }
-
-  saveState();
-  return { success: true, reservedInstances: reserved };
+  return { success: result.success, reservedInstances: reserved };
 }
 
-/**
- * Удаляет позицию из проекта (освобождает экземпляры).
- * @param {string} id - id записи projectItems
- * @returns {boolean}
- */
 export function removeProjectItem(id) {
   const state = getState();
   const index = state.projectItems.findIndex(item => item.id === id);
@@ -283,40 +206,23 @@ export function removeProjectItem(id) {
   if (item.instanceIds && item.instanceIds.length > 0) {
     releaseInstances(item.instanceIds, item.project_id, `Удаление позиции ${item.equipment_path}`);
   }
-  state.projectItems.splice(index, 1);
-  saveState();
-  return true;
+  return projectRepo.removeProjectItem(id);
 }
 
-/**
- * Очищает все позиции проекта (освобождает все экземпляры).
- * @param {string} projectId
- */
 export function clearProjectItems(projectId) {
-  const state = getState();
   const items = getProjectItems(projectId);
   for (let item of items) {
     if (item.instanceIds && item.instanceIds.length > 0) {
       releaseInstances(item.instanceIds, projectId, `Очистка проекта ${projectId}`);
     }
   }
-  state.projectItems = state.projectItems.filter(item => item.project_id !== projectId);
-  saveState();
+  projectRepo.clearProjectItems(projectId);
 }
 
 // ============================================================
 // ПРОВЕРКА ДОСТУПНОСТИ (С КОНФЛИКТАМИ)
 // ============================================================
 
-/**
- * Проверяет доступность позиции на указанный период с учётом экземпляров.
- * @param {string} equipmentPath
- * @param {string} startDate
- * @param {string} endDate
- * @param {number} requestedQty
- * @param {string|null} currentProjectId
- * @returns {object} { available, conflicts, totalStock, allocated, isConflict, instanceDetails }
- */
 export function getAvailableQuantity(equipmentPath, startDate, endDate, requestedQty, currentProjectId = null) {
   if (!startDate || !endDate) {
     const totalStock = getStockValue(equipmentPath);
@@ -410,36 +316,26 @@ export function getAvailableQuantity(equipmentPath, startDate, endDate, requeste
   }
 }
 
-/**
- * Возвращает все экземпляры, задействованные в проекте.
- * @param {string} projectId
- * @returns {object[]}
- */
-export function getProjectInstances(projectId) {
-  const items = getProjectItems(projectId);
+export function isInstanceUsedInOtherProject(instanceId, excludeProjectId = null) {
   const state = getState();
-  const result = [];
-  for (let item of items) {
-    if (item.instanceIds) {
-      for (let id of item.instanceIds) {
-        if (state.instances[id]) {
-          result.push(state.instances[id]);
-        }
-      }
-    }
+  const instance = state.instances[instanceId];
+  if (!instance) return false;
+  if (instance.status !== INSTANCE_STATUSES.RESERVED && instance.status !== INSTANCE_STATUSES.ISSUED) {
+    return false;
   }
-  return result;
+  if (instance.currentProjectId && instance.currentProjectId !== excludeProjectId) {
+    return true;
+  }
+  return false;
 }
 
-// ============================================================
-// ЭКСПОРТ ПО УМОЛЧАНИЮ
-// ============================================================
 export default {
   getProjects,
   getProject,
   getProjectItems,
   getAllProjectItems,
   getProjectItemInstances,
+  getProjectInstances,
   isInstanceUsedInOtherProject,
   saveProject,
   deleteProject,
@@ -447,5 +343,4 @@ export default {
   removeProjectItem,
   clearProjectItems,
   getAvailableQuantity,
-  getProjectInstances,
 };

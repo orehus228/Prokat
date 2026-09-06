@@ -1,38 +1,16 @@
 // data/editor-data.js
-import {
-  getState,
-  setStateKey,
-  saveState,
-  clearCalculationCache,
-  rebuildInstancesIndex,
-} from '../core/state.js';
-import {
-  CAT_NAMES,
-  DUPLICATE_VIDEO_GROUPS,
-  DEFAULT_TRUCK_PRESETS,
-  INSTANCE_STATUSES,
-} from '../core/config.js';
-import {
-  updateAllPathsOnCategoryRename,
-  updateOrderPaths,
-} from '../services/order-data.js';
-import {
-  createInstance,
-  getInstancesByPath,
-  deleteInstance,
-  updateInstanceStatus,
-  ensureInstancesForPath,
-  getInstanceStats,
-  getInstance,
-} from '../services/instance-service.js';
+import { getState, saveState, clearCalculationCache, rebuildInstancesIndex } from '../core/state.js';
+import { CAT_NAMES, DUPLICATE_VIDEO_GROUPS, DEFAULT_TRUCK_PRESETS, INSTANCE_STATUSES } from '../core/config.js';
+import { updateAllPathsOnCategoryRename, updateOrderPaths } from '../services/order-data.js';
+import { joinPath } from '../utils/pathUtils.js';
+import { inventoryRepo } from '../repositories/InventoryRepository.js';
 
 // ============================================================
-// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ РАБОТЫ С ПУТЯМИ
+// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ РАБОТЫ С ПУТЯМИ (оставлены для совместимости)
 // ============================================================
 
 export function getStockKey(catKey, subKey, itemName) {
-  if (subKey) return catKey + '|' + subKey + '|' + itemName;
-  return catKey + '|' + itemName;
+  return joinPath(catKey, subKey, itemName);
 }
 
 export function getFullPath(catKey, subKey, itemName) {
@@ -40,27 +18,21 @@ export function getFullPath(catKey, subKey, itemName) {
 }
 
 // ============================================================
-// ДОСТУП К СКЛАДСКИМ ОСТАТКАМ
+// ДОСТУП К СКЛАДСКИМ ОСТАТКАМ (перенаправление на репозиторий)
 // ============================================================
 
 export function getStock(catKey, subKey, itemName) {
-  const key = getStockKey(catKey, subKey, itemName);
-  return getState().stock[key] !== undefined ? getState().stock[key] : 0;
+  const path = getStockKey(catKey, subKey, itemName);
+  return inventoryRepo.getStock(path);
 }
 
 export function getStockValue(path) {
-  const parts = path.split('|');
-  const catKey = parts[0];
-  const subKey = parts.length > 2 ? parts[1] : null;
-  const itemName = subKey ? parts.slice(2).join('|') : parts.slice(1).join('|');
-  return getStock(catKey, subKey, itemName);
+  return inventoryRepo.getStock(path);
 }
 
 export function setStock(catKey, subKey, itemName, val) {
-  const key = getStockKey(catKey, subKey, itemName);
-  const state = getState();
-  state.stock[key] = Number(val);
-  saveState();
+  const path = getStockKey(catKey, subKey, itemName);
+  inventoryRepo.setStock(path, val);
 }
 
 // ============================================================
@@ -68,16 +40,13 @@ export function setStock(catKey, subKey, itemName, val) {
 // ============================================================
 
 export function getSpec(catKey, subKey, itemName) {
-  const key = getStockKey(catKey, subKey, itemName);
-  return getState().specs[key] || '';
+  const path = getStockKey(catKey, subKey, itemName);
+  return inventoryRepo.getSpec(path);
 }
 
 export function setSpec(catKey, subKey, itemName, val) {
-  const key = getStockKey(catKey, subKey, itemName);
-  const state = getState();
-  if (val && val.trim()) state.specs[key] = val;
-  else delete state.specs[key];
-  saveState();
+  const path = getStockKey(catKey, subKey, itemName);
+  inventoryRepo.setSpec(path, val);
 }
 
 // ============================================================
@@ -91,37 +60,16 @@ export function getItemProps(catKey, subKey, itemName) {
   } else {
     key = getStockKey(catKey, subKey, itemName);
   }
-  const state = getState();
-  const props = state.itemProps[key];
-  if (props) {
-    if (props.weight === undefined) props.weight = 0;
-    if (props.dimensions === undefined) props.dimensions = '';
-    if (props.volume === undefined) props.volume = 0;
-    if (props.individualCases === undefined) props.individualCases = [];
-    if (props.allowCommon === undefined) props.allowCommon = false;
-    if (props.commonCases === undefined) props.commonCases = [];
-    return props;
-  }
-  return { weight: 0, dimensions: '', volume: 0, individualCases: [], allowCommon: false, commonCases: [] };
+  return inventoryRepo.getProps(key);
 }
 
 export function getItemPropsByPath(path) {
-  return getItemProps(path);
+  return inventoryRepo.getProps(path);
 }
 
 export function setItemProps(catKey, subKey, itemName, props) {
   const key = getStockKey(catKey, subKey, itemName);
-  const state = getState();
-  if (props && Object.keys(props).length > 0) {
-    if (props.weight === undefined) props.weight = 0;
-    if (props.dimensions === undefined) props.dimensions = '';
-    if (props.volume === undefined) props.volume = 0;
-    state.itemProps[key] = props;
-  } else {
-    delete state.itemProps[key];
-  }
-  saveState();
-  clearCalculationCache();
+  inventoryRepo.setProps(key, props);
 }
 
 // ============================================================
@@ -129,35 +77,19 @@ export function setItemProps(catKey, subKey, itemName, props) {
 // ============================================================
 
 export function getCommonCases() {
-  return getState().commonCases || [];
+  return inventoryRepo.getCommonCases();
 }
 
 export function addCommonCase(caseObj) {
-  const state = getState();
-  state.commonCases.push(caseObj);
-  saveState();
+  inventoryRepo.addCommonCase(caseObj);
 }
 
 export function updateCommonCase(id, newData) {
-  const state = getState();
-  const idx = state.commonCases.findIndex(c => c.id === id);
-  if (idx !== -1) {
-    state.commonCases[idx] = { ...state.commonCases[idx], ...newData };
-    saveState();
-  }
+  inventoryRepo.updateCommonCase(id, newData);
 }
 
 export function deleteCommonCase(id) {
-  const state = getState();
-  state.commonCases = state.commonCases.filter(c => c.id !== id);
-  for (let key in state.itemProps) {
-    const props = state.itemProps[key];
-    if (props.commonCases) {
-      props.commonCases = props.commonCases.filter(opt => opt.caseId !== id);
-      if (props.commonCases.length === 0) delete props.commonCases;
-    }
-  }
-  saveState();
+  inventoryRepo.deleteCommonCase(id);
 }
 
 // ============================================================
@@ -165,142 +97,60 @@ export function deleteCommonCase(id) {
 // ============================================================
 
 export function getTruckPresets() {
-  return getState().truckPresets || [];
+  return inventoryRepo.getTruckPresets();
 }
 
 export function addTruckPreset(preset) {
-  const state = getState();
-  if (!state.truckPresets) state.truckPresets = [];
-  if (!preset.id) preset.id = 'truck_' + Date.now();
-  state.truckPresets.push(preset);
-  saveState();
+  inventoryRepo.addTruckPreset(preset);
 }
 
 export function updateTruckPreset(id, newData) {
-  const state = getState();
-  const presets = state.truckPresets;
-  const idx = presets.findIndex(p => p.id === id);
-  if (idx !== -1) {
-    presets[idx] = { ...presets[idx], ...newData };
-    saveState();
-  }
+  inventoryRepo.updateTruckPreset(id, newData);
 }
 
 export function deleteTruckPreset(id) {
-  const state = getState();
-  state.truckPresets = state.truckPresets.filter(p => p.id !== id);
-  saveState();
+  inventoryRepo.deleteTruckPreset(id);
 }
 
 export function getTruckPreset(id) {
-  return getTruckPresets().find(p => p.id === id);
+  return inventoryRepo.getTruckPreset(id);
 }
 
 // ============================================================
 // РАБОТА С ЭКЗЕМПЛЯРАМИ (НОВЫЕ ФУНКЦИИ)
 // ============================================================
 
-/**
- * Возвращает все экземпляры для позиции.
- * @param {string} path - полный путь позиции
- * @returns {object[]}
- */
 export function getPathInstances(path) {
-  return getInstancesByPath(path);
+  return inventoryRepo.getInstances(path);
 }
 
-/**
- * Возвращает статистику по экземплярам для позиции.
- * @param {string} path
- * @returns {object}
- */
 export function getPathInstanceStats(path) {
-  return getInstanceStats(path);
+  return inventoryRepo.getInstanceStats(path);
 }
 
-/**
- * Создаёт новый экземпляр для позиции.
- * @param {string} path
- * @param {string} serialNumber
- * @param {string} status
- * @param {object} subrentInfo
- * @returns {object}
- */
 export function addInstanceToPath(path, serialNumber = '', status = INSTANCE_STATUSES.STOCK, subrentInfo = null) {
-  return createInstance(path, serialNumber, status, subrentInfo || { isSubrent: false, counterparty: '' });
+  return inventoryRepo.addInstance(path, serialNumber, status, subrentInfo);
 }
 
-/**
- * Удаляет экземпляр (только если он в статусе 'stock' или 'written_off').
- * @param {string} instanceId
- * @returns {boolean}
- */
 export function removeInstance(instanceId) {
-  return deleteInstance(instanceId);
+  return inventoryRepo.deleteInstance(instanceId);
 }
 
-/**
- * Обновляет статус экземпляра.
- * @param {string} instanceId
- * @param {string} newStatus
- * @param {string} comment
- * @returns {boolean}
- */
 export function updateInstance(instanceId, newStatus, comment = '') {
-  return updateInstanceStatus(instanceId, newStatus, null, comment);
+  return inventoryRepo.updateInstance(instanceId, newStatus, comment);
 }
 
-/**
- * Синхронизирует количество экземпляров с остатком на складе.
- * Создаёт недостающие экземпляры или удаляет лишние (только в статусе 'stock').
- * @param {string} path
- * @param {number} targetCount - целевое количество (если не указано, берётся из stock)
- * @param {string} serialPrefix - префикс для серийных номеров
- * @returns {object} { created: number, deleted: number, errors: string[] }
- */
 export function syncInstancesWithStock(path, targetCount = null, serialPrefix = 'SN') {
-  const state = getState();
-  const stock = getStockValue(path);
-  const target = targetCount !== null ? targetCount : stock;
-  const instances = getInstancesByPath(path);
-  const currentCount = instances.length;
-  const errors = [];
-  let created = 0;
-  let deleted = 0;
-
-  if (currentCount < target) {
-    // Создаём недостающие
-    const newInstances = ensureInstancesForPath(path, target, serialPrefix);
-    created = newInstances.length;
-  } else if (currentCount > target) {
-    // Удаляем лишние (только со статусом 'stock')
-    const toDelete = instances
-      .filter(inst => inst.status === INSTANCE_STATUSES.STOCK)
-      .slice(0, currentCount - target);
-    for (let inst of toDelete) {
-      const success = deleteInstance(inst.id);
-      if (success) deleted++;
-      else errors.push(`Не удалось удалить экземпляр ${inst.id}`);
-    }
-  }
-
-  // Перестраиваем индекс
-  rebuildInstancesIndex();
-  saveState();
-  return { created, deleted, errors };
+  return inventoryRepo.syncInstancesWithStock(path, targetCount, serialPrefix);
 }
 
-/**
- * Получает экземпляр по ID.
- * @param {string} instanceId
- * @returns {object|null}
- */
 export function getInstanceById(instanceId) {
-  return getInstance(instanceId);
+  return inventoryRepo.getInstanceById(instanceId);
 }
 
 // ============================================================
 // ПЕРЕИМЕНОВАНИЕ КАТЕГОРИЙ, ПОДГРУПП, ПОЗИЦИЙ И ПЕРЕМЕЩЕНИЕ
+// (эти функции пока остаются здесь, но используют репозиторий для обновления данных)
 // ============================================================
 
 export function renameCategory(oldName, newName) {
@@ -318,7 +168,7 @@ export function renameCategory(oldName, newName) {
   const oldPrefix = oldName + '|';
   const newPrefix = newName + '|';
   
-  // Обновляем пути в stock, specs, itemProps
+  // Обновляем пути в stock, specs, itemProps через репозиторий (он работает с state напрямую)
   const keysToUpdate = Object.keys(state.stock).filter(k => k.startsWith(oldPrefix));
   keysToUpdate.forEach(k => {
     const newK = k.replace(oldPrefix, newPrefix);
@@ -530,7 +380,6 @@ export default {
   updateTruckPreset,
   deleteTruckPreset,
   getTruckPreset,
-  // Новые функции для экземпляров
   getPathInstances,
   getPathInstanceStats,
   addInstanceToPath,
