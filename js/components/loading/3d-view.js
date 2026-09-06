@@ -271,12 +271,10 @@ function generate3DPage(loadingResult, trucksData, initialTruckIndex) {
         if (h < 0.05) h = 0.05;
         if (d < 0.05) d = 0.05;
 
-        // Координаты уже в метрах? В packItems мы сохраняли координаты в сантиметрах?
-        // В packItems мы используем ширину/глубину/высоту в сантиметрах, и координаты также в сантиметрах.
-        // При переводе в метры делим всё на 100.
-        const cx = ((item.x || 0) + w/2);
-        const cy = ((item.y || 0) + h/2);
-        const cz = ((item.z || 0) + d/2);
+        // Координаты в см -> м
+        const cx = ((item.x || 0) / 100) + w/2;
+        const cy = ((item.y || 0) / 100) + h/2;
+        const cz = ((item.z || 0) / 100) + d/2;
 
         const color = colors[colorIdx % colors.length];
         colorIdx++;
