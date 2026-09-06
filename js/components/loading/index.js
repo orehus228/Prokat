@@ -1,6 +1,6 @@
 // components/loading/index.js
 import { getState, saveState } from '../../core/state.js';
-import { getTruckPresets, addTruckPreset, updateTruckPreset, deleteTruckPreset } from '../../data/editor-data.js';
+import { inventoryRepo } from '../../repositories/InventoryRepository.js';
 import { getActiveItemsOrder } from '../order/helpers.js';
 import { getItemDimensions, calculateLoading } from '../../services/packing.js';
 import { showToast } from '../../ui/toast.js';
@@ -12,14 +12,14 @@ import { open3DView } from './3d-view.js';
 const SELECTED_TRUCKS_KEY = STORAGE_KEYS.SELECTED_TRUCKS;
 
 let loadingResult = null;
-let currentTrucksData = []; // <-- добавлено
+let currentTrucksData = [];
 
 function loadSelectedTrucks() {
   try {
     const saved = localStorage.getItem(SELECTED_TRUCKS_KEY);
     if (saved) {
       const ids = JSON.parse(saved);
-      const presets = getTruckPresets();
+      const presets = inventoryRepo.getTruckPresets();
       return ids.filter(id => presets.some(p => p.id === id));
     }
   } catch (e) { return []; }
@@ -48,7 +48,7 @@ function runCalculation() {
     return null;
   }
 
-  const presets = getTruckPresets();
+  const presets = inventoryRepo.getTruckPresets();
   const selectedIds = loadSelectedTrucks();
   const selectedTrucks = presets.filter(p => selectedIds.includes(p.id));
   if (selectedTrucks.length === 0) {
@@ -56,7 +56,6 @@ function runCalculation() {
     return null;
   }
 
-  // Сохраняем данные о грузовиках для 3D
   currentTrucksData = selectedTrucks.map(t => ({
     id: t.id,
     name: t.name,
@@ -172,7 +171,7 @@ export function renderLoadingPage() {
   const container = document.getElementById('loadingContent');
   if (!container) return;
 
-  const presets = getTruckPresets();
+  const presets = inventoryRepo.getTruckPresets();
   const selectedIds = loadSelectedTrucks();
 
   let html = `
@@ -276,7 +275,6 @@ function renderResult(result) {
   document.getElementById('exportLoadingPdf')?.addEventListener('click', exportLoadingPDF);
 
   document.getElementById('show3DViewBtn')?.addEventListener('click', () => {
-    // Передаём результат и данные о грузовиках
     open3DView(result, currentTrucksData, 0);
   });
 }
@@ -293,7 +291,7 @@ function openTruckManager() {
 
 function renderTruckList() {
   const container = document.getElementById('truckList');
-  const presets = getTruckPresets();
+  const presets = inventoryRepo.getTruckPresets();
   if (presets.length === 0) {
     container.innerHTML = '<div class="empty-message">Нет грузовиков</div>';
     return;
@@ -313,7 +311,7 @@ function renderTruckList() {
 }
 
 window.editTruck = function(id) {
-  const presets = getTruckPresets();
+  const presets = inventoryRepo.getTruckPresets();
   const t = presets.find(p => p.id === id);
   if (!t) return;
   document.getElementById('truckName').value = t.name || '';
@@ -329,7 +327,7 @@ window.editTruck = function(id) {
 window.deleteTruck = async function(id) {
   const confirmed = await showConfirm('Удалить грузовик?');
   if (!confirmed) return;
-  deleteTruckPreset(id);
+  inventoryRepo.deleteTruckPreset(id);
   const selected = loadSelectedTrucks();
   saveSelectedTrucks(selected.filter(tid => tid !== id));
   renderTruckList();
@@ -352,10 +350,10 @@ export function initTruckManagerHandlers() {
       if (isNaN(height) || height <= 0) { showToast('Введите высоту', 'warning'); return; }
       const editId = this.dataset.editId;
       if (editId) {
-        updateTruckPreset(editId, { name, length, width, height, maxWeight: isNaN(maxWeight)?0:maxWeight });
+        inventoryRepo.updateTruckPreset(editId, { name, length, width, height, maxWeight: isNaN(maxWeight)?0:maxWeight });
         showToast('Грузовик обновлён', 'success');
       } else {
-        addTruckPreset({ name, length, width, height, maxWeight: isNaN(maxWeight)?0:maxWeight });
+        inventoryRepo.addTruckPreset({ name, length, width, height, maxWeight: isNaN(maxWeight)?0:maxWeight });
         showToast('Грузовик добавлен', 'success');
       }
       document.getElementById('truckName').value = '';
