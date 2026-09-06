@@ -5,11 +5,10 @@ import {
   getIndividualCaseValues,
   getOrderExtra,
 } from './order-data.js';
-// ⭐ Импортируем всё из calculations.js
 import * as calc from './calculations.js';
 
 // ============================================================
-// ПОЛУЧЕНИЕ ГАБАРИТОВ ДЛЯ КАЖДОЙ ЕДИНИЦЫ ГРУЗА
+// ПОЛУЧЕНИЕ ГАБАРИТОВ С МЕТАДАННЫМИ
 // ============================================================
 
 export function getItemDimensions(path, qty) {
@@ -17,6 +16,12 @@ export function getItemDimensions(path, qty) {
   const mode = calc.getCaseMode(path);
   const packing = getOrderPacking(path);
   const result = [];
+
+  // Определяем, можно ли поворачивать предмет (по умолчанию да)
+  // Для ферм, длинных профилей – запрещаем поворот, только вдоль длины
+  const itemName = path.split('|').pop().toLowerCase();
+  const isLongItem = /ферма|балка|профиль|труба|швеллер|уголок|рейка|доска|брус|стропило|ригель|сцена/i.test(itemName);
+  const canRotate = !isLongItem; // длинные предметы нельзя поворачивать
 
   if (packing.length > 0) {
     let remaining = qty;
@@ -33,7 +38,14 @@ export function getItemDimensions(path, qty) {
       const unitWeight = props.weight || 0;
       const totalWeight = unitsInThisCase * unitWeight + (caseObj.emptyWeight || 0);
       const name = caseObj.name || 'Общий кофр';
-      result.push({ width: w, height: h, depth: d, weight: totalWeight, name, path });
+      result.push({ 
+        width: w, height: h, depth: d, 
+        weight: totalWeight, 
+        name, 
+        path,
+        canRotate: false, // кофры не поворачиваем
+        priority: 10 // высокий приоритет (упаковываем первыми)
+      });
       remaining -= unitsInThisCase;
     }
     if (remaining > 0) {
@@ -42,7 +54,14 @@ export function getItemDimensions(path, qty) {
       const h = dims[1] || 0;
       const d = dims[2] || 0;
       const unitWeight = props.weight || 0;
-      result.push({ width: w, height: h, depth: d, weight: remaining * unitWeight, name: 'Без кофра (остаток)', path });
+      result.push({ 
+        width: w, height: h, depth: d, 
+        weight: remaining * unitWeight, 
+        name: 'Без кофра (остаток)', 
+        path,
+        canRotate,
+        priority: 5
+      });
     }
     return result;
   }
@@ -83,8 +102,10 @@ export function getItemDimensions(path, qty) {
           height: h,
           depth: d,
           weight: qtyPerCase * unitWeight + emptyWeight,
-          name: `Кофр вар.${i + 1}`,
-          path
+          name: `Кофр вар.${i+1}`,
+          path,
+          canRotate: false,
+          priority: 8
         });
       }
       if (rem > 0) {
@@ -93,8 +114,10 @@ export function getItemDimensions(path, qty) {
           height: h,
           depth: d,
           weight: rem * unitWeight + emptyWeight,
-          name: `Кофр вар.${i + 1} (неполный)`,
-          path
+          name: `Кофр вар.${i+1} (неполн.)`,
+          path,
+          canRotate: false,
+          priority: 8
         });
       }
       remaining -= unitsInThisCase;
@@ -105,7 +128,14 @@ export function getItemDimensions(path, qty) {
       const h = dims[1] || 0;
       const d = dims[2] || 0;
       const unitWeight = props.weight || 0;
-      result.push({ width: w, height: h, depth: d, weight: remaining * unitWeight, name: 'Без кофра (остаток)', path });
+      result.push({ 
+        width: w, height: h, depth: d, 
+        weight: remaining * unitWeight, 
+        name: 'Без кофра (остаток)', 
+        path,
+        canRotate,
+        priority: 5
+      });
     }
     return result;
   }
@@ -128,7 +158,14 @@ export function getItemDimensions(path, qty) {
       const h = dims[1] || 0;
       const d = dims[2] || 0;
       const unitWeight = props.weight || 0;
-      result.push({ width: w, height: h, depth: d, weight: qty * unitWeight, name: 'Без кофра', path });
+      result.push({ 
+        width: w, height: h, depth: d, 
+        weight: qty * unitWeight, 
+        name: 'Без кофра', 
+        path,
+        canRotate,
+        priority: 5
+      });
       return result;
     }
     const dims = dimsStr.split('x').map(s => parseFloat(s.trim()));
@@ -145,7 +182,9 @@ export function getItemDimensions(path, qty) {
         depth: d,
         weight: qtyPerCase * unitWeight + emptyWeight,
         name: 'Кофр',
-        path
+        path,
+        canRotate: false,
+        priority: 8
       });
     }
     if (rem > 0) {
@@ -155,7 +194,9 @@ export function getItemDimensions(path, qty) {
         depth: d,
         weight: rem * unitWeight + emptyWeight,
         name: 'Неполный кофр',
-        path
+        path,
+        canRotate: false,
+        priority: 8
       });
     }
     return result;
@@ -166,69 +207,124 @@ export function getItemDimensions(path, qty) {
   const h = dims[1] || 0;
   const d = dims[2] || 0;
   const unitWeight = props.weight || 0;
-  result.push({ width: w, height: h, depth: d, weight: qty * unitWeight, name: 'Без кофра', path });
+  result.push({ 
+    width: w, height: h, depth: d, 
+    weight: qty * unitWeight, 
+    name: 'Без кофра', 
+    path,
+    canRotate,
+    priority: 5
+  });
   return result;
 }
 
 // ============================================================
-// ЭВРИСТИЧЕСКИЙ АЛГОРИТМ УПАКОВКИ (Corner-Based)
+// АЛГОРИТМ УПАКОВКИ (улучшенный, с поворотами и приоритетами)
 // ============================================================
 
 export function packItems(truck, items) {
+  // Сортируем по приоритету (убывание), затем по весу (убывание), затем по длине (убывание)
   const sortedItems = [...items].sort((a, b) => {
-    const volA = a.width * a.height * a.depth;
-    const volB = b.width * b.height * b.depth;
-    return volB - volA;
+    if (a.priority !== b.priority) return (b.priority || 0) - (a.priority || 0);
+    if (a.weight !== b.weight) return b.weight - a.weight;
+    return (b.width * b.depth) - (a.width * a.depth);
   });
 
   const packed = [];
   const points = [{ x: 0, y: 0, z: 0 }];
   let currentWeight = 0;
   const maxWeight = truck.maxWeight || Infinity;
+  const maxHeight = truck.height; // высота кузова в см
 
   for (let item of sortedItems) {
     if (currentWeight + item.weight > maxWeight) {
       return { success: false, packed, failedItem: item, reason: 'weight' };
     }
 
+    // Определяем возможные ориентации
+    let orientations = [];
+    const w = item.width;
+    const h = item.height;
+    const d = item.depth;
+
+    if (item.canRotate !== false) {
+      // Все 6 ориентаций (перестановки w,h,d)
+      const dims = [
+        [w, h, d],
+        [w, d, h],
+        [h, w, d],
+        [h, d, w],
+        [d, w, h],
+        [d, h, w]
+      ];
+      // Убираем дубликаты (если размеры совпадают)
+      const unique = [];
+      const seen = new Set();
+      for (let arr of dims) {
+        const key = arr.join('|');
+        if (!seen.has(key)) {
+          seen.add(key);
+          unique.push(arr);
+        }
+      }
+      orientations = unique.map(arr => ({ w: arr[0], h: arr[1], d: arr[2] }));
+    } else {
+      // Только одна ориентация (без поворота)
+      orientations = [{ w, h, d }];
+    }
+
     let placed = false;
+    // Перебираем все точки
     for (let i = 0; i < points.length; i++) {
       const pt = points[i];
-      if (pt.x + item.width <= truck.width &&
-          pt.y + item.height <= truck.height &&
-          pt.z + item.depth <= truck.depth) {
-        let collision = false;
-        for (let p of packed) {
-          if (pt.x < p.x + p.w && pt.x + item.width > p.x &&
-              pt.y < p.y + p.h && pt.y + item.height > p.y &&
-              pt.z < p.z + p.d && pt.z + item.depth > p.z) {
-            collision = true;
+      // Перебираем ориентации
+      for (let orient of orientations) {
+        const itemW = orient.w;
+        const itemH = orient.h;
+        const itemD = orient.d;
+
+        // Проверяем, помещается ли по габаритам
+        if (pt.x + itemW <= truck.width &&
+            pt.y + itemH <= truck.height &&
+            pt.z + itemD <= truck.depth) {
+          // Проверяем коллизию с уже упакованными
+          let collision = false;
+          for (let p of packed) {
+            if (pt.x < p.x + p.w && pt.x + itemW > p.x &&
+                pt.y < p.y + p.h && pt.y + itemH > p.y &&
+                pt.z < p.z + p.d && pt.z + itemD > p.z) {
+              collision = true;
+              break;
+            }
+          }
+          if (!collision) {
+            packed.push({
+              x: pt.x,
+              y: pt.y,
+              z: pt.z,
+              w: itemW,
+              h: itemH,
+              d: itemD,
+              weight: item.weight,
+              name: item.name,
+              path: item.path
+            });
+            currentWeight += item.weight;
+            points.splice(i, 1);
+            // Добавляем новые точки (по трём осям)
+            points.push({ x: pt.x + itemW, y: pt.y, z: pt.z });
+            points.push({ x: pt.x, y: pt.y + itemH, z: pt.z });
+            points.push({ x: pt.x, y: pt.y, z: pt.z + itemD });
+            // Сортируем точки: сначала по высоте (чтобы заполнять снизу), затем по оси Z, затем X
+            points.sort((a, b) => a.y - b.y || a.z - b.z || a.x - b.x);
+            placed = true;
             break;
           }
         }
-        if (!collision) {
-          packed.push({
-            x: pt.x,
-            y: pt.y,
-            z: pt.z,
-            w: item.width,
-            h: item.height,
-            d: item.depth,
-            weight: item.weight,
-            name: item.name,
-            path: item.path
-          });
-          currentWeight += item.weight;
-          points.splice(i, 1);
-          points.push({ x: pt.x + item.width, y: pt.y, z: pt.z });
-          points.push({ x: pt.x, y: pt.y + item.height, z: pt.z });
-          points.push({ x: pt.x, y: pt.y, z: pt.z + item.depth });
-          points.sort((a, b) => a.z - b.z || a.y - b.y || a.x - b.x);
-          placed = true;
-          break;
-        }
       }
+      if (placed) break;
     }
+
     if (!placed) {
       return { success: false, packed, failedItem: item, reason: 'space' };
     }
@@ -237,7 +333,7 @@ export function packItems(truck, items) {
 }
 
 // ============================================================
-// РАСЧЁТ ЗАГРУЗКИ ПО ВСЕМ ГРУЗОВИКАМ
+// РАСЧЁТ ЗАГРУЗКИ (без изменений)
 // ============================================================
 
 export function calculateLoading(trucks, allCargo) {
@@ -266,7 +362,6 @@ export function calculateLoading(trucks, allCargo) {
       result.trucks.push(truckPack);
       result.totalWeight += truckPack.totalWeight;
       result.totalVolume += truckPack.totalVolume;
-      // Удаляем упакованные предметы из оставшихся
       remainingCargo = remainingCargo.filter((item) => {
         return !truckResult.packed.some(p => p.path === item.path && p.name === item.name);
       });

@@ -7,10 +7,8 @@
  * @param {number} truckIndex - индекс грузовика для отображения (по умолчанию 0)
  */
 export function open3DView(loadingResult, trucksData, truckIndex = 0) {
-  console.log('[3D] open3DView вызван', { loadingResult, trucksData, truckIndex });
-
   if (!loadingResult || !loadingResult.trucks || loadingResult.trucks.length === 0) {
-    alert('Нет данных для 3D-отображения (loadingResult пуст)');
+    alert('Нет данных для 3D-отображения');
     return;
   }
   if (!trucksData || trucksData.length === 0) {
@@ -37,7 +35,7 @@ export function open3DView(loadingResult, trucksData, truckIndex = 0) {
   const htmlContent = generate3DPage(loadingDataJson, trucksDataJson, initialIndex);
   const win = window.open('', '_blank', 'width=1200,height=800,scrollbars=yes');
   if (!win) {
-    alert('Не удалось открыть окно. Разрешите всплывающие окна для этого сайта.');
+    alert('Не удалось открыть окно. Разрешите всплывающие окна.');
     return;
   }
   win.document.write(htmlContent);
@@ -99,10 +97,7 @@ function generate3DPage(loadingDataJson, trucksDataJson, initialTruckIndex) {
       font-weight: bold;
     }
     #controls button:hover { background: #5a8a6a; }
-    #controls button:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
+    #controls button:disabled { opacity: 0.4; cursor: not-allowed; }
     #controls .truck-name {
       font-weight: 600;
       font-size: 16px;
@@ -178,6 +173,30 @@ function generate3DPage(loadingDataJson, trucksDataJson, initialTruckIndex) {
     const mouse = new THREE.Vector2();
     const tooltip = document.getElementById('tooltip');
 
+    // Цвета для категорий (извлекаются из path)
+    const categoryColors = {
+      'sound': 0x4ecdc4,
+      'light': 0xffd93d,
+      'video': 0x6c5ce7,
+      'construct': 0xff6b6b,
+      'cables': 0xf9a825,
+      'extra': 0xab47bc,
+      'default': 0x42a5f5
+    };
+
+    function getCategoryColor(path) {
+      if (!path) return categoryColors.default;
+      const cat = path.split('|')[0];
+      return categoryColors[cat] || categoryColors.default;
+    }
+
+    function getCategoryName(path) {
+      if (!path) return '';
+      const parts = path.split('|');
+      if (parts.length >= 2) return parts[parts.length - 2];
+      return parts[0] || '';
+    }
+
     function initScene() {
       scene = new THREE.Scene();
       scene.background = new THREE.Color(0x1a1a1a);
@@ -235,26 +254,25 @@ function generate3DPage(loadingDataJson, trucksDataJson, initialTruckIndex) {
       if (!truckData) return;
 
       const truckInfo = TRUCKS_DATA[truckIndex] || {};
-      // Размеры в метрах
       const truckW = (truckInfo.width || 200) / 100;
       const truckH = (truckInfo.height || 200) / 100;
       const truckD = (truckInfo.depth || 400) / 100;
 
       truckGroup = new THREE.Group();
 
-      // Полупрозрачный корпус грузовика (центрирован)
+      // Корпус грузовика (полупрозрачный)
       const boxMat = new THREE.MeshPhongMaterial({
         color: 0x3a5a8a,
         transparent: true,
-        opacity: 0.15,
+        opacity: 0.12,
         side: THREE.DoubleSide,
         depthWrite: false,
       });
-      const wireframeMat = new THREE.LineBasicMaterial({ color: 0x88aaff });
+      const wireframeMat = new THREE.LineBasicMaterial({ color: 0x88aaff, transparent: true, opacity: 0.3 });
 
       const boxGeo = new THREE.BoxGeometry(truckW, truckH, truckD);
       const boxMesh = new THREE.Mesh(boxGeo, boxMat);
-      boxMesh.position.set(0, truckH/2, 0); // центр по Y на половине высоты
+      boxMesh.position.set(0, truckH/2, 0);
       truckGroup.add(boxMesh);
 
       const edges = new THREE.EdgesGeometry(boxGeo);
@@ -268,7 +286,6 @@ function generate3DPage(loadingDataJson, trucksDataJson, initialTruckIndex) {
       let colorIdx = 0;
 
       items.forEach((item, idx) => {
-        // Размеры в метрах
         let w = (item.w || 0.01) / 100;
         let h = (item.h || 0.01) / 100;
         let d = (item.d || 0.01) / 100;
@@ -276,34 +293,44 @@ function generate3DPage(loadingDataJson, trucksDataJson, initialTruckIndex) {
         if (h < 0.02) h = 0.02;
         if (d < 0.02) d = 0.02;
 
-        // Координаты в сантиметрах -> метры, но центрируем относительно грузовика
-        // item.x, item.y, item.z – это координаты левого нижнего угла предмета в см
-        // Переводим в метры и смещаем так, чтобы центр грузовика был в (0,0,0)
         const cx = (item.x || 0) / 100 - truckW/2 + w/2;
-        const cy = (item.y || 0) / 100 + h/2; // y уже от низа, оставляем как есть
+        const cy = (item.y || 0) / 100 + h/2;
         const cz = (item.z || 0) / 100 - truckD/2 + d/2;
 
-        const color = colors[colorIdx % colors.length];
-        colorIdx++;
+        // Цвет по категории
+        const color = getCategoryColor(item.path);
+        const category = getCategoryName(item.path);
 
-        const mat = new THREE.MeshPhongMaterial({ color: color, emissive: 0x000000, shininess: 30 });
+        const mat = new THREE.MeshPhongMaterial({
+          color: color,
+          emissive: 0x000000,
+          shininess: 20,
+          transparent: true,
+          opacity: 0.85,
+        });
         const geo = new THREE.BoxGeometry(w, h, d);
         const mesh = new THREE.Mesh(geo, mat);
         mesh.position.set(cx, cy, cz);
         mesh.castShadow = true;
         mesh.receiveShadow = true;
-        mesh.userData = { itemIndex: idx, name: item.name || 'Предмет' };
+        mesh.userData = {
+          itemIndex: idx,
+          name: item.name || 'Предмет',
+          category: category,
+          weight: item.weight
+        };
         truckGroup.add(mesh);
 
+        // Рамка
         const edgeGeo = new THREE.EdgesGeometry(geo);
-        const edgeMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.2 });
+        const edgeMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.15 });
         const edgeLine = new THREE.LineSegments(edgeGeo, edgeMat);
         edgeLine.position.copy(mesh.position);
         truckGroup.add(edgeLine);
 
-        // Подпись
+        // Подпись (спрайт с названием)
         const label = createTextSprite(item.name || '');
-        label.position.set(cx, cy + h/2 + 0.1, cz);
+        label.position.set(cx, cy + h/2 + 0.08, cz);
         truckGroup.add(label);
       });
 
@@ -316,19 +343,20 @@ function generate3DPage(loadingDataJson, trucksDataJson, initialTruckIndex) {
       canvas.width = 256;
       canvas.height = 128;
       const ctx = canvas.getContext('2d');
-      ctx.fillStyle = 'rgba(0,0,0,0.6)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.font = 'bold 28px Arial';
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.roundRect ? ctx.roundRect(0, 0, canvas.width, canvas.height, 12) : ctx.rect(0, 0, canvas.width, canvas.height);
+      ctx.fill();
+      ctx.font = 'bold 26px Arial';
       ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       let displayText = text;
-      if (displayText.length > 20) displayText = displayText.substring(0, 18) + '…';
+      if (displayText.length > 18) displayText = displayText.substring(0, 16) + '…';
       ctx.fillText(displayText, canvas.width/2, canvas.height/2);
       const texture = new THREE.CanvasTexture(canvas);
       const material = new THREE.SpriteMaterial({ map: texture, depthTest: false, depthWrite: false });
       const sprite = new THREE.Sprite(material);
-      sprite.scale.set(0.6, 0.3, 1);
+      sprite.scale.set(0.8, 0.4, 1);
       return sprite;
     }
 
@@ -354,10 +382,8 @@ function generate3DPage(loadingDataJson, trucksDataJson, initialTruckIndex) {
       if (intersects.length > 0) {
         const hit = intersects[0].object;
         if (hit.userData && hit.userData.name) {
-          const w = hit.geometry.parameters ? hit.geometry.parameters.width.toFixed(2) : '?';
-          const h = hit.geometry.parameters ? hit.geometry.parameters.height.toFixed(2) : '?';
-          const d = hit.geometry.parameters ? hit.geometry.parameters.depth.toFixed(2) : '?';
-          alert('Предмет: ' + hit.userData.name + '\\nРазмеры: ' + w + '×' + h + '×' + d + ' м');
+          const data = hit.userData;
+          alert('Предмет: ' + data.name + '\\nКатегория: ' + (data.category || '—') + '\\nВес: ' + (data.weight || '?').toFixed(1) + ' кг');
         }
       }
     }
@@ -372,7 +398,7 @@ function generate3DPage(loadingDataJson, trucksDataJson, initialTruckIndex) {
       if (intersects.length > 0) {
         const hit = intersects[0].object;
         if (hit.userData && hit.userData.name) {
-          tooltip.textContent = hit.userData.name;
+          tooltip.textContent = hit.userData.name + (hit.userData.category ? ' (' + hit.userData.category + ')' : '');
           tooltip.style.display = 'block';
           tooltip.style.left = (event.clientX + 10) + 'px';
           tooltip.style.top = (event.clientY - 10) + 'px';
