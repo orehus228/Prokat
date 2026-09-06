@@ -1,6 +1,7 @@
 // components/order/render.js
 import { getState, setStateKey, saveState } from '../../core/state.js';
-import { getStockValue, getItemProps, getCommonCases } from '../../data/editor-data.js';
+import { inventoryRepo } from '../../repositories/InventoryRepository.js';
+import { orderRepo } from '../../repositories/OrderRepository.js';
 import {
   getOrderPacking,
   getIndividualCaseValues,
@@ -12,8 +13,6 @@ import {
   setNote,
   getOrderInstances,
   getOrderSubrent,
-  removeSubrentItem,
-  updateSubrentItem,
 } from '../../services/order-data.js';
 import { getInstancesByPath, getInstanceStats } from '../../services/instance-service.js';
 import * as calc from '../../services/calculations.js';
@@ -200,13 +199,9 @@ export function renderOrderCategory(catKey, filterQuery = '') {
 }
 
 // ============================================================
-// БЛОК СУБАРЕНДЫ (ИСПРАВЛЕННАЯ ВЕРСИЯ)
+// БЛОК СУБАРЕНДЫ
 // ============================================================
 
-/**
- * Отрисовывает блок субаренды в контейнере.
- * @param {HTMLElement} container - контейнер для вставки
- */
 function renderSubrentBlock(container) {
   const subrentItems = getOrderSubrent();
   if (!Array.isArray(subrentItems) || subrentItems.length === 0) return;
@@ -258,11 +253,6 @@ function renderSubrentBlock(container) {
   container.prepend(block);
 }
 
-/**
- * Форматирует информацию о субаренде для отображения.
- * @param {object} item - объект субаренды
- * @returns {string} HTML-строка с информацией
- */
 function subrentToCaseInfo(item) {
   const parts = [];
   if (item.qty) parts.push(`${item.qty} шт`);
@@ -305,15 +295,15 @@ function buildCategoryHTML(data, path, level) {
 }
 
 // ============================================================
-// ПОСТРОЕНИЕ СТРОКИ ПОЗИЦИИ
+// ПОСТРОЕНИЕ СТРОКИ ПОЗИЦИИ (использует репозитории)
 // ============================================================
 
 export function buildItemRow(fullPath, level) {
   const state = getState();
-  const sq = parseInt(getStockValue(fullPath)) || 0;
+  const sq = inventoryRepo.getStock(fullPath) || 0;
   const hasDesc = !!(state.specs && state.specs[fullPath]);
   const hasLink = state.links[fullPath] && state.links[fullPath].length > 0;
-  const props = calc.getItemPropsByPath(fullPath);
+  const props = inventoryRepo.getProps(fullPath);
   
   const hasIndividualCases = props.individualCases && props.individualCases.length > 0;
   const hasCommonCases = props.allowCommon;
@@ -323,12 +313,12 @@ export function buildItemRow(fullPath, level) {
   const isMulti = mode.enabled && hasIndividualCases && props.individualCases.length > 1 && 
                   mode.multiSelected && mode.multiSelected.some(v => v === true);
   
-  const packing = getOrderPacking(fullPath);
+  const packing = orderRepo.getOrderPacking(fullPath);
   const hasCommonPacking = packing.length > 0;
-  const individualVals = getIndividualCaseValues(fullPath);
+  const individualVals = orderRepo.getIndividualCaseValues(fullPath);
   const options = calc.getCaseOptions(fullPath);
 
-  const totalQty = parseInt(getTotalQty(fullPath)) || 0;
+  const totalQty = orderRepo.getTotalQty(fullPath) || 0;
 
   const overstock = totalQty > sq;
   const isInfoOpen = infoBlocksOpen[fullPath] || false;
@@ -341,7 +331,7 @@ export function buildItemRow(fullPath, level) {
 
   let caseNameDisplay = '';
   if (hasCommonPacking) {
-    const commonCases = getCommonCases();
+    const commonCases = inventoryRepo.getCommonCases();
     const caseDetails = packing.map(p => {
       const c = commonCases.find(c => c.id === p.caseId);
       const name = c ? c.name : 'удалённый';
@@ -483,10 +473,10 @@ export function buildItemRow(fullPath, level) {
 
 function renderQtyControls(path) {
   const mode = calc.getCaseMode(path);
-  const individualVals = getIndividualCaseValues(path);
-  const packing = getOrderPacking(path);
+  const individualVals = orderRepo.getIndividualCaseValues(path);
+  const packing = orderRepo.getOrderPacking(path);
   const options = calc.getCaseOptions(path);
-  const totalQty = parseInt(getTotalQty(path)) || 0;
+  const totalQty = orderRepo.getTotalQty(path) || 0;
   const isMulti = mode.enabled && options.length > 1 && mode.multiSelected && mode.multiSelected.some(v => v === true);
 
   if (!mode.enabled || (!packing.length && individualVals.length === 0 && !isMulti)) {
@@ -523,19 +513,19 @@ function renderQtyControls(path) {
 }
 
 // ============================================================
-// ОБНОВЛЕНИЕ СТРОКИ
+// ОБНОВЛЕНИЕ СТРОКИ (использует репозитории)
 // ============================================================
 
 export function updateRowOrder(path, rebuildChildren = true) {
   const row = document.querySelector(`#categoryContents .row[data-path="${path}"]`);
   if (!row) return;
-  const sq = parseInt(getStockValue(path)) || 0;
+  const sq = inventoryRepo.getStock(path) || 0;
   const mode = calc.getCaseMode(path);
   const isMulti = mode.enabled && mode.multiSelected && mode.multiSelected.some(v => v === true);
-  const packing = getOrderPacking(path);
+  const packing = orderRepo.getOrderPacking(path);
   const hasCommonPacking = packing.length > 0;
-  const individualVals = getIndividualCaseValues(path);
-  const totalQty = parseInt(getTotalQty(path)) || 0;
+  const individualVals = orderRepo.getIndividualCaseValues(path);
+  const totalQty = orderRepo.getTotalQty(path) || 0;
 
   const isAdded = totalQty > 0;
   const isOverstock = totalQty > sq;
@@ -552,7 +542,7 @@ export function updateRowOrder(path, rebuildChildren = true) {
     const singleCases = qtyControls.querySelector('.single-cases-input');
     if (singlePieces && singleCases) {
       const opt = calc.getSelectedOption(path);
-      const pieces = getIndividualCaseValues(path)[0] || 0;
+      const pieces = orderRepo.getIndividualCaseValues(path)[0] || 0;
       singlePieces.value = pieces;
       const casesCount = opt && opt.qty > 0 ? Math.ceil(pieces / opt.qty) : 0;
       singleCases.value = casesCount;
@@ -569,7 +559,7 @@ export function updateRowOrder(path, rebuildChildren = true) {
     if (totalQty > 0 || sq > 0) {
       info = `<span><strong>${totalQty}</strong> шт добавлено</span>
               <span>в наличии: <strong>${sq}</strong></span>`;
-      const props = calc.getItemPropsByPath(path);
+      const props = inventoryRepo.getProps(path);
       if (props.weight && !hasCommonPacking) {
         const data = calc.getCalculationData(path);
         const weight = calc.calcItemWeight(path, totalQty, data.mode, data.packing, data.individualVals, data.extra);
@@ -581,7 +571,7 @@ export function updateRowOrder(path, rebuildChildren = true) {
         if (volume > 0) info += `<span>${formatVolume(volume)}</span>`;
       }
       if (packing.length > 0) {
-        const commonCases = getCommonCases();
+        const commonCases = inventoryRepo.getCommonCases();
         const caseDetails = packing.map(p => {
           const c = commonCases.find(c => c.id === p.caseId);
           const name = c ? c.name : 'удалённый';
@@ -625,7 +615,7 @@ export function updateRowOrder(path, rebuildChildren = true) {
     const isOn = mode.enabled || false;
     const isMulti = mode.enabled && mode.multiSelected && mode.multiSelected.some(v => v === true);
     const hasAlt = !!mode.alt;
-    const packing = getOrderPacking(path);
+    const packing = orderRepo.getOrderPacking(path);
     const hasCommonPacking = packing.length > 0;
     let statusText = 'Кофры';
     let statusClass = '';
@@ -670,7 +660,7 @@ export function refreshRow(path) {
 }
 
 // ============================================================
-// ОБНОВЛЕНИЕ ИТОГОВ
+// ОБНОВЛЕНИЕ ИТОГОВ (использует репозитории)
 // ============================================================
 
 export function updateCategoryTotalsOrder(catKey) {
@@ -733,7 +723,7 @@ export function updateTotalsOrder() {
 
   itemsMap.forEach((itemData, path) => {
     const { qty, packing, extra, individualVals, mode } = itemData;
-    const props = calc.getItemPropsByPath(path);
+    const props = inventoryRepo.getProps(path);
     const unitWeight = props.weight || 0;
 
     const weightFull = calc.calcItemWeight(path, qty, mode, packing, individualVals, extra);
@@ -850,7 +840,7 @@ export function updateTotalsOrder() {
     });
 
     let caseListHtml = '';
-    const commonCases = getCommonCases();
+    const commonCases = inventoryRepo.getCommonCases();
     usedCaseIds.forEach(id => {
       const c = commonCases.find(c => c.id === id);
       if (c) {
@@ -906,7 +896,7 @@ function buildCategoryItemList(cat, itemsMap, orderKeys) {
     const inCommon = packing.length > 0 ? ' (общий кофр)' : '';
     let caseName = '';
     if (packing.length > 0) {
-      const commonCases = getCommonCases();
+      const commonCases = inventoryRepo.getCommonCases();
       const names = packing.map(p => {
         const c = commonCases.find(c => c.id === p.caseId);
         return c ? c.name : 'удалённый';
@@ -927,9 +917,9 @@ function calculateTotals(items) {
   let totalQty = 0, totalWeight = 0, totalVolume = 0, totalCases = 0;
   items.forEach(({ path, qty }) => {
     totalQty += qty;
-    const packing = getOrderPacking(path);
-    const individualVals = getIndividualCaseValues(path);
-    const extra = getOrderExtra(path);
+    const packing = orderRepo.getOrderPacking(path);
+    const individualVals = orderRepo.getIndividualCaseValues(path);
+    const extra = orderRepo.getOrderExtra(path);
     const mode = calc.getCaseMode(path);
     totalWeight += calc.calcItemWeight(path, qty, mode, packing, individualVals, extra);
     totalVolume += calc.calcItemVolume(path, qty, mode, packing, individualVals, extra);
@@ -975,7 +965,7 @@ export function toggleInfoOrder(btn) {
   }
   infoBlock = document.createElement('div');
   infoBlock.className = 'row-info';
-  const props = calc.getItemPropsByPath(path);
+  const props = inventoryRepo.getProps(path);
   const mode = calc.getCaseMode(path);
   infoBlock.innerHTML = buildInfoHtml(path, props, mode);
   row.appendChild(infoBlock);
@@ -998,7 +988,7 @@ export async function openNoteEditorOrder(btn) {
   const current = state.notes[path] || '';
   const newNote = await showPrompt('Редактировать заметку', 'Заметка:', current);
   if (newNote === null) return;
-  setNote(path, newNote);
+  orderRepo.setNote(path, newNote);
   updateRowOrder(path);
   showToast('Заметка сохранена', 'neutral');
 }
