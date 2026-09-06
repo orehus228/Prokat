@@ -11,12 +11,10 @@ export function open3DView(loadingResult, trucksData, truckIndex = 0) {
 
   if (!loadingResult || !loadingResult.trucks || loadingResult.trucks.length === 0) {
     alert('Нет данных для 3D-отображения (loadingResult пуст)');
-    console.warn('[3D] loadingResult пуст или нет trucks', loadingResult);
     return;
   }
   if (!trucksData || trucksData.length === 0) {
     alert('Нет данных о грузовиках');
-    console.warn('[3D] trucksData пуст', trucksData);
     return;
   }
 
@@ -25,10 +23,21 @@ export function open3DView(loadingResult, trucksData, truckIndex = 0) {
     alert(`Грузовик с индексом ${truckIndex} не найден`);
     return;
   }
-  console.log('[3D] Первый грузовик:', firstTruck);
-  console.log('[3D] Количество предметов в нём:', firstTruck.items ? firstTruck.items.length : 0);
 
-  const htmlContent = generate3DPage(loadingResult, trucksData, truckIndex);
+  // Если предметов нет, показываем сообщение и не открываем 3D
+  const items = firstTruck.items || [];
+  if (items.length === 0) {
+    alert('В этом грузовике нет предметов для визуализации');
+    return;
+  }
+
+  // Безопасно преобразуем данные в JSON
+  const loadingDataJson = JSON.stringify(loadingResult);
+  const trucksDataJson = JSON.stringify(trucksData);
+  const initialIndex = truckIndex;
+
+  // Создаём HTML-страницу
+  const htmlContent = generate3DPage(loadingDataJson, trucksDataJson, initialIndex);
   const win = window.open('', '_blank', 'width=1200,height=800,scrollbars=yes');
   if (!win) {
     alert('Не удалось открыть окно. Разрешите всплывающие окна для этого сайта.');
@@ -40,27 +49,9 @@ export function open3DView(loadingResult, trucksData, truckIndex = 0) {
 }
 
 /**
- * Экранирует строку для вставки в JavaScript (внутри кавычек).
+ * Генерирует полный HTML для 3D-страницы, получая данные уже в виде JSON-строк.
  */
-function escapeJSString(str) {
-  if (typeof str !== 'string') return str;
-  return str.replace(/\\/g, '\\\\')
-            .replace(/"/g, '\\"')
-            .replace(/'/g, "\\'")
-            .replace(/\n/g, '\\n')
-            .replace(/\r/g, '\\r')
-            .replace(/\t/g, '\\t')
-            .replace(/\f/g, '\\f');
-}
-
-function generate3DPage(loadingResult, trucksData, initialTruckIndex) {
-  const trucks = loadingResult.trucks;
-  const totalTrucks = trucks.length;
-
-  // Преобразуем данные в JSON-строки с экранированием кавычек
-  const loadingDataStr = JSON.stringify(loadingResult).replace(/"/g, '&quot;');
-  const trucksDataStr = JSON.stringify(trucksData).replace(/"/g, '&quot;');
-
+function generate3DPage(loadingDataJson, trucksDataJson, initialTruckIndex) {
   return `<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -166,9 +157,9 @@ function generate3DPage(loadingResult, trucksData, initialTruckIndex) {
   </div>
 
   <div id="controls">
-    <button id="prevTruck" ${totalTrucks <= 1 ? 'disabled' : ''}>◀</button>
-    <span class="truck-name" id="truckIndexDisplay">${initialTruckIndex + 1} / ${totalTrucks}</span>
-    <button id="nextTruck" ${totalTrucks <= 1 ? 'disabled' : ''}>▶</button>
+    <button id="prevTruck">◀</button>
+    <span class="truck-name" id="truckIndexDisplay"></span>
+    <button id="nextTruck">▶</button>
   </div>
 
   <div id="info">
@@ -184,9 +175,9 @@ function generate3DPage(loadingResult, trucksData, initialTruckIndex) {
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"><\/script>
 
   <script>
-    // Передаём данные в глобальную переменную (экранируем кавычки)
-    const LOADING_DATA = JSON.parse('${loadingDataStr}');
-    const TRUCKS_DATA = JSON.parse('${trucksDataStr}');
+    // Безопасно парсим данные из переданных строк
+    const LOADING_DATA = JSON.parse('${loadingDataJson.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}');
+    const TRUCKS_DATA = JSON.parse('${trucksDataJson.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}');
     let currentTruckIndex = ${initialTruckIndex};
     const trucks = LOADING_DATA.trucks;
     let scene, camera, renderer, controls;
@@ -199,7 +190,6 @@ function generate3DPage(loadingResult, trucksData, initialTruckIndex) {
     console.log('[3D] TRUCKS_DATA:', TRUCKS_DATA);
     console.log('[3D] trucks:', trucks);
 
-    // Инициализация сцены
     function initScene() {
       scene = new THREE.Scene();
       scene.background = new THREE.Color(0x1a1a1a);
@@ -224,7 +214,6 @@ function generate3DPage(loadingResult, trucksData, initialTruckIndex) {
       controls.target.set(0, 0, 0);
       controls.update();
 
-      // Освещение
       const ambientLight = new THREE.AmbientLight(0x404060);
       scene.add(ambientLight);
 
@@ -248,7 +237,6 @@ function generate3DPage(loadingResult, trucksData, initialTruckIndex) {
       window.addEventListener('resize', onWindowResize);
     }
 
-    // Построение грузовика и предметов
     function buildTruck(truckIndex) {
       if (truckGroup) {
         scene.remove(truckGroup);
@@ -260,23 +248,19 @@ function generate3DPage(loadingResult, trucksData, initialTruckIndex) {
         console.warn('[3D] Нет данных для грузовика', truckIndex);
         return;
       }
-      console.log('[3D] Строим грузовик', truckIndex, truckData);
 
-      // Получаем размеры грузовика из TRUCKS_DATA (в см), переводим в метры
       const truckInfo = TRUCKS_DATA[truckIndex] || {};
       const truckW = (truckInfo.width || 200) / 100;
       const truckH = (truckInfo.height || 200) / 100;
       const truckD = (truckInfo.depth || 400) / 100;
-      console.log('[3D] Размеры грузовика (м):', { truckW, truckH, truckD });
 
       truckGroup = new THREE.Group();
 
-      // --- 1. Полупрозрачный параллелепипед грузовика ---
+      // Корпус грузовика (полупрозрачный)
       const boxMat = new THREE.MeshPhongMaterial({
         color: 0x3a5a8a,
         transparent: true,
         opacity: 0.15,
-        wireframe: false,
         side: THREE.DoubleSide,
         depthWrite: false,
       });
@@ -292,14 +276,12 @@ function generate3DPage(loadingResult, trucksData, initialTruckIndex) {
       line.position.copy(boxMesh.position);
       truckGroup.add(line);
 
-      // --- 2. Предметы ---
+      // Предметы
       const items = truckData.items || [];
-      console.log('[3D] Предметов для отрисовки:', items.length);
       const colors = [0xff6b6b, 0x4ecdc4, 0x45b7d1, 0xf9a825, 0xab47bc, 0x66bb6a, 0xffa726, 0x42a5f5, 0xef5350, 0x26a69a];
       let colorIdx = 0;
 
       items.forEach((item, idx) => {
-        // Размеры в см -> м, минимальный размер 0.05 м
         let w = (item.w || 0.01) / 100;
         let h = (item.h || 0.01) / 100;
         let d = (item.d || 0.01) / 100;
@@ -307,7 +289,6 @@ function generate3DPage(loadingResult, trucksData, initialTruckIndex) {
         if (h < 0.05) h = 0.05;
         if (d < 0.05) d = 0.05;
 
-        // Координаты уже в сантиметрах, переводим в метры
         const cx = ((item.x || 0) + w/2);
         const cy = ((item.y || 0) + h/2);
         const cz = ((item.z || 0) + d/2);
@@ -330,19 +311,16 @@ function generate3DPage(loadingResult, trucksData, initialTruckIndex) {
         edgeLine.position.copy(mesh.position);
         truckGroup.add(edgeLine);
 
-        // Подпись (спрайт)
+        // Подпись
         const label = createTextSprite(item.name || '');
         label.position.set(cx, cy + h/2 + 0.15, cz);
         truckGroup.add(label);
       });
 
       scene.add(truckGroup);
-
-      // Обновляем информацию
       updateInfo(truckIndex);
     }
 
-    // Создание текстового спрайта
     function createTextSprite(text) {
       const canvas = document.createElement('canvas');
       canvas.width = 256;
@@ -357,7 +335,6 @@ function generate3DPage(loadingResult, trucksData, initialTruckIndex) {
       let displayText = text;
       if (displayText.length > 20) displayText = displayText.substring(0, 18) + '…';
       ctx.fillText(displayText, canvas.width/2, canvas.height/2);
-
       const texture = new THREE.CanvasTexture(canvas);
       const material = new THREE.SpriteMaterial({ map: texture, depthTest: false, depthWrite: false });
       const sprite = new THREE.Sprite(material);
@@ -382,7 +359,6 @@ function generate3DPage(loadingResult, trucksData, initialTruckIndex) {
       const rect = renderer.domElement.getBoundingClientRect();
       mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
       mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-
       raycaster.setFromCamera(mouse, camera);
       const intersects = raycaster.intersectObjects(truckGroup.children, true);
       if (intersects.length > 0) {
@@ -391,7 +367,7 @@ function generate3DPage(loadingResult, trucksData, initialTruckIndex) {
           const w = hit.geometry.parameters ? hit.geometry.parameters.width.toFixed(2) : '?';
           const h = hit.geometry.parameters ? hit.geometry.parameters.height.toFixed(2) : '?';
           const d = hit.geometry.parameters ? hit.geometry.parameters.depth.toFixed(2) : '?';
-          alert('Предмет: ' + hit.userData.name + '\nРазмеры: ' + w + '×' + h + '×' + d + ' м');
+          alert('Предмет: ' + hit.userData.name + '\\nРазмеры: ' + w + '×' + h + '×' + d + ' м');
         }
       }
     }
@@ -400,7 +376,6 @@ function generate3DPage(loadingResult, trucksData, initialTruckIndex) {
       const rect = renderer.domElement.getBoundingClientRect();
       mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
       mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-
       raycaster.setFromCamera(mouse, camera);
       const intersects = raycaster.intersectObjects(truckGroup.children, true);
       let found = false;
@@ -438,7 +413,6 @@ function generate3DPage(loadingResult, trucksData, initialTruckIndex) {
     }
 
     window.onload = function() {
-      console.log('[3D] window.onload');
       initScene();
       buildTruck(currentTruckIndex);
       animate();
